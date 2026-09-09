@@ -27,7 +27,7 @@ struct AllDayRowView: View {
 
     var body: some View {
         if !isEmpty {
-            let cap = Int(Tokens.Size.allDayMaxRows)
+            let cap = Tokens.Size.allDayMaxRows
             let rows = min(maxRows, cap)
             let height = CGFloat(rows) * Tokens.Size.allDayRowHeight
                 + CGFloat(max(rows - 1, 0)) * Tokens.Size.allDayRowGap

@@ -109,3 +109,37 @@ struct RailView: View {
         }
     }
 }
+
+
+// MARK: - Cursors (interactions.md §8)
+
+import AppKit
+
+/// Pushes an `NSCursor` while the pointer is inside the view.
+///
+/// `NSCursor.push()`/`pop()` are a stack, so every push needs exactly one pop —
+/// tracked here rather than at each call site, because a missed pop leaves the
+/// whole app showing a crosshair.
+private struct CursorOnHover: ViewModifier {
+    let cursor: NSCursor
+    @State private var isPushed = false
+
+    func body(content: Content) -> some View {
+        content.onHover { inside in
+            if inside {
+                guard !isPushed else { return }
+                cursor.push()
+                isPushed = true
+            } else if isPushed {
+                NSCursor.pop()
+                isPushed = false
+            }
+        }
+    }
+}
+
+extension View {
+    func cursor(_ cursor: NSCursor) -> some View {
+        modifier(CursorOnHover(cursor: cursor))
+    }
+}

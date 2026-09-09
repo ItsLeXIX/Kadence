@@ -25,7 +25,7 @@ struct TypeStyle: Equatable, Sendable {
         size: CGFloat,
         weight: String,
         textStyle: String,
-        lineLimit: CGFloat,
+        lineLimit: Int,
         tracking: CGFloat = 0,
         textCase: String? = nil,
         monospacedDigit: Bool = false
@@ -33,8 +33,8 @@ struct TypeStyle: Equatable, Sendable {
         self.size = size
         self.weight = TypeStyle.weight(named: weight)
         self.textStyle = TypeStyle.textStyle(named: textStyle)
-        let limit = Int(lineLimit)
-        self.lineLimit = limit > 0 ? limit : nil
+        // typography.*.lineLimit == 0 means "no limit"; SwiftUI wants nil.
+        self.lineLimit = lineLimit > 0 ? lineLimit : nil
         self.tracking = tracking
         self.isUppercased = (textCase == "uppercase")
         self.monospacedDigit = monospacedDigit

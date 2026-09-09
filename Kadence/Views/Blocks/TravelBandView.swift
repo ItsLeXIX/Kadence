@@ -28,6 +28,7 @@ struct TravelBandView: View {
         .frame(height: renderedHeight)
         // Not focusable and not independently selectable: the parent event owns
         // both. VoiceOver folds this into the parent's label.
+        .help("Leave \(BlockFormatters.time.string(from: fixture.departAt)) · \(Int(fixture.duration / 60)) min \(fixture.mode.label)")
         .accessibilityHidden(true)
         .allowsHitTesting(false)
     }

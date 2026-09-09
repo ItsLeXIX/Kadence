@@ -64,43 +64,53 @@ struct TimedCanvasView: View {
             dayStart: Calendar.current.startOfDay(for: days.first ?? now),
             hourHeight: hourHeight)
 
-        HStack(alignment: .top, spacing: 0) {
-            ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .topLeading) {
+            // components.md §7 — background windows are CANVAS, not content, and
+            // "span the full column width **including the time gutter**, drawn
+            // below the hour lines and below every block". They therefore cannot
+            // live inside DayColumnView, which starts after the gutter; they are
+            // one backdrop behind the whole grid (DEVIATIONS.md A1 / review D-3).
+            windowsBackdrop(columnWidth: columnWidth)
+
+            HStack(alignment: .top, spacing: 0) {
                 TimeGutterView(
                     geometry: geometry,
                     now: now,
                     showsNow: days.contains { Calendar.current.isDate($0, inSameDayAs: now) })
-                // The window label lives in the gutter, once, at the top edge.
-                if let first = days.first {
-                    WindowLabelsLayer(
-                        windows: fixtures.windows,
-                        day: first,
-                        geometry: TimeGeometry(dayStart: first, hourHeight: hourHeight))
-                }
-            }
-            .frame(width: Tokens.Size.timeGutterWidth)
-            .id(0)
+                .frame(width: Tokens.Size.timeGutterWidth)
+                .id(0)
 
-            ForEach(Array(days.enumerated()), id: \.element) { index, day in
-                let dayGeometry = TimeGeometry(
-                    dayStart: Calendar.current.startOfDay(for: day),
-                    hourHeight: hourHeight)
-                DayColumnView(
-                    day: day,
-                    events: events(on: day),
-                    fixtures: fixtures,
-                    geometry: dayGeometry,
-                    now: now,
-                    store: store)
-                    .frame(width: columnWidth)
-                    .background(isWeekend(day) ? Tokens.Color.Surface.canvasAlt : Tokens.Color.Surface.canvas)
-                    .overlay(alignment: .leading) {
-                        if index > 0 || isWeek {
-                            Rectangle()
-                                .fill(Tokens.Color.Separator.dayDivider)
-                                .frame(width: Tokens.Size.hairline)
+                ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                    let dayGeometry = TimeGeometry(
+                        dayStart: Calendar.current.startOfDay(for: day),
+                        hourHeight: hourHeight)
+                    DayColumnView(
+                        day: day,
+                        events: events(on: day),
+                        fixtures: fixtures,
+                        geometry: dayGeometry,
+                        now: now,
+                        // §7 — the window label lives in the LEADING day column,
+                        // never the gutter. Only the first column draws it.
+                        showsWindowLabels: index == 0,
+                        store: store)
+                        .frame(width: columnWidth)
+                        // Weekend tint has to be behind the blocks but IN FRONT of
+                        // nothing — the window backdrop is below it, so the tint is
+                        // drawn as a translucent wash rather than an opaque fill,
+                        // otherwise it would hide the protected shading underneath.
+                        .background(
+                            isWeekend(day)
+                                ? Tokens.Color.Surface.canvasAlt.opacity(0.6)
+                                : Color.clear)
+                        .overlay(alignment: .leading) {
+                            if index > 0 || isWeek {
+                                Rectangle()
+                                    .fill(Tokens.Color.Separator.dayDivider)
+                                    .frame(width: Tokens.Size.hairline)
+                            }
                         }
-                    }
+                }
             }
         }
         // Anchors for the initial scroll position.
@@ -112,6 +122,42 @@ struct TimedCanvasView: View {
                     .id(hour)
             }
         }
+    }
+
+    /// One continuous canvas layer behind gutter + every column, so a protected
+    /// or low-energy window reads as a single band across the whole grid and its
+    /// edges stay visible when a column is full of blocks.
+    ///
+    /// The gutter takes the leading day's windows: the gutter is shared by all
+    /// seven columns, and in practice these windows repeat daily (sleep, the
+    /// post-lunch dip), so the leading day is the honest representative. Each
+    /// column still draws its own, so a window that does not apply on Saturday
+    /// simply is not shaded there.
+    @ViewBuilder
+    private func windowsBackdrop(columnWidth: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            if let first = days.first {
+                BackgroundWindowsLayer(
+                    windows: fixtures.windows,
+                    day: first,
+                    geometry: TimeGeometry(
+                        dayStart: Calendar.current.startOfDay(for: first),
+                        hourHeight: hourHeight))
+                    .frame(width: Tokens.Size.timeGutterWidth)
+            }
+            ForEach(days, id: \.self) { day in
+                BackgroundWindowsLayer(
+                    windows: fixtures.windows,
+                    day: day,
+                    geometry: TimeGeometry(
+                        dayStart: Calendar.current.startOfDay(for: day),
+                        hourHeight: hourHeight))
+                    .frame(width: columnWidth)
+            }
+        }
+        .frame(height: hourHeight * 24, alignment: .top)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private func events(on day: Date) -> [Event] {

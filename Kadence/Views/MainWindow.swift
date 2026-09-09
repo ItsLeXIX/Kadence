@@ -12,6 +12,7 @@ import Combine
 
 struct MainWindow: View {
     @Environment(CalendarState.self) private var state
+    @Environment(UndoStack.self) private var undoStack
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -20,7 +21,7 @@ struct MainWindow: View {
     @State private var didSeed = false
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
-    private var store: EventStore { EventStore(context: context) }
+    private var store: EventStore { EventStore(context: context, undo: undoStack) }
 
     var body: some View {
         GeometryReader { proxy in
@@ -40,7 +41,9 @@ struct MainWindow: View {
             } detail: {
                 canvasAndInspector(windowWidth: width)
             }
-            .navigationTitle(state.toolbarTitle)
+            // No .navigationTitle: layouts.md §1.2 puts the range title in the
+            // toolbar once, at .principal. Setting it here rendered it a second
+            // time in the leading group (review D-1).
             .toolbar { toolbarContent }
             .onChange(of: width, initial: true) { _, newWidth in
                 applyCollapseOrder(width: newWidth)

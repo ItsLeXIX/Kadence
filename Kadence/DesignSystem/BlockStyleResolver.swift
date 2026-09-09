@@ -18,6 +18,10 @@ import SwiftUI
 ///   - presentation: transient states, composed in the order of §6.
 ///   - source: the palette slot; hue means source and nothing else (§1).
 ///   - renderedHeight: points on screen, which drives the density tier (§3.3).
+///   - visibleWidth: the block's width minus whatever covers it in a cascade.
+///     Below `size.blockCascadeMinReadableWidth` the content set drops to
+///     glyph-only, because a clipped title reads as damage, not as occlusion
+///     (§3.3). Defaults to `.infinity`, i.e. "nothing is covering this".
 ///   - glyphOverride: `.fixedTimed` covers both lectures and manual events,
 ///     which differ only by symbol; the call site supplies it (§2.1).
 ///   - increaseContrast: see GAPS.md G-003 — §11's contrast rules change border
@@ -31,6 +35,7 @@ func resolveBlockStyle(
     presentation: Presentation,
     source: SourceKey,
     renderedHeight: CGFloat,
+    visibleWidth: CGFloat = .infinity,
     glyphOverride: String? = nil,
     increaseContrast: Bool = false
 ) -> BlockStyle {
@@ -133,6 +138,11 @@ func resolveBlockStyle(
             glyphColor: Tokens.Color.Text.onSolid,
             cornerRadius: Tokens.Radius.allDayPill)
     }
+
+    // §3.3 — the content set: height ladder, overridden by visible width.
+    style.contentTier = visibleWidth < Tokens.Size.blockCascadeMinReadableWidth
+        ? .glyphOnly
+        : DensityTier(renderedHeight: renderedHeight)
 
     // §3.1 — compact radius for very short blocks.
     if renderedHeight < 16 && kind != .deadlineAllDay && kind != .examAllDay {

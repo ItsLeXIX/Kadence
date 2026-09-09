@@ -10,8 +10,22 @@ import SwiftUI
 
 struct KadenceCommands: Commands {
     var calendar: CalendarState
+    var undo: UndoStack
 
     var body: some Commands {
+        // interactions.md §9 — each action is named, so the menu reads
+        // "Undo Move Event". Replaces AppKit's stock pair, which is driven by an
+        // UndoManager this app deliberately does not use (see UndoStack).
+        CommandGroup(replacing: .undoRedo) {
+            Button(undo.undoMenuTitle) { undo.undo() }
+                .keyboardShortcut("z", modifiers: .command)
+                .disabled(!undo.canUndo)
+
+            Button(undo.redoMenuTitle) { undo.redo() }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+                .disabled(!undo.canRedo)
+        }
+
         CommandGroup(after: .newItem) {
             Button("New Event") {
                 let start = calendar.timeCursor ?? Date()

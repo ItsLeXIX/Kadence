@@ -55,12 +55,24 @@ struct BackgroundWindowsLayer: View {
         return windows
             .filter { $0.kind == kind }
             .flatMap { window in
-                window.spans(on: day).compactMap { span -> Span? in
-                    if kind == .lowEnergy {
-                        let covered = protectedSpans.contains { span.start >= $0.0 && span.end <= $0.1 }
-                        if covered { return nil }
+                window.spans(on: day).flatMap { span -> [Span] in
+                    guard kind == .lowEnergy else {
+                        return [Span(start: span.start, end: span.end, label: window.label)]
                     }
-                    return Span(start: span.start, end: span.end, label: window.label)
+                    // §7: "Overlapping windows: protected wins. Never render both
+                    // treatments in the same region." Subtract every protected
+                    // span, which can split one low-energy span into two.
+                    var remaining = [(span.start, span.end)]
+                    for blocker in protectedSpans {
+                        remaining = remaining.flatMap { piece -> [(Date, Date)] in
+                            guard piece.0 < blocker.1 && blocker.0 < piece.1 else { return [piece] }
+                            var out: [(Date, Date)] = []
+                            if piece.0 < blocker.0 { out.append((piece.0, blocker.0)) }
+                            if blocker.1 < piece.1 { out.append((blocker.1, piece.1)) }
+                            return out
+                        }
+                    }
+                    return remaining.map { Span(start: $0.0, end: $0.1, label: window.label) }
                 }
             }
     }
@@ -102,22 +114,31 @@ struct BackgroundWindowsLayer: View {
     }
 }
 
-/// The window label, drawn once at the window's top edge inside the gutter.
+/// The window label, drawn once at each window's top edge.
+///
+/// components.md §7: in the **leading day column, never the gutter**. The first
+/// draft put it in the gutter and the 2026-09-09 screenshot showed both
+/// collisions that causes — a low-energy label overprinting `13:00` and a
+/// protected label overprinting `00:00`. The gutter now belongs to hour labels
+/// and the now time, and nothing else.
 struct WindowLabelsLayer: View {
     let windows: [TimeWindowFixture]
     let day: Date
     let geometry: TimeGeometry
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .topLeading) {
             ForEach(labels, id: \.id) { label in
                 Text(label.text)
                     .typeStyle(.windowLabel)
                     .foregroundStyle(Tokens.Color.Window.label)
-                    .padding(.trailing, Tokens.Spacing.md)
+                    .padding(.leading, Tokens.Spacing.xs)
                     .offset(y: label.y + 1)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     private struct Label: Identifiable { let id = UUID(); let text: String; let y: CGFloat }
@@ -162,6 +183,7 @@ struct HourLinesLayer: View {
             }
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

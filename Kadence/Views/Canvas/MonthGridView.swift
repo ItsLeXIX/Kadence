@@ -97,7 +97,7 @@ struct MonthGridView: View {
         let timed = events
             .filter { !$0.isAllDay && calendar.isDate($0.start, inSameDayAs: day) }
             .sorted { $0.start < $1.start }
-        let maxRows = Int(Tokens.Size.monthCellMaxVisibleRows)
+        let maxRows = Tokens.Size.monthCellMaxVisibleRows
         let total = allDay.count + timed.count
 
         VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {

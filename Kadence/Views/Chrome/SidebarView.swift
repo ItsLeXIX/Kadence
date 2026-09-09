@@ -34,7 +34,8 @@ struct SidebarView: View {
             Section {
                 ForEach(MockData.sources) { source in
                     HStack(spacing: Tokens.Spacing.sm) {
-                        SourceSwatch(key: source.key, isOn: !state.hiddenSources.contains(source.key))
+                        SourceSwatch(key: source.key, symbol: source.symbol,
+                                     isOn: !state.hiddenSources.contains(source.key))
                         Text(source.name)
                             .typeStyle(.sidebarItem)
                             .foregroundStyle(Tokens.Color.Text.primary)
@@ -88,6 +89,9 @@ struct SidebarView: View {
 /// components.md §10.1 — the symbol is what makes the legend work without colour.
 struct SourceSwatch: View {
     let key: SourceKey
+    /// From `CalendarSource.symbol` — components.md §10.1. It belongs to the
+    /// source, never to the palette slot.
+    let symbol: String
     let isOn: Bool
 
     var body: some View {
@@ -98,8 +102,9 @@ struct SourceSwatch: View {
                     RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .strokeBorder(key.rail, lineWidth: 1)
                 }
-                Image(systemName: key.swatchSymbol)
+                Image(systemName: symbol)
                     .font(.system(size: 9))
+                    .symbolRenderingMode(.monochrome)
                     .foregroundStyle(isOn ? Tokens.Color.Text.onSolid : key.text)
             }
             .frame(width: 11, height: 11)

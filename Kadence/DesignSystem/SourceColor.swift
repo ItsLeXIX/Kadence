@@ -28,21 +28,6 @@ enum SourceKey: String, CaseIterable, Codable, Sendable, Identifiable {
         rawValue.prefix(1).uppercased() + rawValue.dropFirst()
     }
 
-    /// The sidebar swatch symbol. components.md §10.1: the symbol is what makes
-    /// the legend work without colour, so every slot needs a distinct one.
-    var swatchSymbol: String {
-        switch self {
-        case .blue: "building.columns"
-        case .teal: "graduationcap"
-        case .green: "repeat"
-        case .amber: "envelope"
-        case .orange: "flag"
-        case .pink: "person.2"
-        case .purple: "pencil.and.outline"
-        case .graphite: "calendar"
-        }
-    }
-
     var solid: Color {
         switch self {
         case .blue: Tokens.Color.Source.Blue.solid

@@ -101,10 +101,59 @@ struct TimeWindowFixture: Identifiable, Equatable, Sendable {
     }
 }
 
+/// What kind of thing a source is. Drives the swatch symbol by the normative
+/// table in components.md §10.1.
+///
+/// This vocabulary is deliberately disjoint from `BlockKind`: a kind glyph
+/// depicts the *activity*, a source symbol depicts the *origin* — the container,
+/// feed or party the data arrived from. The two appear together in the inspector
+/// title row (layouts.md §6), so no symbol may appear in both tables. Check
+/// components.md §2.1, §3.2 and §5 before adding a case here.
+enum CalendarSourceKind: String, CaseIterable, Codable, Sendable {
+    case universityTimetable
+    case coursework
+    case exams
+    case mail
+    case routine
+    case manual
+    case plannedStudy
+    case travel
+    case other
+    /// Not classified. A plain disc: "a source, unlabelled" — deliberately not a
+    /// `questionmark`, which would read as an error state for something that is
+    /// merely unlabelled.
+    case unknown
+
+    /// components.md §10.1, normative symbol table.
+    var symbol: String {
+        switch self {
+        case .universityTimetable: "tablecells.fill"
+        case .coursework: "tray.2.fill"
+        case .exams: "seal.fill"
+        case .mail: "envelope.fill"
+        case .routine: "rectangle.stack.fill"
+        case .manual: "person.fill"
+        case .plannedStudy: "sparkles"
+        case .travel: "map.fill"
+        case .other: "tag.fill"
+        case .unknown: "circle.fill"
+        }
+    }
+}
+
 /// A source as the sidebar sees it. Phase 1 has no connectors, so this is a
 /// static list; Phase 3 replaces it with real source records.
+///
+/// The palette slot (`key`) and the symbol are independent: slots are assigned in
+/// order as sources are added, so a symbol keyed to the hue would be meaningless.
+/// Two sources may share a symbol; they will never share a hue.
 struct CalendarSource: Identifiable, Equatable, Sendable {
     var id: String
     var name: String
     var key: SourceKey
+    var kind: CalendarSourceKind
+    /// Defaults from `kind`; user-overridable from Settings in a later phase.
+    var symbolOverride: String?
+
+    var symbol: String { symbolOverride ?? kind.symbol }
 }

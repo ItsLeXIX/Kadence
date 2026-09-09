@@ -15,6 +15,8 @@ struct DayColumnView: View {
     let fixtures: MockFixtures
     let geometry: TimeGeometry
     let now: Date
+    /// §7 — the window label is drawn once, in the leading day column.
+    var showsWindowLabels: Bool = false
     let store: EventStore
 
     @Environment(CalendarState.self) private var state
@@ -42,11 +44,19 @@ struct DayColumnView: View {
                 geometry: geometry)
 
             ZStack(alignment: .topLeading) {
-                // 1. Canvas: background windows sit below the grid lines.
-                BackgroundWindowsLayer(windows: fixtures.windows, day: day, geometry: geometry)
+                // Background windows are drawn by the canvas, not here: §7 has
+                // them spanning the time gutter too. See TimedCanvasView.
 
-                // 2. Grid lines.
+                // 1. Grid lines.
                 HourLinesLayer(geometry: geometry)
+
+                // 2. Window labels — leading day column only, never the gutter.
+                if showsWindowLabels {
+                    WindowLabelsLayer(
+                        windows: fixtures.windows,
+                        day: day,
+                        geometry: geometry)
+                }
 
                 // 3. Empty-grid interaction surface.
                 createSurface(width: width)
@@ -60,8 +70,12 @@ struct DayColumnView: View {
                 }
 
                 // 5. Cascade overflow chips.
+                // The chip draws above every block in the cluster, not in the
+                // cluster's z-order — a +N that a block is sitting on top of
+                // tells the user nothing (layouts.md §3.3).
                 ForEach(layout.overflow) { chip in
                     overflowChip(chip)
+                        .zIndex(1000)
                 }
 
                 // 6. Drop preview, above content, below the now line.
@@ -77,8 +91,12 @@ struct DayColumnView: View {
                 }
 
                 // 8. Now line, above everything on the canvas.
+                // components.md §8 — above every block and every background
+                // window. Blocks carry their own zIndex, so this needs one that
+                // beats them (review D-2: the line was behind the 17:00 block).
                 if Calendar.current.isDate(now, inSameDayAs: day) {
                     NowLineView(geometry: geometry, now: now, showsDot: true)
+                        .zIndex(2000)
                 }
             }
             .frame(height: geometry.totalHeight, alignment: .top)
@@ -102,27 +120,47 @@ struct DayColumnView: View {
     private func blockStack(event: Event, laidOut: LaidOutBlock) -> some View {
         let model = GridBlockModel(event: event, now: now)
         let band = fixtures.travel(forEvent: event.id)
-        let bandHeight = band.map { travelBandHeight(for: $0, eventStart: event.start) } ?? 0
+        let trueBandHeight = band.map { geometry.height(from: $0.departAt, to: event.start) } ?? 0
+        // components.md §4, two cases. A short band no longer grows upward out of
+        // its event: it becomes a strip inside the event's own top, because the
+        // upward version covered the meta line of whatever sat above it (R-1).
+        let bandFitsAbove = band != nil && trueBandHeight >= Tokens.Size.travelBandHeight
+        let insideStrip = band != nil && !bandFitsAbove
+        let aboveHeight = bandFitsAbove ? trueBandHeight : 0
         let isDragged = drag?.eventID == event.id
 
         VStack(spacing: 0) {
-            if let band {
-                TravelBandView(fixture: band, renderedHeight: bandHeight)
+            if let band, bandFitsAbove {
+                TravelBandView(fixture: band, renderedHeight: aboveHeight)
             }
-            GridBlockView(
-                model: model,
-                presentation: presentation(for: event, laidOut: laidOut),
-                renderedHeight: laidOut.frame.height,
-                squareTopCorners: band != nil)
-                .frame(height: laidOut.frame.height)
+            ZStack(alignment: .top) {
+                GridBlockView(
+                    model: model,
+                    presentation: presentation(for: event, laidOut: laidOut),
+                    renderedHeight: laidOut.frame.height,
+                    visibleWidth: laidOut.visibleWidth,
+                    squareTopCorners: bandFitsAbove,
+                    contentTopInset: insideStrip ? Tokens.Size.travelBandHeight : 0)
+                if let band, insideStrip {
+                    TravelBandView(fixture: band, renderedHeight: Tokens.Size.travelBandHeight)
+                        .clipShape(
+                            PartialRoundedRectangle(
+                                topRadius: Tokens.Radius.block,
+                                bottomRadius: 0))
+                }
+            }
+            .frame(height: laidOut.frame.height)
         }
         .frame(width: laidOut.frame.width, alignment: .topLeading)
-        .offset(x: laidOut.frame.minX, y: laidOut.frame.minY - bandHeight)
+        .offset(x: laidOut.frame.minX, y: laidOut.frame.minY - aboveHeight)
         // Clamped blocks get a larger hit area centred on the true frame.
         .contentShape(
             Rectangle()
                 .inset(by: -laidOut.hitExtension / 2))
         .opacity(isDragged ? Tokens.Opacity.blockDragOrigin : 1)
+        // interactions.md §8 — a draggable block gets the open hand; one that
+        // cannot move keeps the arrow rather than promising a drag.
+        .cursor(event.isMovable ? .openHand : .arrow)
         .onHover { hovering in
             hoveredID = hovering ? event.id : (hoveredID == event.id ? nil : hoveredID)
         }
@@ -136,13 +174,6 @@ struct DayColumnView: View {
                 response: Tokens.Motion.BlockMove.Spring.response,
                 dampingFraction: Tokens.Motion.BlockMove.Spring.dampingFraction),
             value: laidOut.frame)
-    }
-
-    /// components.md §4 — the band floors at `size.travelBandHeight` and, when
-    /// the floor applies, grows upward from the event's top edge.
-    private func travelBandHeight(for fixture: TravelFixture, eventStart: Date) -> CGFloat {
-        let trueHeight = geometry.height(from: fixture.departAt, to: eventStart)
-        return max(trueHeight, Tokens.Size.travelBandHeight)
     }
 
     private func presentation(for event: Event, laidOut: LaidOutBlock) -> Presentation {
@@ -215,6 +246,8 @@ struct DayColumnView: View {
             .fill(.clear)
             .contentShape(Rectangle())
             .frame(height: geometry.totalHeight)
+            .cursor(.crosshair)
+            .accessibilityHidden(true)
             .onTapGesture(count: 2) { location in
                 let start = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15)
                 let event = store.create(at: start)
@@ -307,6 +340,7 @@ struct DayColumnView: View {
             .frame(width: rect.width, height: rect.height)
             .offset(x: rect.minX, y: rect.minY)
             .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private func timeCursor(at date: Date) -> some View {
@@ -315,6 +349,7 @@ struct DayColumnView: View {
             .frame(height: 1)
             .offset(y: geometry.y(for: date))
             .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private func overflowChip(_ chip: OverflowChip) -> some View {
@@ -326,7 +361,9 @@ struct DayColumnView: View {
             .background(
                 RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
                     .fill(Tokens.Color.Surface.canvasSunken))
-            .offset(x: chip.anchor.x - 28, y: chip.anchor.y)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .offset(y: chip.anchor.y)
+            .padding(.trailing, Tokens.Spacing.xxs)
             .onTapGesture {
                 state.anchor = day
                 state.mode = .day

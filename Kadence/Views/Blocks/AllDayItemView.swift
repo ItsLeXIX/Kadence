@@ -79,8 +79,13 @@ struct AllDayItemView: View {
                     .padding(-(Tokens.Size.borderSelected + 1))
             }
         }
-        .accessibilityElement(children: .ignore)
+        // §3.4 — the pill has no room for the source name, so hover help carries it.
+        .help("\(fixture.title) · \(SourceCatalog.name(for: fixture.source)) · \(fixture.kind == .exam ? "exam" : "deadline")")
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
+        // Without a trait this is vended as an unlabelled AXUnknown (A20).
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(presentation.contains(.selected) ? [.isSelected] : [])
     }
 
     /// Never negative, never red, no overdue state.

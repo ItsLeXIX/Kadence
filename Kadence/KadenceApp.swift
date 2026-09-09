@@ -13,6 +13,9 @@ struct KadenceApp: App {
     let container: ModelContainer
 
     @State private var calendar = CalendarState()
+    /// One stack for the whole app: the Edit menu and every view mutate through
+    /// the same instance, so ⌘Z means the same thing everywhere.
+    @State private var undoStack = UndoStack()
 
     init() {
         do {
@@ -32,12 +35,13 @@ struct KadenceApp: App {
         WindowGroup {
             MainWindow()
                 .environment(calendar)
+                .environment(undoStack)
                 .frame(
                     minWidth: Tokens.Size.windowMinWidth,
                     minHeight: Tokens.Size.windowMinHeight)
         }
         .modelContainer(container)
-        .commands { KadenceCommands(calendar: calendar) }
+        .commands { KadenceCommands(calendar: calendar, undo: undoStack) }
 
         Settings {
             SettingsPlaceholderView()

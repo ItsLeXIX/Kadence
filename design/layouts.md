@@ -150,11 +150,20 @@ Slot width = `(columnWidth − 2 × spacing.xxs) / subColumnCount −
 size.blockColumnGap`.
 
 **Step 3 — cascade fallback.** If the slot width would fall below
-`size.dayColumnCascadeThreshold` (96), abandon column packing for that cluster:
+`size.dayColumnCascadeThreshold` (72), abandon column packing for that cluster.
+
+72 is derived, not chosen: `size.blockRailWidth` (3) + `size.blockPadding` (5) +
+`size.blockGlyphSize` (11) + `size.blockGlyphGap` (4) + `size.blockPadding` (5)
+= 28pt of fixed chrome, plus 44pt of title — about seven characters at
+`blockTitleCompact`, enough to tell *Coffee* from *Code review*. Below 72 a
+packed slot carries no more information than a cascade sliver does, so cascade
+wins; at or above it packing wins, because in a packed layout **every** block
+keeps a title and in a cascade only the topmost one does.
 
 - Indent step, computed per column:
-  `indent = clamp(round(columnWidth × size.blockCascadeIndentRatio), size.blockCascadeIndentMin, size.blockCascadeIndentMax)`
-  — 22pt at a typical Week column of 114pt, 15pt at the 78pt minimum.
+  `indent = min(round(columnWidth × size.blockCascadeIndentRatio), size.blockCascadeIndentMax)`
+  — 22pt at any column of 116pt or wider, 15pt at the 78pt minimum. There is no
+  lower clamp: `size.dayColumnMin` already guarantees at least 15 (GAPS.md G-006).
   22pt is the width of `size.blockRailWidth` + `size.blockPadding` +
   `size.blockGlyphSize` + 3, i.e. exactly enough to keep a rail and a glyph
   visible on a block that is partly covered.
@@ -162,21 +171,51 @@ size.blockColumnGap`.
   `min(i, size.blockCascadeMaxSteps) × indent` and spans to the column's trailing
   edge.
 - Z-order follows start order — later blocks draw on top. Every covered block
-  still shows its **leading rail and glyph**, which is exactly why type,
-  flexibility and source live on the leading edge (`components.md` §1). The
-  narrowest possible block is `columnWidth − 3 × indent`, which is 48pt at a
-  typical Week column and 42pt at the absolute minimum.
+  still shows its **glyph, and its leading rail where its variant has one** —
+  which is exactly why type, flexibility and source live on the leading edge
+  (`components.md` §1). Note that `.fixedTimed` has no rail by design, so a
+  covered fixed block is identified by glyph and hue alone. The narrowest
+  possible block is `columnWidth − 3 × indent`: 118pt at a 184pt column, 42pt at
+  the absolute minimum.
+- **A covered block shows no text.** A block whose *visible* width — its own
+  width minus whatever the next block covers — is below
+  `size.blockCascadeMinReadableWidth` (44) renders the 11–15 content set from
+  `components.md` §3.3 (glyph only), whatever its height tier would otherwise
+  allow. Without this rule a covered block renders its full content and gets
+  clipped mid-string, producing slivers that read as `10:` — visible damage
+  rather than a partially covered block. The layout engine passes visible width
+  to `resolveBlockStyle` alongside rendered height.
 - Beyond `size.blockCascadeMaxVisible` (5) blocks in one cascade, blocks 6+ are
   replaced by a `+N` chip pinned at the cluster's top trailing corner, 14pt tall,
-  `countdownChip` type, which opens that day in Day view.
+  `countdownChip` type, which opens that day in Day view. The chip draws **above
+  every block in the cluster**, not in the cluster's z-order — a `+N` a block is
+  sitting on top of tells the user nothing.
+- Cascaded blocks stay at `elevation.level0`. Overlap is communicated by the
+  indent and by the canvas gap between blocks, not by shadow; adding elevation
+  here would make cascade the only place in the app where a resting block casts
+  a shadow.
 
-**Which step actually fires, and why.** At a typical Week column width of ~114pt
-a two-block cluster yields a 53pt slot — below the 96pt threshold — so Week
-resolves overlaps by cascade in almost all real cases, and Day resolves them by
-packing. That is the intended outcome, not a fallback: a 53pt-wide block can show
-a rail and a glyph and nothing else, whereas cascade keeps every block's leading
-edge plus ~90pt of title on the topmost one. Column packing exists for Day, where
-the column is wide enough for it to win.
+**Which step actually fires, and why.** Worked from the 2026-09-09 screenshot,
+where the window is 1880pt wide and Week columns are 184pt:
+
+| Cluster | Slot width | Result |
+|---|---|---|
+| 2 concurrent, 184pt column | `(184 − 4) / 2 − 2` = 88 | **packs** — both blocks keep a title |
+| 3 concurrent, 184pt column | `(184 − 4) / 3 − 2` = 58 | cascades |
+| 2 concurrent, 114pt column | 53 | cascades |
+| anything, 78pt column | ≤ 37 | cascades |
+
+So Week packs the common case — two things overlapping — and cascades the
+pile-up. Day, with a column several hundred points wide, packs almost everything.
+
+This threshold was 96 in the first draft of this spec, which was wrong: at 96 a
+two-block overlap cascaded even at a 184pt column, so column packing never fired
+in Week at any window size a person would actually use (2-up would have needed a
+200pt column, i.e. a ~2000pt window). The screenshot showed the cost directly —
+an 11:00 pair where one block was a 22pt sliver, and an 18:00 trio where the
+first block's title was entirely hidden. 96 answered "how wide is a comfortable
+block"; the question the threshold actually decides is "how wide is a block that
+still beats being hidden".
 
 Travel bands are laid out with their parent event and occupy the parent's slot
 width. All-day items are excluded from all three steps.

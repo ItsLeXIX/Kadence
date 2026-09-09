@@ -13,14 +13,22 @@ import SwiftData
 enum MockData {
 
     static let sources: [CalendarSource] = [
-        CalendarSource(id: "timetable", name: "University timetable", key: .blue),
-        CalendarSource(id: "exams", name: "Exams", key: .teal),
-        CalendarSource(id: "routine", name: "Daily routine", key: .green),
-        CalendarSource(id: "mail", name: "Mail appointments", key: .amber),
-        CalendarSource(id: "deadlines", name: "Coursework", key: .orange),
-        CalendarSource(id: "social", name: "Social", key: .pink),
-        CalendarSource(id: "study", name: "Planned study", key: .purple),
-        CalendarSource(id: "personal", name: "Personal", key: .graphite),
+        CalendarSource(id: "timetable", name: "University timetable", key: .blue,
+                       kind: .universityTimetable, symbolOverride: nil),
+        CalendarSource(id: "exams", name: "Exams", key: .teal,
+                       kind: .exams, symbolOverride: nil),
+        CalendarSource(id: "routine", name: "Daily routine", key: .green,
+                       kind: .routine, symbolOverride: nil),
+        CalendarSource(id: "mail", name: "Mail appointments", key: .amber,
+                       kind: .mail, symbolOverride: nil),
+        CalendarSource(id: "deadlines", name: "Coursework", key: .orange,
+                       kind: .coursework, symbolOverride: nil),
+        CalendarSource(id: "social", name: "Social", key: .pink,
+                       kind: .other, symbolOverride: nil),
+        CalendarSource(id: "study", name: "Planned study", key: .purple,
+                       kind: .plannedStudy, symbolOverride: nil),
+        CalendarSource(id: "personal", name: "Personal", key: .graphite,
+                       kind: .manual, symbolOverride: nil),
     ]
 
     static let timeWindows: [TimeWindowFixture] = [
@@ -194,7 +202,14 @@ enum MockData {
     static func makeAllDay(now: Date) -> [AllDayFixture] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        let inSixDays = calendar.date(byAdding: .day, value: 6, to: today) ?? today
+        // components.md §12 asks for the exam pill with `T−6d`, but six days from
+        // a Wednesday lands outside the displayed week, so the variant was never
+        // reviewable — the 2026-09-09 review logged it missing (D-7). Anchored to
+        // the last day of the current week instead, which keeps it on screen at
+        // any weekday. See GAPS.md G-010.
+        let endOfWeek = calendar.dateInterval(of: .weekOfYear, for: today)
+            .map { calendar.date(byAdding: .day, value: -1, to: $0.end) ?? today } ?? today
+        let examDay = max(endOfWeek, calendar.date(byAdding: .day, value: 1, to: today) ?? today)
 
         return [
             // 9. Deadline, orange.
@@ -205,7 +220,7 @@ enum MockData {
             // 10. Exam with T−6d, teal.
             AllDayFixture(
                 title: "Prüfung: Datenmodellierung",
-                startDay: inSixDays, endDay: inSixDays,
+                startDay: examDay, endDay: examDay,
                 kind: .exam, source: .teal),
         ]
     }

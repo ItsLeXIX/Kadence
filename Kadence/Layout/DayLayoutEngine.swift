@@ -39,6 +39,12 @@ struct LaidOutBlock: Identifiable, Equatable, Sendable {
     var hitExtension: CGFloat
     /// True when this block came out of step 3 rather than step 2.
     var isCascaded: Bool
+    /// The block's own width minus whatever the block in front of it covers.
+    /// Equal to `frame.width` outside a cascade. Drives the content tier:
+    /// below `size.blockCascadeMinReadableWidth` a block renders glyph only,
+    /// because a clipped title reads as damage rather than as occlusion
+    /// (components.md §3.3, layouts.md §3.3).
+    var visibleWidth: CGFloat
 }
 
 /// The `+N` affordance for a cascade that ran past `size.blockCascadeMaxVisible`.
@@ -77,6 +83,9 @@ enum DayLayoutEngine {
 
         let clusters = cluster(items, minimumDuration: geometry.minimumRenderedDuration)
         var result = DayLayout()
+        // z-order is global across the column, not per cluster, so two clusters
+        // can never hand out the same index.
+        var zBase = 0
 
         for cluster in clusters {
             let sorted = sortForLayout(cluster)
@@ -89,16 +98,48 @@ enum DayLayoutEngine {
 
             if slotWidth >= Tokens.Size.dayColumnCascadeThreshold || packed.subColumnCount == 1 {
                 result.blocks += columnPackedFrames(
-                    sorted, packed: packed, inset: inset, unit: unit, geometry: geometry)
+                    sorted, packed: packed, inset: inset, unit: unit,
+                    zBase: zBase, geometry: geometry)
             } else {
                 let (blocks, chip) = cascadeFrames(
-                    sorted, columnWidth: columnWidth, inset: inset, geometry: geometry)
+                    sorted, columnWidth: columnWidth, zBase: zBase, geometry: geometry)
                 result.blocks += blocks
                 if let chip { result.overflow.append(chip) }
             }
+            zBase += sorted.count
         }
 
+        result.blocks = applyVerticalGaps(result.blocks)
         return result
+    }
+
+    /// §3.1 — "vertical gap to the next block in the same column".
+    ///
+    /// A post-pass over the whole column, not something step 2 can do: clusters
+    /// are maximal *overlap* groups, so a block and the one starting after it are
+    /// by definition in different clusters and never meet during packing.
+    ///
+    /// Only blocks that actually have something below them are shortened, so an
+    /// isolated block still ends exactly on its end time.
+    static func applyVerticalGaps(_ blocks: [LaidOutBlock]) -> [LaidOutBlock] {
+        let gap = Tokens.Size.blockVerticalGap
+        guard gap > 0 else { return blocks }
+
+        return blocks.map { block in
+            let hasFollower = blocks.contains { other in
+                other.id != block.id
+                    && other.frame.minX < block.frame.maxX
+                    && block.frame.minX < other.frame.maxX          // shares column space
+                    && other.frame.minY >= block.frame.maxY - 0.001 // starts at or below
+            }
+            guard hasFollower else { return block }
+
+            var shortened = block
+            shortened.frame.size.height = Swift.max(
+                block.frame.height - gap,
+                Tokens.Size.blockMinRenderedHeight)
+            return shortened
+        }
     }
 
     // MARK: Step 1 — cluster
@@ -211,6 +252,7 @@ enum DayLayoutEngine {
         packed: Packing,
         inset: CGFloat,
         unit: CGFloat,
+        zBase: Int,
         geometry: TimeGeometry
     ) -> [LaidOutBlock] {
         sorted.indices.map { i in
@@ -221,7 +263,8 @@ enum DayLayoutEngine {
                 item,
                 x: x,
                 width: width,
-                zIndex: i,
+                visibleWidth: width,   // packing never covers anything
+                zIndex: zBase + i,
                 isCascaded: false,
                 geometry: geometry)
         }
@@ -229,44 +272,59 @@ enum DayLayoutEngine {
 
     // MARK: Step 3 — cascade fallback
 
-    /// The indent step, computed per column. At a typical Week column of 114pt
-    /// this is 22pt — exactly rail + padding + glyph + 3, i.e. enough to keep a
-    /// rail and a glyph visible on a block that is partly covered.
+    /// The indent step, computed per column: 22pt at any column of 116pt or
+    /// wider, 15pt at the 78pt minimum. There is no lower clamp —
+    /// `size.dayColumnMin` already guarantees at least 15 (GAPS.md G-006).
     static func cascadeIndent(columnWidth: CGFloat) -> CGFloat {
         let raw = (columnWidth * Tokens.Size.blockCascadeIndentRatio).rounded()
-        return Swift.min(Swift.max(raw, Tokens.Size.blockCascadeIndentMin), Tokens.Size.blockCascadeIndentMax)
+        return Swift.min(raw, Tokens.Size.blockCascadeIndentMax)
     }
 
     private static func cascadeFrames(
         _ sorted: [LayoutItem],
         columnWidth: CGFloat,
-        inset: CGFloat,
+        zBase: Int,
         geometry: TimeGeometry
     ) -> ([LaidOutBlock], OverflowChip?) {
         let indent = cascadeIndent(columnWidth: columnWidth)
-        let maxSteps = Int(Tokens.Size.blockCascadeMaxSteps)
-        let maxVisible = Int(Tokens.Size.blockCascadeMaxVisible)
+        let maxSteps = Tokens.Size.blockCascadeMaxSteps
+        let maxVisible = Tokens.Size.blockCascadeMaxVisible
 
         let visible = Array(sorted.prefix(maxVisible))
         let hidden = sorted.count - visible.count
 
+        func leading(_ i: Int) -> CGFloat {
+            CGFloat(Swift.min(i, maxSteps)) * indent
+        }
+
+        // No `spacing.xxs` inset here, deliberately. layouts.md §3.3 gives block i
+        // a leading inset of exactly `min(i, maxSteps) × indent` and has it span
+        // "to the column's trailing edge" — the inset belongs to step 2, where the
+        // slot width is derived from `columnWidth − 2 × spacing.xxs`.
         let blocks = visible.indices.map { i -> LaidOutBlock in
-            let leading = inset + CGFloat(Swift.min(i, maxSteps)) * indent
-            let width = columnWidth - inset - leading
+            let x = leading(i)
+            let width = columnWidth - x
+            // Block i is covered by block i+1, so only the strip before the next
+            // block's leading edge is actually readable. Blocks past `maxSteps`
+            // share a leading edge and therefore cover each other completely.
+            let visibleWidth = i + 1 < visible.count ? leading(i + 1) - x : width
             return makeBlock(
                 visible[i],
-                x: leading,
+                x: x,
                 width: width,
-                zIndex: i,
+                visibleWidth: visibleWidth,
+                zIndex: zBase + i,
                 isCascaded: true,
                 geometry: geometry)
         }
 
         guard hidden > 0, let first = blocks.first else { return (blocks, nil) }
         let chip = OverflowChip(
+            // The cluster's identity, so an identical layout compares equal.
             id: first.id,
             hiddenCount: hidden,
-            anchor: CGPoint(x: columnWidth - inset, y: first.frame.minY))
+            // The cluster's top trailing corner.
+            anchor: CGPoint(x: columnWidth, y: first.frame.minY))
         return (blocks, chip)
     }
 
@@ -276,6 +334,7 @@ enum DayLayoutEngine {
         _ item: LayoutItem,
         x: CGFloat,
         width: CGFloat,
+        visibleWidth: CGFloat,
         zIndex: Int,
         isCascaded: Bool,
         geometry: TimeGeometry
@@ -292,6 +351,7 @@ enum DayLayoutEngine {
             zIndex: zIndex,
             isClamped: isClamped,
             hitExtension: isClamped ? Tokens.Size.blockHitExtension : 0,
-            isCascaded: isCascaded)
+            isCascaded: isCascaded,
+            visibleWidth: Swift.max(visibleWidth, 0))
     }
 }

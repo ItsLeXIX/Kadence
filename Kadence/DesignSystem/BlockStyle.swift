@@ -42,6 +42,10 @@ struct BlockStyle: Sendable, Equatable {
     var trailingBar: Color?
     var badge: BadgeSpec?
     var contentOpacity: CGFloat = 1
+    /// Which content set to render. Normally derived from rendered height, but
+    /// a block narrow enough to be mostly covered drops to glyph-only whatever
+    /// its height allows (components.md §3.3, "visible width overrides the tier").
+    var contentTier: DensityTier = .full
 
     /// The fill actually painted, with the canvas blend already applied.
     ///

@@ -41,7 +41,10 @@ struct InspectorView: View {
         HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.sm) {
             Image(systemName: model.glyphOverride ?? "calendar")
                 .foregroundStyle(event.sourceKey.text)
-            SourceSwatch(key: event.sourceKey, isOn: true)
+            SourceSwatch(
+                key: event.sourceKey,
+                symbol: SourceCatalog.symbol(for: event.sourceKey),
+                isOn: true)
             Text(event.title)
                 .typeStyle(.inspectorTitle)
                 .foregroundStyle(Tokens.Color.Text.primary)

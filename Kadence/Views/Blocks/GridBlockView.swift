@@ -13,8 +13,14 @@ struct GridBlockView: View {
     let presentation: Presentation
     /// Rendered height in points, which drives the density tier — never duration.
     let renderedHeight: CGFloat
+    /// Width not covered by the block in front of it. `.infinity` outside a cascade.
+    var visibleWidth: CGFloat = .infinity
     /// Squared off when a travel band is attached above (components.md §4).
     var squareTopCorners: Bool = false
+    /// Height of a travel-band strip occupying the top of this block's own frame
+    /// (components.md §4, short-interval case). The density tier is evaluated
+    /// against the remaining height, and content starts below the strip.
+    var contentTopInset: CGFloat = 0
 
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -28,11 +34,17 @@ struct GridBlockView: View {
             presentation: presentation,
             source: model.source,
             renderedHeight: renderedHeight,
+            visibleWidth: visibleWidth,
             glyphOverride: model.glyphOverride,
             increaseContrast: increaseContrast)
     }
 
-    private var tier: DensityTier { DensityTier(renderedHeight: renderedHeight) }
+    /// §4 — with a strip inside the top, the tier is decided by what is left.
+    private var tier: DensityTier {
+        contentTopInset > 0
+            ? DensityTier(renderedHeight: renderedHeight - contentTopInset)
+            : style.contentTier
+    }
 
     var body: some View {
         let style = self.style
@@ -65,6 +77,7 @@ struct GridBlockView: View {
                 }
                 content(style: style)
                     .padding(Tokens.Size.blockPadding)
+                    .padding(.top, contentTopInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .opacity(style.contentOpacity)
@@ -91,6 +104,17 @@ struct GridBlockView: View {
                 shape
                     .inset(by: style.borderWidth)
                     .strokeBorder(Tokens.Color.Interactive.hoverOverlay, lineWidth: 1)
+
+                // §6 — the resize handles become visible on hover. Only where a
+                // resize is actually possible; a locked or imported block shows
+                // none, matching interactions.md §4.
+                if model.isMovable {
+                    VStack {
+                        resizeHandle
+                        Spacer(minLength: 0)
+                        resizeHandle
+                    }
+                }
             }
         }
         .clipShape(shape)
@@ -106,8 +130,34 @@ struct GridBlockView: View {
                     .padding(-(Tokens.Size.borderSelected + 1))
             }
         }
-        .accessibilityElement(children: .ignore)
+        // §11: one accessibility element per block, with a fixed label order.
+        //
+        // `.accessibilityElement(children: .ignore)` alone is NOT enough on
+        // macOS: it collapses the subtree into an element that carries a label
+        // but no role or traits, and AppKit vends that as an unlabelled
+        // AXUnknown — the label is written and never arrives. A trait is what
+        // makes it a real element. Blocks are clickable and selectable, so
+        // `.isButton` is both the honest role and the one that gives VoiceOver
+        // something to activate. See DEVIATIONS.md A20.
+        // §3.4 — hover help is the universal carrier of the source name, and the
+        // one path that exists at every tier, in every view, in both geometries.
+        .help(model.hoverHelp)
+        // §11 — one accessibility element per block.
+        //
+        // `children: .combine` and the `.isButton` trait are BOTH load-bearing,
+        // and were arrived at empirically (DEVIATIONS.md A20):
+        //   • `.ignore` alone     → the element is vended as an ignored AXUnknown
+        //                           and never appears in the tree at all;
+        //   • `.ignore` + trait   → still absent;
+        //   • `.combine` + trait  → appears as AXButton. This is the only
+        //                           configuration that reaches the tree.
+        // Known remaining defect: the explicit `.accessibilityLabel` below does
+        // not stick — VoiceOver reads the combined/help text instead of the §11
+        // order. Tracked as A20b. Verify with Scripts/check-accessibility.sh.
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAddTraits(presentation.contains(.selected) ? [.isSelected] : [])
     }
 
     // MARK: Content by density tier (§3.3)
@@ -121,10 +171,20 @@ struct GridBlockView: View {
         case .titleOnly:
             HStack(alignment: .firstTextBaseline, spacing: Tokens.Size.blockGlyphGap) {
                 glyph(style)
+                // §3.3: "no ellipsis character when the tier is 16–27 — the clip
+                // edge reads as truncation and the ellipsis costs 6pt of a very
+                // short line". SwiftUI always draws one when it truncates, so the
+                // text is laid out at its natural width and clipped instead.
+                // §3.3: "no ellipsis character when the tier is 16–27 — the clip
+                // edge reads as truncation and the ellipsis costs 6pt of a very
+                // short line". SwiftUI always draws one when it truncates, so the
+                // text is laid out at its natural width and clipped instead.
                 Text(model.title)
                     .typeStyle(.blockTitleCompact)
                     .foregroundStyle(style.label)
-                    .truncationMode(.tail)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .clipped()
             }
 
         case .compact:
@@ -134,10 +194,15 @@ struct GridBlockView: View {
                     .typeStyle(.blockTitleCompact)
                     .foregroundStyle(style.label)
                 Spacer(minLength: Tokens.Spacing.xs)
-                Text(model.timeRange(formatter: BlockFormatters.time))
-                    .typeStyle(.blockMeta)
-                    .foregroundStyle(style.meta)
-                    .layoutPriority(1)
+                // §6 — the badge wins the trailing-top corner and the time is
+                // dropped. Time is recoverable from hover help and the inspector;
+                // a conflict is not recoverable from anywhere else on the grid.
+                if style.badge == nil {
+                    Text(model.timeRange(formatter: BlockFormatters.time))
+                        .typeStyle(.blockMeta)
+                        .foregroundStyle(style.meta)
+                        .layoutPriority(1)
+                }
             }
 
         case .full:
@@ -152,11 +217,13 @@ struct GridBlockView: View {
                 Text(model.timeRange(formatter: BlockFormatters.time))
                     .typeStyle(.blockMeta)
                     .foregroundStyle(style.meta)
-                if let location = model.locationName {
-                    Text(location)
-                        .typeStyle(.blockMeta)
-                        .foregroundStyle(style.meta)
-                }
+                // §3.4 — the source name is required at this tier. Source wins,
+                // location truncates first: location is recoverable from the
+                // inspector and the travel band, the source name is not.
+                Text(model.metaLine)
+                    .typeStyle(.blockMeta)
+                    .foregroundStyle(style.meta)
+                    .truncationMode(.tail)
                 if model.status == .skipped {
                     Text("Re-offered")
                         .typeStyle(.blockMeta)
@@ -164,6 +231,12 @@ struct GridBlockView: View {
                 }
             }
         }
+    }
+
+    private var resizeHandle: some View {
+        Rectangle()
+            .fill(Tokens.Color.Interactive.hoverOverlay)
+            .frame(height: Tokens.Size.blockResizeHandleHeight)
     }
 
     private func glyph(_ style: BlockStyle) -> some View {
@@ -174,23 +247,7 @@ struct GridBlockView: View {
             .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
     }
 
-    /// components.md §11 — kind and status are spoken because they are carried
-    /// visually by shape, and must not be dropped on the assumption that colour
-    /// conveys them.
     private var accessibilityLabel: String {
-        var parts = [
-            model.title,
-            "\(BlockFormatters.time.string(from: model.start)) to \(BlockFormatters.time.string(from: model.end))",
-            model.accessibilityKindLabel,
-            model.source.displayName,
-        ]
-        switch model.status {
-        case .done: parts.append("done")
-        case .skipped: parts.append("skipped, re-offered")
-        case .inProgress: parts.append("in progress")
-        case .scheduled: break
-        }
-        if presentation.contains(.conflicted) { parts.append("conflicts with a protected window") }
-        return parts.joined(separator: ", ")
+        model.accessibilityLabel(presentation: presentation)
     }
 }

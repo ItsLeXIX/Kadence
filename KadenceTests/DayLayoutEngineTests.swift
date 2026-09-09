@@ -150,22 +150,84 @@ struct CascadeTests {
         #expect(layout.blocks.allSatisfy { $0.isCascaded })
     }
 
-    @Test("Indent is 22pt at a typical Week column and clamps at the extremes")
+    @Test("Indent caps at the max and has no lower clamp")
     func indentClamping() {
+        // layouts.md §3.3: 22pt at any column of 116pt or wider, 15pt at the
+        // 78pt minimum. There is no lower clamp — dayColumnMin guarantees 15.
         #expect(DayLayoutEngine.cascadeIndent(columnWidth: 114) == 22)
-        // layouts.md §3.3 states 15pt at the 78pt minimum column: 78 × 0.19 = 14.82 → 15,
-        // so the floor token never actually binds at any real column width.
+        #expect(DayLayoutEngine.cascadeIndent(columnWidth: 116) == 22)
         #expect(DayLayoutEngine.cascadeIndent(columnWidth: 78) == 15)
         #expect(DayLayoutEngine.cascadeIndent(columnWidth: 4000) == Tokens.Size.blockCascadeIndentMax)
     }
 
-    @Test("Indent never falls below the min or exceeds the max at any width")
+    @Test("Indent never exceeds the max, and at the narrowest legal column is still 15")
     func indentBounds() {
-        for width in stride(from: 40.0, through: 400.0, by: 1.0) {
+        for width in stride(from: Double(Tokens.Size.dayColumnMin), through: 400.0, by: 1.0) {
             let indent = DayLayoutEngine.cascadeIndent(columnWidth: width)
-            #expect(indent >= Tokens.Size.blockCascadeIndentMin)
             #expect(indent <= Tokens.Size.blockCascadeIndentMax)
+            #expect(indent >= 15, "dayColumnMin is supposed to guarantee at least 15")
         }
+    }
+
+    @Test("The spec's worked table: which step fires at which column width", arguments: [
+        (184.0, 2, false),   // slot 88 — packs, both blocks keep a title
+        (184.0, 3, true),    // slot 58 — cascades
+        (114.0, 2, true),    // slot 53 — cascades
+        (78.0,  2, true),    // slot ≤ 37 — cascades
+    ])
+    func whichStepFires(columnWidth: Double, concurrent: Int, expectCascade: Bool) {
+        let items = (0..<concurrent).map { index in
+            item("C\(index)", (10, index * 5), (11, index * 5))
+        }
+        let layout = DayLayoutEngine.layout(
+            items: items, columnWidth: CGFloat(columnWidth), geometry: weekGeometry)
+        #expect(layout.blocks.allSatisfy { $0.isCascaded } == expectCascade,
+                "\(concurrent) concurrent in a \(columnWidth)pt column")
+    }
+
+    @Test("A covered block reports only the strip the next block leaves visible")
+    func visibleWidth() {
+        let items = (0..<4).map { index in item("O\(index)", (10, index * 5), (11, index * 5)) }
+        let layout = DayLayoutEngine.layout(items: items, columnWidth: 114, geometry: weekGeometry)
+        let byZ = layout.blocks.sorted { $0.zIndex < $1.zIndex }
+        let indent = DayLayoutEngine.cascadeIndent(columnWidth: 114)
+        // Each covered block sees exactly one indent step; the topmost sees all.
+        for block in byZ.dropLast() {
+            #expect(block.visibleWidth == indent)
+        }
+        #expect(byZ.last?.visibleWidth == byZ.last?.frame.width)
+    }
+
+    @Test("A covered block drops to glyph-only however tall it is")
+    func coveredBlockLosesItsText() {
+        // A 60-minute block at the Day scale is 60pt — comfortably tier .full.
+        let tall = DensityTier(renderedHeight: 60)
+        #expect(tall == .full)
+
+        let covered = resolveBlockStyle(
+            kind: .routineTimed, flexibility: .fixed, status: .scheduled,
+            presentation: [], source: .blue,
+            renderedHeight: 60,
+            visibleWidth: Tokens.Size.blockCascadeMinReadableWidth - 1)
+        #expect(covered.contentTier == .glyphOnly,
+                "a clipped title reads as damage, not as occlusion")
+
+        let uncovered = resolveBlockStyle(
+            kind: .routineTimed, flexibility: .fixed, status: .scheduled,
+            presentation: [], source: .blue,
+            renderedHeight: 60,
+            visibleWidth: Tokens.Size.blockCascadeMinReadableWidth)
+        #expect(uncovered.contentTier == .full)
+    }
+
+    @Test("Packed blocks are never treated as covered")
+    func packedBlocksAreFullyVisible() {
+        let items = [
+            item("A", (18, 0), (19, 30)),
+            item("B", (18, 15), (19, 0)),
+        ]
+        let layout = DayLayoutEngine.layout(items: items, columnWidth: 900, geometry: dayGeometry)
+        #expect(layout.blocks.allSatisfy { $0.visibleWidth == $0.frame.width })
     }
 
     @Test("Cascade indents step and stop at blockCascadeMaxSteps")
@@ -176,14 +238,38 @@ struct CascadeTests {
         let layout = DayLayoutEngine.layout(items: items, columnWidth: 114, geometry: weekGeometry)
         let sorted = layout.blocks.sorted { $0.zIndex < $1.zIndex }
         let indent = DayLayoutEngine.cascadeIndent(columnWidth: 114)
-        let maxSteps = Int(Tokens.Size.blockCascadeMaxSteps)
+        let maxSteps = Tokens.Size.blockCascadeMaxSteps
 
         for (index, block) in sorted.enumerated() {
-            let expected = Tokens.Spacing.xxs + CGFloat(min(index, maxSteps)) * indent
+            // layouts.md §3.3: exactly `min(i, maxSteps) × indent`, with no
+            // additional inset — the spacing.xxs inset belongs to step 2 only.
+            let expected = CGFloat(min(index, maxSteps)) * indent
             #expect(abs(block.frame.minX - expected) < 0.001, "block \(index) leading inset")
         }
         // The 4th and 5th share the last step: the cascade does not run away.
         #expect(sorted[3].frame.minX == sorted[4].frame.minX)
+    }
+
+    @Test("The narrowest cascaded block is columnWidth − 3 × indent, as the spec states")
+    func narrowestMatchesSpec() {
+        // layouts.md §3.3 gives the figure directly: 48pt at a typical 114pt
+        // Week column. Anything else means an inset crept into the cascade.
+        let items = (0..<6).map { index in item("O\(index)", (10, index * 5), (11, index * 5)) }
+        let layout = DayLayoutEngine.layout(items: items, columnWidth: 114, geometry: weekGeometry)
+        let narrowest = layout.blocks.map(\.frame.width).min() ?? 0
+        let indent = DayLayoutEngine.cascadeIndent(columnWidth: 114)
+        #expect(narrowest == 114 - 3 * indent)
+        #expect(narrowest == 48)
+    }
+
+    @Test("Every cascaded block spans to the column's trailing edge")
+    func spansToTrailingEdge() {
+        let items = (0..<4).map { index in item("O\(index)", (10, index * 5), (11, index * 5)) }
+        let width: CGFloat = 114
+        let layout = DayLayoutEngine.layout(items: items, columnWidth: width, geometry: weekGeometry)
+        for block in layout.blocks {
+            #expect(abs(block.frame.maxX - width) < 0.001)
+        }
     }
 
     @Test("Every cascaded block keeps at least a rail and a glyph visible")
@@ -203,7 +289,7 @@ struct CascadeTests {
     func overflowChip() {
         let items = (0..<8).map { index in item("O\(index)", (10, index * 5), (11, index * 5)) }
         let layout = DayLayoutEngine.layout(items: items, columnWidth: 114, geometry: weekGeometry)
-        #expect(layout.blocks.count == Int(Tokens.Size.blockCascadeMaxVisible))
+        #expect(layout.blocks.count == Tokens.Size.blockCascadeMaxVisible)
         #expect(layout.overflow.count == 1)
         #expect(layout.overflow[0].hiddenCount == 3)
     }
@@ -214,6 +300,8 @@ struct CascadeTests {
         let layout = DayLayoutEngine.layout(items: items, columnWidth: 114, geometry: weekGeometry)
         let byZ = layout.blocks.sorted { $0.zIndex < $1.zIndex }
         #expect(byZ.map(\.zIndex) == [0, 1, 2, 3])
+        #expect(Set(layout.blocks.map(\.zIndex)).count == layout.blocks.count,
+                "z indices must be unique across the whole column, not per cluster")
         // Leading inset increases with z, i.e. the topmost block is the most indented.
         #expect(byZ[0].frame.minX < byZ[3].frame.minX)
     }
@@ -279,6 +367,39 @@ struct FrameTests {
                 #expect(!overlapping, "packed blocks must not overlap: \(a.frame) vs \(b.frame)")
             }
         }
+    }
+
+    @Test("A block followed in its own sub-column gets the vertical gap")
+    func verticalGap() {
+        // §3.1 — the gap is to the *next* block in the same column.
+        let back = item("Back to back", (9, 0), (10, 0))
+        let next = item("Next", (10, 0), (11, 0))
+        let layout = DayLayoutEngine.layout(
+            items: [back, next], columnWidth: 400, geometry: dayGeometry)
+        let first = layout.blocks.first { $0.id == back.id }
+        #expect(first?.frame.height == Tokens.Size.hourHeightDay - Tokens.Size.blockVerticalGap)
+    }
+
+    @Test("A block with clear air below it keeps its true height")
+    func noGapWithoutFollower() {
+        let only = item("Alone", (9, 0), (10, 0))
+        let layout = DayLayoutEngine.layout(
+            items: [only], columnWidth: 400, geometry: dayGeometry)
+        #expect(layout.blocks.first?.frame.height == Tokens.Size.hourHeightDay,
+                "an isolated block must still end exactly on its end time")
+    }
+
+    @Test("Count tokens arrive as Int, not CGFloat")
+    func countTokensAreIntegers() {
+        // GAPS.md G-008 — $meta.swiftMapping.integerLeaves. If the generator
+        // regresses to CGFloat these stop compiling rather than silently
+        // truncating somewhere.
+        let steps: Int = Tokens.Size.blockCascadeMaxSteps
+        let visible: Int = Tokens.Size.blockCascadeMaxVisible
+        let allDay: Int = Tokens.Size.allDayMaxRows
+        let month: Int = Tokens.Size.monthCellMaxVisibleRows
+        let lines: Int = Tokens.Typography.BlockTitle.lineLimit
+        #expect(steps == 3 && visible == 5 && allDay == 3 && month == 4 && lines == 2)
     }
 
     @Test("An empty day lays out to nothing")

@@ -62,6 +62,12 @@ struct MonthChipView: View {
         }
         .clipShape(shape)
         .opacity(style.contentOpacity)
+        // §3.4 — month chips never carry the source name; hover help does.
+        .help(model.hoverHelp)
+        // §11 applies here too: one element, same label order.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(model.accessibilityLabel(presentation: presentation))
+        .accessibilityAddTraits(.isButton)
         .overlay {
             if presentation.contains(.selected) {
                 RoundedRectangle(cornerRadius: Tokens.Radius.blockCompact + 2, style: .continuous)

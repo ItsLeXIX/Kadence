@@ -182,6 +182,14 @@ line). Tiers ≥ 28 use a standard ellipsis.
 If two clamped blocks would overlap after clamping, they enter cascade layout
 (see `layouts.md` §3.3) rather than being drawn on top of each other.
 
+**Visible width overrides the tier.** In a cascade a block can be partly covered
+by the block in front of it. When a block's visible width is below
+`size.blockCascadeMinReadableWidth` (44), it renders the 11–15 content set —
+glyph only, no text — regardless of its height. A covered block that renders its
+full content gets clipped mid-string and reads as damage (`10:`), not as
+something behind something else. `resolveBlockStyle` therefore takes visible
+width as well as rendered height.
+
 ### 3.4 Source name in text — required
 
 The block's glyph slot is spent on kind, and the sidebar's per-source symbol is
@@ -220,10 +228,21 @@ assignment order, but the text rule above is what actually makes them safe.
 Not a block. A leading edge attached to the event it belongs to.
 
 - Occupies the interval `departAt → event.start` in the same column as its event.
-- Height: the true interval height, floored at `size.travelBandHeight`. If the
-  floor applies, the band grows **upward** from the event's top edge, overlapping
-  whatever is above it; it is drawn above other blocks in z-order but below the
-  now line.
+- Height and placement, two cases:
+  - **True interval ≥ `size.travelBandHeight`.** The band occupies the interval
+    above its event, in that event's slot, at its true height. Drawn above other
+    blocks in z-order but below the now line.
+  - **True interval < `size.travelBandHeight`.** The band does **not** grow
+    upward out of its event. It becomes a `size.travelBandHeight` strip inside
+    the top of the event's own frame, and the event's content starts below it —
+    the event's density tier is then evaluated against its remaining height, not
+    its full height.
+
+  A band never draws outside its own event's bounds in the short case. The first
+  draft of this spec had it grow upward and overlap whatever was above; the
+  2026-09-09 screenshot showed the result — a 22-minute band covering the meta
+  line of the routine block above it. A travel band that destroys another block's
+  content to announce itself is not worth the 18pt.
 - Fill `color.surface.travelBand`, plus a 45° hatch: 1pt lines, 5pt pitch, in
   `color.window.lowEnergyHatch`. Corner radius `radius.travelBand` on the top two
   corners only; bottom corners 0.
@@ -280,7 +299,7 @@ conflicted. Order of application is the order of this table.
 | **hover** | 1pt inset ring in `color.interactive.hoverOverlay`, drawn inside the border. Resize handles become visible (`size.blockResizeHandleHeight` top and bottom). Cursor `.resizeUpDown` over a handle, `.openHand` elsewhere. Transition `motion.hover`. |
 | **selected** | Focus ring `color.interactive.focusRing`, `size.borderSelected`, drawn **outside** the block bounds with a 1pt gap, corner radius `radius.block + 2`. Block rises to `elevation.level1`. Fill unchanged. |
 | **dragging** | `opacity.blockDragging`, `elevation.level2`. Original slot stays visible at `opacity.blockDragOrigin`. Drop target drawn as a 1pt dashed outline in `color.interactive.accent`, dash `[3, 3]`, at the snapped frame. |
-| **conflicted** | Border becomes `color.semantic.alert` at `size.borderEmphasis`, replacing whatever border the variant had (dash pattern is preserved if the variant had one). Badge `exclamationmark.triangle.fill`, `size.conflictBadgeSize`, in `color.semantic.alert`, trailing-top corner, inset `spacing.xxs`. **Fill is never changed** — fill still has to carry source and movability. Below 16pt rendered height the badge replaces the type glyph. |
+| **conflicted** | Border becomes `color.semantic.alert` at `size.borderEmphasis`, replacing whatever border the variant had (dash pattern is preserved if the variant had one). Badge `exclamationmark.triangle.fill`, `size.conflictBadgeSize`, in `color.semantic.alert`, trailing-top corner, inset `spacing.xxs`. **Fill is never changed** — fill still has to carry source and movability. Below 16pt rendered height the badge replaces the type glyph. **At tiers 16–43 the badge and the trailing-aligned time both want the trailing-top corner: the badge wins and the time is dropped.** The time is recoverable from hover help and the inspector; the conflict is not recoverable from anywhere else on the grid. At tier ≥ 44 both fit — badge in the corner, time on its own line. |
 | **past** | Content opacity `opacity.blockPastContent`. Fill blended with `color.surface.canvas` at `opacity.blockPastFillBlend`. Border and rail take the same blend. No strikethrough. |
 | **inProgress** | 3pt bar in `color.semantic.now` on the **trailing** edge, full height, square caps. Block rises to `elevation.level1`. The leading rail and glyph are untouched — type must stay readable while an item is running. |
 | **done** | Fill blended with canvas at `opacity.blockDoneFillBlend`. Type glyph replaced by `checkmark.circle.fill` in `color.text.secondary`. Label `color.text.secondary`. No strikethrough (it costs legibility and reads as a cancellation, not a completion). |
@@ -306,12 +325,24 @@ make the difference legible:
 | Fill | `color.window.protectedFill` (1.12:1 against canvas — a value step, not a colour) | none; canvas shows through |
 | Texture | none | 45° hatch, 1pt lines, 6pt pitch, `color.window.lowEnergyHatch` |
 | Edges | 1pt line `color.window.protectedEdge` at the top and bottom boundary only | none |
-| Label | once, at the window's top edge, in the time gutter, `windowLabel` type, `color.window.label` | same |
+| Label | once, at the window's top edge, in the **leading day column** — never the gutter — inset `spacing.xs`, `windowLabel` type, `color.window.label` | same |
 | Z-order | below grid lines | below grid lines, above protected fill |
 
 Peak-focus windows get **no treatment in Phase 1**. Peak focus is the absence of
 the other two; adding a third background would turn the canvas into a second
 information layer competing with the blocks.
+
+**The label never enters the time gutter.** The gutter belongs to hour labels and
+to the now time, and nothing else may be drawn in it. The first draft put window
+labels there and the 2026-09-09 screenshot showed both collisions it causes: a
+low-energy label overprinting the `13:00` hour label, and a protected label
+overprinting `00:00`.
+
+**When the window's top edge is scrolled above the viewport,** the label pins to
+the top of the visible region — still in the leading day column, still never the
+gutter — prefixed with `chevron.up` at `size.blockGlyphSize` to say the window
+continues above. A protected window running 22:00–07:00 is otherwise unlabelled
+for the whole morning, which is exactly when the user is looking at it.
 
 Overlapping windows: protected wins. Never render both treatments in the same
 region.
@@ -365,10 +396,65 @@ Month uses the same signal system at the 16–27 density tier, compressed to
 ### 10.1 Source swatch (sidebar)
 
 An 11×11 rounded rect, radius 3, filled `color.source.<s>.solid`, plus the
-source's own SF Symbol at 9pt in `color.text.onSolid` centred inside it. The
-symbol is what makes the sidebar legend work without colour. Unchecked state:
-fill `color.surface.canvas`, 1pt border `color.source.<s>.rail`, symbol in
-`color.source.<s>.text`.
+source's own SF Symbol at 9pt in `color.text.onSolid` centred inside it, rendered
+monochrome. The symbol is what makes the sidebar legend work without colour.
+Unchecked state: fill `color.surface.canvas`, 1pt border `color.source.<s>.rail`,
+symbol in `color.source.<s>.text`.
+
+#### The symbol belongs to the source, not to the palette slot
+
+`CalendarSource` carries a `symbol`. A palette slot is assigned in order as
+sources are added (`color.sourcePalette.assignmentRule`), so a symbol keyed to
+the hue would be meaningless. The symbol defaults from the source's kind by the
+table below and is user-overridable; two sources may share a symbol, they will
+never share a hue.
+
+#### Normative symbol table
+
+| Source kind | Symbol |
+|---|---|
+| University timetable | `tablecells.fill` |
+| Moodle / coursework deadlines | `tray.2.fill` |
+| Exams | `seal.fill` |
+| Mail-derived appointments | `envelope.fill` |
+| Routine | `rectangle.stack.fill` |
+| Manual | `person.fill` |
+| Planned study | `sparkles` |
+| Travel | `map.fill` |
+| Other (a bucket the user named themselves) | `tag.fill` |
+| **Unknown kind — fallback** | `circle.fill` |
+
+The fallback is deliberately a plain disc. An unclassified source should say "a
+source, unlabelled" and fall back to carrying hue alone; a `questionmark` would
+read as an error state for something that is merely unlabelled.
+
+#### Why these, and the rule for adding more
+
+Source symbols and block type glyphs (§3.2, §5) are two different vocabularies
+that appear on screen simultaneously — most directly in the inspector, whose
+title row puts the block's kind glyph and the source swatch side by side
+(`layouts.md` §6). They must not read as one vocabulary. Two rules keep them
+apart:
+
+1. **Different domain.** A kind glyph depicts the *activity* — a lecture hall, a
+   repeat arrow, a pencil, a walking figure, a flag, a graduation cap. A source
+   symbol depicts the *origin*: the container, feed or party the data arrived
+   from. `sparkles` for planned study is the planner that produced it, not the
+   studying; `map.fill` for travel is the routing provider, not the journey.
+2. **No symbol appears in both tables**, and none may be added to either that
+   appears in the other. Check §2.1, §3.2 and §5 before adding a source kind.
+
+This matters because several source kinds share a *name* with a block kind —
+routine, exams, planned study, travel. If both used the obvious symbol, the glyph
+would carry no independent information and, worse, would teach the user that the
+glyph on a block means its source. It does not: on a block the glyph always means
+kind, and hue always means source.
+
+One near-adjacency to be aware of, in the same spirit as the amber/orange hue
+pair: `person.fill` (manual source) and `figure.walk` (walking travel band) are
+both human figures. They are a bust and a full stride, at different sizes, in
+different places — the sidebar swatch and a travel band — and never adjacent.
+Do not add a second figure symbol to either vocabulary.
 
 ### 10.2 Needs-attention count (sidebar)
 

@@ -276,3 +276,192 @@ It works, but the casts are noise and a fractional value would silently truncate
 Options: (a) leave it; (b) add an integer form to the contract — a `$type` hint,
 or a naming convention the generator recognises — so counts emit as `Int`.
 Generator change, not a token change.
+
+---
+
+## 2026-09-09 — screenshot review, deviations and rulings (design side)
+
+Reviewed `screenshots/Screenshot 2026-09-09 at 17.06.20.png` — Week, dark
+appearance, 1880pt window, 184pt columns. Measured in pixels rather than judged
+by eye, which mattered: two things that looked wrong were correct.
+
+**Verified correct, measured:** hour height 44pt exactly; cascade indent 22pt at
+a 184pt column, with blocks 4 and 5 correctly sharing the 66pt inset per
+`size.blockCascadeMaxSteps`; the topmost cascaded block 114pt wide, which is
+`184 − 3×22 − 2×spacing.xxs` to the pixel; `radius.block` ≈ 4–5pt (it upscales
+to look rounder than it is — it is right); no shadow on any resting block, in or
+out of a cascade; the `+1` chip correct for a six-block fixture; protected window
+fill present; low-energy hatch present and spanning the gutter; done, skipped and
+conflicted states all rendering; the density ladder picking the right tier at
+every size including the two clamped fixtures. `DayLayoutEngine` is a faithful
+implementation of layouts.md §3.3.
+
+### Deviations from the spec (implementation side)
+
+| # | What | Spec | Evidence |
+|---|---|---|---|
+| D-1 | The range title renders **twice** — once in the leading toolbar group after **Today**, once centred | layouts.md §1.2: once, `.principal` | both read `7 – 13 Sep 2026` |
+| D-2 | The now line is **not drawn in the day column**. Only the red gutter time and the leading dot appear | components.md §8: a `size.nowLineThickness` line across the current day's column, **above every block** | zero red pixels across x 715–905 at y 888–905; the line is behind the 17:00 `Training` block |
+| D-3 | The protected window fill **does not span the time gutter**; low-energy's hatch does | components.md §7: full column width **including the gutter**, "so their edges stay visible when the column is full of blocks" | gutter at x=330 is `(26,26,28)` (canvas) at y=400/455/462 while the column at x=600 is `(32,33,35)` (protected fill) |
+| D-4 | The `+N` chip is drawn **inside the cluster's z-order** and is partly occluded by the first block | now explicit in layouts.md §3.3: above every block in the cluster | chip clipped by the blue block at the cluster's top-trailing corner |
+| D-5 | No conflict badge on `Training` | components.md §6, conflicted | border correct, `exclamationmark.triangle.fill` absent. See R-4 — the spec did not resolve badge-vs-time, so fix this **after** reading the new rule |
+| D-6 | The source name is missing from the meta line: `Datenmodellierung` shows `09:00-10:30` + `FH B.2.09` | components.md §3.4: at tier ≥ 44 the meta line is `Source · Location` | §3.4 landed after this build — a to-do, not a miss |
+| D-7 | The exam all-day fixture is absent; only the deadline pill is in the all-day row | components.md §12 fixture 10 (`.examAllDay`, `T−6d`, teal) | one pill on Wed |
+
+D-1 through D-4 are straightforward. None of them is a design question.
+
+### Spec defects the screenshot exposed (design side — already fixed)
+
+- **R-1 — travel band destroyed the block above it.** `Leave 08:38 · 22min`
+  covered the meta line of the routine block above it. The spec said the band
+  grows upward and draws above other blocks, so the implementation was right and
+  the spec was wrong. components.md §4 now splits the two cases: a band shorter
+  than `size.travelBandHeight` becomes a strip **inside the top of its own
+  event**, and never draws outside its own bounds.
+- **R-2 — window labels collided with hour labels.** Two instances, one cause:
+  the label was specified into the time gutter. components.md §7 now puts window
+  labels in the leading day column, bans anything but hour labels and the now
+  time from the gutter, and specifies the pinned + `chevron.up` form for a window
+  whose top edge is scrolled off — a 22:00–07:00 protected window was otherwise
+  unlabelled all morning.
+- **R-3 — cascade threshold.** See the ruling below.
+- **R-4 — the conflict badge and the trailing-aligned time collide** at tiers
+  16–43; both want the trailing-top corner. components.md §6 now rules: the badge
+  wins, the time is dropped. Time is recoverable from hover help and the
+  inspector; a conflict is not recoverable from anywhere else on the grid.
+- **R-5 — "every covered block keeps a rail and a glyph" was false.**
+  `.fixedTimed` has no rail by design. layouts.md §3.3 corrected.
+
+### THE CASCADE RULING
+
+**`size.dayColumnCascadeThreshold`: 96 → 72.**
+
+The screenshot is the argument. At a 1880pt window with 184pt Week columns — a
+wide window, not a cramped one — a *two*-block overlap still cascaded, because a
+2-up slot is 88pt and the threshold was 96. The 11:00 pair rendered as one full
+block plus a 22pt sliver reading `10:`, and the 18:00 trio hid the first block's
+title completely. Column packing never fired in Week at any window size a person
+would actually use: 2-up needed a 200pt column, i.e. a ~2000pt window.
+
+96 was the answer to "how wide is a comfortable block". The question the
+threshold actually decides is "how wide is a block that still beats being
+hidden". 72 answers that one, and is derived rather than picked: 28pt of fixed
+chrome (`blockRailWidth` + `blockPadding` + `blockGlyphSize` + `blockGlyphGap` +
+`blockPadding`) plus 44pt of title, about seven characters at
+`blockTitleCompact` — enough to tell *Coffee* from *Code review*.
+
+Consequences, now written into layouts.md §3.3 as a table so nobody has to
+re-derive them: at a 184pt column, 2 concurrent blocks **pack** at 88pt and 3
+concurrent **cascade** at 58pt; at a 114pt column everything cascades; at the
+78pt minimum everything cascades. Week packs the common case and cascades the
+pile-up. Day packs almost everything.
+
+Two riders, both in layouts.md §3.3:
+
+1. **A covered block shows no text.** Visible width below
+   `size.blockCascadeMinReadableWidth` (new, 44) forces the 11–15 content set —
+   glyph only — whatever the height tier says. This is what kills the `10:`
+   slivers. `resolveBlockStyle` gains visible width alongside rendered height.
+2. **Cascaded blocks stay at `elevation.level0`.** The build already does this
+   and is right to; it is now written down, so nobody "fixes" cascade later by
+   adding a shadow and makes it the only resting block in the app that casts one.
+
+### Rulings on the open gaps
+
+**G-004 — sidebar source symbols. Closed.** Your instinct is right: the symbol
+belongs to the **source**, not to the hue, so it cannot live on `SourceKey`.
+Move it to `CalendarSource` as a `symbol` field, defaulted from what kind of
+source it is and overridable by the user in Settings later:
+
+| Source kind | Symbol |
+|---|---|
+| university timetable / lectures | `building.columns` |
+| coursework, LMS, assignments | `list.bullet.rectangle` |
+| exams | `graduationcap` |
+| mail-derived appointments | `envelope` |
+| daily routine | `repeat` |
+| planned study | `pencil.and.outline` |
+| social | `person.2` |
+| personal / manual (default) | `calendar` |
+| anything else | `circle.fill` |
+
+The palette slot stays assignment-ordered and entirely independent of this. Two
+sources may share a symbol; they will not share a hue. Drop the `// SPEC-GAP`.
+
+**G-005 — manual all-day events. Closed: build it, no seventh variant.**
+`Event.isAllDay` exists in Phase 1, so Phase 1 should be able to produce one. It
+is the existing all-day geometry carrying the existing fixed style — solid fill,
+`calendar` glyph, `graphite` — which is consistent with the fill-weight ladder
+(solid = fixed = a thing the user placed deliberately). Call the kind
+`.fixedAllDay`. Creation path: double-click the all-day row, or `⌥⌘N`. I will add
+both to interactions.md §3 on the next pass.
+
+**G-006 — dead indent floor. Closed: the floor is dead, remove it.**
+`size.blockCascadeIndentMin` is gone from tokens.json and the formula in
+layouts.md §3.3 is now `min(round(columnWidth × ratio), max)`. `dayColumnMin`
+already guarantees ≥ 15. Good catch, and keep the test.
+
+**G-008 — counts arriving as CGFloat. Closed: option (b), explicit list.**
+`$meta.swiftMapping.integerLeaves` now names the five paths that must emit as
+`Int`: `size.allDayMaxRows`, `size.blockCascadeMaxSteps`,
+`size.blockCascadeMaxVisible`, `size.monthCellMaxVisibleRows`, and
+`typography.*.lineLimit` (`*` matches one segment). An explicit list rather than
+name-matching, so the generator never has to guess from a suffix. `lineLimit: 0`
+means no limit. Generator change, no token change beyond the metadata.
+
+**G-007 — closed**, the typo was fixed before this review.
+
+---
+
+## 2026-09-09 — G-009 — layouts.md §3.3 gives two cascade figures that conflict
+
+**Where:** layouts.md §3.3 step 3, and `Kadence/Layout/DayLayoutEngine.swift`.
+
+The indent bullet: `indent = clamp(round(columnWidth × 0.19), 12, 22)`, and
+"15pt at the 78pt minimum" — `round(78 × 0.19) = 15`. Correct.
+
+The narrowest-block bullet: "The narrowest possible block is
+`columnWidth − 3 × indent`, which is 48pt at a typical Week column and **42pt at
+the absolute minimum**." At 114pt, `114 − 3 × 22 = 48`. ✓ At 78pt,
+`78 − 3 × 15 = 33`, not 42. To get 42 the indent must be **12** — the floor.
+
+So the two bullets disagree about the indent at the minimum column width, and
+this is the same underlying question as G-006 (the floor is otherwise dead).
+
+**Code follows the indent formula**, so 78pt gives 33pt. Two tests pin the 114pt
+figures (`narrowestMatchesSpec`, `spansToTrailingEdge`) so this cannot drift
+silently once you rule.
+
+Which is intended — is the floor 15 (drop `blockCascadeIndentMin`), or is the
+ratio meant to yield 12 at the minimum column (change the ratio or the clamp)?
+
+---
+
+## 2026-09-09 — G-004 — CLOSED
+
+Specified in components.md §10.1, which now carries a normative symbol table for
+all nine source kinds plus the unknown-kind fallback, the rule that the symbol
+lives on `CalendarSource` and defaults by kind, and the constraint that keeps the
+source vocabulary separate from the block-kind vocabulary.
+
+**This supersedes the G-004 ruling in the 2026-09-09 screenshot-review entry
+above. That table was wrong and should not be implemented.** It reused
+`building.columns`, `repeat`, `pencil.and.outline`, `graduationcap` and
+`calendar` — the block *kind* glyphs from §2.1 and §3.2 — as *source* symbols.
+Parsa caught it. The failure is that the two vocabularies co-occur, most directly
+in the inspector title row where the kind glyph and the source swatch sit side by
+side (`layouts.md` §6), and several source kinds share a name with a block kind
+(routine, exams, planned study, travel). Had it shipped, `repeat` would have
+appeared as both "this is a routine block" and "this came from the Daily routine
+source" in the same window, which teaches the user that a block's glyph means its
+source. It does not, and the whole §1 channel separation depends on it not
+appearing to.
+
+The replacement vocabulary is drawn from a different domain: kind glyphs depict
+the activity, source symbols depict the origin — the container, feed or party the
+data arrived from. No symbol appears in both tables, and §10.1 states that as a
+rule for anything added later.
+
+**Action:** replace `SourceKey.swatchSymbol` entirely. The symbol does not belong
+on `SourceKey` at all — move it to `CalendarSource` as a `symbol` field defaulted
+from the source's kind per the §10.1 table, and drop the `// SPEC-GAP` marker.

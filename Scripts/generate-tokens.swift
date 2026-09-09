@@ -165,6 +165,9 @@ struct RGBA255: Equatable {
 /// One leaf value in tokens.json, already classified into the Swift type it maps to.
 enum TokenValue {
     case color(RGBA255)
+    /// A number that is a count, not a dimension. Named explicitly by
+    /// `$meta.swiftMapping.integerLeaves` (GAPS.md G-008).
+    case count(Int)
     case adaptiveColor(light: RGBA255, dark: RGBA255)
     case dimension(Double)
     case text(String)
@@ -175,6 +178,7 @@ enum TokenValue {
     var swiftType: String {
         switch self {
         case .color, .adaptiveColor: return "SwiftUI.Color"
+        case .count: return "Swift.Int"
         case .dimension: return "CoreGraphics.CGFloat"
         case .text: return "Swift.String"
         case .flag: return "Swift.Bool"
@@ -200,6 +204,8 @@ enum TokenValue {
             return "TokenSupport.color(\(rgba.swiftLiteral))"
         case .adaptiveColor(let light, let dark):
             return "TokenSupport.color(light: \(light.swiftLiteral), dark: \(dark.swiftLiteral))"
+        case .count(let value):
+            return String(value)
         case .dimension(let value):
             return SwiftEmit.number(value)
         case .text(let value):
@@ -342,6 +348,23 @@ enum TokenParser {
     /// polluting the generated API.
     static func isMetadata(_ key: String) -> Bool { key.hasPrefix("$") }
 
+    /// Dot paths from `$meta.swiftMapping.integerLeaves` whose numbers are counts
+    /// and must emit as `Int`. An explicit list rather than name-matching, so the
+    /// generator never guesses from a suffix (GAPS.md G-008). `*` matches exactly
+    /// one path segment.
+    nonisolated(unsafe) static var integerLeafPatterns: [String] = []
+
+    static func isIntegerLeaf(path: [String]) -> Bool {
+        integerLeafPatterns.contains { pattern in
+            let parts = pattern.split(separator: ".", omittingEmptySubsequences: false)
+            guard parts.count == path.count else { return false }
+            for (part, segment) in zip(parts, path) where part != "*" && part != segment {
+                return false
+            }
+            return true
+        }
+    }
+
     static func namespace(named name: String, swiftName: String, from object: [String: JSONValue], at path: [String]) throws -> Namespace {
         var tokens: [Token] = []
         var children: [Namespace] = []
@@ -418,6 +441,14 @@ enum TokenParser {
             return .flag(value)
 
         case .number(let value):
+            if isIntegerLeaf(path: path) {
+                guard value == value.rounded() else {
+                    throw GeneratorError("""
+                        \(SwiftEmit.pathDescription(path)) is listed in                         $meta.swiftMapping.integerLeaves but its value \(value) is not a                         whole number.
+                        """)
+                }
+                return .count(Int(value))
+            }
             return .dimension(value)
 
         case .string(let value):
@@ -798,6 +829,10 @@ func generate(_ options: Options) throws -> String {
         throw GeneratorError("\(shownInput) must contain a JSON object at the top level.")
     }
 
+    // Must be read before the walk: the metadata that drives it is itself a "$"
+    // key, which the walk skips.
+    TokenParser.integerLeafPatterns = integerLeafPatterns(in: object)
+
     let root = try TokenParser.namespace(
         named: "",
         swiftName: Renderer.rootEnumName,
@@ -815,6 +850,17 @@ func generate(_ options: Options) throws -> String {
         fingerprint: fingerprint(of: data),
         byteCount: data.count
     )
+}
+
+/// Pulls `$meta.swiftMapping.integerLeaves` out of the document.
+func integerLeafPatterns(in object: [String: JSONValue]) -> [String] {
+    guard case .object(let meta)? = object["$meta"],
+          case .object(let mapping)? = meta["swiftMapping"],
+          case .array(let leaves)? = mapping["integerLeaves"] else { return [] }
+    return leaves.compactMap { value in
+        if case .string(let pattern) = value { return pattern }
+        return nil
+    }
 }
 
 func run() -> Int32 {
