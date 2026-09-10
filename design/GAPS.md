@@ -465,3 +465,64 @@ rule for anything added later.
 **Action:** replace `SourceKey.swatchSymbol` entirely. The symbol does not belong
 on `SourceKey` at all — move it to `CalendarSource` as a `symbol` field defaulted
 from the source's kind per the §10.1 table, and drop the `// SPEC-GAP` marker.
+
+---
+
+## 2026-09-10 — Phase 2 design pass landed
+
+Additions only. Verified: no Phase 1 design value changed, no token removed. The
+only `$meta` edits are the two the contracts require — `integerLeaves` gains
+`size.popoverMaxRestRows` (G-008), and `contrastPairs` gains the one new colour
+pair (G-003). 49 declared pairs pass in both appearances.
+
+**New spec:** components.md §13 Routines window, §14 Conflict resolution, §15
+Menu bar extra, §16 Snooze confirmation, §17 Phase 2 fixtures · layouts.md §8–§10
+· interactions.md §10–§12 · 67 new tokens.
+
+**Three amendments, all marked in place:**
+
+- **components.md §7 — the time gutter.** Now carries hour labels, the now time
+  **and the keyboard time cursor's time**. The original rule named only the first
+  two and contradicted interactions.md §1; §1 wins, per the 2026-09-10 ruling.
+  Window labels stay banned from the gutter — that is what the rule was for.
+- **interactions.md §1 — the toolbar is not a focus stop.** Dropped from the `⇥`
+  cycle, which also fixes the original list saying "four regions" over five
+  items. Full Keyboard Access is the route to window chrome, and every toolbar
+  action has a key equivalent and a menu item.
+- **components.md §10.2 — the needs-attention row takes no icon.** Closes the
+  `tray.full` / `tray.2.fill` collision: the build's needs-attention icon sat a
+  few rows above the Coursework source swatch in the same list at the same size.
+  §10.2 now also states the rule for any future chrome symbol — check §10.1 and
+  the kind glyphs in §2.1/§3.2/§5 first.
+
+**Two open conditions from the 2026-09-10 rulings, now specified:**
+
+1. *Previewed blocks must never look committed.* components.md §6 adds a
+   `previewed` presentation that reuses the drop-preview vocabulary from
+   interactions.md §4 — proposed frame at `opacity.blockPreviewed` inside a
+   dashed accent outline, **with the current frame retained as a ghost**. A
+   committed block is never in two places at once, so the combination is
+   unmistakable, and it costs no new channel. The canvas also takes a
+   `size.previewCanvasBorder` accent border while any preview is live
+   (components.md §14.4), which is what stops a hypothetical day being read as
+   the real one at a glance.
+2. *Re-sync must be one undo step.* interactions.md §11.2: one named
+   `Undo Re-sync Routine`, restoring every affected instance in a single `⌘Z`,
+   plus a confirmation that lists the affected dates rather than only counting
+   them. A re-sync that undid one day per press would be worse than no undo,
+   because the user stops pressing before they are whole.
+
+**One conflict this pass had to resolve.** §7 said peak-focus windows get no
+treatment — correct for the calendar canvas, impossible for an editor, since a
+window you cannot see is a window you cannot edit. Resolved by scope rather than
+by weakening the rule: peak-focus is drawn **only** inside the Routines window's
+windows mode, as a dashed outline in the new `color.window.peakFocusEdge`
+(3.2:1 against canvas in both appearances — it is a hit target, so it meets the
+3:1 non-text minimum). The calendar canvas rule is unchanged.
+
+**Notes for the build.** Two things in this pass are deliberately reuse, not new
+components, and building them fresh would recreate the second-vocabulary problem
+§1 exists to prevent: the Routines window **is** the Week canvas with dates, the
+now line, the all-day row and travel bands removed (components.md §13.1 lists
+every difference), and conflict preview **is** the drag-drop drop-preview
+vocabulary. Neither needs a new renderer.

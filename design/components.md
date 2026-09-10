@@ -305,8 +305,18 @@ conflicted. Order of application is the order of this table.
 | **done** | Fill blended with canvas at `opacity.blockDoneFillBlend`. Type glyph replaced by `checkmark.circle.fill` in `color.text.secondary`. Label `color.text.secondary`. No strikethrough (it costs legibility and reads as a cancellation, not a completion). |
 | **skipped** | Fill blended with canvas at `opacity.blockSkippedFillBlend`. Border becomes dashed `[3, 3]`, `size.borderRegular`, `color.separator.strong`. Glyph replaced by `arrow.uturn.forward.circle` in `color.text.secondary`. At tier ≥ 44 a meta line reads `Re-offered`. No red, no counter, no badge. |
 
+| **previewed** | The block is shown at a **proposed** frame during conflict resolution (`interactions.md` §10), not a committed one. It renders at `opacity.blockPreviewed` inside a `size.borderSelected` dashed outline in `color.interactive.accent`, dash `[3, 3]`, **and its current frame stays visible at `opacity.blockDragOrigin`**. Applied last, after every row above it. |
+
 `done` and `skipped` are visually siblings of equal weight. A skipped item must
 never look worse than a done one — it has been re-offered, not failed.
+
+**`previewed` deliberately reuses the drop-preview vocabulary** from
+`interactions.md` §4 — dashed accent outline at the destination, ghost at the
+origin. The user already learned that language by dragging a block, and it is
+the one combination a committed block can never have: a committed block is never
+in two places at once. That is what makes a previewed block unmistakably
+uncommitted without spending a channel the signal system does not have
+(`interactions.md` §10.2 carries the canvas-level marker that goes with it).
 
 ---
 
@@ -328,12 +338,25 @@ make the difference legible:
 | Label | once, at the window's top edge, in the **leading day column** — never the gutter — inset `spacing.xs`, `windowLabel` type, `color.window.label` | same |
 | Z-order | below grid lines | below grid lines, above protected fill |
 
-Peak-focus windows get **no treatment in Phase 1**. Peak focus is the absence of
-the other two; adding a third background would turn the canvas into a second
-information layer competing with the blocks.
+Peak-focus windows get **no treatment on the calendar canvas**, in any phase.
+Peak focus is the absence of the other two; adding a third background would turn
+the canvas into a second information layer competing with the blocks.
 
-**The label never enters the time gutter.** The gutter belongs to hour labels and
-to the now time, and nothing else may be drawn in it. The first draft put window
+**Editor exception (Phase 2).** A window the user cannot see is a window the user
+cannot edit, so peak-focus *is* drawn — but only inside the Routines window's
+windows mode (§13.3), never on the calendar canvas. There it is a 1pt dashed
+outline in `color.window.peakFocusEdge`, dash `[4, 4]`, with no fill
+(`color.window.peakFocusFill` is transparent by definition), plus the standard
+window label. Outline-only, so it stays distinct from protected (value step) and
+low-energy (hatch) in the one place all three appear together.
+
+**The label never enters the time gutter.** The gutter carries hour labels, the
+now time, and the keyboard time cursor's time (`interactions.md` §1) — and
+nothing else. **Amended 2026-09-10:** the original rule named only hour labels
+and the now time, which contradicted `interactions.md` §1. §1 wins; the cursor
+time suppresses a colliding hour label by the same 12pt rule the now time uses
+(§8). Window labels remain banned from the gutter, which is what this rule was
+written to prevent. The first draft put window
 labels there and the 2026-09-09 screenshot showed both collisions it causes: a
 low-energy label overprinting the `13:00` hour label, and a protected label
 overprinting `00:00`.
@@ -463,6 +486,15 @@ A count badge, `blockMeta` type, `color.text.secondary` on
 `spacing.sm`. **Never red, never a filled alert colour, and hidden entirely at
 zero** — no empty-state counter, no zero badge. Zero shows nothing at all.
 
+**The row takes no icon.** It is the only non-source row in that list; its text
+and its count already separate it from the swatch-prefixed source rows below,
+and a bare label separates it better than any glyph would. This closes a
+collision found on 2026-09-09: the build used `tray.full` here, which sits a few
+rows above the Coursework source's `tray.2.fill` (§10.1) in the same list at the
+same size — two trays in one sidebar. Neither the sidebar nor any other chrome
+may introduce a symbol without checking it against §10.1 and against the kind
+glyphs in §2.1, §3.2 and §5.
+
 ### 10.3 Today pill (day header)
 
 When a day column's date is today, the `dayHeaderDate` numeral sits on a filled
@@ -534,3 +566,279 @@ so this spec can actually be checked. Minimum fixture for a single day:
 
 Items 1–16 are display fixtures only. They are generated data, not services:
 no TravelLeg computation, no routine engine, no work item model behind them.
+
+---
+
+# Phase 2 — routines, conflicts, protected time, the menu bar
+
+Everything below is an addition. No Phase 1 value changes; the amendments to §6,
+§7 and §10.2 above are marked in place and were ruled on 2026-09-10.
+
+---
+
+## 13. The Routines window
+
+Rulings this implements: `DECISIONS.md` 2026-09-10 "Routine instances edit
+instance-only, no dialog."
+
+### 13.1 It is the calendar canvas, not a form
+
+A routine template is a week. The editor therefore **reuses the Week canvas
+wholesale** — the same hour grid, the same `GridBlock` geometry, the same
+background window layer, the same overlap resolution from `layouts.md` §3.3.
+Blocks are created, moved and resized exactly as on the main grid.
+
+Differences from the Week view, and these are the only ones:
+
+| | Week view | Routines window |
+|---|---|---|
+| Columns | seven dates | seven **weekdays**, no dates, `dayHeaderWeekday` only |
+| Now line | yes | **no** |
+| All-day row | yes | **no** |
+| Travel bands | yes | **no** |
+| Blocks | `Event` | `RoutineBlock` — always `.routineTimed` |
+| Source hue | per source | the routine's own palette slot, one hue for the whole template |
+
+Building a bespoke weekly-grid widget here would create a second visual
+vocabulary for the same information, which is the thing §1 exists to prevent.
+Anything that looks like a block in this window is a block, and behaves like one.
+
+### 13.2 The flexibility control
+
+Flexibility is already visible on the rail (§2.3). In the editor it is also
+editable: a three-segment control in the editor inspector, labelled
+**Fixed / Shiftable / Droppable**, each segment showing a 3pt rail sample in the
+segment's leading edge drawn in that rail style — solid, inset, dotted. The
+control teaches the grid's own vocabulary rather than describing it in words.
+
+`.shiftable` reveals a stepper for its ± minutes, `blockMeta` type, 15-minute
+steps, range 15–180.
+
+### 13.3 Modes: blocks or windows
+
+Dragging on empty canvas has to mean one thing, and this window has two kinds of
+object on it. A segmented control in the editor's mode bar, height
+`size.editorModeBarHeight`, `editorModeLabel` type:
+
+| Mode | Editable | Other layer |
+|---|---|---|
+| **Blocks** | routine blocks | windows drawn normally, not hit-testable |
+| **Windows** | protected / low-energy / peak-focus regions | blocks drop to `opacity.editorInactiveLayer`, not hit-testable |
+
+In windows mode all three window kinds are drawn and draggable, including
+peak-focus (§7, editor exception). Creating one: drag on empty canvas, then pick
+the kind from the inspector. Resizing uses the same
+`size.blockResizeHandleHeight` handles blocks use.
+
+The inactive layer never disappears. You are always editing one layer *against*
+the other, because a protected window only makes sense relative to the blocks it
+forbids.
+
+### 13.4 Detached instances
+
+An instance edited on the main grid is pinned and re-materialisation leaves it
+alone. Per the ruling, **detachment is not a block signal** — it never appears on
+the calendar canvas. It appears in exactly two places:
+
+- **The inspector**, for a selected routine block on the main grid: one line,
+  `inspectorLabel` / `inspectorValue`, reading `Edited — differs from Gym routine`,
+  with a `Revert to routine` action.
+- **The Routines window**, as a count beside the template name:
+  `3 instances edited this week`, `blockMeta` / `color.text.secondary`, with a
+  **Re-sync** button. Hidden entirely at zero — same rule as §10.2, no zero state.
+
+Re-sync is destructive of the user's own edits, so it confirms: a popover
+anchored to the button, `size.resyncPopoverWidth`, listing the affected dates
+(`popoverRow` type, up to six then `+N`), primary action `Re-sync 3 instances`.
+It is **one undo step** — see `interactions.md` §11.2.
+
+---
+
+## 14. Conflict resolution
+
+Rulings this implements: `DECISIONS.md` 2026-09-10 "Conflict resolution previews
+in place, not in a sheet", plus the abandonment ruling of the same date.
+
+### 14.1 Entry point
+
+The needs-attention row (§10.2) is a button. Activating it selects the first
+unresolved conflict and puts the inspector into conflict mode. There is no
+separate list view and no sheet.
+
+### 14.2 The collision header
+
+Top of the conflict panel: the two colliding blocks rendered as **real blocks**
+at the 16–27 density tier, stacked with `spacing.xs` between them and the word
+`overlaps` between them in `inspectorLabel` / `color.text.secondary`. Same style
+resolver, same hue, same rail — so the thing in the panel is recognisably the
+thing on the grid.
+
+Below them, the overlap itself: `13:00–14:30 · 45 min overlap`, `blockMeta`.
+
+### 14.3 The option row
+
+Two or three per conflict. Minimum height `size.conflictOptionRowMinHeight`,
+`size.conflictOptionGap` between rows, radius `radius.card`, fill
+`color.surface.canvasSunken`, selected fill `color.interactive.selectedRowFill`.
+
+Three lines:
+
+1. **Title** — `conflictOptionTitle`, imperative and concrete:
+   `Shift Training 90 min later`.
+2. **Disturbance** — `conflictOptionDelta`, `color.text.secondary`. This is the
+   ranking made legible, so it is required, not optional:
+   `Training 17:00 → 18:30 · nothing else moves` /
+   `moves 2 blocks, shortens 1`.
+3. **Recommendation chip**, on the recommended option only.
+
+**The recommendation is marked with the word `Recommended`, not a colour and not
+a glyph.** `blockMeta` type, `color.text.secondary` on
+`color.surface.canvasAlt`, radius `radius.chip`, padding `spacing.xs`. Colour is
+spent on source and the glyph vocabularies are closed (§10.1); a word costs
+nothing and survives greyscale, which is exactly the §1 rule applied to chrome.
+
+Options are ordered by disturbance, least first. The recommended one is usually
+but not necessarily first — when it is not, the ordering still reads as a ranking
+because line 2 says why.
+
+### 14.4 Preview in place
+
+Focusing an option previews it on the real grid. Every block the option would
+move takes the **`previewed`** presentation (§6): proposed frame at
+`opacity.blockPreviewed` inside a dashed accent outline, current frame retained
+as a ghost at `opacity.blockDragOrigin`.
+
+While any preview is active the **calendar canvas** — not the sidebar, not the
+inspector — carries a `size.previewCanvasBorder` inset border in
+`color.interactive.accent`. That is the "you are looking at a hypothetical"
+frame, and it is what stops a previewed day being mistaken for the real one at a
+glance across the room.
+
+Nothing is written until the option is applied. Abandonment is specified in
+`interactions.md` §10.2 and is unconditional.
+
+### 14.5 Resolved and empty
+
+When the last conflict is resolved the panel does not congratulate. It returns to
+the ordinary inspector, and the needs-attention row disappears (§10.2, hidden at
+zero). No "all clear" state, no checkmark screen.
+
+---
+
+## 15. Menu bar extra
+
+Ruling this implements: `DECISIONS.md` 2026-09-10 "Menu bar requirement split
+between status item and popover."
+
+### 15.1 The status item
+
+Budget `size.statusItemMaxWidth` (180). `statusItem` type, monospaced digits.
+
+```
+17:30 · Training
+```
+
+**The time comes first and is never truncated** — the time is what you scan for,
+and a truncated time is worse than no title. The title truncates tail-first
+inside whatever the time leaves. Below the budget the item degrades to the time
+alone. No icon in the normal state; every point in a crowded menu bar is
+contested and the text is the information.
+
+| State | Content | Colour |
+|---|---|---|
+| Normal | `17:30 · Training` | `color.text.primary` (menu bar tint) |
+| Late | `clock.badge.exclamationmark` at `size.statusItemGlyphSize` + `12m ago · Training` | `color.semantic.now` |
+| Empty | `Nothing left today` | `color.text.secondary` |
+
+The late state is phrased as **elapsed**, never as a deficit — `12m ago`, never
+`overdue`, `late by` or `missed`. It uses `color.semantic.now` because that
+colour already means "now"; lateness is a fact about the clock, not a failure,
+and this keeps red meaning one thing across the whole app. `clock.badge.exclamationmark`
+appears in neither the kind-glyph tables (§2.1, §3.2, §5) nor the source symbol
+table (§10.1); it must not be added to either.
+
+The empty state says what is true and stops. No praise, no "all done", no
+illustration.
+
+### 15.2 The popover
+
+Width `size.popoverWidth` (300). This is where "legible from across the room"
+lives, because a 22pt menu bar cannot carry it.
+
+```
++------------------------------------------+
+|  NEXT                                    |   popoverSectionLabel
+|                                          |
+|  Training                                |   popoverNextTitle, 20pt
+|  17:30 – 18:15 · Gym                     |   popoverNextMeta, 15pt
+|                                          |
+|  [ Done ]  [ Snooze ]  [ Open ]          |   popoverActionRowHeight
+|------------------------------------------|
+|  REST OF TODAY                           |   popoverSectionLabel
+|  18:30  Code review                      |   popoverRow, 13pt
+|  20:00  Dinner                           |
++------------------------------------------+
+```
+
+- The next item's block is at least `size.popoverNextBlockMinHeight` tall and
+  carries its source hue as a 3pt leading rail — the only colour in the popover.
+- Rest of today: `size.popoverRestRowHeight` rows, at most
+  `size.popoverMaxRestRows`, then `+N more`. Times are monospaced and
+  left-aligned in a fixed column so the list scans vertically.
+- **It is not a second calendar.** No hour grid, no durations, no overlap
+  rendering, no all-day items.
+
+| State | Next section | Rest section |
+|---|---|---|
+| Normal | as above | list, or omitted entirely when empty |
+| Late | title unchanged; meta becomes `Started 12m ago · Gym` in `color.semantic.now`; actions gain a leading `Re-offer` | unchanged |
+| Empty | `Nothing left today`, `popoverNextTitle`, `color.text.secondary`, no actions | omitted |
+
+The late popover always offers `Re-offer`, because the no-guilt rule means a
+missed item is put back in the queue rather than counted against you. `Re-offer`
+is the primary action in that state.
+
+---
+
+## 16. Snooze confirmation
+
+Ruling this implements: `DECISIONS.md` 2026-09-10 "Snooze confirmation is
+designed in Phase 2, not Phase 4." The surface is specified now; no scheduling
+logic exists until Phase 4.
+
+It must show **where the block landed**, not that something happened. It is not a
+dialog and it does not steal focus.
+
+- In the popover, the action row is replaced in place by a result row of the same
+  height: `Moved to 19:15` + `Undo`, `popoverRow` type. Across a day boundary it
+  names the day: `Moved to tomorrow 09:00`.
+- It holds for `motion.snoozeConfirmHold` (4s), **pausing while hovered**, then
+  the popover returns to its normal state. `Undo` remains available afterwards
+  through `⌘Z` in the main window.
+- If the main window is open and showing the destination day, the block-move
+  transition (`interactions.md` §7.1) runs there at the same time. The
+  confirmation and the movement are the same event seen from two places.
+- Never a sheet, never an alert, never a toast that outlives the popover.
+
+---
+
+## 17. What Phase 2 must render for review
+
+Additions to the §12 fixture set. Same rule: display fixtures, no services.
+
+1. A routine template with one block of each flexibility, in the Routines window
+2. The same template with a protected, a low-energy **and** a peak-focus window,
+   in windows mode — the only place all three appear together
+3. Blocks mode and windows mode, to check the inactive layer at
+   `opacity.editorInactiveLayer`
+4. A template with 3 detached instances, showing the count and the re-sync popover
+5. A selected detached instance on the main grid, showing the inspector line
+6. A conflict with two options and a conflict with three
+7. A conflict whose recommended option is **not** first
+8. A preview active: previewed blocks, ghost origins, and the canvas border
+9. The needs-attention row at 1, at 12, and at 0 (hidden)
+10. Status item: normal, late, empty — each at full width and clipped to
+    `size.statusItemMaxWidth`
+11. Popover: normal, late, empty, and with more than `size.popoverMaxRestRows`
+    remaining
+12. The snooze result row, same-day and next-day

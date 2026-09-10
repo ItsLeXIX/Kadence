@@ -287,3 +287,106 @@ In order, as the window narrows: inspector → sidebar → week columns start
 scrolling horizontally. Content is never dropped, summarised away, or
 auto-switched to a different view. The user always ends up looking at the same
 information, just with more scrolling.
+
+---
+
+# Phase 2 — additions
+
+Additions only. Nothing in §1–§7 changes.
+
+---
+
+## 8. The Routines window
+
+A separate window, not a sheet and not a Settings pane. Settings owns sources and
+notification rules (`BRIEF-DESIGN` item 10); this window owns the shape of the
+week, which is a working surface, not a preference.
+
+Opened with `⌘⌥R` or **Window ▸ Routines**. Standard window chrome. It is a
+single window for both routine blocks and time windows, because the two only make
+sense against each other (`components.md` §13.3).
+
+```
++---------------------------------------------------------------+
+| toolbar: template picker · [Blocks | Windows] · +   size.editorModeBarHeight
++------------------------------------------+--------------------+
+|  MON  TUE  WED  THU  FRI  SAT  SUN       |                    |
+|  (weekday header, no dates)              |   editor inspector |
++------------------------------------------+                    |
+|                                          |   size.editor      |
+|  hour grid — size.hourHeightWeek         |   InspectorWidth   |
+|  same geometry as layouts.md §3.1        |                    |
+|                                          |                    |
++------------------------------------------+--------------------+
+```
+
+- **Minimum window** `size.routineEditorMinWidth` × `size.routineEditorMinHeight`
+  (780 × 620). Derived: `size.timeGutterWidth` (52) + 7 ×
+  `size.routineEditorColumnMin` (84) + `size.editorInspectorWidth` (260) = 900 at
+  comfort, floored at 780 where the inspector collapses first.
+- **Columns** are weekdays, ordered from `Calendar.current.firstWeekday`. No
+  weekend tint here — a routine's Saturday is not a lesser day.
+- **Hour grid** exactly as §3.1: same row height, same hour and half-hour lines,
+  same gutter width and label placement.
+- **No** day header dates, all-day row, now line, travel bands or `+N` chip
+  behaviour beyond what §3.3 already specifies.
+- **Collapse order**: the editor inspector collapses below 1040pt and returns as
+  an overlay, exactly as §1.1 does for the main window. The canvas never
+  collapses.
+
+### 8.1 Editor inspector
+
+For a selected routine block: title, start, duration, and the flexibility control
+(`components.md` §13.2). For a selected time window: kind (protected /
+low-energy / peak-focus), weekdays, start, end, label.
+
+With nothing selected it shows the template: name, active weekdays, block count,
+total hours, and the detached-instance count with its Re-sync button
+(`components.md` §13.4). Same rule as §6 — the empty state is a summary, never a
+placeholder graphic.
+
+---
+
+## 9. Menu bar popover
+
+Anchored to the status item. Width `size.popoverWidth` (300), height intrinsic —
+it never scrolls, because a scrolling "what's next" is a second calendar.
+
+| Region | Height |
+|---|---|
+| `NEXT` section label | `spacing.xl` leading inset, label row |
+| Next item block | ≥ `size.popoverNextBlockMinHeight` |
+| Action row | `size.popoverActionRowHeight` |
+| Divider | `size.hairline`, `color.separator.region` |
+| `REST OF TODAY` label | label row, omitted when the list is empty |
+| Rest rows | `size.popoverRestRowHeight` × ≤ `size.popoverMaxRestRows`, then `+N more` |
+
+Padding `spacing.xl` on all sides. Background `color.surface.popover` with its
+material, falling back under Reduce Transparency per `components.md` §11.
+
+The popover closes on `⎋`, on clicking outside, and on `Open` (which activates
+the main window). It does **not** close on `Done` or `Snooze` — those replace
+their row in place (`components.md` §16) so you can see what happened.
+
+---
+
+## 10. The conflict panel
+
+Conflict resolution lives in the **inspector**, not a sheet
+(`DECISIONS.md` 2026-09-10). Region geometry is unchanged from §1 — same width,
+same collapse behaviour, same overlay treatment below 1200pt.
+
+Top to bottom:
+
+1. Collision header (`components.md` §14.2)
+2. Option rows (`components.md` §14.3), `size.conflictOptionGap` apart
+3. Footer: `1 of 3` in `blockMeta` / `color.text.secondary`, with `‹` `›` to move
+   between unresolved conflicts
+
+When the inspector is collapsed and a conflict is activated from the sidebar, the
+inspector opens as an overlay. It does not force the window wider.
+
+**The panel is not modal.** The grid stays live underneath: you can scroll it,
+change view, and select other blocks. Doing any of those abandons the pending
+preview per `interactions.md` §10.2 — the panel never traps you, and it never
+holds a decision you did not make.

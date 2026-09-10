@@ -10,11 +10,18 @@ where the two differ, the keyboard path is specified first.
 
 Four focus regions, cycled with `⇥` / `⇧⇥`, in this order:
 
-1. Toolbar
-2. Sidebar
-3. All-day row (skipped when hidden)
-4. Hour grid / month grid
-5. Inspector (skipped when collapsed) → wraps to 1
+1. Sidebar
+2. All-day row (skipped when hidden)
+3. Hour grid / month grid
+4. Inspector (skipped when collapsed) → wraps to 1
+
+**Amended 2026-09-10: the toolbar is not a focus stop.** The original list opened
+with it and then miscounted its own regions as four. SwiftUI toolbar items are
+not addressable as a focus region without inserting a phantom item, and macOS
+already reaches the toolbar through Full Keyboard Access — which is the route a
+keyboard user expects for window chrome. Every toolbar action also has a key
+equivalent and a menu item (§2), so nothing is unreachable. The omission is
+deliberate and a test asserts it, so it cannot decay into an oversight.
 
 The focused region draws the standard system focus ring on its container. Within
 a region, `↑` `↓` `←` `→` move focus between its items; `⇥` always leaves the
@@ -58,6 +65,13 @@ The grid is a single focus target. Inside it there are two focus modes:
 | `⌥⌘I` | Toggle inspector | global |
 | `⌘Z` `⇧⌘Z` | Undo / redo | global |
 | `⌘,` | Settings | global |
+| `⌘⌥R` | Routines window | global |
+| `⌘⇧A` | Go to the first unresolved conflict | global, when the count is non-zero |
+| `↑` `↓` | Move between conflict options | conflict panel focused |
+| `↩` | Apply the focused option | conflict panel focused |
+| `⎋` | Abandon the pending preview | conflict panel focused |
+| `‹` `›` / `⌥←` `⌥→` | Previous / next unresolved conflict | conflict panel focused |
+| `⌘⌥N` | New all-day event on the focused day | grid focused |
 
 Every one of these is also a menu bar item, with the same key equivalent, so the
 shortcut set is discoverable without documentation.
@@ -204,3 +218,123 @@ move, resize, retitle, done, skipped. Each registers a named action so the Edit
 menu reads `Undo Move Event`, not `Undo`. Undo restores the selection state that
 was in effect before the action, so `⌘Z` puts the user back where they were, not
 just the data back where it was.
+
+---
+
+# Phase 2 — additions
+
+Additions only. §1's focus list and §2's table are amended in place above and
+marked; nothing else in §1–§9 changes.
+
+---
+
+## 10. Conflict resolution
+
+### 10.1 Focus and preview
+
+The conflict panel is a focus region reached from the needs-attention row, from
+`⌘⇧A`, or by `⇥` into the inspector while it is in conflict mode.
+
+`↑` / `↓` move between options. **Moving focus onto an option previews it
+immediately** — there is no separate "preview" verb, because an option the user
+cannot see the consequence of is an option they cannot rank. Each affected block
+takes the `previewed` presentation (`components.md` §6) and moves to its proposed
+frame with `motion.blockMove`; the canvas takes its `size.previewCanvasBorder`
+accent border.
+
+Moving to another option reverts the previous one and previews the new one in a
+single pass — blocks travel from the old proposal to the new one, never via their
+committed position, so the grid never flickers back to reality between two
+hypotheticals.
+
+`↩` applies. Applying is a single named undo step (`Undo Resolve Conflict`),
+runs the block-move transition on the committed frames, drops the canvas border,
+and advances to the next unresolved conflict — or returns the inspector to normal
+if that was the last one (`components.md` §14.5).
+
+### 10.2 Abandonment is unconditional
+
+**A pending preview is abandoned, never persisted, the moment focus leaves the
+conflict panel.** Ruled 2026-09-10, and it is the same rule as draft abandonment
+(`DECISIONS.md`, "New events are drafts in state, never rows in the store"): if
+you wandered off, you did not decide.
+
+Leaving means any of: `⎋`; clicking anywhere on the grid, sidebar or toolbar;
+selecting another block; changing view or paging; collapsing the inspector;
+closing the window; quitting. All of them revert with `motion.previewRevert`
+(0.12s), with no confirmation and no "keep this?" prompt.
+
+Nothing about a pending preview is written to the store, so there is nothing to
+restore on relaunch and nothing that can be applied later by accident. That is
+the point of the ruling: a surviving preview is a decision waiting to be made by
+the next stray keypress.
+
+### 10.3 Previewed blocks are not editable
+
+While a preview is active the previewed blocks cannot be dragged, resized,
+deleted, or marked done. They are a picture of a proposal, not objects. Cursor is
+`.arrow` over them; a drag attempt abandons the preview (§10.2) and selects the
+block at its real position, which is the least surprising thing that can happen.
+
+---
+
+## 11. The Routines window
+
+### 11.1 Editing
+
+Creating, moving and resizing routine blocks uses §3 and §4 unchanged — same
+15-minute snap, same `⌃` for 5-minute, same handles, same drop preview. `⌫`
+deletes. `⌘Z` undoes, with names (`Undo Move Routine Block`).
+
+`⌘1` / `⌘2` / `⌘3`, `T`, and `←` `→` do nothing here: a template has no dates and
+no today. They are disabled rather than repurposed.
+
+Switching between Blocks and Windows mode: `⌘[` / `⌘]`, or the mode control.
+The current selection is dropped on mode change, because a selection you can no
+longer edit is a trap.
+
+### 11.2 Re-sync is one undo step
+
+Re-syncing detached instances (`components.md` §13.4) discards the user's own
+edits across several days, so two things are required and neither is optional:
+
+1. **The confirmation names the damage** — the affected dates, listed, not a
+   count alone. "Re-sync 3 instances" over a list of `Tue 8`, `Wed 9`, `Fri 11`.
+2. **It is a single undo step**, named `Undo Re-sync Routine`, restoring every
+   affected instance to its edited state in one `⌘Z`. Ruled 2026-09-10. A
+   re-sync that undid one day per press would be worse than no undo at all,
+   because the user would stop pressing before they were whole.
+
+If any affected day is visible in the main window when re-sync is applied, the
+block-move transition (§7.1) runs there for each restored instance.
+
+---
+
+## 12. The menu bar popover
+
+The popover takes key focus when opened by keyboard and does not when opened by
+click, matching standard `NSPopover` behaviour.
+
+| Keys | Action |
+|---|---|
+| `↑` `↓` | Move between the next item and the rest-of-today rows |
+| `↩` | Open the focused item in the main window |
+| `⌘↩` | Done |
+| `⌥⌘↩` | Snooze |
+| `⎋` | Close the popover |
+
+`⌘↩` and `⌥⌘↩` are the same bindings as the main window's `⌘↩` / `⌥⌘↩` for done
+and skipped (§2) — the same action gets the same key wherever it appears.
+
+`Done` and `Snooze` do **not** close the popover. Both replace the action row in
+place with their result (`components.md` §16), because a surface that vanishes at
+the moment it has something to tell you cannot tell you where the block went.
+
+### 12.1 Motion in the popover
+
+The status item's text changes without animation — it updates on a timer and any
+animation in a menu bar reads as a glitch. The popover's snooze result row
+cross-fades over `motion.selection` (0.09s) and holds for
+`motion.snoozeConfirmHold` (4s), pausing while the pointer is inside the popover.
+Under Reduce Motion the cross-fade becomes an instant swap; the hold is unchanged
+because it is a duration, not a motion.
