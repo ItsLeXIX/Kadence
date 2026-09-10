@@ -25,10 +25,11 @@ sys.path.insert(0, str(HERE))
 
 from kadence_flow import agents, graph as graph_mod, guards, persist  # noqa: E402
 from kadence_flow.config import Config  # noqa: E402
-from kadence_flow.errors import QuotaExhausted  # noqa: E402
+from kadence_flow.errors import AuthExpired, QuotaExhausted  # noqa: E402
 
 CONFIG_PATH = HERE / "config.json"
-EXIT = {"phase_done": 0, "blocked": 10, "budget_stop": 20, "quota_stop": 75}
+EXIT = {"phase_done": 0, "blocked": 10, "budget_stop": 20,
+        "auth_stop": 30, "quota_stop": 75}
 
 
 def _thread(cfg: Config) -> str:
@@ -95,6 +96,14 @@ def _drive(cfg: Config, fresh_input) -> int:
             persist.mirror(fresh_input)
         try:
             state = _invoke(cfg, fresh_input)
+        except AuthExpired as e:
+            state = _last_state()
+            persist.log(f"\n■ NOT LOGGED IN: {str(e)[:200]}")
+            _rescue(cfg, state, "the claude CLI is not logged in")
+            print("\nThe Claude CLI session has expired. In a terminal run:\n"
+                  "    claude            (then /login)\n"
+                  "then:  python3 run.py resume")
+            return EXIT["auth_stop"]
         except QuotaExhausted as e:
             state = _last_state()
             reset = e.reset_at

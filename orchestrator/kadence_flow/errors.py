@@ -20,6 +20,10 @@ class QuotaExhausted(OrchestratorError):
         self.reset_at = reset_at
 
 
+class AuthExpired(OrchestratorError):
+    """The claude CLI is not logged in. Only a human can fix it."""
+
+
 class TransientError(OrchestratorError):
     """Network / 5xx. Retry with backoff."""
 
@@ -41,6 +45,17 @@ _QUOTA_PATTERNS = [
     r"out of (?:tokens|credits)",
     r"weekly limit",
     r"opus limit",
+]
+
+_AUTH_PATTERNS = [
+    r"oauth session expired",
+    r"failed to authenticate",
+    r"\bunauthorized\b",
+    r"\b401\b",
+    r"invalid[_ ]api[_ ]key",
+    r"authentication[_ ]error",
+    r"please run .{0,12}login",
+    r"not logged in",
 ]
 
 _TRANSIENT_PATTERNS = [
@@ -85,6 +100,9 @@ class Classified:
 
 def classify(text: str) -> Classified:
     low = (text or "").lower()
+    for p in _AUTH_PATTERNS:
+        if re.search(p, low):
+            return Classified("auth", text)
     for p in _QUOTA_PATTERNS:
         if re.search(p, low):
             return Classified("quota", text, parse_reset_at(text))
@@ -97,6 +115,8 @@ def classify(text: str) -> Classified:
 def raise_for(text: str) -> None:
     """Turn an error string from the SDK into the right exception type."""
     c = classify(text)
+    if c.kind == "auth":
+        raise AuthExpired(c.text)
     if c.kind == "quota":
         raise QuotaExhausted(c.text, c.reset_at)
     if c.kind == "transient":

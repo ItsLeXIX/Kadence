@@ -129,7 +129,9 @@ def main() -> int:
              ("Your credit balance is too low", "quota"),
              ("529 overloaded_error", "transient"),
              ("connection reset by peer", "transient"),
-             ("TypeError: object is not callable", "fatal")]
+             ("TypeError: object is not callable", "fatal"),
+             ("Failed to authenticate: OAuth session expired", "auth"),
+             ("401 Unauthorized", "auth")]
     for text, want in cases:
         got = classify(text).kind
         check(f"{want:<9} ← {text[:38]}", got == want, f"got {got}")

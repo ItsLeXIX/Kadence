@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from .errors import (ContractError, OrchestratorError, QuotaExhausted,
-                     TransientError, classify)
+from .errors import (AuthExpired, ContractError, OrchestratorError,
+                     QuotaExhausted, TransientError, classify)
 from . import guards
 
 BACKOFF = [10, 30, 90]          # seconds, transient errors only
@@ -97,6 +97,8 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
                 text = res if isinstance(res, str) else json.dumps(res or {})
                 text = f"{message.subtype or ''} {message.terminal_reason or ''} {text}"
                 c = classify(text)
+                if c.kind == "auth":
+                    raise AuthExpired(text)
                 if c.kind == "quota":
                     raise QuotaExhausted(text, c.reset_at)
                 if c.kind == "transient":
@@ -125,13 +127,15 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
                 allowed_tools=allowed_tools, permission_mode=permission_mode,
                 max_turns=max_turns, model=model, can_use_tool=can_use_tool,
                 max_budget_usd=max_budget_usd, on_event=on_event))
-        except QuotaExhausted:
+        except (QuotaExhausted, AuthExpired):
             raise
         except TransientError as e:
             last = e
             continue
         except Exception as e:                     # noqa: BLE001
             c = classify(str(e))
+            if c.kind == "auth":
+                raise AuthExpired(str(e)) from e
             if c.kind == "quota":
                 raise QuotaExhausted(str(e), c.reset_at) from e
             if c.kind == "transient":
