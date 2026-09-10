@@ -10,7 +10,7 @@ from langgraph.graph import END, START, StateGraph
 
 from . import agents, guards, persist, verify as verifier
 from .config import Config
-from .errors import ContractError, QuotaExhausted
+from .errors import ContractError, MaxTurnsReached, QuotaExhausted
 from .state import OrchestratorState
 
 MAX_LEDGER_IN_PROMPT = 6
@@ -121,6 +121,28 @@ def build(cfg: Config):
                 max_turns=cfg.manager_max_turns, model=cfg.manager_model,
                 on_event=lambda s: persist.log(s, echo=True))
             data = run.json
+        except MaxTurnsReached as e:
+            # It investigated past its budget without deciding. Everything it
+            # read is still true; ask it to commit to a decision on what it has.
+            persist.log(f"  MA used all {cfg.manager_max_turns} turns "
+                        f"investigating — asking it to decide now")
+            try:
+                run = agents.run_agent(
+                    prompt + "\n\n## Stop investigating\nYou have already used "
+                    "your whole exploration budget on this cycle. Decide with "
+                    "what you know now and reply with the JSON block only. If "
+                    "you truly cannot choose a task, return next: \"BLOCKED\" "
+                    "with the specific question for Parsa in `blocker`.",
+                    system_prompt=cfg.prompt("manager"), cwd=repo,
+                    allowed_tools=[], permission_mode="dontAsk",
+                    max_turns=2, model=cfg.manager_model)
+                data = run.json
+            except (MaxTurnsReached, ContractError) as e2:
+                return _ret(state, {
+                    "cycle": cycle, "decision": "BLOCKED", "status": "blocked",
+                    "stop_reason": (f"MA could not reach a decision in "
+                                    f"{cfg.manager_max_turns} turns: {e2}"),
+                    "cost_usd": state.get("cost_usd", 0.0) + e.cost_usd})
         except ContractError:
             persist.log("  MA returned no JSON — asking once more, strictly")
             run = agents.run_agent(
@@ -185,21 +207,35 @@ def build(cfg: Config):
         Work in the repository at {repo}. End with your JSON report block.
         """).strip()
 
-        run = agents.run_agent(
-            prompt, system_prompt=cfg.prompt("designer" if agent == "DA" else "coder"),
-            cwd=repo, allowed_tools=agents.tools_for(agent),
-            permission_mode="bypassPermissions",
-            max_turns=cfg.worker_max_turns,
-            model=cfg.designer_model if agent == "DA" else cfg.coder_model,
-            can_use_tool=agents.permission_for(agent, repo),
-            hooks=agents.hooks_for(agent, repo),
-            max_budget_usd=cfg.worker_budget_usd or None,
-            on_event=lambda s: persist.log(s, echo=True))
+        out_of_turns = False
+        try:
+            run = agents.run_agent(
+                prompt, system_prompt=cfg.prompt("designer" if agent == "DA" else "coder"),
+                cwd=repo, allowed_tools=agents.tools_for(agent),
+                permission_mode="bypassPermissions",
+                max_turns=cfg.worker_max_turns,
+                model=cfg.designer_model if agent == "DA" else cfg.coder_model,
+                can_use_tool=agents.permission_for(agent, repo),
+                hooks=agents.hooks_for(agent, repo),
+                max_budget_usd=cfg.worker_budget_usd or None,
+                on_event=lambda s: persist.log(s, echo=True))
+        except MaxTurnsReached as e:
+            # Whatever it wrote is on disk. Let verification judge it and let
+            # MA decide whether to continue the task — do not throw the work away.
+            out_of_turns = True
+            persist.log(f"  {agent} hit the {cfg.worker_max_turns}-turn ceiling; "
+                        f"keeping what it wrote and letting verification judge it")
+            run = agents.AgentRun(e.text, e.cost_usd, e.num_turns, usage=e.usage)
 
         try:
             report = run.json
         except ContractError:
             report = {"summary": "agent gave no JSON report", "done": False}
+        if out_of_turns:
+            report["done"] = False
+            report["summary"] = (
+                f"RAN OUT OF TURNS after {run.num_turns} — this is a partial "
+                f"result, not a finished task. " + (report.get("summary") or ""))
         report.setdefault("task_id", task.get("task_id", ""))
         report["agent"] = agent
         report["cost_usd"] = run.cost_usd

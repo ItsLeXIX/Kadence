@@ -9,8 +9,9 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from .errors import (AuthExpired, ContractError, OrchestratorError,
-                     QuotaExhausted, TransientError, classify)
+from .errors import (AuthExpired, ContractError, MaxTurnsReached,
+                     OrchestratorError, QuotaExhausted, TransientError,
+                     classify)
 from . import guards
 
 BACKOFF = [10, 30, 90]          # seconds, transient errors only
@@ -100,6 +101,7 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
 
     chunks: list[str] = []
     cost, turns, usage = 0.0, 0, {}
+    failure: str | None = None
     async for message in query(prompt=prompt, options=options):
         if isinstance(message, AssistantMessage):
             for block in message.content:
@@ -114,15 +116,22 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
             if message.is_error:
                 res = message.result
                 text = res if isinstance(res, str) else json.dumps(res or {})
-                text = f"{message.subtype or ''} {message.terminal_reason or ''} {text}"
-                c = classify(text)
-                if c.kind == "auth":
-                    raise AuthExpired(text)
-                if c.kind == "quota":
-                    raise QuotaExhausted(text, c.reset_at)
-                if c.kind == "transient":
-                    raise TransientError(text)
-                raise OrchestratorError(text)
+                failure = (f"{message.subtype or ''} "
+                           f"{message.terminal_reason or ''} {text}").strip()
+    # Raise only after the generator has closed. Throwing from inside the
+    # async-for leaves the SDK's generator mid-flight and buries the real
+    # error under "aclose(): asynchronous generator is already running".
+    if failure is not None:
+        c = classify(failure)
+        if c.kind == "auth":
+            raise AuthExpired(failure)
+        if c.kind == "max_turns":
+            raise MaxTurnsReached(failure, "\n".join(chunks), cost, turns, usage)
+        if c.kind == "quota":
+            raise QuotaExhausted(failure, c.reset_at)
+        if c.kind == "transient":
+            raise TransientError(failure)
+        raise OrchestratorError(failure)
     return AgentRun("\n".join(chunks), cost, turns, usage=usage)
 
 
@@ -147,13 +156,15 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
                 allowed_tools=allowed_tools, permission_mode=permission_mode,
                 max_turns=max_turns, model=model, can_use_tool=can_use_tool,
                 hooks=hooks, max_budget_usd=max_budget_usd, on_event=on_event))
-        except (QuotaExhausted, AuthExpired):
+        except (QuotaExhausted, AuthExpired, MaxTurnsReached):
             raise
         except TransientError as e:
             last = e
             continue
         except Exception as e:                     # noqa: BLE001
             c = classify(str(e))
+            if c.kind == "max_turns":
+                raise MaxTurnsReached(str(e)) from e
             if c.kind == "auth":
                 raise AuthExpired(str(e)) from e
             if c.kind == "quota":

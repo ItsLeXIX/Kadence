@@ -148,6 +148,7 @@ def main() -> int:
              ("TypeError: object is not callable", "fatal"),
              ("Failed to authenticate: OAuth session expired", "auth"),
              ("401 Unauthorized", "auth"),
+             ("error_max_turns max_turns {}", "max_turns"),
              ("You've hit your session limit · resets 1:20pm (Europe/Vienna)",
               "quota")]
     for text, want in cases:
@@ -200,6 +201,46 @@ def main() -> int:
     agents.run_agent = recovered
     code = R._drive(cfg, None)
     check("resume finishes the phase", code == 0, str(code))
+
+    # ------------------------------------- 6. running out of turns is not a crash
+    print("\nturn ceiling: salvage, do not crash")
+    from kadence_flow.errors import MaxTurnsReached
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=root)
+    subprocess.run(["git", "branch", "-D", "-q", cfg.work_branch], cwd=root,
+                   capture_output=True)
+    persist.DB.unlink(missing_ok=True)
+
+    MA3 = ('{"reasoning":"go","next":"DA","task_id":"T-90","title":"spec it",'
+           '"instruction":"x","acceptance":["a"],"files_expected":[]}')
+    seen = {"decide_now": False, "n": 0}
+
+    def out_of_turns(prompt, **kw):
+        seen["n"] += 1
+        if seen["n"] == 1:                      # MA burns its budget
+            raise MaxTurnsReached("error_max_turns max_turns {}", "", 0.02, 40)
+        if seen["n"] == 2:                      # MA asked to decide on what it has
+            seen["decide_now"] = "Stop investigating" in prompt
+            return agent_run(MA3, 0.01, 1)
+        if seen["n"] == 3:                      # DA runs out mid-task
+            (root / "design/layouts.md").write_text("# partial spec\n")
+            raise MaxTurnsReached("error_max_turns max_turns {}",
+                                  "half a report", 0.5, 120)
+        return agent_run('{"reasoning":"stop","next":"BLOCKED",'
+                         '"blocker":"end of test"}')
+
+    agents.run_agent = out_of_turns
+    R._drive(cfg, R._initial(cfg))
+    check("MA is asked to decide rather than crashing", seen["decide_now"])
+    st = R._last_state()
+    led = st.get("ledger") or []
+    check("the worker's partial work survives",
+          (root / "design/layouts.md").read_text().startswith("# partial"))
+    check("partial task is recorded, not done",
+          bool(led) and led[-1]["report"].get("done") is False,
+          str(led[-1]["report"].get("done")) if led else "no ledger entry")
+    check("its summary says it ran out of turns",
+          bool(led) and "RAN OUT OF TURNS" in (led[-1]["report"].get("summary") or ""))
+    check("verification still ran on it", bool(led) and "ok" in led[-1]["verification"])
 
     print(f"\n{len(PASS)} passed, {len(FAIL)} failed")
     if FAIL:

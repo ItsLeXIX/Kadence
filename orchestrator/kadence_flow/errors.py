@@ -24,6 +24,19 @@ class AuthExpired(OrchestratorError):
     """The claude CLI is not logged in. Only a human can fix it."""
 
 
+class MaxTurnsReached(OrchestratorError):
+    """The agent used its whole turn budget without finishing. Not a crash:
+    whatever it did is still on disk, and the caller decides what to salvage."""
+
+    def __init__(self, message: str, text: str = "", cost_usd: float = 0.0,
+                 num_turns: int = 0, usage: Optional[dict] = None):
+        super().__init__(message)
+        self.text = text
+        self.cost_usd = cost_usd
+        self.num_turns = num_turns
+        self.usage = usage or {}
+
+
 class TransientError(OrchestratorError):
     """Network / 5xx. Retry with backoff."""
 
@@ -59,6 +72,8 @@ _AUTH_PATTERNS = [
     r"please run .{0,12}login",
     r"not logged in",
 ]
+
+_MAX_TURNS_PATTERNS = [r"error_max_turns", r"\bmax[_ ]turns\b"]
 
 _TRANSIENT_PATTERNS = [
     r"\b50[0234]\b",
@@ -127,6 +142,9 @@ def classify(text: str) -> Classified:
     for p in _AUTH_PATTERNS:
         if re.search(p, low):
             return Classified("auth", text)
+    for p in _MAX_TURNS_PATTERNS:
+        if re.search(p, low):
+            return Classified("max_turns", text)
     for p in _QUOTA_PATTERNS:
         if re.search(p, low):
             return Classified("quota", text, parse_reset_at(text))
@@ -141,6 +159,8 @@ def raise_for(text: str) -> None:
     c = classify(text)
     if c.kind == "auth":
         raise AuthExpired(c.text)
+    if c.kind == "max_turns":
+        raise MaxTurnsReached(c.text)
     if c.kind == "quota":
         raise QuotaExhausted(c.text, c.reset_at)
     if c.kind == "transient":
