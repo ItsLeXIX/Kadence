@@ -135,8 +135,10 @@ struct DayColumnView: View {
 
     @ViewBuilder
     private func draftBlock(laidOut: LaidOutBlock) -> some View {
-        @Bindable var state = state
-        if let binding = Binding($state.draft) {
+        // CalendarState.draftBinding(), never Binding($state.draft): the latter
+        // force-unwraps on every read and traps when ⎋ or ↩ clears the draft
+        // out from under the field that is still being torn down.
+        if let binding = state.draftBinding() {
             DraftBlockView(
                 draft: binding,
                 renderedHeight: laidOut.frame.height,

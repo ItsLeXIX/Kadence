@@ -10,6 +10,11 @@ in that session — not carried over from the previous text. Several claims in t
 old version were wrong and are corrected in place; where a correction matters,
 it says so.
 
+**Amended 2026-09-10 by task P2-T01 (crash fix).** §1.1 and §1.2 are corrected —
+both re-run this session with different results. §1.4 has a new count. §1.5 is
+new and records the crash, its root cause and its fix. §5 is re-ordered: the
+crash outranked everything that was listed as next, and is now done.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -17,39 +22,25 @@ it says so.
 Xcode 26.6 (17F113), Apple Swift 6.3.3, target arm64-apple-macosx26.0.
 Working tree clean at `9bd7724` when these were run.
 
-### 1.1 `swift Scripts/generate-tokens.swift --check` — **FAILS**
+### 1.1 `swift Scripts/generate-tokens.swift --check` — **PASSES**
+
+*(corrected 2026-09-10 by P2-T01 — this section previously said FAILS)*
 
 ```
-Kadence/DesignSystem/Tokens.swift is out of date or was hand-edited.
-Tokens.swift is generated; edit design/tokens.json instead, then run:
-    swift Scripts/generate-tokens.swift
+Kadence/DesignSystem/Tokens.swift is up to date.
 ```
 
-Exit status **1**. This is the one red result in the four, and it is real, not a
-machine artefact. **It is also not a Phase 1 regression.**
+Exit status **0**, re-run this session. The failure P3-T01 recorded here was
+real when it was recorded: commit `1c58185` added 67 Phase 2 tokens to
+`design/tokens.json` and did not regenerate `Tokens.swift`, leaving the
+generated file one design pass behind its source. P3-T01 was scoped to touch no
+code and so left it. It has since been regenerated — not by this task, which ran
+the generator only in `--check` mode and never wrote `Tokens.swift`.
 
-Cause, established by regenerating and diffing: commit `1c58185` added 67 Phase 2
-tokens to `design/tokens.json` and never regenerated `Tokens.swift`. Running the
-generator produces a **+96 / −1** diff against the committed file — the source
-fingerprint line, plus new leaves that are all Phase 2 surface:
-
-- `color.window.peakFocusEdge`, `color.window.peakFocusFill` (§7 editor exception)
-- `motion.PreviewRevert`, `motion.SnoozeConfirmHold`
-- `opacity.blockPreviewed`, `opacity.editorInactiveLayer`
-- `size.conflictOption*`, `size.editorInspectorWidth`, `size.editorModeBarHeight`,
-  `size.popover*`, `size.previewCanvasBorder`, `size.resyncPopoverWidth`,
-  `size.routineEditor*`, `size.statusItem*`
-- typography groups `ConflictOptionTitle`, `ConflictOptionDelta`,
-  `EditorModeLabel`, `PopoverNextTitle`, `PopoverNextMeta`, `PopoverRow`,
-  `PopoverSectionLabel`, `StatusItem`
-
-No Phase 1 token changed. Nothing was hand-edited. The generated file is simply
-one design pass behind its source.
-
-**I did not fix this.** P3-T01 is a documentation-reconciliation task and is
-scoped to touch no code; I regenerated only to identify the drift, then reverted
-with `git checkout` so the tree is byte-identical to `HEAD`. Regenerating is a
-one-command fix and belongs to whoever picks up the next build task — see §5.
+No Phase 1 token was ever involved; the drift was entirely Phase 2 surface
+(`color.window.peakFocus*`, `motion.PreviewRevert`, `size.popover*`,
+`size.routineEditor*`, the `ConflictOption*` / `Popover*` / `StatusItem`
+typography groups, and the rest).
 
 ### 1.2 `./Scripts/check-accessibility.sh` — **PASS**
 
@@ -71,6 +62,16 @@ PASS (elements present)
 Exit status 0. 20 block elements, matching the 20 renderable fixtures. The A20b
 warning is a known open defect, not a new one — DEVIATIONS.md A20b.
 
+**Re-run 2026-09-10 by P2-T01: reported `FAIL`, 0 block elements — but that is
+the machine, not the code.** The control the script's own guidance asks for was
+run in the same minute: TextEdit with a document open also reports **0 windows**
+through the accessibility API (`System Events ... get count of windows` → `0`,
+and `window 1` → "Invalid index"). The Mac is not vending windows to AX right
+now, so the script has nothing to count. It is intermittent — window enumeration
+worked earlier in the same session, which is how the ⎋/↩ crash was driven through
+the menu bar. Nothing in this task touched block accessibility. Treat the PASS
+above as the standing result and re-run when AX is healthy.
+
 ### 1.3 `xcodebuild -scheme Kadence -destination 'platform=macOS' build` — **PASS**
 
 ```
@@ -85,12 +86,85 @@ Exit status 0.
 ** TEST SUCCEEDED **
 ```
 
-Exit status 0. Counted from the log: **149 passed / 0 failed** (129 unique test
-cases; the surplus is parameterised cases reported per argument).
+Exit status 0. **135 unique test cases, 0 failed.** The log prints 154–155
+`passed` lines depending on the run; the surplus is parameterised cases reported
+per argument, and the count wobbles by one because that per-argument logging is
+racy (`SourceSymbolTests/normativeTable` printed 9 lines in one run and 10 in the
+next, same 0 failures). Count unique names, not lines.
+
+*(updated 2026-09-10 by P2-T01: was "149 passed / 129 unique". The six new cases
+are `KadenceTests/DraftBindingTests.swift` — see §1.5.)*
 
 Always use `-only-testing:KadenceTests`. A plain `test` also runs the empty
 `KadenceUITests` template, whose runner cannot start on this machine ("Timed out
 while enabling automation mode"). That red is the template, not a failure.
+
+---
+
+### 1.5 The ⎋ / ↩ crash — found, root-caused, fixed (task P2-T01)
+
+Parsa reported that pressing ⎋ or ↩ crashed the running app. It did.
+
+**Reproduction.** Reproduced under `lldb` on a debug build. The state that
+crashes is (d), mid-draft with the inline title field active: File ▸ New Event,
+type a title, press `↩`. The app dies immediately.
+
+**Stack.**
+
+```
+Process 30139 stopped
+* thread #1, queue = 'com.apple.main-thread',
+  stop reason = EXC_BREAKPOINT (code=1, subcode=0x23576d648)
+    frame #0: SwiftUICore`BindingOperations.ForceUnwrapping.get(base:) + 304
+->  0x23576d648 <+304>: brk    #0x1
+```
+
+**Root cause.** `Kadence/Views/Canvas/DayColumnView.swift:138-139` (pre-fix):
+
+```swift
+@Bindable var state = state
+if let binding = Binding($state.draft) {
+```
+
+`Binding.init?(_ base: Binding<Value?>)` does **not** unwrap once at
+construction. It builds a `BindingOperations.ForceUnwrapping`, which unwraps
+inside its *getter*, on every read. So the binding handed to `DraftBlockView`
+force-unwraps `CalendarState.draft` each time SwiftUI reads it.
+
+`↩` runs `DraftBlockView.onSubmit` → `DayColumnView.commitDraft()` →
+`EventStore.commit(_:)` → `state.discardDraft()`, which sets `draft = nil` —
+from inside the draft field's own event handling. SwiftUI then reads the field's
+bindings again while tearing the field down. Those trailing reads unwrap nil and
+trap. Verified independently of the app with a 15-line SwiftUI program: reading a
+`Binding(optionalBinding)` after the source goes nil stops in the same frame.
+
+The invalid state, stated plainly: **a force-unwrapping binding outliving its
+source by one update pass.** It was the only `Binding(_:)` optional-unwrap in
+`Kadence/` — every other binding in the tree is an explicit `get:`/`set:` pair.
+
+**Fix.** `CalendarState.draftBinding()`, in `Kadence/State/CalendarState.swift`,
+replaces it; `DayColumnView.draftBlock` calls that instead. The binding
+remembers the last value written through it and serves that to reads arriving
+after `draft` is nil, and it drops writes once `draft` is nil — which also stops
+a dying field flushing its last text back and resurrecting a draft the user just
+cancelled. The doc comment says why, so it does not get "simplified" back.
+
+**Regression cover.** `KadenceTests/DraftBindingTests.swift`, six cases driving
+`CalendarState` and `EventStore` through the exact transition. Confirmed to fail
+against the pre-fix code path: with `draftBinding()` temporarily reverted to the
+`Binding(optionalBinding)` shape, the run is `** TEST FAILED **` and the trap
+takes the whole runner down. With the fix, `** TEST SUCCEEDED **`.
+
+**Re-verified in the running app** after the fix — ⎋ and ↩ pressed repeatedly,
+no crash, no console exception, in: grid focused with nothing selected; with a
+time cursor; with an event selected (Home/End); mid-draft with the field active
+(empty title, typed title, ⎋-then-↩, ↩-then-⎋); each of those with the inspector
+open and closed.
+
+**Two adjacent defects found and *not* fixed** (P2-T01 was scoped to the crash) —
+both now in DEVIATIONS.md: **A22**, `⎋` does not cancel a draft at all, so it was
+masking half of this crash; **A23**, `⌘N` opens a second window because the stock
+"New Window" item keeps the same key equivalent.
 
 ---
 
@@ -297,12 +371,9 @@ Phase 3 vocabulary appears only in `BRIEF-PRODUCT.md`, `BRIEF-DESIGN.md` and
 Stating facts, not choosing an order. The Phase 2-vs-Phase 3 build order is not
 mine to decide.
 
-1. **`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**
-   Fixed by running `swift Scripts/generate-tokens.swift` and committing the
-   result. It is a prerequisite for any task that reports a green token check,
-   and for any Phase 2 code, since all 67 Phase 2 tokens are missing from the
-   generated file. Nothing else in the repo is blocked by it — the app builds and
-   tests pass, because no Phase 1 code references the new leaves.
+1. ~~**`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**~~
+   **Done** — `--check` is green, see §1.1. Not this task's doing; it was already
+   regenerated when P2-T01 picked the tree up.
 2. **Phase 2 has a design and no code.** `design/components.md` §13–§17,
    `layouts.md` §8–§10, `interactions.md` §10–§12 and the 67 new tokens are
    complete and frozen. Nothing in `Kadence/` implements any of it. The design
@@ -312,11 +383,17 @@ mine to decide.
    drag-drop drop-preview vocabulary. Neither needs a new renderer.
 3. **Phase 3 has neither design nor code.** It cannot be built without a design
    pass first; per `CONTEXT.md` the coding agent cannot invent UI values.
-4. **Phase 1 has open deviations.** 15 absent, 6 built-differently, **0 invented
+4. **Phase 1 has open deviations.** 17 absent, 6 built-differently, **0 invented
    values**, **0 open spec contradictions** — see `DEVIATIONS.md`, re-audited
-   2026-09-10 against the current spec text.
+   2026-09-10 against the current spec text, plus A22 and A23 added by P2-T01.
+   **A22 is the one to take next**: `⎋` does not cancel a draft at all, which is
+   a §3 rule the build simply does not implement, and it is a small change now
+   that the binding underneath it is safe. Do not wire it up on a tree without
+   the `draftBinding()` fix — it runs the code path that used to trap.
 5. **Phase 1 never produced its screenshot set** (§2.2), and root `INDEX.md`
    describes 16 files that do not exist.
+6. **The ⎋ / ↩ crash is fixed** (§1.5). It outranked everything on this list
+   while it was open; nothing else was started until it was closed.
 
 ### 5.1 Needs a ruling
 

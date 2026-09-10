@@ -15,9 +15,15 @@ search against the working tree, not carried forward.
 Legend: **A** absent · **B** built differently · **C** value I invented (none
 remain) · **D** spec contradiction · ~~struck~~ = closed.
 
-**Counts: A ×15 · B ×6 · C ×0 · D ×0** — open items only, counted from this
+**Counts: A ×17 · B ×6 · C ×0 · D ×0** — open items only, counted from this
 file rather than carried forward. (A ×7 and B ×6 more are closed and struck
 below; the previous audit's "A ×14" did not match its own list.)
+
+**Amended 2026-09-10 (task P2-T01, crash fix).** A22 and A23 are new, both found
+while reproducing the ⎋/↩ crash rather than by re-reading the spec. The crash
+itself is *not* listed as a deviation — it was a defect in a feature the spec
+and the build agreed on, and it is fixed; see STATUS.md §1.5 and the note under
+A13.
 
 ### What this re-audit changed
 
@@ -283,6 +289,18 @@ in `Kadence/`.
   a title typed and then clicked away from is lost; committing a non-empty title
   on blur is a one-line change in `DraftBlockView` if that reads better in use.
 
+  **Correction 2026-09-10 (P2-T01): as shipped, this feature crashed the app.**
+  The entry above described the design correctly and the behaviour not at all —
+  `↩` in the draft field took the whole process down before any of it could
+  happen. `DayColumnView.draftBlock` handed `DraftBlockView` a binding built with
+  `Binding($state.draft)`, i.e. SwiftUI's `BindingOperations.ForceUnwrapping`,
+  which unwraps in its *getter*, on every read. Committing clears
+  `CalendarState.draft` from inside the field's own event handling, SwiftUI then
+  reads the field's bindings again while tearing it down, and the getter trapped
+  on nil. Fixed by `CalendarState.draftBinding()`; `KadenceTests/DraftBindingTests.swift`
+  covers the transition. The "losing focus abandons the draft" behaviour note
+  below was written from the code, not from use — see A22, `⎋` never reached it.
+
   Found while testing it: `commit` and `duplicate` **inserted twice** —
   `UndoStack.perform` runs its `redo` closure immediately, and both also inserted
   directly, producing two rows with the same `id`. Pre-existing in `create` and
@@ -328,6 +346,33 @@ in `Kadence/`.
   restores "the selection state that was in effect". Mutations are named and
   undoable; `⌘Z` puts the data back, not the user. Re-verified: no selection
   snapshot is captured or restored. *Still open.*
+
+- **A22 — interactions.md §3. `⎋` does not cancel an in-flight draft.** *(new
+  2026-09-10, found while fixing the P2-T01 crash)* §3: "`↩` commits; `⎋` cancels
+  and removes the block entirely." `↩` works. `⎋` does nothing at all — the
+  draft stays on the grid with its field still focused. Established under
+  instrumentation on a debug build (temporary `print` in
+  `DraftBlockView.onExitCommand` and in the `isFieldFocused` `onChange`): with
+  the field focused, `⎋` fires **neither**. The field editor swallows it before
+  `.onExitCommand` sees it and does not resign first responder either, so the
+  blur path does not fire as a backstop. The only ways out of a draft today are
+  `↩` and clicking away.
+
+  Not fixed in P2-T01, which was scoped to the crash. Note the ordering: this
+  defect was *masking* half of that crash. Once `⎋` is wired up it will run the
+  same `discardDraft()` path `↩` runs, which is exactly what trapped — so it
+  must not be wired up on a tree without the `draftBinding()` fix. That fix is
+  in, so the way is clear. *Still open.*
+
+- **A23 — interactions.md §2. `⌘N` opens a second window instead of creating an
+  event.** *(new 2026-09-10, found while reproducing P2-T01)* §2 lists `⌘N` as
+  "New event at the time cursor, else at the next half hour", global.
+  `KadenceCommands` adds its "New Event" item with `CommandGroup(after: .newItem)`
+  and `.keyboardShortcut("n", modifiers: .command)`, but the stock `WindowGroup`
+  "New Window" item keeps `⌘N` too. Two menu items, one key equivalent; AppKit
+  picks New Window. Observed directly: pressing `⌘N` on the running build opened
+  a second Kadence window and started no draft. The menu item itself works when
+  clicked. The toolbar `+` also works. *Still open.*
 
 ---
 

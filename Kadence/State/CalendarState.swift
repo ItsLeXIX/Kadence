@@ -130,6 +130,37 @@ final class CalendarState {
         draft = nil
     }
 
+    /// A binding to the in-flight draft that stays safe to read after the draft
+    /// is gone.
+    ///
+    /// Do **not** replace this with `Binding($state.draft)`. SwiftUI's
+    /// `Binding.init?(_ base: Binding<Value?>)` builds a
+    /// `BindingOperations.ForceUnwrapping`, and that type unwraps inside its
+    /// *getter* — on every read — not once at construction. Both keys that end a
+    /// draft clear `draft` from inside the draft field's own event handling
+    /// (`↩` → `EventStore.commit` → `discardDraft`, `⎋`/blur → `discardDraft`),
+    /// and SwiftUI reads the field's bindings again while tearing the field
+    /// down. Those trailing reads unwrapped nil and trapped the whole app in
+    /// `BindingOperations.ForceUnwrapping.get(base:)`.
+    ///
+    /// So: the binding remembers the last value that went through it and serves
+    /// that to the trailing reads, and it drops writes once `draft` is nil,
+    /// which also stops a field flushing its last text back and resurrecting a
+    /// draft the user just cancelled.
+    func draftBinding() -> Binding<EventDraft>? {
+        guard let current = draft else { return nil }
+        // Captured by reference by both closures, so what the user typed is
+        // still what a read after the draft ended sees.
+        var lastKnown = current
+        return Binding(
+            get: { self.draft ?? lastKnown },
+            set: { newValue in
+                guard self.draft != nil else { return }
+                lastKnown = newValue
+                self.draft = newValue
+            })
+    }
+
     // MARK: Sidebar visibility (layouts.md §1.1)
 
     /// How the split view should render, derived from the one stored flag.
