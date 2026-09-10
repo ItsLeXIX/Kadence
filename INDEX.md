@@ -1,7 +1,7 @@
 # Phase 1 screenshots
 
 Captured: 2026-09-09
-Commit: <sha>
+Commit: Phase 2
 Window: 1680×1050 unless noted
 
 | File | View | Shows | Appearance |
@@ -23,6 +23,4 @@ Window: 1680×1050 unless noted
 | day-contrast-dark.png | Day | Increase Contrast on | dark |
 | day-transparency-dark.png | Day | Reduce Transparency on | dark |
 
-## Known open at capture time
-- A20b: blocks carry AXHelp only, no §11 label (won't-fix this phase)
-- A19: undo does not restore selection
+

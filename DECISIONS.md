@@ -112,3 +112,84 @@ the duration of a build session (CONTEXT.md).
 
 An agent reporting a gap "closed" is a claim to verify. G-004 was reported
 closed and existed only in chat; §10.1 still specified no symbols.
+
+
+## 2026-09-10 — Routine instances edit instance-only, no dialog.
+The template is the baseline, today is the exception. Apple's "this event /
+all future" prompt taxes the most frequent interaction in the app. Templates
+change only in the template editor. An edited instance is pinned and
+re-materialisation leaves it alone.
+
+Detachment is NOT a block signal — every channel is spent. It appears in the
+inspector for the selected block, and as a count in the template editor
+("3 instances edited this week") with a re-sync action. Detachment matters
+when reasoning about the routine, never when reading Tuesday. Re-sync must
+be one undo step.
+
+## 2026-09-10 — Conflict resolution previews in place, not in a sheet.
+BRIEF-PRODUCT says "sheet with a preview of the resulting day". Rejected: a
+miniature grid inside a modal is a second visual vocabulary competing with
+the one §1 exists to protect, and a worse preview than the real thing.
+
+Non-modal panel (inspector), sidebar list as entry point. Focusing an option
+animates the real grid via interactions.md §7.1 with affected blocks
+outlined. ⎋ reverts, ↩ applies, ⌘Z undoes. Zero new components.
+
+Conditions: the panel must survive the user wandering off — spec whether
+pending state persists or is cleanly abandoned. Previewed blocks must never
+look committed.
+
+## 2026-09-10 — Menu bar requirement split between status item and popover.
+"Legible from across the room" is not achievable in a 22pt bar at ~13pt caps.
+Status item is for arm's length: ~180pt budget (~18 chars), `17:30 · Training`,
+time first and NEVER truncated (the time is what you scan for), title
+truncates, degrades to time only. No icon in the normal state.
+
+Popover carries "across the room": next item 20pt+, rest of today secondary.
+
+Late state uses semantic.now red — that colour already means "now" and
+lateness is a fact about the clock, not a failure. Phrased as elapsed
+("started 12 min ago"), NEVER as deficit ("overdue", "missed"), and always
+carries the re-offer action.
+
+## 2026-09-10 — Snooze confirmation is designed in Phase 2, not Phase 4.
+Same argument as the six block variants: surfaces get designed as a set, and
+an inert button in a shipped popover quietly never gets finished. The design
+exemption covers surfaces, not the services behind them — no snooze
+scheduling logic in Phase 2.
+
+## 2026-09-10 — Cursor time stays in the time gutter; §1 wins over §7.
+components.md §7 says the gutter carries hour labels and the now time and
+nothing else; interactions.md §1 puts the cursor time there. §1 wins —
+suppression of a colliding hour label uses the same 12pt rule as the now
+time. §7 to be amended in the Phase 2 pass.
+
+## 2026-09-10 — The toolbar is not a ⇥ focus stop.
+SwiftUI toolbar items aren't addressable as a focus region without a phantom
+item; macOS reaches the toolbar through Full Keyboard Access. §1 to be
+amended. A test asserts the omission is deliberate so it can't become a
+silent oversight.
+
+## 2026-09-10 — Dragging the split view divider counts as an explicit choice.
+CalendarState.isSidebarVisible is the single owner; the split view's
+columnVisibility is derived through a write-back binding. All four paths
+(menu, toolbar, width auto-collapse, divider) move the same value, and the
+§1.1 rule "auto-collapse never overwrites an explicit choice" lives only in
+setSidebarVisible(_:isUserAction:). A divider drag counts as explicit —
+otherwise the next window resize re-opens a sidebar the user just closed.
+
+## 2026-09-10 — New events are drafts in state, never rows in the store.
+The old flow inserted on ⌘N and deleted on cancel, so every abandoned
+creation left a permanent untitled event (A13). An EventDraft now lives in
+CalendarState — laid out, packed, cascaded and editable like a block, but
+never in SwiftData. EventStore.commit is the only path that persists one and
+refuses an unusable title. §3's rule is true by construction, not by cleanup.
+A launch sweep repairs stores written by the older build.
+
+Blur commits a non-empty title; ⎋ and empty-title abandon.
+
+Found by this work: commit and duplicate inserted twice — UndoStack.perform
+runs its redo closure immediately AND both wrote directly, producing two rows
+with the same id. Pre-existing and invisible. It surfaced only because these
+tests run against a real in-memory ModelContainer; a stubbed store would have
+passed. Tests that touch persistence use a real container.
