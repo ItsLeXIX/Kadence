@@ -66,11 +66,13 @@ def _git_context(repo) -> str:
 
 def _manager_prompt(state: OrchestratorState, cfg: Config) -> str:
     repo = cfg.repo
+    # the goal lives in state so a resume (which has no --goal) keeps it
+    goal = state.get("goal") or cfg.goal or "(see STATUS.md — continue the phase)"
     return textwrap.dedent(f"""
     # Cycle {state.get('cycle', 0) + 1} of at most {cfg.max_cycles}
 
     ## Phase goal (set by Parsa)
-    Phase {cfg.phase}: {cfg.goal or '(see STATUS.md — continue the current phase)'}
+    Phase {cfg.phase}: {goal}
 
     ## Repository state
     {_git_context(repo)}

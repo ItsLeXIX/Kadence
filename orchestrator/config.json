@@ -1,20 +1,16 @@
 {
   "_comment": "Edit this, not the code. Models are Claude Code aliases (opus/sonnet/haiku) or full model ids.",
   "phase": "3",
-  "goal": "",
-
+  "goal": "Phase 3 \u2014 work items, feeds and travel time (BRIEF-PRODUCT.md \"Phase 3\"). The Phase 3 design pass has landed in design/ (commit 1c58185) but STATUS.md still describes Phase 1 and DEVIATIONS.md is a Phase 1 punch list, so neither reflects what is actually built \u2014 reconcile them against the code before planning new work. Then build Phase 3 in the brief's order: manual work items (assignment/project/exam with effort + confidence) first, then time logging with estimated-vs-actual, then ICS subscription import, then TravelTimeProvider with MKDirections and the leave-by band. Moodle REST and CalDAV last. Done means the real timetable appears, on-campus lectures show a leave-by time, and time can be logged against coursework.",
   "manager_model": "sonnet",
   "designer_model": "opus",
   "coder_model": "opus",
-
   "manager_max_turns": 15,
   "worker_max_turns": 90,
-
   "max_cycles": 12,
   "max_cost_usd": 0,
   "worker_budget_usd": 0,
   "max_consecutive_failures": 3,
-
   "skip_build": false,
   "on_quota": "stop"
 }
