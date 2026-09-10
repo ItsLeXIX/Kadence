@@ -85,6 +85,22 @@ def main() -> int:
         ok, why = guards.check_write(a, f)
         check(f"{a} allowed {f}", ok, why)
 
+    print("\nPreToolUse gate (the layer that runs under bypassPermissions)")
+    from kadence_flow.guards import judge
+    for a, tool, inp, want in [
+            ("DA", "Write", {"file_path": str(root / "Kadence/X.swift")}, False),
+            ("DA", "Edit", {"file_path": str(root / "design/layouts.md")}, True),
+            ("CA", "Write", {"file_path": str(root / "design/GAPS.md")}, False),
+            ("CA", "Edit", {"file_path": str(root / "design/GAPS.md")}, True),
+            ("CA", "Write", {"file_path": str(root / "STATUS.md")}, True),
+            ("CA", "Bash", {"command": "git commit -m x"}, False),
+            ("CA", "Bash", {"command": "git checkout -- ."}, False),
+            ("CA", "Bash", {"command": "xcodebuild -scheme Kadence build"}, True),
+            ("DA", "Read", {"file_path": "/etc/hosts"}, True)]:
+        ok, why = judge(a, tool, inp, root)
+        check(f"{a} {tool} {'allowed' if want else 'denied'}: "
+              f"{str(list(inp.values())[0])[-38:]}", ok == want, why)
+
     # ------------------------------------------- 2. a rogue write is reverted
     print("\nrogue writes are undone, and the task fails")
     MA = ('{"reasoning":"go","next":"DA","task_id":"T-01","title":"spec",'

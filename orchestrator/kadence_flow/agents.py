@@ -63,7 +63,8 @@ class AgentRun:
 async def _once(prompt: str, *, system_prompt: str, cwd: Path,
                 allowed_tools: list[str], permission_mode: str,
                 max_turns: int, model: Optional[str],
-                can_use_tool=None, max_budget_usd: Optional[float] = None,
+                can_use_tool=None, hooks=None,
+                max_budget_usd: Optional[float] = None,
                 on_event: Optional[Callable[[str], None]] = None) -> AgentRun:
     from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions,
                                   ResultMessage, TextBlock, ToolUseBlock, query)
@@ -76,6 +77,7 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
         max_turns=max_turns,
         model=model,
         can_use_tool=can_use_tool,
+        hooks=hooks,
         max_budget_usd=max_budget_usd,
         setting_sources=["project"],
     )
@@ -110,7 +112,8 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
 def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
               allowed_tools: list[str], permission_mode: str = "bypassPermissions",
               max_turns: int = 60, model: Optional[str] = None,
-              can_use_tool=None, max_budget_usd: Optional[float] = None,
+              can_use_tool=None, hooks=None,
+              max_budget_usd: Optional[float] = None,
               on_event: Optional[Callable[[str], None]] = None) -> AgentRun:
     """Synchronous wrapper with backoff. Quota errors are NOT retried --
     they propagate so the run loop can checkpoint and stop cleanly."""
@@ -126,7 +129,7 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
                 prompt, system_prompt=system_prompt, cwd=cwd,
                 allowed_tools=allowed_tools, permission_mode=permission_mode,
                 max_turns=max_turns, model=model, can_use_tool=can_use_tool,
-                max_budget_usd=max_budget_usd, on_event=on_event))
+                hooks=hooks, max_budget_usd=max_budget_usd, on_event=on_event))
         except (QuotaExhausted, AuthExpired):
             raise
         except TransientError as e:
@@ -158,3 +161,7 @@ def tools_for(agent: str) -> list[str]:
 
 def permission_for(agent: str, repo: Path):
     return guards.make_permission_hook(agent, repo)
+
+
+def hooks_for(agent: str, repo: Path):
+    return guards.make_pretool_hooks(agent, repo)

@@ -180,6 +180,7 @@ def build(cfg: Config):
             max_turns=cfg.worker_max_turns,
             model=cfg.designer_model if agent == "DA" else cfg.coder_model,
             can_use_tool=agents.permission_for(agent, repo),
+            hooks=agents.hooks_for(agent, repo),
             max_budget_usd=cfg.worker_budget_usd or None,
             on_event=lambda s: persist.log(s, echo=True))
 
