@@ -162,13 +162,17 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
             last = e
             continue
         except Exception as e:                     # noqa: BLE001
-            c = classify(str(e))
+            # ResultError/ProcessError carry the reason in their message; a
+            # cause chain often holds the more specific one.
+            text = " ".join(str(x) for x in (e, getattr(e, "__cause__", None))
+                            if x is not None)
+            c = classify(text)
             if c.kind == "max_turns":
-                raise MaxTurnsReached(str(e)) from e
+                raise MaxTurnsReached(text) from e
             if c.kind == "auth":
-                raise AuthExpired(str(e)) from e
+                raise AuthExpired(text) from e
             if c.kind == "quota":
-                raise QuotaExhausted(str(e), c.reset_at) from e
+                raise QuotaExhausted(text, c.reset_at) from e
             if c.kind == "transient":
                 last = e
                 continue

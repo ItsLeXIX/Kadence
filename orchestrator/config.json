@@ -6,7 +6,7 @@
   "designer_model": "opus",
   "coder_model": "opus",
   "manager_max_turns": 40,
-  "worker_max_turns": 120,
+  "worker_max_turns": 220,
   "max_cycles": 12,
   "max_cost_usd": 0,
   "worker_budget_usd": 0,

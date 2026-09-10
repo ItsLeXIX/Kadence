@@ -73,7 +73,15 @@ _AUTH_PATTERNS = [
     r"not logged in",
 ]
 
-_MAX_TURNS_PATTERNS = [r"error_max_turns", r"\bmax[_ ]turns\b"]
+# The SDK reports this two ways: an error ResultMessage carrying
+# "error_max_turns", or a raised ResultError whose text reads
+# "Reached maximum number of turns (120)". Match both wordings.
+_MAX_TURNS_PATTERNS = [
+    r"error_max_turns",
+    r"\bmax[_ ]turns\b",
+    r"maximum number of turns",
+    r"reached maximum.{0,30}turns",
+]
 
 _TRANSIENT_PATTERNS = [
     r"\b50[0234]\b",

@@ -149,6 +149,8 @@ def main() -> int:
              ("Failed to authenticate: OAuth session expired", "auth"),
              ("401 Unauthorized", "auth"),
              ("error_max_turns max_turns {}", "max_turns"),
+             ("Claude Code returned an error result: Reached maximum number "
+              "of turns (120) (exit code: 1)", "max_turns"),
              ("You've hit your session limit · resets 1:20pm (Europe/Vienna)",
               "quota")]
     for text, want in cases:
