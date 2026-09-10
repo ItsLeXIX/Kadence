@@ -21,7 +21,7 @@ WRITE_SCOPE: dict[str, list[str]] = {
     # coding agent: the Swift target, tests, screenshots + the gap channel
     "CA": ["Kadence/**", "KadenceTests/**", "KadenceUITests/**",
            "screenshots/**", "Scripts/**", "design/GAPS.md",
-           "STATUS.md", "DEVIATIONS.md"],
+           "STATUS.md", "DEVIATIONS.md", "INDEX.md"],
 }
 
 # Never writable by any agent, whatever the scope says.

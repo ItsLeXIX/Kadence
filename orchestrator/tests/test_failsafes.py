@@ -81,7 +81,7 @@ def main() -> int:
                  ("CA", "Kadence/Views/DayView.swift"),
                  ("CA", "KadenceTests/ATests.swift"),
                  ("CA", "STATUS.md"), ("CA", "DEVIATIONS.md"),
-                 ("CA", "screenshots/3/INDEX.md")]:
+                 ("CA", "screenshots/3/INDEX.md"), ("CA", "INDEX.md")]:
         ok, why = guards.check_write(a, f)
         check(f"{a} allowed {f}", ok, why)
 
@@ -147,10 +147,15 @@ def main() -> int:
              ("connection reset by peer", "transient"),
              ("TypeError: object is not callable", "fatal"),
              ("Failed to authenticate: OAuth session expired", "auth"),
-             ("401 Unauthorized", "auth")]
+             ("401 Unauthorized", "auth"),
+             ("You've hit your session limit · resets 1:20pm (Europe/Vienna)",
+              "quota")]
     for text, want in cases:
         got = classify(text).kind
         check(f"{want:<9} ← {text[:38]}", got == want, f"got {got}")
+    check("clock-style reset parsed",
+          classify("You've hit your session limit · resets 1:20pm "
+                   "(Europe/Vienna)").reset_at is not None)
     check("reset time parsed",
           classify("Claude usage limit reached, resets at 2026-09-10T18:00:00Z").reset_at is not None)
 

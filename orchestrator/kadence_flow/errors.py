@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 
@@ -34,7 +34,9 @@ class ContractError(OrchestratorError):
 
 _QUOTA_PATTERNS = [
     r"usage limit",
+    r"session limit",
     r"limit reached",
+    r"hit your .{0,20}limit",
     r"claude usage limit",
     r"rate[_ ]?limit",
     r"\b429\b",
@@ -72,6 +74,10 @@ _TRANSIENT_PATTERNS = [
 # "resets at 2026-09-10T18:00:00Z" / "resets 6pm" / epoch seconds
 _RESET_ISO = re.compile(r"resets?\s+(?:at\s+)?(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?Z?)", re.I)
 _RESET_EPOCH = re.compile(r"resets?[^0-9]{0,12}(\d{10})\b", re.I)
+# the CLI's own wording: "resets 1:20pm (Europe/Vienna)"
+_RESET_CLOCK = re.compile(
+    r"resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?"
+    r"(?:\s*\(([A-Za-z_]+/[A-Za-z_]+)\))?", re.I)
 
 
 def parse_reset_at(text: str) -> Optional[datetime]:
@@ -88,6 +94,24 @@ def parse_reset_at(text: str) -> Optional[datetime]:
             return datetime.fromtimestamp(int(m.group(1)), tz=timezone.utc)
         except (ValueError, OSError):
             pass
+    m = _RESET_CLOCK.search(text)
+    if m:
+        hour = int(m.group(1)) % 12
+        if m.group(3).lower() == "p":
+            hour += 12
+        minute = int(m.group(2) or 0)
+        tz = None
+        if m.group(4):
+            try:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo(m.group(4))
+            except Exception:            # noqa: BLE001 — unknown zone name
+                tz = None
+        now = datetime.now(tz) if tz else datetime.now().astimezone()
+        reset = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if reset <= now:                 # already past today -> tomorrow
+            reset += timedelta(days=1)
+        return reset.astimezone(timezone.utc)
     return None
 
 
