@@ -21,7 +21,8 @@ LangGraph state machine that runs the same loop by itself.
     · write scope · gap rule · git commit)
 ```
 
-MA never touches files. DA and CA never talk to each other — they talk through
+MA never touches files; CA keeps `STATUS.md` and `DEVIATIONS.md` current.
+DA and CA never talk to each other — they talk through
 `design/GAPS.md`, exactly as `CONTEXT.md` says. Verification is **not** an agent:
 it is `subprocess` running your real build, so no agent can talk its way to green.
 
@@ -80,7 +81,7 @@ Prompts are advice; these are enforced in code and cannot be talked around:
 | Rule (`CONTEXT.md`) | Enforcement |
 |---|---|
 | DA writes only `design/` | `can_use_tool` denies the write; `git status` re-checks afterwards |
-| CA writes only `Kadence/`, `KadenceTests/`, `Scripts/`, `screenshots/` + appends to `GAPS.md` | same |
+| CA writes only `Kadence/`, `KadenceTests/`, `Scripts/`, `screenshots/`, `STATUS.md`, `DEVIATIONS.md` + appends to `GAPS.md` | same |
 | `DECISIONS.md` is yours alone | forbidden to both agents, and checked after every task |
 | `Tokens.swift` is generated, never hand-edited | forbidden to write + `generate-tokens --check` |
 | A gap is closed only with a spec edit **and** a closed `GAPS.md` entry with a §ref | `verify.gap_closures` |
@@ -132,5 +133,5 @@ state/                     checkpoints + logs (gitignored)
   (`design/` freeze), not a missing feature.
 - MA's context is a digest: recent ledger, GAPS tail, STATUS tail, git log. It can
   read more with Read/Grep, but it does not see full chat history from earlier runs.
-- Screenshot capture and DA's screenshot review are still tasks MA has to dispatch;
+- Screenshot capture is a CA task and review is a DA task, both dispatched by MA;
   nothing automates the screen capture itself yet.

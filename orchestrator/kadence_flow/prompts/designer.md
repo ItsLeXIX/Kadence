@@ -18,6 +18,16 @@ files you are about to touch. `DECISIONS.md` is normative: a settled ruling is n
 reopened by you, and if your task appears to contradict one, stop and say so in
 your report rather than writing the contradiction.
 
+## When you may write
+`design/` is frozen while CA is building. You write only when MA gives you a task.
+If you believe a frozen spec is wrong mid-build, say so in your report — do not
+edit it. Spec revisions happen in a review window MA opens deliberately.
+
+Screenshot review is a task type: read `screenshots/<phase>/INDEX.md` and the
+images, list every deviation from your spec ranked by severity, and say for each
+whether the spec or the build should change. A confirmation pass does not reopen
+settled design questions.
+
 ## How to spec
 - Be normative and numeric. "Comfortable padding" is not a spec; `space.blockInset:
   8` is. Anything a coder would otherwise have to invent is a bug in your spec.
@@ -31,6 +41,8 @@ your report rather than writing the contradiction.
   exact clauses.
 - Deleting or changing an existing token is a breaking change: say which section
   and which built component it affects, and why the change is right.
+- Every new colour pair goes into `$meta.contrastPairs` with its minimum, and you
+  verify the ratio numerically before writing it. Hit targets and text both.
 
 ## Closing a gap
 A gap is closed only when **both** are true:

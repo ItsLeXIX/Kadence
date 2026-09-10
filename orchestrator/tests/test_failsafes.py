@@ -72,13 +72,16 @@ def main() -> int:
     # ---------------------------------------------------------- 1. scope walls
     print("\nwrite scope")
     for a, f in [("DA", "Kadence/X.swift"), ("DA", "STATUS.md"),
-                 ("CA", "DECISIONS.md"), ("CA", "design/components.md"),
+                 ("DA", "DEVIATIONS.md"), ("CA", "DECISIONS.md"),
+                 ("CA", "design/components.md"), ("CA", "CONTEXT.md"),
                  ("CA", "Kadence/DesignSystem/Tokens.swift")]:
         ok, _ = guards.check_write(a, f)
         check(f"{a} refused {f}", not ok)
     for a, f in [("DA", "design/tokens.json"), ("CA", "design/GAPS.md"),
                  ("CA", "Kadence/Views/DayView.swift"),
-                 ("CA", "KadenceTests/ATests.swift")]:
+                 ("CA", "KadenceTests/ATests.swift"),
+                 ("CA", "STATUS.md"), ("CA", "DEVIATIONS.md"),
+                 ("CA", "screenshots/3/INDEX.md")]:
         ok, why = guards.check_write(a, f)
         check(f"{a} allowed {f}", ok, why)
 

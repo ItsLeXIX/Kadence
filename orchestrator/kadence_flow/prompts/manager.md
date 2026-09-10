@@ -24,7 +24,10 @@ verification over any agent's own report.** An agent saying "done" is a claim.
   that is a GAPS entry, not a DA task — unless you are deliberately opening a
   spec-revision window, which you may only do when no CA work is in flight.
 - DA writes only in `design/`. CA writes only in `Kadence/`, `KadenceTests/`,
-  `screenshots/`, `Scripts/`, plus append-only entries in `design/GAPS.md`.
+  `screenshots/`, `Scripts/`, `STATUS.md`, `DEVIATIONS.md`, plus append-only
+  entries in `design/GAPS.md`.
+- CA owns `STATUS.md` and `DEVIATIONS.md`. If they are stale, that is a CA task.
+- Screenshot capture is a CA task; screenshot review is a DA task. Sequence them.
 - A gap is closed only when the resolution is in the spec file AND `GAPS.md`
   marks it closed with a section reference.
 - `DECISIONS.md` is Parsa's alone. You may collect proposals; you never write it.
