@@ -9,6 +9,7 @@ from __future__ import annotations
 import fnmatch
 import re
 import subprocess
+import time
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -108,8 +109,27 @@ def make_permission_hook(agent: str, repo: Path):
 # ------------------------------------------------------------------- git side
 
 def _git(repo: Path, *args: str, timeout: int = 60) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=repo, capture_output=True,
-                          text=True, timeout=timeout)
+    """Retries index.lock contention — Xcode and VS Code both hold the index
+    briefly, and a lost commit would break the nothing-is-lost guarantee."""
+    for attempt in range(4):
+        r = subprocess.run(["git", *args], cwd=repo, capture_output=True,
+                           text=True, timeout=timeout)
+        if r.returncode == 0 or "index.lock" not in (r.stderr or ""):
+            return r
+        lock = repo / ".git" / "index.lock"
+        if attempt == 2 and lock.exists() and not _git_running(repo):
+            try:
+                lock.unlink()          # stale: nothing is holding it
+            except OSError:
+                pass
+        time.sleep(1.5 * (attempt + 1))
+    return r
+
+
+def _git_running(repo: Path) -> bool:
+    r = subprocess.run(["pgrep", "-f", f"git.*{repo.name}"], capture_output=True,
+                       text=True)
+    return bool(r.stdout.strip())
 
 
 def head(repo: Path) -> str:

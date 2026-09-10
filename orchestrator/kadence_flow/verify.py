@@ -121,6 +121,7 @@ def decisions_untouched(repo: Path, base_sha: str) -> dict[str, Any]:
                        cwd=repo, capture_output=True, text=True)
     touched = bool(r.stdout.strip()) or "DECISIONS.md" in guards.changed_files(repo)
     return _check("DECISIONS.md untouched", not touched,
+                  "" if not touched else
                   "an agent edited DECISIONS.md; only Parsa writes it")
 
 
