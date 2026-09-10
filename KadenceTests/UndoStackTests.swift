@@ -295,13 +295,4 @@ struct UndoNameTests {
         }
         #expect(stack.undoMenuTitle == "Undo Resolve Conflict")
     }
-
-    @Test("An abandoned creation is dropped, not left for ⌘Z")
-    func discard() {
-        let (stack, box) = counterStack()
-        stack.perform("New Event", redo: { box.n += 1 }, undo: { box.n -= 1 })
-        #expect(stack.canUndo)
-        stack.discardLastStep()
-        #expect(!stack.canUndo, "an event the user never named is not undoable history")
-    }
 }

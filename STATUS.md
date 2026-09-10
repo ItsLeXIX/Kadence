@@ -2,7 +2,7 @@
 
 Updated: 2026-09-09
 Phase: **1 — the calendar.** Built, then reworked for the 17:14 spec revision.
-Builds clean, 117/117 unit tests pass, runs.
+Builds clean, 149/149 unit tests pass.
 
 ## How to verify
 
@@ -14,7 +14,7 @@ xcodebuild -scheme Kadence -destination 'platform=macOS' -only-testing:KadenceTe
 ```
 
 All three were run on this Mac (Xcode 26.6, Swift 6.3.3) before this was written:
-`** BUILD SUCCEEDED **`, `** TEST SUCCEEDED **`, 117 passed / 0 failed.
+`** BUILD SUCCEEDED **`, `** TEST SUCCEEDED **`, 149 passed / 0 failed.
 
 Use `-only-testing:KadenceTests`. A plain `test` also runs the empty UI-test
 template, whose runner fails on this machine with "Timed out while enabling
@@ -192,15 +192,107 @@ grouping and reverse-order unwind, re-entrancy, the interleaved
 single → group → single case unwinding one press at a time, redo round-trip,
 redo invalidation, the replay guard, and the menu titles.
 
+## A1, A11, A12 — done (2026-09-09)
+
+- **A1 / review D-3 — background windows span the gutter.** The layer moved out
+  of `DayColumnView` (which starts after the gutter) into
+  `TimedCanvasView.windowsBackdrop`: one continuous canvas layer behind gutter +
+  every column, below the hour lines and below every block. §7's point is that
+  the edges stay visible when a column is full of blocks, which needs the band to
+  cross the gutter. The gutter takes the leading day's windows, since one gutter
+  serves all seven columns.
+- **A11 — `⇥` region cycling.** sidebar → all-day row → grid → inspector, wrapping,
+  skipping the all-day row when hidden and the inspector when collapsed. The rule
+  is a pure function (`CalendarState.FocusRegion.next`) with 13 tests. Each region
+  draws the standard focus ring per §1, so the grid no longer disables it.
+  **Gap: the toolbar is not a `⇥` stop.** §1 lists it first, but SwiftUI toolbar
+  items are not addressable as a focus region without adding a phantom item;
+  macOS reaches the toolbar via Full Keyboard Access. A test asserts the omission
+  is deliberate rather than an oversight.
+- **A12 — cursor time in the gutter**, `hourLabel` / `color.interactive.accent`,
+  suppressing a colliding hour label by the same rule the now time uses.
+
+**Spec conflict to reconcile.** components.md §7 (revised 17:15) says the gutter
+carries hour labels and the now time "and nothing else may be drawn in it".
+interactions.md §1 puts the cursor time in the gutter. Built per §1 on your
+instruction; the two specs still disagree.
+
+**Also noticed, not fixed (out of scope):** `CalendarState.isSidebarVisible` and
+the split view's `columnVisibility` are two sources of truth for the same thing
+and are not kept in sync — the Edit-menu toggle writes one, auto-collapse writes
+the other. A11 sidesteps it by reading `columnVisibility` directly.
+
+## Sidebar visibility — one source of truth (2026-09-10)
+
+`CalendarState.isSidebarVisible` is now the only stored sidebar state. The split
+view's `columnVisibility` is derived from it (`sidebarColumnVisibility`) through a
+binding that writes back, so all four paths move the same value: the Edit-menu
+toggle, the toolbar button, width-driven auto-collapse, and the split view's own
+divider. Previously the menu wrote `isSidebarVisible` while auto-collapse wrote a
+separate `@State columnVisibility`, so the menu could offer "Hide Sidebar" for a
+sidebar that was already hidden.
+
+The §1.1 rule — auto-collapse must never overwrite an explicit choice — now lives
+in exactly one place, `setSidebarVisible(_:isUserAction:)`. A change arriving from
+the split view's own divider counts as explicit, or the next resize would undo it.
+8 tests in `SidebarVisibilityTests`, plus `availableFocusRegions` reads the same
+flag so `⇥` can never land on a sidebar that is not on screen.
+
+The inspector was already single-source (`isInspectorVisible`) and is unchanged.
+
+## A13 — creation is commit-or-discard (2026-09-10)
+
+A new event is an `EventDraft` held in `CalendarState`. It is laid out and drawn
+like a block — it packs and cascades with everything else, and carries the
+inline `TextField` §3 asks for — but it is **never in the store**.
+`EventStore.commit(_:)` is the only path that persists one, and it refuses a
+draft with no usable title.
+
+That makes §3's rule true by construction rather than by cleanup: there is
+nothing to delete on cancel because nothing was written. The old flow inserted
+first and deleted on cancel, which is what left untitled events behind whenever
+the delete did not happen.
+
+- `⌘N`, the toolbar `+`, double-click and drag-create all call
+  `CalendarState.beginDraft`; none of them touch SwiftData.
+- `↩` commits and selects the result. `⎋` and an empty title discard.
+- `UndoStack.discardLastStep` is gone — it existed only to paper over the old
+  insert-then-cancel flow.
+
+**Behaviour note, worth a second look in use:** losing focus abandons the draft,
+following the instruction that ⎋, focus loss and an empty title all count as
+abandonment. The cost is that a title typed and then clicked away from is lost.
+Committing a non-empty title on blur is a one-line change in `DraftBlockView`.
+
+**A bug this surfaced.** `commit` and `duplicate` inserted the event **twice** —
+`UndoStack.perform` runs its `redo` closure immediately, and both also inserted
+directly, so two rows appeared with the same `id`. Pre-existing in `create` and
+`duplicate` and invisible until now: the new tests run against a real in-memory
+`ModelContainer` rather than a stub, which is the only reason it showed up.
+
+**The stray event is gone.** `MockData.removeUntitledEvents` sweeps empty-title
+events at launch — a repair for stores written by the older build, since an
+untitled event is now impossible to create. Two tests cover the sweep and its
+no-op case.
+
+## Accessibility check — 20, as expected
+
+`./Scripts/check-accessibility.sh` → **PASS, 20 block elements** (was 21). The
+extra one was the stray untitled 23:30–00:30 event; the sweep removed it, and the
+count now matches the 20 renderable fixtures exactly — 21 timed fixtures with
+Overlap 6 correctly hidden behind the cascade's `+1` chip.
+
+The A20b warning still stands and is unchanged: blocks reach the tree, but carry
+the hover-help string rather than the §11 label.
+
 ## Blocked / needs your ruling
 
 - **`DEVIATIONS.md`** — full punch list of where the build does not match the
-  frozen spec: 19 absent, 9 built differently (3 now fixed), 1 invented value,
-  2 spec contradictions. Read that before Phase 2.
-- **`design/GAPS.md` G-004 — the sidebar source symbols.** components.md §10.1
-  makes the symbol load-bearing for the no-colour-only-meaning rule but specifies
-  none. This is the one place I picked a design value; it is marked `// SPEC-GAP`
-  and needs the design side.
+  frozen spec: 17 absent, 6 built differently, **0 invented values**, 0 open
+  spec contradictions. Read that before Phase 2.
+- ~~`design/GAPS.md` G-004 — the sidebar source symbols.~~ **Closed.** §10.1 is
+  normative and the code implements it. **There are no invented design values
+  left in the codebase.**
 - **A20b in `DEVIATIONS.md`** — A20 is fixed (blocks reach the accessibility
   tree: 20 elements, up from 0). A20b is **attempted and not fixed**: six
   configurations measured against the running app, including the preferred real
@@ -208,7 +300,8 @@ redo invalidation, the replay guard, and the menu titles.
   element at all. Evidence table and next candidates are in DEVIATIONS.md.
   Needs a decision — every remaining option trades something.
 - G-006 and G-009 are **closed** by the 17:14 revision. Five gaps remain
-  (G-003, G-004, G-005, G-007, G-008), none blocking except G-004.
+  (G-003, G-005), neither blocking. G-004, G-006, G-007, G-008 and G-009 are
+  closed.
 
 ## Not done, on purpose
 
@@ -226,6 +319,6 @@ redo invalidation, the replay guard, and the menu titles.
 
 ## Next
 
-1. Rule on Swift 6 and on G-004.
+1. Reconcile the gutter conflict below.
 2. Finish the three partial items above — they are all Phase 1 scope.
 3. Then Phase 2 (routines, conflicts, protected time, menu bar extra), not before.

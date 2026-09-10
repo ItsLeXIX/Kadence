@@ -6,10 +6,10 @@ Every place the implementation does not match the frozen spec, audited
 (cascade rework + new §3.4). Verified by reading the code, not from memory —
 where an item says "token unused", that was checked with a search.
 
-Legend: **A** absent · **B** built differently · **C** value I invented ·
+Legend: **A** absent · **B** built differently · **C** value I invented (none remain) ·
 **D** spec contradiction · ~~struck~~ = fixed in this pass.
 
-Counts: A ×20 · B ×6 · C ×1 · D ×0 — plus 7 items fixed across two passes.
+Counts: A ×14 · B ×6 · C ×0 · D ×0 — plus 13 items fixed across five passes.
 
 ---
 
@@ -23,24 +23,32 @@ the `increaseContrast` parameter (GAPS G-003).
 
 ---
 
-## C — the one design value I invented
+## C — invented design values
 
-- **C1 — components.md §10.1, source swatch symbols.** §10.1 makes the symbol
-  load-bearing ("what makes the sidebar legend work without colour") but names
-  none for any of the eight palette slots. Placeholders in
-  `SourceKey.swatchSymbol`. Logged as GAPS G-004. **This is the only invented
-  design value in the codebase.**
+**None.** There are no invented design values left in the codebase.
+
+- ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1 now
+  carries a normative table for all nine source kinds plus an unknown-kind
+  fallback, and the code implements it: the symbol moved off `SourceKey` onto
+  `CalendarSource` as a `symbol` defaulted from `CalendarSourceKind`, the
+  `// SPEC-GAP` marker is gone, and `SourceSymbolTests` pins the table — including
+  §10.1's rule that no source symbol may also be a block-kind glyph.
+  GAPS.md records G-004 closed with the section reference.
 
 ---
 
 ## A — specified but not built
 
 ### Canvas
-- **A1 — components.md §7. Background windows do not span the time gutter.**
-  §7 is explicit: they "span the full column width **including the time
-  gutter**". `BackgroundWindowsLayer` is rendered inside `DayColumnView`, so
-  protected and low-energy shading stops at the gutter edge. Visible today.
-  *Fix: hoist the layer to the canvas level, behind gutter + columns.*
+- ~~**A1 — background windows do not span the time gutter.**~~ **Fixed**
+  (also review D-3). `BackgroundWindowsLayer` no longer lives inside
+  `DayColumnView`, which starts after the gutter. `TimedCanvasView.windowsBackdrop`
+  draws one continuous layer behind gutter + every column, below the hour lines
+  and below every block, so a protected or low-energy band reads as one band
+  across the whole grid and its edges stay visible when a column is full — which
+  §7 says is the only time they matter. The gutter takes the leading day's
+  windows, since the gutter is shared by all seven columns.
+
 - **A2 — components.md §3.1. `size.blockVerticalGap` is never applied.** The
   token is unused; vertically adjacent blocks in one sub-column touch. Frames
   come straight from the time geometry with no 2pt separation.
@@ -146,13 +154,45 @@ the `increaseContrast` parameter (GAPS G-003).
   branch, so the app is correct in that mode and wrong in the default one.
 
 ### Interaction
-- **A11 — interactions.md §1. Region focus cycling is absent.** No `⇥` /`⇧⇥`
-  cycle across the four regions; the grid is a single focusable target.
-- **A12 — interactions.md §1. The time cursor prints no time in the gutter.**
-  The accent line is drawn; the `hourLabel` time in the gutter is not.
-- **A13 — interactions.md §3. Inline title editing on create is stubbed.**
-  `inlineEditingEventID` is set and nothing consumes it; you name a new event in
-  the inspector instead.
+- ~~**A11 — region focus cycling is absent.**~~ **Fixed, with one gap.**
+  `⇥` / `⇧⇥` now cycle sidebar → all-day row → grid → inspector and wrap,
+  skipping the all-day row when hidden and the inspector when collapsed. The
+  rule is a pure function (`CalendarState.FocusRegion.next`) with 13 tests, so
+  the skipping and wrapping are checked rather than tabbed through by hand. Each
+  region draws the standard focus ring, per §1, which is why the grid no longer
+  sets `.focusEffectDisabled()`.
+  **The toolbar is not a stop.** §1 lists it first, but SwiftUI toolbar items are
+  not addressable as a focus region without a phantom item; macOS reaches the
+  toolbar through Full Keyboard Access instead. Asserted as deliberate in
+  `FocusAvailabilityTests.toolbarExcluded`.
+- ~~**A12 — the time cursor prints no time in the gutter.**~~ **Fixed.** The
+  cursor time is printed in the gutter in `hourLabel` / `color.interactive.accent`,
+  and suppresses a colliding hour label by the same 12pt rule the now time uses.
+  Shown only while the grid is focused and the cursor is on a visible day.
+  **Spec conflict, flagged:** components.md §7 (revised 17:15) says the gutter
+  carries hour labels and the now time "and nothing else"; interactions.md §1
+  puts the cursor time there. Built per §1 on Parsa's instruction — the two need
+  reconciling.
+- ~~**A13 — inline title editing on create is stubbed.**~~ **Fixed.** A new event
+  is now an `EventDraft` held in `CalendarState`, laid out and drawn like a block
+  (so it packs and cascades with everything else) but **never in the store**.
+  `EventStore.commit(_:)` is the only path that persists one, and it refuses a
+  draft with no usable title. §3's rule — "an event created with no title is
+  never persisted; cancelling and committing an empty field both remove it" — is
+  therefore true by construction rather than by cleanup: there is nothing to
+  delete because nothing was written.
+
+  **Behaviour note:** losing focus abandons the draft, per the instruction that
+  ⎋, focus loss and an empty title all count as abandonment. The trade-off is
+  that a title typed and then clicked away from is lost; committing a non-empty
+  title on blur is a one-line change in `DraftBlockView` if that reads better in
+  use.
+
+  Found while testing it: `commit` and `duplicate` **inserted twice** —
+  `UndoStack.perform` runs its `redo` closure immediately, and both also inserted
+  directly, producing two rows with the same `id`. Pre-existing in `create` and
+  `duplicate`; caught only because these tests run against a real in-memory
+  store rather than a stub.
 - **A14 — interactions.md §4. `⇧` (same-day constraint) and `⌥`-drag duplicate
   are not wired.** `EventStore.duplicate` exists with no gesture path to it.
 - **A15 — interactions.md §4. No time badge follows the pointer** during a drag.

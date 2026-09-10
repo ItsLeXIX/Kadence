@@ -66,6 +66,9 @@ struct DayColumnView: View {
                     if let event = events.first(where: { $0.id == laidOut.id }) {
                         blockStack(event: event, laidOut: laidOut)
                             .zIndex(Double(laidOut.zIndex))
+                    } else if let draft = draftOnThisDay, draft.id == laidOut.id {
+                        draftBlock(laidOut: laidOut)
+                            .zIndex(Double(laidOut.zIndex) + 500)
                     }
                 }
 
@@ -111,10 +114,47 @@ struct DayColumnView: View {
     }
 
     private var layoutItems: [LayoutItem] {
-        timedEvents.map { LayoutItem(id: $0.id, start: $0.start, end: $0.end, title: $0.title) }
+        var items = timedEvents.map {
+            LayoutItem(id: $0.id, start: $0.start, end: $0.end, title: $0.title)
+        }
+        // The draft is laid out with everything else so the user sees where it
+        // will land, even though it is not in the store (interactions.md §3).
+        if let draft = draftOnThisDay {
+            items.append(LayoutItem(id: draft.id, start: draft.start, end: draft.end, title: draft.title))
+        }
+        return items
+    }
+
+    private var draftOnThisDay: EventDraft? {
+        guard let draft = state.draft,
+              Calendar.current.isDate(draft.start, inSameDayAs: day) else { return nil }
+        return draft
     }
 
     // MARK: A block plus its attached travel band
+
+    @ViewBuilder
+    private func draftBlock(laidOut: LaidOutBlock) -> some View {
+        @Bindable var state = state
+        if let binding = Binding($state.draft) {
+            DraftBlockView(
+                draft: binding,
+                renderedHeight: laidOut.frame.height,
+                onCommit: commitDraft,
+                onDiscard: { state.discardDraft() })
+                .frame(width: laidOut.frame.width, height: laidOut.frame.height, alignment: .topLeading)
+                .offset(x: laidOut.frame.minX, y: laidOut.frame.minY)
+        }
+    }
+
+    /// ↩ — persists only if there is a title, and selects the result.
+    private func commitDraft() {
+        guard let draft = state.draft else { return }
+        if let event = store.commit(draft) {
+            state.selectedEventID = event.id
+        }
+        state.discardDraft()
+    }
 
     @ViewBuilder
     private func blockStack(event: Event, laidOut: LaidOutBlock) -> some View {
@@ -250,9 +290,7 @@ struct DayColumnView: View {
             .accessibilityHidden(true)
             .onTapGesture(count: 2) { location in
                 let start = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15)
-                let event = store.create(at: start)
-                state.selectedEventID = event.id
-                state.inlineEditingEventID = event.id
+                state.beginDraft(at: start)
             }
             .onTapGesture { location in
                 state.selectedEventID = nil
@@ -274,9 +312,7 @@ struct DayColumnView: View {
                         let lower = min(session.origin, session.current)
                         let upper = max(session.origin, session.current)
                         let duration = max(upper.timeIntervalSince(lower), 15 * 60)
-                        let event = store.create(at: lower, duration: duration)
-                        state.selectedEventID = event.id
-                        state.inlineEditingEventID = event.id
+                        state.beginDraft(at: lower, duration: duration)
                     }
             )
     }

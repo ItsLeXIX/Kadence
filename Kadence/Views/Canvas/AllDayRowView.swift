@@ -25,6 +25,12 @@ struct AllDayRowView: View {
 
     private var isEmpty: Bool { maxRows == 0 }
 
+    /// layouts.md §3.2 — hidden entirely when there is nothing to show, which is
+    /// also what makes ⇥ skip it (interactions.md §1).
+    static func isVisible(days: [Date], fixtures: MockFixtures) -> Bool {
+        days.contains { !fixtures.allDayItems(on: $0).isEmpty }
+    }
+
     var body: some View {
         if !isEmpty {
             let cap = Tokens.Size.allDayMaxRows

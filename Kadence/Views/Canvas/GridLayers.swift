@@ -194,6 +194,15 @@ struct TimeGutterView: View {
     let now: Date
     /// Whether the now time replaces a colliding hour label.
     let showsNow: Bool
+    /// interactions.md §1 — in cursor mode the cursor's time is printed here in
+    /// `hourLabel` / `color.interactive.accent`. This is what makes the keyboard
+    /// cursor legible: the accent line alone says *where*, not *when*.
+    ///
+    /// Note: components.md §7 (revised 17:15) says the gutter carries hour labels
+    /// and the now time "and nothing else". interactions.md §1 predates it and
+    /// puts the cursor time here. Implemented per §1 on Parsa's instruction; the
+    /// two specs need reconciling.
+    var cursor: Date? = nil
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -215,6 +224,13 @@ struct TimeGutterView: View {
                     .padding(.trailing, Tokens.Spacing.md)
                     .offset(y: geometry.yForTimeOfDay(now) - 5)
             }
+            if let cursor {
+                Text(BlockFormatters.time.string(from: cursor))
+                    .typeStyle(.hourLabel)
+                    .foregroundStyle(Tokens.Color.Interactive.accent)
+                    .padding(.trailing, Tokens.Spacing.md)
+                    .offset(y: geometry.yForTimeOfDay(cursor) - 5)
+            }
         }
         .frame(width: Tokens.Size.timeGutterWidth, alignment: .trailing)
         // Hour lines span the gutter too; half-hour lines do not.
@@ -228,11 +244,13 @@ struct TimeGutterView: View {
         }
     }
 
-    /// The now label replaces any hour label it would collide with (within 12pt).
+    /// An hour label is dropped when the now time or the cursor time would
+    /// overprint it (within 12pt), the same rule for both.
     private func isSuppressed(hour: Int) -> Bool {
-        guard showsNow else { return false }
         let hourY = CGFloat(hour) * geometry.hourHeight
-        return abs(hourY - geometry.yForTimeOfDay(now)) < 12
+        if showsNow, abs(hourY - geometry.yForTimeOfDay(now)) < 12 { return true }
+        if let cursor, abs(hourY - geometry.yForTimeOfDay(cursor)) < 12 { return true }
+        return false
     }
 }
 

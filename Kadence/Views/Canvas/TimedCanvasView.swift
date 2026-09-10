@@ -16,6 +16,10 @@ struct TimedCanvasView: View {
     let hourHeight: CGFloat
     let now: Date
     let store: EventStore
+    /// interactions.md §1 — the all-day row is its own ⇥ stop, and it lives here
+    /// rather than in MainWindow, so the focus binding is passed down.
+    var focusedRegion: FocusState<CalendarState.FocusRegion?>.Binding
+    var onTab: (KeyPress) -> KeyPress.Result
 
     @Environment(CalendarState.self) private var state
     @State private var didInitialScroll = false
@@ -27,6 +31,10 @@ struct TimedCanvasView: View {
             DayHeaderRow(days: days, events: events, now: now)
 
             AllDayRowView(days: days, fixtures: fixtures, now: now)
+                .focusable(AllDayRowView.isVisible(days: days, fixtures: fixtures))
+                .focused(focusedRegion, equals: .allDayRow)
+                .onKeyPress(keys: [.tab]) { onTab($0) }
+
 
             GeometryReader { proxy in
                 let available = proxy.size.width - Tokens.Size.timeGutterWidth
@@ -76,7 +84,10 @@ struct TimedCanvasView: View {
                 TimeGutterView(
                     geometry: geometry,
                     now: now,
-                    showsNow: days.contains { Calendar.current.isDate($0, inSameDayAs: now) })
+                    showsNow: days.contains { Calendar.current.isDate($0, inSameDayAs: now) },
+                    // Only while the grid is focused in cursor mode, matching the
+                    // line drawn in the column (interactions.md §1).
+                    cursor: gutterCursor)
                 .frame(width: Tokens.Size.timeGutterWidth)
                 .id(0)
 
@@ -158,6 +169,15 @@ struct TimedCanvasView: View {
         .frame(height: hourHeight * 24, alignment: .top)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// The cursor time to print in the gutter, or nil when there is no cursor to
+    /// show. The gutter is one ruler for all seven columns, so it shows the time
+    /// whichever day column the cursor is in.
+    private var gutterCursor: Date? {
+        guard state.focusedRegion == .grid, let cursor = state.timeCursor else { return nil }
+        guard days.contains(where: { Calendar.current.isDate($0, inSameDayAs: cursor) }) else { return nil }
+        return cursor
     }
 
     private func events(on day: Date) -> [Event] {

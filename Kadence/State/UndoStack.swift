@@ -182,15 +182,6 @@ final class UndoStack {
 
     // MARK: Housekeeping
 
-    /// Drop the most recent step without reversing it.
-    ///
-    /// Used only for a creation the user abandoned: an event that was never
-    /// named is not something they should be able to ⌘Z back into existence.
-    func discardLastStep() {
-        guard !undoSteps.isEmpty else { return }
-        undoSteps.removeLast()
-    }
-
     func removeAll() {
         undoSteps.removeAll()
         redoSteps.removeAll()

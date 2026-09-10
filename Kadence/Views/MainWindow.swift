@@ -19,7 +19,8 @@ struct MainWindow: View {
     @Query(sort: \Event.start) private var events: [Event]
     @State private var fixtures = MockFixtures()
     @State private var didSeed = false
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    /// interactions.md §1 — which region ⇥ has landed on.
+    @FocusState private var focusedRegion: CalendarState.FocusRegion?
 
     private var store: EventStore { EventStore(context: context, undo: undoStack) }
 
@@ -27,8 +28,11 @@ struct MainWindow: View {
         GeometryReader { proxy in
             let width = proxy.size.width
 
-            NavigationSplitView(columnVisibility: $columnVisibility) {
+            NavigationSplitView(columnVisibility: sidebarVisibility) {
                 SidebarView(needsAttentionCount: 0)
+                    .focusable()
+                    .focused($focusedRegion, equals: .sidebar)
+                    .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
                     // NavigationSplitView installs its own sidebar toggle. Ours has
                     // to exist so that toggling records an explicit user choice that
                     // auto-collapse must not override (layouts.md §1.1), so the
@@ -47,6 +51,11 @@ struct MainWindow: View {
             .toolbar { toolbarContent }
             .onChange(of: width, initial: true) { _, newWidth in
                 applyCollapseOrder(width: newWidth)
+            }
+            .onChange(of: focusedRegion) { _, region in
+                // The time cursor and its gutter time are gated on the grid being
+                // focused, so the shared state has to follow the real focus.
+                if let region { state.focusedRegion = region }
             }
         }
         .frame(
@@ -119,7 +128,9 @@ struct MainWindow: View {
                     fixtures: fixtures,
                     hourHeight: Tokens.Size.hourHeightWeek,
                     now: state.now,
-                    store: store)
+                    store: store,
+                    focusedRegion: $focusedRegion,
+                    onTab: cycleFocus)
             case .day:
                 TimedCanvasView(
                     days: state.visibleDays,
@@ -127,7 +138,9 @@ struct MainWindow: View {
                     fixtures: fixtures,
                     hourHeight: Tokens.Size.hourHeightDay,
                     now: state.now,
-                    store: store)
+                    store: store,
+                    focusedRegion: $focusedRegion,
+                    onTab: cycleFocus)
             }
         }
         // Month ↔ Week ↔ Day is a cross-fade only. No scale, no slide, no
@@ -139,11 +152,21 @@ struct MainWindow: View {
                 : .easeInOut(duration: Tokens.Motion.ViewChange.duration),
             value: state.mode)
         .focusable()
-        .focusEffectDisabled()
+        .focused($focusedRegion, equals: .grid)
+        // §1 — "the focused region draws the standard system focus ring on its
+        // container", so the ring is deliberately NOT disabled here.
+        .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
         .onKeyPress(action: handleKey)
     }
 
     private var inspector: some View {
+        inspectorBody
+            .focusable()
+            .focused($focusedRegion, equals: .inspector)
+            .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
+    }
+
+    private var inspectorBody: some View {
         InspectorView(
             event: selectedEvent,
             dayEvents: eventsOnAnchorDay,
@@ -162,6 +185,49 @@ struct MainWindow: View {
         events.filter { Calendar.current.isDate($0.start, inSameDayAs: state.anchor) }
     }
 
+    // MARK: Sidebar visibility
+
+    /// Derived from `CalendarState`, and writes back to it.
+    ///
+    /// Without the write-back the split view could close its own column and the
+    /// app would not know — which is how this drifted into two sources of truth
+    /// in the first place. A change arriving from the split view is by definition
+    /// something the user did, so it counts as an explicit choice.
+    private var sidebarVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: { state.sidebarColumnVisibility },
+            set: { newValue in
+                let visible = newValue != .detailOnly
+                // Guard against the echo of our own programmatic change.
+                guard visible != state.isSidebarVisible else { return }
+                state.setSidebarVisible(visible, isUserAction: true)
+            })
+    }
+
+    // MARK: Region focus (interactions.md §1)
+
+    /// `⇥` / `⇧⇥` leave the current region and land on the next available one,
+    /// skipping the all-day row when it is hidden and the inspector when it is
+    /// collapsed, and wrapping at either end.
+    ///
+    /// `⇥` always leaves a region rather than moving inside it, which is why this
+    /// returns `.handled` unconditionally: letting AppKit also advance focus
+    /// would move within the sidebar's list instead of out of it.
+    private func cycleFocus(_ press: KeyPress) -> KeyPress.Result {
+        let available = state.availableFocusRegions(
+            allDayRowVisible: AllDayRowView.isVisible(days: state.visibleDays, fixtures: fixtures))
+
+        let current = focusedRegion ?? state.focusedRegion
+        let next = CalendarState.FocusRegion.next(
+            after: current,
+            backwards: press.modifiers.contains(.shift),
+            available: available)
+
+        focusedRegion = next
+        state.focusedRegion = next
+        return .handled
+    }
+
     // MARK: Collapse order (§1.1)
 
     private func applyCollapseOrder(width: CGFloat) {
@@ -169,9 +235,7 @@ struct MainWindow: View {
         if !state.userSetInspectorVisibility {
             state.isInspectorVisible = width >= 1200
         }
-        if !state.userSetSidebarVisibility {
-            columnVisibility = width >= 900 ? .all : .detailOnly
-        }
+        state.setSidebarVisible(width >= 900, isUserAction: false)
     }
 
     // MARK: Toolbar (§1.2)
@@ -180,8 +244,7 @@ struct MainWindow: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .navigation) {
             Button {
-                state.userSetSidebarVisibility = true
-                columnVisibility = columnVisibility == .all ? .detailOnly : .all
+                state.toggleSidebar()
             } label: {
                 Image(systemName: "sidebar.leading")
             }
@@ -231,11 +294,10 @@ struct MainWindow: View {
 
     // MARK: Keyboard (interactions.md §2)
 
+    /// ⌘N and the toolbar +. Starts a draft; nothing persists until it is named
+    /// (interactions.md §3).
     private func createAtCursor() {
-        let start = state.timeCursor ?? nextHalfHour()
-        let event = store.create(at: start)
-        state.selectedEventID = event.id
-        state.inlineEditingEventID = event.id
+        state.beginDraft(at: state.timeCursor ?? nextHalfHour())
     }
 
     private func nextHalfHour() -> Date {

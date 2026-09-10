@@ -30,11 +30,25 @@ final class CalendarState {
     var timeCursor: Date?
     var focusedRegion: FocusRegion = .grid
 
-    /// The event currently being renamed inline, if any.
-    var inlineEditingEventID: UUID?
+    /// The new event being typed, if any.
+    ///
+    /// interactions.md §3 — "a new event appears immediately as a block … with an
+    /// inline `TextField` in place of its title" and "an event created with no
+    /// title is never persisted". The draft therefore lives here, NOT in the
+    /// store: it is laid out and drawn like a block, but nothing reaches
+    /// SwiftData until it is committed with a title. Inserting first and deleting
+    /// on cancel is what left untitled events behind (DEVIATIONS.md A13).
+    var draft: EventDraft?
 
     // MARK: Chrome
 
+    /// **The** source of truth for sidebar visibility.
+    ///
+    /// `NavigationSplitView`'s `columnVisibility` is derived from this via
+    /// `sidebarColumnVisibility` and a binding that writes back here, so the
+    /// Edit-menu toggle, the toolbar button, auto-collapse and the split view's
+    /// own divider all move the same value. They used to be two independent
+    /// pieces of state that drifted apart.
     var isSidebarVisible = true
     var isInspectorVisible = true
     /// Set when the user explicitly toggles, so auto-collapse never overrides
@@ -55,8 +69,93 @@ final class CalendarState {
     /// Driven by a timer at `motion.nowLineTick.interval`.
     var now: Date = Date()
 
+    /// interactions.md §1 — the regions `⇥` cycles between, in spec order.
+    ///
+    /// `⇥` always *leaves* a region rather than moving inside it; the arrow keys
+    /// move within one.
     enum FocusRegion: Int, CaseIterable, Sendable {
         case toolbar, sidebar, allDayRow, grid, inspector
+
+        /// The next region in the cycle, skipping any that are not currently
+        /// available — the all-day row when it is hidden, the inspector when it
+        /// is collapsed — and wrapping at either end.
+        ///
+        /// Pure, so the skipping and wrapping rules are testable without a view.
+        static func next(
+            after current: FocusRegion,
+            backwards: Bool = false,
+            available: Set<FocusRegion>
+        ) -> FocusRegion {
+            let ordered = allCases
+            guard !available.isEmpty else { return current }
+            guard let index = ordered.firstIndex(of: current) else {
+                return ordered.first { available.contains($0) } ?? current
+            }
+
+            let step = backwards ? -1 : 1
+            // At most one full lap: if nothing else is available we land back on
+            // `current`, which is correct — ⇥ with one region is a no-op.
+            for hop in 1...ordered.count {
+                let position = ((index + step * hop) % ordered.count + ordered.count) % ordered.count
+                let candidate = ordered[position]
+                if available.contains(candidate) { return candidate }
+            }
+            return current
+        }
+    }
+
+    /// Which regions `⇥` can currently land on.
+    ///
+    /// The toolbar is deliberately absent — see STATUS.md. Everything else is
+    /// gated on whether it is actually on screen.
+    ///
+    func availableFocusRegions(allDayRowVisible: Bool) -> Set<FocusRegion> {
+        var regions: Set<FocusRegion> = [.grid]
+        if isSidebarVisible { regions.insert(.sidebar) }
+        if allDayRowVisible { regions.insert(.allDayRow) }
+        if isInspectorVisible { regions.insert(.inspector) }
+        return regions
+    }
+
+    // MARK: Creating (interactions.md §3)
+
+    /// Start typing a new event. Nothing is persisted yet.
+    func beginDraft(at start: Date, duration: TimeInterval = 3600) {
+        selectedEventID = nil
+        draft = EventDraft(start: start, end: start.addingTimeInterval(duration))
+    }
+
+    /// Abandon the draft. Nothing was persisted, so there is nothing to undo.
+    func discardDraft() {
+        draft = nil
+    }
+
+    // MARK: Sidebar visibility (layouts.md §1.1)
+
+    /// How the split view should render, derived from the one stored flag.
+    var sidebarColumnVisibility: NavigationSplitViewVisibility {
+        isSidebarVisible ? .all : .detailOnly
+    }
+
+    /// Set sidebar visibility, honouring §1.1: "auto-collapse does not overwrite
+    /// the user's explicit choice — if the user closed the inspector at 1400pt,
+    /// widening the window does not re-open it." The same rule applies to the
+    /// sidebar below 900pt.
+    ///
+    /// Every path that changes the sidebar goes through here — the Edit menu, the
+    /// toolbar button, the split view's own divider, and the width-driven
+    /// auto-collapse — so there is exactly one place the rule lives.
+    func setSidebarVisible(_ visible: Bool, isUserAction: Bool) {
+        if isUserAction {
+            userSetSidebarVisibility = true
+            isSidebarVisible = visible
+        } else if !userSetSidebarVisibility {
+            isSidebarVisible = visible
+        }
+    }
+
+    func toggleSidebar() {
+        setSidebarVisible(!isSidebarVisible, isUserAction: true)
     }
 
     // MARK: Derived range

@@ -56,8 +56,7 @@ struct KadenceCommands: Commands {
             Divider()
 
             Button("Toggle Sidebar") {
-                calendar.userSetSidebarVisibility = true
-                calendar.isSidebarVisible.toggle()
+                calendar.toggleSidebar()
             }
             .keyboardShortcut("s", modifiers: [.control, .command])
 

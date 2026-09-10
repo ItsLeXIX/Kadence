@@ -52,6 +52,7 @@ enum MockData {
     /// launch does not duplicate them.
     @MainActor
     static func seedIfNeeded(_ context: ModelContext, now: Date = Date()) -> MockFixtures {
+        removeUntitledEvents(context)
         let existing = (try? context.fetch(FetchDescriptor<Event>())) ?? []
         if existing.isEmpty {
             for event in makeEvents(now: now) {
@@ -64,6 +65,23 @@ enum MockData {
             travel: makeTravel(for: events, now: now),
             allDay: makeAllDay(now: now),
             windows: timeWindows)
+    }
+
+    /// Repair for stores written before creation became commit-or-discard.
+    ///
+    /// interactions.md §3 makes "an event with no title" impossible to create,
+    /// so any that exist came from the older insert-immediately path
+    /// (DEVIATIONS.md A13) and are garbage rather than data. Cheap to run, and it
+    /// keeps a store that predates the fix from carrying the problem forward.
+    @MainActor
+    static func removeUntitledEvents(_ context: ModelContext) {
+        let all = (try? context.fetch(FetchDescriptor<Event>())) ?? []
+        let untitled = all.filter {
+            $0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        guard !untitled.isEmpty else { return }
+        for event in untitled { context.delete(event) }
+        try? context.save()
     }
 
     // MARK: Events — items 1–6, 11–14 of §12

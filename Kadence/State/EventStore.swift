@@ -68,42 +68,33 @@ struct EventStore {
 
     // MARK: Create
 
-    /// interactions.md §3 — a new event is 60 minutes and starts life with an
-    /// inline title field.
+    /// Turn a draft into a persisted event.
+    ///
+    /// Returns nil — and persists nothing — when the draft has no usable title.
+    /// interactions.md §3: "an event created with no title is never persisted —
+    /// cancelling and committing an empty field both remove it." Because the
+    /// draft was never in the store, discarding it needs no delete and leaves no
+    /// undo step to press ⌘Z through.
     @discardableResult
-    func create(at start: Date, duration: TimeInterval = 3600, title: String = "") -> Event {
-        let event = Event(
-            title: title,
-            start: start,
-            end: start.addingTimeInterval(duration),
+    func commit(_ draft: EventDraft) -> Event? {
+        guard draft.hasUsableTitle else { return nil }
+
+        // The template is never inserted — it exists only to make the snapshot.
+        // `UndoStack.perform` runs `redo` immediately, so inserting here as well
+        // would create the event twice (with the same id, which is worse than it
+        // sounds). Recording the insert as the redo is the single write.
+        let template = Event(
+            title: draft.trimmedTitle,
+            start: draft.start,
+            end: draft.end,
             origin: .manual,
             sourceKey: .graphite)
-        let snapshot = EventSnapshot(event)
-        let id = event.id
+        let snapshot = EventSnapshot(template)
 
-        context.insert(event)
-        try? context.save()
         undo.perform("New Event",
                      redo: { insert(snapshot) },
-                     undo: { remove(id) })
-        return event
-    }
-
-    /// An event created with no title is never persisted.
-    func commitCreation(_ event: Event, title: String) {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            cancelCreation(event)
-        } else {
-            retitle(event, to: trimmed, named: "New Event")
-        }
-    }
-
-    func cancelCreation(_ event: Event) {
-        remove(event.id)
-        // An event the user abandoned before naming never existed as far as they
-        // are concerned, so its creation step goes with it.
-        undo.discardLastStep()
+                     undo: { remove(snapshot.id) })
+        return event(snapshot.id)
     }
 
     // MARK: Mutate
@@ -166,15 +157,14 @@ struct EventStore {
             flexibility: event.flexibility,
             sourceKey: event.sourceKey,
             notes: event.notes)
+        // Same as `commit`: the redo closure performs the one insert.
         let snapshot = EventSnapshot(copy)
-        let id = copy.id
 
-        context.insert(copy)
-        try? context.save()
         undo.perform("Duplicate Event",
                      redo: { insert(snapshot) },
-                     undo: { remove(id) })
-        return copy
+                     undo: { remove(snapshot.id) })
+        // `self.` because the parameter is also called `event`.
+        return self.event(snapshot.id) ?? copy
     }
 
     func retitle(_ event: Event, to title: String, named name: String = "Rename Event") {
