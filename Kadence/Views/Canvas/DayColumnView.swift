@@ -194,11 +194,19 @@ struct DayColumnView: View {
             .frame(height: laidOut.frame.height)
         }
         .frame(width: laidOut.frame.width, alignment: .topLeading)
-        .offset(x: laidOut.frame.minX, y: laidOut.frame.minY - aboveHeight)
         // Clamped blocks get a larger hit area centred on the true frame.
+        //
+        // `.contentShape` MUST come before `.offset`, not after. `.offset` is a
+        // render-time translation that leaves the layout frame where it was, so
+        // a `.contentShape` applied *after* it describes the hit region in the
+        // un-offset layout space — which put every block's hit region at its day
+        // column's top-left corner instead of at the block. Clicking a block hit
+        // whatever was stacked at the top of the column, or fell through to the
+        // create surface. See STATUS.md §1.6.
         .contentShape(
             Rectangle()
                 .inset(by: -laidOut.hitExtension / 2))
+        .offset(x: laidOut.frame.minX, y: laidOut.frame.minY - aboveHeight)
         .opacity(isDragged ? Tokens.Opacity.blockDragOrigin : 1)
         // interactions.md §8 — a draggable block gets the open hand; one that
         // cannot move keeps the arrow rather than promising a drag.
@@ -207,7 +215,6 @@ struct DayColumnView: View {
             hoveredID = hovering ? event.id : (hoveredID == event.id ? nil : hoveredID)
         }
         .onTapGesture {
-            TapProbe.log("BLOCK onTapGesture fired for \(event.title)")
             state.selectedEventID = event.id
             state.timeCursor = nil
         }
@@ -244,7 +251,6 @@ struct DayColumnView: View {
     private func blockGesture(event: Event, laidOut: LaidOutBlock) -> some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { value in
-                TapProbe.log("BLOCK drag onChanged translation=\(value.translation) for \(event.title)")
                 guard event.isMovable else { return }
                 let handle = Tokens.Size.blockResizeHandleHeight
                 let localY = value.startLocation.y - laidOut.frame.minY
@@ -266,8 +272,7 @@ struct DayColumnView: View {
                 drag?.current = TimeGeometry.snap(
                     event.start.addingTimeInterval(deltaTime), toMinutes: snap)
             }
-            .onEnded { v in
-                TapProbe.log("BLOCK drag onEnded translation=\(v.translation) for \(event.title) session=\(String(describing: drag?.mode))")
+            .onEnded { _ in
                 defer { drag = nil }
                 guard let session = drag, session.eventID == event.id else { return }
                 switch session.mode {
@@ -298,7 +303,6 @@ struct DayColumnView: View {
                 state.beginDraft(at: start)
             }
             .onTapGesture { location in
-                TapProbe.log("SURFACE onTapGesture at \(location)")
                 state.selectedEventID = nil
                 state.timeCursor = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15)
             }
