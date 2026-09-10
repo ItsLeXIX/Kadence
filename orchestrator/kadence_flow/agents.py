@@ -74,6 +74,21 @@ class AgentRun:
         return extract_json(self.text)
 
 
+def _typed(text: str, chunks: str = "", cost: float = 0.0, turns: int = 0,
+           usage: Optional[dict[str, Any]] = None) -> Exception:
+    """One place that turns an error string into the right exception."""
+    c = classify(text)
+    if c.kind == "auth":
+        return AuthExpired(text)
+    if c.kind == "max_turns":
+        return MaxTurnsReached(text, chunks, cost, turns, usage or {})
+    if c.kind == "quota":
+        return QuotaExhausted(text, c.reset_at)
+    if c.kind == "transient":
+        return TransientError(text)
+    return OrchestratorError(text)
+
+
 async def _once(prompt: str, *, system_prompt: str, cwd: Path,
                 allowed_tools: list[str], permission_mode: str,
                 max_turns: int, model: Optional[str],
@@ -83,8 +98,14 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
     from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions,
                                   ResultMessage, TextBlock, ToolUseBlock, query)
 
+    # The CLI writes the real reason for a hard exit to stderr, and
+    # ProcessError arrives saying only "Check stderr output for details".
+    # Collect it so a session limit is not indistinguishable from a crash.
+    stderr_lines: list[str] = []
+
     options = ClaudeAgentOptions(
         system_prompt=system_prompt,
+        stderr=stderr_lines.append,
         cwd=str(cwd),
         allowed_tools=allowed_tools,
         permission_mode=permission_mode,
@@ -102,36 +123,37 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
     chunks: list[str] = []
     cost, turns, usage = 0.0, 0, {}
     failure: str | None = None
-    async for message in query(prompt=prompt, options=options):
-        if isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    chunks.append(block.text)
-                elif isinstance(block, ToolUseBlock) and on_event:
-                    on_event(f"    · {block.name}")
-        elif isinstance(message, ResultMessage):
-            cost = message.total_cost_usd or 0.0
-            turns = message.num_turns or 0
-            usage = message.usage or {}
-            if message.is_error:
-                res = message.result
-                text = res if isinstance(res, str) else json.dumps(res or {})
-                failure = (f"{message.subtype or ''} "
-                           f"{message.terminal_reason or ''} {text}").strip()
+    try:
+        async for message in query(prompt=prompt, options=options):
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        chunks.append(block.text)
+                    elif isinstance(block, ToolUseBlock) and on_event:
+                        on_event(f"    · {block.name}")
+            elif isinstance(message, ResultMessage):
+                cost = message.total_cost_usd or 0.0
+                turns = message.num_turns or 0
+                usage = message.usage or {}
+                if message.is_error:
+                    res = message.result
+                    text = res if isinstance(res, str) else json.dumps(res or {})
+                    failure = (f"{message.subtype or ''} "
+                               f"{message.terminal_reason or ''} {text}").strip()
+    except Exception as e:                            # noqa: BLE001
+        # A hard CLI exit raises instead of yielding an error result. The
+        # reason lives on stderr and one level down the cause chain.
+        raise _typed(" ".join(str(x) for x in
+                              (e, getattr(e, "__cause__", None)) if x is not None)
+                     + "\n" + "\n".join(stderr_lines[-40:]),
+                     "\n".join(chunks), cost, turns, usage) from e
+
     # Raise only after the generator has closed. Throwing from inside the
     # async-for leaves the SDK's generator mid-flight and buries the real
     # error under "aclose(): asynchronous generator is already running".
     if failure is not None:
-        c = classify(failure)
-        if c.kind == "auth":
-            raise AuthExpired(failure)
-        if c.kind == "max_turns":
-            raise MaxTurnsReached(failure, "\n".join(chunks), cost, turns, usage)
-        if c.kind == "quota":
-            raise QuotaExhausted(failure, c.reset_at)
-        if c.kind == "transient":
-            raise TransientError(failure)
-        raise OrchestratorError(failure)
+        raise _typed(failure + "\n" + "\n".join(stderr_lines[-40:]),
+                     "\n".join(chunks), cost, turns, usage)
     return AgentRun("\n".join(chunks), cost, turns, usage=usage)
 
 
