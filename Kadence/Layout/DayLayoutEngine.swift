@@ -45,6 +45,23 @@ struct LaidOutBlock: Identifiable, Equatable, Sendable {
     /// because a clipped title reads as damage rather than as occlusion
     /// (components.md §3.3, layouts.md §3.3).
     var visibleWidth: CGFloat
+
+    /// Inset to apply to the block's hit shape, in points. Negative, because a
+    /// clamped block's hit area is *larger* than what it draws (`hitExtension`,
+    /// split evenly so the extra area stays centred on the true frame).
+    ///
+    /// This is the value `DayColumnView.blockStack` hands to `.contentShape`.
+    /// It is expressed here, over value types, so the "hit area is centred on
+    /// the frame" rule is checkable without a running window — see
+    /// `BlockHitRegionTests`.
+    var hitInset: CGFloat { -hitExtension / 2 }
+
+    /// The block's hit region in the day column's coordinate space.
+    ///
+    /// The distinction that matters: this is anchored to `frame`, which is the
+    /// block's *laid-out* position in the column. A hit region that does not
+    /// track this rect is the P2-T02 defect — see STATUS.md §1.6.
+    var hitRect: CGRect { frame.insetBy(dx: hitInset, dy: hitInset) }
 }
 
 /// The `+N` affordance for a cascade that ran past `size.blockCascadeMaxVisible`.

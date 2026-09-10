@@ -194,18 +194,23 @@ struct DayColumnView: View {
             .frame(height: laidOut.frame.height)
         }
         .frame(width: laidOut.frame.width, alignment: .topLeading)
-        // Clamped blocks get a larger hit area centred on the true frame.
+        // Clamped blocks get a larger hit area centred on the true frame
+        // (`LaidOutBlock.hitInset`).
         //
-        // `.contentShape` MUST come before `.offset`, not after. `.offset` is a
-        // render-time translation that leaves the layout frame where it was, so
-        // a `.contentShape` applied *after* it describes the hit region in the
-        // un-offset layout space — which put every block's hit region at its day
-        // column's top-left corner instead of at the block. Clicking a block hit
-        // whatever was stacked at the top of the column, or fell through to the
-        // create surface. See STATUS.md §1.6.
-        .contentShape(
-            Rectangle()
-                .inset(by: -laidOut.hitExtension / 2))
+        // ORDER IS LOAD-BEARING: `.contentShape` MUST come before `.offset`.
+        // `.offset` is a render-time translation that moves what is drawn while
+        // leaving the layout frame where it was. A `.contentShape` applied
+        // *after* it therefore describes the hit region in the UN-offset layout
+        // space, which collapsed every block's hit region onto its day column's
+        // top-left corner. Blocks still drew in the right place, so screenshots
+        // looked perfect while a click could not land on the block it was aimed
+        // at: it either hit whichever block was frontmost in the collapsed pile
+        // (selecting an event hours away) or fell through to the create surface
+        // behind them, which deselected instead. Both read as "nothing happens".
+        // Measured: with the two lines swapped, all 20 mock blocks report just
+        // 2 distinct accessibility y values instead of 20. See STATUS.md §1.6
+        // and Scripts/check-block-hit-regions.sh.
+        .contentShape(Rectangle().inset(by: laidOut.hitInset))
         .offset(x: laidOut.frame.minX, y: laidOut.frame.minY - aboveHeight)
         .opacity(isDragged ? Tokens.Opacity.blockDragOrigin : 1)
         // interactions.md §8 — a draggable block gets the open hand; one that

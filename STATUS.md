@@ -15,6 +15,13 @@ both re-run this session with different results. §1.4 has a new count. §1.5 is
 new and records the crash, its root cause and its fix. §5 is re-ordered: the
 crash outranked everything that was listed as next, and is now done.
 
+**Amended 2026-09-11 by task P2-T02 (click-to-select fix).** §1.6 is new and
+records that defect, its root cause and its fix. §1.4 has a new count (140
+unique). §5 is re-ordered again. Note for anyone reading the old §2/§5 text:
+they described selection as working. Selection by *keyboard* worked; selection
+by *mouse* did nothing at all, and had not since the hit region regressed. See
+§1.6 and the corrected DEVIATIONS.md B9.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -86,14 +93,17 @@ Exit status 0.
 ** TEST SUCCEEDED **
 ```
 
-Exit status 0. **135 unique test cases, 0 failed.** The log prints 154–155
-`passed` lines depending on the run; the surplus is parameterised cases reported
-per argument, and the count wobbles by one because that per-argument logging is
-racy (`SourceSymbolTests/normativeTable` printed 9 lines in one run and 10 in the
+Exit status 0. **140 unique test cases, 0 failed.** The log prints 160
+`passed` lines; the surplus is parameterised cases reported per argument, and
+the count can wobble by one because that per-argument logging is racy
+(`SourceSymbolTests/normativeTable` printed 9 lines in one run and 10 in the
 next, same 0 failures). Count unique names, not lines.
 
 *(updated 2026-09-10 by P2-T01: was "149 passed / 129 unique". The six new cases
 are `KadenceTests/DraftBindingTests.swift` — see §1.5.)*
+
+*(updated 2026-09-11 by P2-T02: was "135 unique / 154–155 lines". The five new
+cases are `KadenceTests/BlockHitRegionTests.swift` — see §1.6.)*
 
 Always use `-only-testing:KadenceTests`. A plain `test` also runs the empty
 `KadenceUITests` template, whose runner cannot start on this machine ("Timed out
@@ -165,6 +175,151 @@ open and closed.
 both now in DEVIATIONS.md: **A22**, `⎋` does not cancel a draft at all, so it was
 masking half of this crash; **A23**, `⌘N` opens a second window because the stock
 "New Window" item keeps the same key equivalent.
+
+---
+
+### 1.6 Clicking a block did nothing — found, root-caused, fixed (task P2-T02)
+
+Parsa reported that clicking an event block had no effect: no selection ring, no
+inspector change. It did not.
+
+**Was it a regression or always broken?** Always broken, for mouse input. The
+old B9 entry ("selection survives view changes…") made it look like selection
+worked; that entry was written from the **keyboard** path (`↖`/`↘`, `↑`/`↓`),
+which does work and always did. `state.selectedEventID` had no working mouse
+writer. DEVIATIONS.md B9 is corrected accordingly.
+
+**Reproduction.** Instrumented, not assumed. A temporary `TapProbe.log` was put
+inside the block's `.onTapGesture` closure, inside `blockGesture`'s `onChanged`
+and `onEnded`, and inside the create surface's `.onTapGesture`, writing to
+stderr on a debug build. Clicking directly on a block with no drag printed
+**`SURFACE onTapGesture`** — the create surface's handler, the one that *clears*
+selection — and never printed the block's. The click was not being swallowed by
+a gesture conflict; it was never landing on the block at all.
+
+**The hypothesis this refutes.** The obvious suspect was the `.onTapGesture`
+immediately followed by `.gesture(DragGesture(minimumDistance: 3))` on the same
+view — the documented SwiftUI exclusivity trap. That was **not** the cause. The
+tap recogniser was fine; nothing was reaching it.
+
+**Root cause.** `Kadence/Views/Canvas/DayColumnView.swift`, `blockStack`
+(pre-fix):
+
+```swift
+.offset(x: laidOut.frame.minX, y: laidOut.frame.minY - aboveHeight)
+.contentShape(Rectangle().inset(by: -laidOut.hitExtension / 2))
+```
+
+`.offset` is a **render-time translation**: it moves what is drawn and leaves the
+layout frame where it was. A `.contentShape` applied *after* it therefore
+describes the hit region in the **un-offset** layout space. Blocks are positioned
+in the column purely by that `.offset`, so their layout frames all sit at the
+column's origin — and every block's hit region collapsed onto its day column's
+top-left corner.
+
+The invalid state, stated plainly: **every block in a column shared one hit
+region, in the wrong place.** A click on a block's visible rectangle could not
+hit that block. What it did instead depended on where the pile landed relative
+to the pointer: a click inside the collapsed pile at the column corner selected
+whichever block happened to be frontmost *there*, and a click anywhere else fell
+through to the create surface behind the blocks, which deselected and dropped a
+time cursor.
+
+Both outcomes look like "nothing happens" from the user's seat, because neither
+puts a ring on the block that was clicked. `screenshots/p2-t02/` shows the first
+one caught in the act: in `before-click-block-does-nothing.png`, a click at the
+centre of "Datenmodellierung" (09:00–10:30) leaves it unringed and loads
+**"Late lab session" (22:30–23:30)** into the inspector — a block thirteen hours
+away that was never clicked.
+
+Why no existing check caught it: the *rendering* was never wrong, so screenshot
+review had nothing to look at, and modifier ordering is not reachable from a
+unit test.
+
+**Measured, both ways.** Accessibility frames are where SwiftUI's resolved
+geometry becomes observable from outside the process. With the mock dataset,
+20 timed blocks:
+
+| ordering | distinct AX y positions |
+|---|---|
+| `.contentShape` after `.offset` (bug) | **2** of 20 — every block in a column at `y=150`, the column top |
+| `.contentShape` before `.offset` (fix) | **20** of 20 |
+
+**Fix.** Move `.contentShape` **before** `.offset`. The inset value moved into
+`LaidOutBlock.hitInset` (`Kadence/Layout/DayLayoutEngine.swift`) alongside a new
+`hitRect`, so the "hit area is centred on the true frame" rule is expressed over
+value types and is testable without a window. The comment at the call site says
+why the order is load-bearing, so it does not get tidied back.
+
+A superficial reorder was deliberately avoided until the mechanism was
+understood, because swapping those two lines blind can break dragging instead —
+hence the drag re-verification below.
+
+**Regression cover — three layers.**
+
+1. `KadenceTests/BlockHitRegionTests.swift`, five cases over `hitInset` /
+   `hitRect`: the inset is zero unless clamped, a clamped block's hit area grows
+   by exactly `size.blockHitExtension` and stays centred, every block's hit
+   region contains its own centre, blocks at different times get hit regions at
+   different places, and a hit region never sits at the column origin.
+2. `Scripts/check-block-hit-regions.sh` — asserts via accessibility that within
+   a column, later start times sit strictly lower. **Confirmed to fail against
+   the pre-fix ordering** (3 distinct positions for 20 blocks) and pass with it.
+3. `Scripts/check-block-click-selects.sh` — new. Drives a **real click** at a
+   block and asserts it becomes selected, then clicks empty grid and asserts it
+   deselects. **Confirmed to fail (exit 1) against the pre-fix ordering and pass
+   with the fix.**
+
+**Why that third script does not use `System Events … click at {x, y}`.** That
+command does not synthesise a mouse event: it resolves the accessibility element
+at the point and sends it `AXPress`, bypassing hit-testing entirely. It passed
+happily against the broken build, which makes it worthless here. The script
+posts a genuine `CGEvent` mouseDown/mouseUp through the HID event tap instead —
+the same path a human click takes. This was checked, not assumed.
+
+**Re-verified in the running app** after the fix, with synthetic `CGEvent`s
+against the mock dataset:
+
+- Click a block → selected (`AXSelected` true), ring renders, and the inspector
+  loads **that** block. Captured as
+  `screenshots/p2-t02/after-click-selects-block.png`, the same click on the same
+  block as the before shot; see `screenshots/p2-t02/INDEX.md`.
+- Click empty grid → deselects. *(The time cursor a grid click also places is
+  not vended to accessibility, so only the deselect half is asserted
+  mechanically; the cursor was confirmed by eye.)*
+- **Drag to move** — "Prep: relational algebra" dragged down 44pt (one hour at
+  the Day hour height): `14:30–16:00` → `15:30–17:00`. Exact.
+- **Bottom-edge resize** — dragged down 22pt: `15:30–17:00` → `15:30–17:30`.
+  End moved 30 min, start untouched.
+- **Top-edge resize** — dragged up 22pt: `15:30–17:30` → `15:00–17:30`. Start
+  moved 30 min, end untouched.
+- A non-movable block (`origin: .imported`, "Datenmodellierung") correctly
+  refuses both move and resize.
+
+So `blockGesture` is intact; the fix did not trade selection for dragging.
+
+**One harness caveat, not an app defect.** Two synthetic drags fired ~2s apart at
+nearly the same point: the second was ignored. With ~3s of spacing and a settled
+pointer, every gesture above is reliably reproducible. This looks like synthetic
+event pacing rather than app behaviour — a human cannot drag twice that fast in
+the same place — but it is written down rather than dropped, because it is the
+kind of thing that later looks like a real intermittent bug.
+
+**One adjacent defect found and *not* fixed**, now DEVIATIONS.md **A24**: one
+block reports `AXSelected = true` to accessibility when nothing is selected. It
+is *not* our trait — it reproduces with the `.isSelected` line deleted from
+`GridBlockView` outright. Two candidate causes (`.done` status, hover) were
+tested and refuted; it was not root-caused further, being outside this task.
+
+**One spec gap surfaced, filed not invented:** `design/GAPS.md` **G-010** —
+interactions.md §6 does not say which block a click selects when the click point
+is inside two overlapping blocks. Observed live: clicking the visual centre of
+"Statistik übung" selects "Coffee with Nora", which is drawn on top there. The
+build keeps today's frontmost-wins behaviour and no value was invented. **Open.**
+
+The mock store was reset after this testing (the drags above are persisted by
+SwiftData), so the fixed dataset is back to its seeded values and future
+captures stay comparable.
 
 ---
 
@@ -383,17 +538,25 @@ mine to decide.
    drag-drop drop-preview vocabulary. Neither needs a new renderer.
 3. **Phase 3 has neither design nor code.** It cannot be built without a design
    pass first; per `CONTEXT.md` the coding agent cannot invent UI values.
-4. **Phase 1 has open deviations.** 17 absent, 6 built-differently, **0 invented
+4. **Phase 1 has open deviations.** 18 absent, 6 built-differently, **0 invented
    values**, **0 open spec contradictions** — see `DEVIATIONS.md`, re-audited
-   2026-09-10 against the current spec text, plus A22 and A23 added by P2-T01.
-   **A22 is the one to take next**: `⎋` does not cancel a draft at all, which is
-   a §3 rule the build simply does not implement, and it is a small change now
-   that the binding underneath it is safe. Do not wire it up on a tree without
-   the `draftBinding()` fix — it runs the code path that used to trap.
+   2026-09-10 against the current spec text, plus A22/A23 from P2-T01 and A24
+   from P2-T02. **A22 is the one to take next**: `⎋` does not cancel a draft at
+   all, which is a §3 rule the build simply does not implement, and it is a
+   small change now that the binding underneath it is safe. Do not wire it up on
+   a tree without the `draftBinding()` fix — it runs the code path that used to
+   trap.
 5. **Phase 1 never produced its screenshot set** (§2.2), and root `INDEX.md`
    describes 16 files that do not exist.
 6. **The ⎋ / ↩ crash is fixed** (§1.5). It outranked everything on this list
    while it was open; nothing else was started until it was closed.
+7. **Click-to-select is fixed** (§1.6). Same precedence: it made the calendar
+   unusable with a mouse, and nothing else was started until it was closed. Two
+   things it left behind — **A24** (a block reporting itself selected to
+   accessibility when it is not) and **G-010** (§6 does not say which block wins
+   when a click lands on two) — are both open and neither blocks Phase 2.
+   The **block-overlap rendering defect** is the next task and was deliberately
+   left alone here; G-010 is its spec-side neighbour and worth reading first.
 
 ### 5.1 Needs a ruling
 
@@ -408,9 +571,18 @@ mine to decide.
 
 ### 5.2 Gaps
 
-Two remain open, neither blocking: **G-003** and **G-005**. Closed: G-004, G-006,
-G-007, G-008, G-009. **There are no invented design values in the codebase** and
-no `// SPEC-GAP` markers left in `Kadence/`.
+Three remain open, none blocking: **G-003**, **G-005** and **G-010**. Closed:
+G-004, G-006, G-007, G-008, G-009. **There are no invented design values in the
+codebase** and no `// SPEC-GAP` markers left in `Kadence/`.
+
+**G-010 is new** (2026-09-11, task P2-T02): interactions.md §6 does not say
+which block a click selects when the click point lands inside two overlapping
+blocks. Found by driving real clicks at the running app — clicking the visual
+centre of "Statistik übung" selects "Coffee with Nora", which is drawn on top at
+that point. The build keeps the frontmost-wins behaviour it already had, which
+falls out of SwiftUI hit-testing rather than out of a decision; **no value was
+invented and no placeholder was needed**, so there is still no `// SPEC-GAP`
+marker in `Kadence/`. Open, awaiting a ruling.
 
 No new gap was filed by this reconciliation. The three defects it found —
 the stale `Tokens.swift`, the `tray.full` collision, and the missing screenshots

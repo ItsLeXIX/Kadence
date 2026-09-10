@@ -15,7 +15,7 @@ search against the working tree, not carried forward.
 Legend: **A** absent · **B** built differently · **C** value I invented (none
 remain) · **D** spec contradiction · ~~struck~~ = closed.
 
-**Counts: A ×17 · B ×6 · C ×0 · D ×0** — open items only, counted from this
+**Counts: A ×18 · B ×6 · C ×0 · D ×0** — open items only, counted from this
 file rather than carried forward. (A ×7 and B ×6 more are closed and struck
 below; the previous audit's "A ×14" did not match its own list.)
 
@@ -24,6 +24,13 @@ while reproducing the ⎋/↩ crash rather than by re-reading the spec. The cras
 itself is *not* listed as a deviation — it was a defect in a feature the spec
 and the build agreed on, and it is fixed; see STATUS.md §1.5 and the note under
 A13.
+
+**Amended 2026-09-11 (task P2-T02, click-to-select fix).** A24 is new, found
+while building a regression check for the click fix. **B9 is corrected** — its
+old wording implied mouse selection worked, and it did not. The click-to-select
+defect itself is *not* listed here, for the same reason the ⎋/↩ crash is not:
+the spec and the build agreed on the feature, the build simply broke it, and it
+is fixed. See STATUS.md §1.6.
 
 ### What this re-audit changed
 
@@ -374,6 +381,35 @@ in `Kadence/`.
   a second Kadence window and started no draft. The menu item itself works when
   clicked. The toolbar `+` also works. *Still open.*
 
+- **A24 — components.md §11. One block reports itself as selected to
+  accessibility when nothing is selected.** *(new 2026-09-11, found while
+  building the P2-T02 click regression check)* §11 gives each block one
+  accessibility element; `GridBlockView` adds the `.isSelected` trait only when
+  `presentation` contains `.selected`, which AppKit vends as `AXSelected`. On a
+  pristine launch, with nothing selected and the pointer parked off-window,
+  exactly one block — "Statistik übung" in the mock data — reports
+  `AXSelected = true`. It also keeps reporting `true` while a *different* block
+  is selected, which single selection makes impossible. VoiceOver would announce
+  a block as selected when it is not.
+
+  **Not our trait.** Established by deleting the
+  `.accessibilityAddTraits(presentation.contains(.selected) ? [.isSelected] : [])`
+  line from `GridBlockView` entirely, rebuilding, and re-querying: the element
+  *still* reported `AXSelected = true`. So the attribute is coming from the
+  SwiftUI/AppKit accessibility bridge, not from anything this build asks for.
+
+  Two plausible causes were tested and **refuted**: the block's `.done` status
+  (the checkmark glyph merging into `children: .combine` — flipping the fixture
+  to `.scheduled` changed nothing) and hover (reproduced with the pointer at
+  5,5). Not root-caused further; it was out of P2-T02's scope, and P2-T02 needed
+  only to stop being fooled by it. Real selection changes are reported correctly
+  on every other block, and correctly on this one too — its baseline is just
+  stuck at `true`.
+
+  `Scripts/check-block-click-selects.sh` handles it by only ever choosing a
+  click target that reads *not selected* at baseline, and asserting on the
+  transition. *Still open.*
+
 ---
 
 ## B — built, but not the way the spec describes
@@ -417,7 +453,19 @@ Still open, all re-checked against the current spec text this session:
   the top.** Initial scroll uses `min(07:00, firstEventStart − 1h)` as specified
   (`TimedCanvasView:58`); the Today-key behaviour is not implemented.
 - **B9 — interactions.md §6. Selection survives view changes but does not scroll
-  into view.**
+  into view.** *(corrected 2026-09-11, task P2-T02)* §6: "switching Week → Day
+  keeps the same block selected and scrolls it into view." The keeping works;
+  the scrolling is not implemented. *Still open — the scroll half is unchanged
+  by P2-T02.*
+
+  **What the old wording got wrong.** As written it implied selection worked,
+  full stop. It did not: until P2-T02, **clicking a block selected nothing at
+  all**, so the only way to select anything was the keyboard (`↖`/`↘`, `↑`/`↓`).
+  That path was what this entry was actually written from. Mouse selection was
+  broken outright — a defect, not a deviation — and is now fixed; see
+  STATUS.md §1.6. The scroll-into-view gap is genuinely separate: it is a
+  missing behaviour, it was not caused by the hit-region bug, and fixing the
+  hit region did not close it.
 
 ---
 

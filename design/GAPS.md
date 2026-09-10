@@ -526,3 +526,48 @@ components, and building them fresh would recreate the second-vocabulary problem
 now line, the all-day row and travel bands removed (components.md §13.1 lists
 every difference), and conflict preview **is** the drag-drop drop-preview
 vocabulary. Neither needs a new renderer.
+
+---
+
+## 2026-09-11 — G-010 — §6 does not say which block a click selects when two overlap
+
+**Where it bit:** task P2-T02, fixing click-to-select in
+`Kadence/Views/Canvas/DayColumnView.swift`. Found while verifying the fix by
+driving real clicks at the running app.
+
+**What happened.** With click-to-select working again, a click at the visual
+centre of "Statistik übung" (10:45–11:45) selected **"Coffee with Nora"**
+(11:00–11:45) instead. Both are real blocks, both are drawn, and the click point
+is genuinely inside both rectangles — Coffee with Nora is simply on top there.
+Nothing is malfunctioning; the spec just does not say what should happen.
+
+**What interactions.md §6 says.** "Clicking a block selects it; clicking empty
+grid deselects and places the time cursor at the clicked slot. Clicking a travel
+band selects its parent event." That is complete for a click that lands on
+exactly one block. It says nothing about a click that lands on two.
+
+**What is needed to close it.** A rule for which block wins when the click point
+is inside more than one block's hit region. The obvious candidate is "the
+frontmost block wins" — i.e. selection follows the same z-order that
+`layouts.md` §3.3 already assigns to a cascade, so what you click is what you
+can see. That is what the build does today, because it falls out of SwiftUI's
+hit-testing order rather than out of a decision. It should be stated, because
+two neighbouring questions have no default answer at all:
+
+1. In a cascade, later blocks are drawn on top and cover most of the ones behind
+   them. If frontmost always wins, a block whose only visible sliver is its
+   leading edge can only ever be selected by clicking that sliver. Is the
+   sliver the hit target, or does a cascaded block get a hit region matching
+   what is *visible* of it rather than its full frame?
+2. Clamped blocks get `size.blockHitExtension` of extra hit area
+   (`layouts.md` §3.3), which can push a short block's hit region *underneath* a
+   neighbour it does not visually overlap. Does the extension lose to a real
+   block's frame, or can it win?
+
+**Not blocking.** The click-to-select fix does not depend on this, and the build
+keeps the current frontmost-wins behaviour. `Scripts/check-block-click-selects.sh`
+deliberately refuses to pick a click target that sits under another block, so
+this ambiguity cannot make that check flap. No value was invented.
+
+**Related:** the block-overlap *rendering* defect is a separate, already-known
+item and is not this gap.
