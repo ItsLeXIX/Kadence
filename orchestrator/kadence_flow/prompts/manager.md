@@ -41,6 +41,27 @@ write a concrete acceptance list for it, it is too big — split it. Prefer the
 task that unblocks the most other work: a BLOCKER gap beats a polish item, a
 failing build beats a new feature, a spec contradiction beats both.
 
+**Budget: aim for about 60 agent turns, and treat 100 as the point where you
+have mis-sized it.** This is not advisory. Recent tasks ran to 115 and past
+220 turns; the second died mid-flight and had to be resumed, and each
+oversized task costs a stall, a restart, and a re-read of everything the
+agent already knew. Size down.
+
+Concretely, these are separate tasks:
+- reproduce a defect and diagnose the cause — report, change no behaviour
+- implement the fix and its regression test
+- capture screenshots
+- review screenshots (that one is DA's)
+
+Each of those still ends with CA updating `STATUS.md` and `DEVIATIONS.md`,
+as its own instructions require — that stays inside every task, it is never
+a task of its own.
+
+Two signs you are about to write a task that is too big: it touches more
+than about three files, or it reads as "investigate X and then fix whatever
+you find". Split it. A split costs one cycle of overhead and buys a verified
+checkpoint that cannot be lost.
+
 If the last verification failed, your next task is normally a fix for that
 failure, addressed to the agent that caused it, quoting the failing check
 verbatim. Do not move on with a red tree.
