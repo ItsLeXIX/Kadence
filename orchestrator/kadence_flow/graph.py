@@ -16,6 +16,15 @@ from .state import OrchestratorState
 MAX_LEDGER_IN_PROMPT = 6
 
 
+def _add_tokens(state: dict, run) -> dict:
+    """Tokens are the thing that actually runs out on a subscription."""
+    tot = dict(state.get("tokens") or
+               {"in": 0, "out": 0, "cache_read": 0, "cache_write": 0})
+    for k, v in getattr(run, "tokens", {}).items():
+        tot[k] = tot.get(k, 0) + v
+    return tot
+
+
 def _ret(state: dict, upd: dict) -> dict:
     """Return a node update, mirroring the merged state to disk first so a
     crash mid-node still leaves a legible record of where we were."""
@@ -144,6 +153,7 @@ def build(cfg: Config):
         upd: dict[str, Any] = {
             "cycle": cycle, "decision": decision, "task": task,
             "cost_usd": state.get("cost_usd", 0.0) + run.cost_usd,
+            "tokens": _add_tokens(state, run),
         }
         if decision == "PHASE_DONE":
             upd["status"] = "phase_done"
@@ -199,7 +209,8 @@ def build(cfg: Config):
         persist.log(f"  {agent} done={report.get('done')} "
                     f"turns={run.num_turns} cost=${run.cost_usd:.2f}")
         return _ret(state, {"report": report,
-                            "cost_usd": state.get("cost_usd", 0.0) + run.cost_usd})
+                            "cost_usd": state.get("cost_usd", 0.0) + run.cost_usd,
+                            "tokens": _add_tokens(state, run)})
 
     def designer(state: OrchestratorState) -> dict[str, Any]:
         return _worker(state, "DA")

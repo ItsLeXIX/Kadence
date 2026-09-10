@@ -59,12 +59,24 @@ def _rescue(cfg: Config, state: dict, reason: str, reset_at=None) -> None:
     persist.log(f"  wrote {path}")
 
 
+def _tokens(state: dict) -> str:
+    t = state.get("tokens") or {}
+    if not t:
+        return "not recorded"
+    def k(n):
+        return f"{n/1000:.0f}k" if n >= 1000 else str(n)
+    return (f"{k(t.get('in', 0))} in · {k(t.get('out', 0))} out · "
+            f"{k(t.get('cache_read', 0))} cache-read")
+
+
 def _summarise(state: dict) -> None:
     print("\n" + "=" * 62)
     print(f"status      : {state.get('status')}")
     print(f"reason      : {state.get('stop_reason')}")
     print(f"cycles      : {state.get('cycle')}")
-    print(f"spent       : ${state.get('cost_usd', 0):.2f}")
+    print(f"usage       : {_tokens(state)}")
+    print(f"              (SDK estimate ~${state.get('cost_usd', 0):.2f} at API list"
+          f" prices — not billed on a subscription)")
     print(f"work branch : {state.get('work_branch')}")
     led = state.get("ledger") or []
     if led:

@@ -53,6 +53,14 @@ def checkpointer():
         return nullcontext(MemorySaver())
 
 
+def _tok(state: dict[str, Any]) -> str:
+    t = state.get("tokens") or {}
+    if not t:
+        return "tokens not recorded"
+    return (f"{t.get('in', 0):,} in / {t.get('out', 0):,} out / "
+            f"{t.get('cache_read', 0):,} cache-read")
+
+
 def write_resume(state: dict[str, Any], reason: str,
                  reset_at: Optional[datetime] = None,
                  thread_id: str = "") -> Path:
@@ -71,7 +79,9 @@ def write_resume(state: dict[str, Any], reason: str,
     lines += [
         f"- phase: {state.get('phase', '?')}",
         f"- cycle: {state.get('cycle', 0)}",
-        f"- spent this run: ${state.get('cost_usd', 0):.2f}",
+        f"- usage this run: {_tok(state)} "
+        f"(SDK estimate ~${state.get('cost_usd', 0):.2f} at API list prices, "
+        f"not billed on a subscription)",
         f"- thread: `{thread_id or state.get('thread_id', '')}`",
         f"- work branch: `{state.get('work_branch', '')}`",
         "",

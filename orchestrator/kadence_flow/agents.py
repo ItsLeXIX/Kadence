@@ -49,11 +49,24 @@ def extract_json(text: str) -> dict[str, Any]:
 
 class AgentRun:
     def __init__(self, text: str, cost_usd: float, num_turns: int,
-                 session_id: Optional[str] = None):
+                 session_id: Optional[str] = None,
+                 usage: Optional[dict[str, Any]] = None):
         self.text = text
+        # NB: the SDK computes cost_usd locally from a bundled price table at
+        # API list rates. On a Claude subscription nothing is billed per token,
+        # so this is a relative measure of work, never money.
         self.cost_usd = cost_usd
         self.num_turns = num_turns
         self.session_id = session_id
+        self.usage = usage or {}
+
+    @property
+    def tokens(self) -> dict[str, int]:
+        u = self.usage
+        return {"in": int(u.get("input_tokens", 0) or 0),
+                "out": int(u.get("output_tokens", 0) or 0),
+                "cache_read": int(u.get("cache_read_input_tokens", 0) or 0),
+                "cache_write": int(u.get("cache_creation_input_tokens", 0) or 0)}
 
     @property
     def json(self) -> dict[str, Any]:
@@ -86,7 +99,7 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
     )
 
     chunks: list[str] = []
-    cost, turns = 0.0, 0
+    cost, turns, usage = 0.0, 0, {}
     async for message in query(prompt=prompt, options=options):
         if isinstance(message, AssistantMessage):
             for block in message.content:
@@ -97,6 +110,7 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
         elif isinstance(message, ResultMessage):
             cost = message.total_cost_usd or 0.0
             turns = message.num_turns or 0
+            usage = message.usage or {}
             if message.is_error:
                 res = message.result
                 text = res if isinstance(res, str) else json.dumps(res or {})
@@ -109,7 +123,7 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
                 if c.kind == "transient":
                     raise TransientError(text)
                 raise OrchestratorError(text)
-    return AgentRun("\n".join(chunks), cost, turns)
+    return AgentRun("\n".join(chunks), cost, turns, usage=usage)
 
 
 def run_agent(prompt: str, *, system_prompt: str, cwd: Path,

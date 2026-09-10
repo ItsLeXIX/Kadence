@@ -67,9 +67,11 @@ class OrchestratorState(TypedDict, total=False):
     # history (compact; MA sees a trimmed view)
     ledger: list[LedgerEntry]
 
-    # accounting
+    # accounting. cost_usd is the SDK's local estimate at API list prices —
+    # on a subscription it is a relative measure of work, not money billed.
     cost_usd: float
     max_cost_usd: float
+    tokens: dict[str, int]
 
     # bookkeeping
     thread_id: str

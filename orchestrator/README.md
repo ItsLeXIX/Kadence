@@ -99,6 +99,15 @@ MA has to deal with it.
 - three failed verifications in a row on the same task.
 - `max_cycles` (default 12) or `max_cost_usd` (default: no ceiling).
 
+### A note on the cost figures
+
+The run prints token usage and, beside it, the SDK's `total_cost_usd`. That number
+is a **client-side estimate**: the SDK prices tokens locally from a bundled table at
+API list rates. On a Claude subscription nothing is billed per token, so treat it as
+a relative measure of how much work a cycle did, never as money. The real limit is
+your plan's usage cap — when you hit it the run stops with exit 75 and resumes later.
+`max_cycles` is the ceiling that actually bounds a sitting.
+
 ## Tuning
 
 `config.json` — models per agent, turn limits, cycle and cost ceilings, quota
