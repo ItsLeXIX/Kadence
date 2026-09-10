@@ -1,114 +1,163 @@
 # Phase 1 — deviation punch list
 
-Every place the implementation does not match the frozen spec, audited
-2026-09-09 against `design/components.md`, `design/layouts.md` and
-`design/interactions.md`, **re-audited after the 17:14–17:15 spec revision**
-(cascade rework + new §3.4). Verified by reading the code, not from memory —
-where an item says "token unused", that was checked with a search.
+Scope: **Phase 1 only.** `design/` gained a full Phase 2 spec in `1c58185`
+(components.md §13–§17, layouts.md §8–§10, interactions.md §10–§12). None of it
+is built and none of it is listed here — unbuilt Phase 2 is not a deviation, it
+is an unstarted phase. See `STATUS.md` §3.
 
-Legend: **A** absent · **B** built differently · **C** value I invented (none remain) ·
-**D** spec contradiction · ~~struck~~ = fixed in this pass.
+Re-audited **2026-09-10** against the *current* text of `design/components.md`,
+`design/layouts.md` and `design/interactions.md`, re-read this session rather
+than trusted from the previous audit — those three files were all edited in
+`1c58185`, which amended three Phase 1 rules in place. Every code claim below
+("token unused", "never called", "no caller passes it") was re-checked with a
+search against the working tree, not carried forward.
 
-Counts: A ×14 · B ×6 · C ×0 · D ×0 — plus 13 items fixed across five passes.
+Legend: **A** absent · **B** built differently · **C** value I invented (none
+remain) · **D** spec contradiction · ~~struck~~ = closed.
+
+**Counts: A ×15 · B ×6 · C ×0 · D ×0** — open items only, counted from this
+file rather than carried forward. (A ×7 and B ×6 more are closed and struck
+below; the previous audit's "A ×14" did not match its own list.)
+
+### What this re-audit changed
+
+The Phase 1 section numbering in all three spec files is **unchanged** —
+components.md still runs §1–§12, layouts.md §1–§7, interactions.md §1–§9, with
+Phase 2 appended after. So every section reference below still resolves. What
+changed is the *content* of three Phase 1 sections, plus three stale entries:
+
+| Item | Was | Now |
+|---|---|---|
+| **A2** vertical gap | listed absent | **closed** — implemented, entry was stale |
+| **A9** resize handles | listed absent | **closed** — implemented, entry was stale |
+| **A18** cursors | "no cursors anywhere" | **rewritten** — 3 of 6 are wired |
+| **A12** gutter conflict | flagged as an open contradiction | **closed** — §7 text amended |
+| **A11** toolbar focus stop | flagged as a gap against §1 | **closed** — §1 text amended |
+| **A21** needs-attention icon | — | **new** — created by the §10.2 amendment |
 
 ---
 
 ## D — spec contradictions
 
-**Both closed by the 17:14 revision.** The designer removed
-`size.blockCascadeIndentMin` entirely (the floor was dead — GAPS G-006/G-009) and
-restated the narrowest block as "42pt at the absolute minimum", consistent with
-`indent = min(round(w × ratio), max)` and no lower clamp. D2 stays resolved by
-the `increaseContrast` parameter (GAPS G-003).
+**None open.**
 
----
+D1 and D2 were closed by the 17:14 revision (`size.blockCascadeIndentMin`
+removed; `increaseContrast` parameter, GAPS G-003).
+
+- ~~**D3 — the time gutter: components.md §7 vs interactions.md §1.**~~
+  **Closed 2026-09-10 — the spec text itself was amended.** Tracked as A12 below.
 
 ## C — invented design values
 
-**None.** There are no invented design values left in the codebase.
+**None.** There are no invented design values and no `// SPEC-GAP` markers left
+in `Kadence/`.
 
-- ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1 now
+- ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind
   fallback, and the code implements it: the symbol moved off `SourceKey` onto
-  `CalendarSource` as a `symbol` defaulted from `CalendarSourceKind`, the
-  `// SPEC-GAP` marker is gone, and `SourceSymbolTests` pins the table — including
-  §10.1's rule that no source symbol may also be a block-kind glyph.
-  GAPS.md records G-004 closed with the section reference.
+  `CalendarSource` as a `symbol` defaulted from `CalendarSourceKind`, and
+  `SourceSymbolTests` pins the table — including §10.1's rule that no source
+  symbol may also be a block-kind glyph. GAPS.md records G-004 closed.
 
 ---
 
 ## A — specified but not built
 
 ### Canvas
-- ~~**A1 — background windows do not span the time gutter.**~~ **Fixed**
-  (also review D-3). `BackgroundWindowsLayer` no longer lives inside
-  `DayColumnView`, which starts after the gutter. `TimedCanvasView.windowsBackdrop`
-  draws one continuous layer behind gutter + every column, below the hour lines
-  and below every block, so a protected or low-energy band reads as one band
-  across the whole grid and its edges stay visible when a column is full — which
-  §7 says is the only time they matter. The gutter takes the leading day's
-  windows, since the gutter is shared by all seven columns.
 
-- **A2 — components.md §3.1. `size.blockVerticalGap` is never applied.** The
-  token is unused; vertically adjacent blocks in one sub-column touch. Frames
-  come straight from the time geometry with no 2pt separation.
+- ~~**A1 — background windows do not span the time gutter.**~~ **Closed.**
+  `TimedCanvasView.windowsBackdrop` draws one continuous layer behind gutter +
+  every column, below the hour lines and below every block. The gutter takes the
+  leading day's windows, since one gutter serves all seven columns.
+
+- ~~**A2 — components.md §3.1, `size.blockVerticalGap` is never applied.**~~
+  **Closed — this entry was stale, not newly fixed.** The previous audit said the
+  token was unused; it is not. `DayLayoutEngine.applyVerticalGaps` (line 124) reads
+  `Tokens.Size.blockVerticalGap` and is called from the engine's main path at line
+  112, as a post-pass over the whole column. It shortens only blocks that have a
+  follower sharing column space, so an isolated block still ends exactly on its
+  end time. Re-verified by search this session.
+
 - **A3 — components.md §4. A floored travel band does not rise above other
-  blocks.** §4 says when the floor applies it "is drawn above other blocks in
-  z-order but below the now line". It is inside its parent's `VStack`, so it
-  inherits the parent's z-index and can be covered.
-- **A4 — components.md §5 / §9 / layouts.md §3.2. Multi-day all-day items do
-  not span columns.** They should be "one pill with square inner corners where
-  they cross a day divider". `AllDayRowView` renders per day, so a multi-day
-  item repeats once per column. `AllDayItemView.squareLeading` /
-  `squareTrailing` exist and are never passed by any caller.
+  blocks.** §4 says that when the floor applies the band "is drawn above other
+  blocks in z-order but below the now line". It is inside its parent's `VStack`,
+  so it inherits the parent's z-index and can be covered. *Still open.*
+
+- **A4 — components.md §5 / §9 / layouts.md §3.2. Multi-day all-day items do not
+  span columns.** They should be "one pill with square inner corners where they
+  cross a day divider". `AllDayRowView` renders per day, so a multi-day item
+  repeats once per column. Re-verified: `AllDayItemView.squareLeading` /
+  `squareTrailing` exist (lines 15–16) and are read only by the view's own shape
+  (lines 35–38) — **no caller anywhere passes either one.** *Still open.*
+
 - **A5 — layouts.md §3.2. The all-day row does not scroll internally** past
-  `size.allDayMaxRows`. The `+N` chip is shown; the internal scroll is not.
+  `size.allDayMaxRows`. Re-verified: `AllDayRowView:36` reads the token as a cap
+  and shows the `+N` chip; the internal scroll is not implemented. *Still open.*
+
 - **A6 — components.md §8. The now line does not span the full canvas in Day.**
-  It is drawn per column in both modes. In Day the column is nearly the full
-  width, so this is close but not what §8 says.
+  Re-verified: `NowLineView` is instantiated inside `DayColumnView` (line 101), so
+  it is drawn per column in both modes. In Day the column is nearly the full
+  width, so this is visually close but not what §8 says. *Still open.*
 
 ### Blocks
+
 - **A7 — components.md §3.3. `DensityTier.usesEllipsis` is never consumed.**
-  Tier 16–27 must truncate "with no ellipsis character"; SwiftUI's default
-  `.tail` draws one. The property exists and nothing reads it.
+  Tier 16–27 must truncate "with no ellipsis character"; SwiftUI's default `.tail`
+  draws one. Re-verified: the only occurrence outside `Tokens.swift` is the
+  property's own definition at `DensityTier.swift:35`. Nothing reads it.
+  *Still open.*
+
 - **A8 — components.md §11. `DensityTier.droppingOneTier()` is never called.**
   The ladder must be "evaluated against *resolved* text height, not against the
-  default point sizes" — so a large Dynamic Type setting should drop a tier. It
-  is evaluated against block height only.
-- **A9 — components.md §6. Hover does not reveal resize handles.**
-  `size.blockResizeHandleHeight` is used for hit-testing in the drag gesture but
-  nothing is drawn.
+  default point sizes", so a large Dynamic Type setting should drop a tier.
+  Re-verified: the only occurrence is the function's own definition at
+  `DensityTier.swift:42`. The ladder is still evaluated against block height only.
+  *Still open.*
+
+- ~~**A9 — components.md §6, hover does not reveal resize handles.**~~
+  **Closed — this entry was stale, not newly fixed.** The previous audit said
+  `size.blockResizeHandleHeight` was used only for drag hit-testing and nothing was
+  drawn. It is drawn. `GridBlockView` gates a hover branch on
+  `presentation.contains(.hovered)` (line 103) which renders the 1pt inset ring and,
+  when `model.isMovable`, a `resizeHandle` at top and bottom (lines 111–116);
+  `resizeHandle` (line 236) is a `Rectangle` in `Tokens.Color.Interactive.hoverOverlay`
+  at `Tokens.Size.blockResizeHandleHeight`. Hover state is plumbed from
+  `DayColumnView.hoveredID` (lines 27, 205, 222). Handles are suppressed on
+  non-movable blocks, matching interactions.md §4.
 
 ### Accessibility
-- ~~**A20 — blocks are not exposed to the accessibility tree.**~~ **Fixed.**
-  Blocks, all-day pills and month chips now reach the tree as `AXButton`
-  elements: 20 present on the fixture week, up from **0**. Verify with
-  `Scripts/check-accessibility.sh`.
 
-  Diagnosis, because the cause was not what the symptom suggested. The labels
-  were always written correctly — they simply never arrived. Bisected against
-  the running app:
+- ~~**A20 — blocks are not exposed to the accessibility tree.**~~ **Closed.**
+  Blocks, all-day pills and month chips reach the tree as `AXButton` elements —
+  20 on the fixture week, up from **0**. Re-confirmed this session:
+  `Scripts/check-accessibility.sh` → `PASS (elements present)`, 20 elements.
+
+  Diagnosis, kept because the cause was not what the symptom suggested. The labels
+  were always written correctly — they never arrived. Bisected against the running
+  app:
 
   | Configuration | Result |
   |---|---|
-  | `.accessibilityElement(children: .ignore)` + `.accessibilityLabel` | element vended as an ignored `AXUnknown`; **absent** from the tree |
+  | `.accessibilityElement(children: .ignore)` + `.accessibilityLabel` | vended as an ignored `AXUnknown`; **absent** from the tree |
   | the same, plus `.accessibilityAddTraits(.isButton)` | still absent |
   | `.accessibilityElement(children: .combine)` + `.isButton` | **appears** as `AXButton` |
 
   Ruling out the wrong suspects mattered as much as finding the right one:
-  removing the modifiers entirely made the block's inner `Text` appear, which
-  proved the blocks render and the canvas is walkable; a canary element inside
-  the same `ZStack` was suppressed identically, which proved it was not
-  block-specific; and removing `.focusable()` / `.onKeyPress` from the canvas
-  changed nothing, which cleared the container.
+  removing the modifiers made the block's inner `Text` appear, proving the blocks
+  render and the canvas is walkable; a canary element in the same `ZStack` was
+  suppressed identically, proving it was not block-specific; removing
+  `.focusable()` / `.onKeyPress` from the canvas changed nothing, clearing the
+  container.
 
-- **A20b — the §11 label still does not stick.** *(attempted, not fixed)*
+- **A20b — the §11 label still does not stick.** *(attempted, not fixed —
+  unchanged this session, still needs a ruling)*
   Blocks are in the tree as `AXButton` but carry only the §3.4 hover-help string
-  in `AXHelp`; `AXDescription` and `AXTitle` are empty, so VoiceOver does not
-  read `title, time, kind, source, status`.
+  in `AXHelp`; `AXDescription` and `AXTitle` are empty, so VoiceOver does not read
+  `title, time, kind, source, status`. Today's check-accessibility run reports it
+  directly: `carrying the §11 label: 0`.
 
-  The preferred route — make the block a real `Button` — was built and measured
-  and **does not fix it**. Six configurations, all against the running app:
+  The preferred route — make the block a real `Button` — was built, measured, and
+  **does not fix it**. Six configurations, all against the running app:
 
   | Attempt | Elements in tree | §11 label |
   |---|---|---|
@@ -122,9 +171,9 @@ the `increaseContrast` parameter (GAPS G-003).
   The decisive measurement: with the real `Button`, an
   `.accessibilityIdentifier("kadence.block")` applied to the very same element
   (confirmed present on all 20) while `.accessibilityLabel` on the adjacent line
-  did not. So the modifiers reach the element and the label alone is dropped —
-  AppKit derives the element from the button's rendered content instead. Hiding
-  that content to stop it removed the element entirely.
+  did not. The modifiers reach the element; the label alone is dropped, because
+  AppKit derives the element from the button's rendered content. Hiding that
+  content to stop it removed the element entirely.
 
   The pattern across all six: in this hierarchy anything that *synthesizes* a
   replacement accessibility element is dropped, and only elements derived from
@@ -134,9 +183,9 @@ the `increaseContrast` parameter (GAPS G-003).
 
   **Stopped here rather than compromising the interaction model**, per the
   standing instruction. The label content is correct and unit-tested; only the
-  delivery is wrong, and the hover-help string does currently carry title, time,
-  source and kind — so the information is reachable, just not as the element's
-  name and not in §11 order.
+  delivery is wrong, and the hover-help string does carry title, time, source and
+  kind — so the information is reachable, just not as the element's name and not
+  in §11 order.
 
   Next candidates, in order, each needing a decision because each trades
   something: (a) reshape the block so the §11 string is its *only* rendered text
@@ -146,117 +195,210 @@ the `increaseContrast` parameter (GAPS G-003).
   (c) file it against SwiftUI and ship the hover-help carrier as the interim.
 
 ### Chrome and appearance
-- **A10 — components.md §11. Reduce Transparency is unhandled.**
-  `color.surface.sidebarMaterial`, `.toolbarMaterial`, `.popoverMaterial` and
-  `color.interactive.accentSystemName` (plus siblings) are all unused. The app
-  never draws the platform material, so there is nothing to fall back *from*.
-  The literal colours are always used — which is the Reduce Transparency
-  branch, so the app is correct in that mode and wrong in the default one.
+
+- **A10 — components.md §11. Reduce Transparency is unhandled.** Re-verified by
+  search: `color.surface.sidebarMaterial`, `.toolbarMaterial`, `.popoverMaterial`
+  and `color.interactive.accentSystemName` have **zero** references outside
+  `Tokens.swift`. The app never draws the platform material, so there is nothing
+  to fall back *from*. The literal colours are always used — which is the Reduce
+  Transparency branch, so the app is correct in that mode and wrong in the default
+  one. *Still open.*
+
+- **A21 — components.md §10.2. The needs-attention row draws an icon, and §10.2
+  now forbids one.** *(new 2026-09-10 — created by the spec amendment, not by a
+  code change)*
+  `SidebarView.swift:29` renders `Image(systemName: "tray.full")` on the
+  needs-attention row. The amended §10.2 says, in as many words: **"The row takes
+  no icon."** It is the only non-source row in that list; its text and count
+  already separate it from the swatch-prefixed source rows, and §10.2 records that
+  this closes a collision found on 2026-09-09 — `tray.full` sits a few rows above
+  the Coursework source's `tray.2.fill` (§10.1) in the same list at the same size,
+  two trays in one sidebar.
+
+  The build was correct against the previous text and is wrong against the current
+  one. The fix is to delete the `Image` — one line — and §10.2's follow-on rule
+  applies to anything added later: no chrome symbol without first checking §10.1
+  and the kind glyphs in §2.1, §3.2 and §5.
 
 ### Interaction
-- ~~**A11 — region focus cycling is absent.**~~ **Fixed, with one gap.**
-  `⇥` / `⇧⇥` now cycle sidebar → all-day row → grid → inspector and wrap,
-  skipping the all-day row when hidden and the inspector when collapsed. The
-  rule is a pure function (`CalendarState.FocusRegion.next`) with 13 tests, so
-  the skipping and wrapping are checked rather than tabbed through by hand. Each
-  region draws the standard focus ring, per §1, which is why the grid no longer
-  sets `.focusEffectDisabled()`.
-  **The toolbar is not a stop.** §1 lists it first, but SwiftUI toolbar items are
-  not addressable as a focus region without a phantom item; macOS reaches the
-  toolbar through Full Keyboard Access instead. Asserted as deliberate in
-  `FocusAvailabilityTests.toolbarExcluded`.
-- ~~**A12 — the time cursor prints no time in the gutter.**~~ **Fixed.** The
-  cursor time is printed in the gutter in `hourLabel` / `color.interactive.accent`,
-  and suppresses a colliding hour label by the same 12pt rule the now time uses.
-  Shown only while the grid is focused and the cursor is on a visible day.
-  **Spec conflict, flagged:** components.md §7 (revised 17:15) says the gutter
-  carries hour labels and the now time "and nothing else"; interactions.md §1
-  puts the cursor time there. Built per §1 on Parsa's instruction — the two need
-  reconciling.
-- ~~**A13 — inline title editing on create is stubbed.**~~ **Fixed.** A new event
-  is now an `EventDraft` held in `CalendarState`, laid out and drawn like a block
-  (so it packs and cascades with everything else) but **never in the store**.
+
+- ~~**A11 — region focus cycling is absent.**~~ **Closed, and its one remaining
+  gap is now closed too.** `⇥` / `⇧⇥` cycle sidebar → all-day row → grid →
+  inspector and wrap, skipping the all-day row when hidden and the inspector when
+  collapsed. The rule is a pure function (`CalendarState.FocusRegion.next`) with
+  13 tests. Each region draws the standard focus ring per §1, which is why the
+  grid no longer sets `.focusEffectDisabled()`.
+
+  **The toolbar-is-not-a-stop gap is resolved by the spec, not by code.** The
+  previous audit flagged this as a deviation because §1 listed the toolbar first.
+  **interactions.md §1 was amended 2026-09-10** and now reads: *"Amended
+  2026-09-10: the toolbar is not a focus stop. The original list opened with it
+  and then miscounted its own regions as four."* §1 now specifies exactly the
+  four regions the build implements, in the order it implements them, and notes
+  that Full Keyboard Access is the expected route to window chrome and that every
+  toolbar action has a key equivalent and a menu item. `FocusAvailabilityTests.toolbarExcluded`
+  already asserts the omission is deliberate. **The build was right; the spec has
+  caught up. No code change needed.**
+
+- ~~**A12 — the time cursor prints no time in the gutter.**~~ **Closed, and the
+  spec conflict it raised is closed with it.** The cursor time is printed in the
+  gutter in `hourLabel` / `color.interactive.accent`, suppressing a colliding hour
+  label by the same 12pt rule the now time uses (§8). Shown only while the grid is
+  focused and the cursor is on a visible day.
+
+  **The gutter conflict is genuinely resolved — the spec text itself changed.**
+  This was checked directly rather than taken from GAPS.md's narration, because a
+  gap is only closed when the resolution is written into the spec file. It was.
+  `design/components.md` §7 now reads:
+
+  > **The label never enters the time gutter.** The gutter carries hour labels,
+  > the now time, and the keyboard time cursor's time (`interactions.md` §1) — and
+  > nothing else. **Amended 2026-09-10:** the original rule named only hour labels
+  > and the now time, which contradicted `interactions.md` §1. §1 wins; the cursor
+  > time suppresses a colliding hour label by the same 12pt rule the now time uses
+  > (§8). Window labels remain banned from the gutter, which is what this rule was
+  > written to prevent.
+
+  components.md §7's own preamble to the Phase 2 material confirms the amendment
+  was intentional and in place: *"the amendments to §6, §7 and §10.2 above are
+  marked in place and were ruled on 2026-09-10."*
+
+  So the previous entry's "the two specs still disagree" is **no longer true**.
+  §7 and §1 now agree, they agree with what was built, and window labels remain
+  banned from the gutter — which the build also honours. `design/GAPS.md`'s tail
+  narrates the same resolution; the difference is that the normative text now
+  carries it. Nothing to change in the code.
+
+- ~~**A13 — inline title editing on create is stubbed.**~~ **Closed.** A new event
+  is an `EventDraft` held in `CalendarState`, laid out and drawn like a block (so
+  it packs and cascades with everything else) but **never in the store**.
   `EventStore.commit(_:)` is the only path that persists one, and it refuses a
-  draft with no usable title. §3's rule — "an event created with no title is
-  never persisted; cancelling and committing an empty field both remove it" — is
+  draft with no usable title. §3's rule — "an event created with no title is never
+  persisted; cancelling and committing an empty field both remove it" — is
   therefore true by construction rather than by cleanup: there is nothing to
   delete because nothing was written.
 
   **Behaviour note:** losing focus abandons the draft, per the instruction that
-  ⎋, focus loss and an empty title all count as abandonment. The trade-off is
-  that a title typed and then clicked away from is lost; committing a non-empty
-  title on blur is a one-line change in `DraftBlockView` if that reads better in
-  use.
+  ⎋, focus loss and an empty title all count as abandonment. The trade-off is that
+  a title typed and then clicked away from is lost; committing a non-empty title
+  on blur is a one-line change in `DraftBlockView` if that reads better in use.
 
   Found while testing it: `commit` and `duplicate` **inserted twice** —
   `UndoStack.perform` runs its `redo` closure immediately, and both also inserted
   directly, producing two rows with the same `id`. Pre-existing in `create` and
-  `duplicate`; caught only because these tests run against a real in-memory
-  store rather than a stub.
-- **A14 — interactions.md §4. `⇧` (same-day constraint) and `⌥`-drag duplicate
-  are not wired.** `EventStore.duplicate` exists with no gesture path to it.
+  `duplicate`; caught only because these tests run against a real in-memory store
+  rather than a stub.
+
+- **A14 — interactions.md §4. `⇧` (same-day constraint) and `⌥`-drag duplicate are
+  not wired.** `EventStore.duplicate` exists; re-verified this session that no
+  gesture path calls it. *Still open.*
+
 - **A15 — interactions.md §4. No time badge follows the pointer** during a drag.
-- **A16 — interactions.md §5. Delete leaves no dashed outline** in the vacated
-  slot for `motion.outlineHold`. The token is unused anywhere.
-- **A17 — interactions.md §7.1. Only step 1 of the block-move transition
-  exists.** The spring is there; the level-2 lift during travel, the arrival
-  outline hold, scroll-into-view-first, and page-then-place are not. This is
-  the transition the spec calls the one place motion earns its keep.
-- **A18 — interactions.md §8. No cursors are set.** No `NSCursor` anywhere:
-  `.crosshair`, `.openHand`/`.closedHand`, `.resizeUpDown`,
-  `.operationNotAllowed` all missing.
-- **A19 — interactions.md §9. Undo does not restore selection.** Mutations are
-  named and undoable; `⌘Z` puts the data back, not the user.
+  Re-verified: no drag-badge view exists. *Still open.*
+
+- **A16 — interactions.md §5. Delete leaves no dashed outline** in the vacated slot
+  for `motion.outlineHold`. Re-verified: `outlineHold` has **zero** references
+  outside `Tokens.swift`. *Still open.*
+
+- **A17 — interactions.md §7.1. Only step 1 of the block-move transition exists.**
+  The spring is there; the level-2 lift during travel, the arrival outline hold,
+  scroll-into-view-first, and page-then-place are not. This is the transition the
+  spec calls the one place motion earns its keep. *Still open.*
+
+- **A18 — interactions.md §8. Cursors are half-wired.** *(rewritten 2026-09-10 —
+  the previous entry, "No cursors are set. No `NSCursor` anywhere", was wrong)*
+  `Shapes.swift:118–142` defines a `cursor(_:)` modifier that push/pops an
+  `NSCursor` on hover, with matched push/pop. Two of the five §8 rows are wired,
+  in `DayColumnView`:
+
+  | §8 context | Spec | Built |
+  |---|---|---|
+  | Over empty grid | `.crosshair` | **yes** — `DayColumnView:289` |
+  | Over a draggable block | `.openHand` | **yes** — `DayColumnView:203` |
+  | …`.closedHand` while dragging | `.closedHand` | **no** |
+  | Over a resize handle | `.resizeUpDown` | **no** |
+  | Over a non-draggable block | `.arrow` | **yes** — same line, ternary |
+  | …`.operationNotAllowed` on drag attempt | `.operationNotAllowed` | **no** |
+  | Over a region divider | `.resizeLeftRight` | **no** |
+
+  What is missing is every *transient* cursor — the ones that change during a
+  gesture rather than on hover — plus the divider. The hover cases are done.
+
+- **A19 — interactions.md §9. Undo does not restore selection.** §9 says undo
+  restores "the selection state that was in effect". Mutations are named and
+  undoable; `⌘Z` puts the data back, not the user. Re-verified: no selection
+  snapshot is captured or restored. *Still open.*
 
 ---
 
 ## B — built, but not the way the spec describes
 
-- ~~**B1 — cascade applied the step-2 insets.**~~ **Fixed.** Block *i* now has a
+- ~~**B1 — cascade applied the step-2 insets.**~~ **Closed.** Block *i* has a
   leading inset of exactly `min(i, maxSteps) × indent` and spans to the trailing
   edge, so the narrowest block is `columnWidth − 3 × indent`. It was 4pt narrower.
-- ~~**B2 — z-order was per cluster.**~~ **Fixed**, now global across the column.
-- ~~**B3 — the `+N` chip was nudged by a hardcoded 28pt.**~~ **Fixed**, anchored
-  to the cluster's top trailing corner — and now drawn above every block in the
-  cluster, per the revised §3.3.
-- ~~**B10 — the indent had a lower clamp.**~~ **Fixed** for the 17:14 revision:
-  `min(round(w × ratio), max)`, no floor. `blockCascadeIndentMin` is gone.
+- ~~**B2 — z-order was per cluster.**~~ **Closed**, now global across the column.
+- ~~**B3 — the `+N` chip was nudged by a hardcoded 28pt.**~~ **Closed**, anchored
+  to the cluster's top trailing corner, and drawn above every block in the
+  cluster per the revised §3.3.
+- ~~**B10 — the indent had a lower clamp.**~~ **Closed:** `min(round(w × ratio), max)`,
+  no floor. `blockCascadeIndentMin` is gone from the spec and the code.
 - ~~**B11 — a covered block rendered its full content and got clipped.**~~
-  **Fixed.** `LaidOutBlock` now carries `visibleWidth`, `resolveBlockStyle` takes
-  it, and below `size.blockCascadeMinReadableWidth` (44) the block drops to the
+  **Closed.** `LaidOutBlock` carries `visibleWidth`, `resolveBlockStyle` takes it,
+  and below `size.blockCascadeMinReadableWidth` (44) the block drops to the
   glyph-only content set whatever its height. `BlockStyle.contentTier` is the
   single source of truth for which content set renders.
-- ~~**B12 — the source name never appeared as text (new §3.4).**~~ **Fixed.**
-  Tier ≥ 44 renders `Source · Location` on the meta line, and every block, band,
-  pill and month chip carries `Title · HH:mm–HH:mm · Source · Kind` as hover help.
+- ~~**B12 — the source name never appeared as text (§3.4).**~~ **Closed.** Tier ≥ 44
+  renders `Source · Location` on the meta line, and every block, band, pill and
+  month chip carries `Title · HH:mm–HH:mm · Source · Kind` as hover help.
 
-- **B4 — components.md §3.1. Glyph baseline alignment is approximate.** §3.1
-  wants the glyph aligned to "the first text baseline's cap height". The code
-  uses `.alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }` — a magic 1pt,
-  not derived from cap height.
+Still open, all re-checked against the current spec text this session:
+
+- **B4 — components.md §3.1. Glyph baseline alignment is approximate.** §3.1 wants
+  the glyph aligned to "the first text baseline's cap height". `GridBlockView:248`
+  uses `.alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }` — a magic 1pt, not
+  derived from cap height. The comment above it claims cap-height alignment, which
+  makes it read as done when it is approximated.
 - **B5 — components.md §3.3. The clamped hit region is centred on the clamped
   frame, not the true one.** §3.3 says "centred on the true frame".
-- **B6 — components.md §7. Protected only beats low-energy on full
-  containment.** A low-energy window that *partially* overlaps a protected one
-  still draws its hatch over the overlap. §7 says protected wins outright.
+- **B6 — components.md §7. Protected only beats low-energy on full containment.**
+  A low-energy window that *partially* overlaps a protected one still draws its
+  hatch over the overlap. §7's current text is unchanged on this point and still
+  says, flatly: "Overlapping windows: protected wins. Never render both treatments
+  in the same region."
 - **B7 — layouts.md §1.1. The inspector overlay is a `ZStack` layer,** not a
-  presented overlay. It reads correctly and sits at `elevation.level2`, but it
-  does not dim or dismiss like a real overlay.
-- **B8 — layouts.md §3.1. `T` / Today does not scroll the current time to 1/3
-  from the top.** Initial scroll uses `min(07:00, firstEventStart − 1h)` as
-  specified; the Today-key behaviour is not implemented.
-- **B9 — interactions.md §6. Selection survives view changes but does not
-  scroll into view.**
+  presented overlay. It reads correctly and sits at `elevation.level2`, but it does
+  not dim or dismiss like a real overlay.
+- **B8 — layouts.md §3.1. `T` / Today does not scroll the current time to 1/3 from
+  the top.** Initial scroll uses `min(07:00, firstEventStart − 1h)` as specified
+  (`TimedCanvasView:58`); the Today-key behaviour is not implemented.
+- **B9 — interactions.md §6. Selection survives view changes but does not scroll
+  into view.**
 
 ---
 
 ## Not a deviation — worth stating
 
 - `⌘1/⌘2/⌘3`, `⌘T`, `T`, `←`/`→`, `⌘N`, `↩`, `⌫`, `⌘↩`, `⌥⌘↩`, `⌥`-arrows,
-  `⌥⇧`-arrows, `↑`/`↓`, `⎋`, `↖`/`↘`, `⌃⌘S`, `⌥⌘I`, `⌘Z` are all wired, and
-  each is a menu item with the same key equivalent.
+  `⌥⇧`-arrows, `↑`/`↓`, `⎋`, `↖`/`↘`, `⌃⌘S`, `⌥⌘I`, `⌘Z` are all wired, and each
+  is a menu item with the same key equivalent.
 - Dropping into a protected window is allowed, with the alert-coloured preview
   outline (interactions.md §4) — deliberately not blocked.
 - The empty day reads "Nothing scheduled": no illustration, no encouragement.
 - Skipped and done are visual siblings; no red, no counter, no strikethrough.
-- Peak-focus windows render nothing, per §7.
+- Peak-focus windows render nothing on the calendar canvas. §7 was extended on
+  2026-09-10 with an **editor exception** — peak focus *is* drawn, as a dashed
+  outline in `color.window.peakFocusEdge`, but "only inside the Routines window's
+  windows mode (§13.3), never on the calendar canvas." That is Phase 2 surface and
+  there is no Routines window to draw it in, so it is not a deviation. The calendar
+  canvas rule is unchanged and the build still honours it.
+
+---
+
+## Not listed here on purpose
+
+- **`Tokens.swift` is one design pass behind `design/tokens.json`** and
+  `generate-tokens.swift --check` is red at `HEAD`. That is not a spec deviation —
+  it is a generated artefact that was not regenerated when `1c58185` added 67
+  Phase 2 tokens. `STATUS.md` §1.1 and §5 carry it.
+- **The Phase 1 screenshot set does not exist**, though root `INDEX.md` describes
+  16 files by name. `STATUS.md` §2.2 carries it.
