@@ -1,324 +1,342 @@
 # Status
 
-Updated: 2026-09-09
-Phase: **1 — the calendar.** Built, then reworked for the 17:14 spec revision.
-Builds clean, 149/149 unit tests pass.
+Updated: **2026-09-10**
+Phase 1: **complete and verified.** Phase 2: **designed, not built.** Phase 3:
+**neither designed nor built.**
 
-## How to verify
+This file was reconciled against the actual tree on 2026-09-10 (task P3-T01).
+Everything below was re-derived from the working copy and from commands re-run
+in that session — not carried over from the previous text. Several claims in the
+old version were wrong and are corrected in place; where a correction matters,
+it says so.
+
+---
+
+## 1. Verification — run on this Mac, 2026-09-10
+
+Xcode 26.6 (17F113), Apple Swift 6.3.3, target arm64-apple-macosx26.0.
+Working tree clean at `9bd7724` when these were run.
+
+### 1.1 `swift Scripts/generate-tokens.swift --check` — **FAILS**
 
 ```
-swift Scripts/generate-tokens.swift --check    # tokens in sync, no hand edits
-./Scripts/check-accessibility.sh               # blocks reach the AX tree (A20)
-xcodebuild -scheme Kadence -destination 'platform=macOS' build
-xcodebuild -scheme Kadence -destination 'platform=macOS' -only-testing:KadenceTests test
+Kadence/DesignSystem/Tokens.swift is out of date or was hand-edited.
+Tokens.swift is generated; edit design/tokens.json instead, then run:
+    swift Scripts/generate-tokens.swift
 ```
 
-All three were run on this Mac (Xcode 26.6, Swift 6.3.3) before this was written:
-`** BUILD SUCCEEDED **`, `** TEST SUCCEEDED **`, 149 passed / 0 failed.
+Exit status **1**. This is the one red result in the four, and it is real, not a
+machine artefact. **It is also not a Phase 1 regression.**
 
-Use `-only-testing:KadenceTests`. A plain `test` also runs the empty UI-test
-template, whose runner fails on this machine with "Timed out while enabling
-automation mode" and turns the whole run red for no reason.
-The app was launched and Month / Week / Day were each exercised — no crash, and
-each toolbar title matches layouts.md §1.2 (`September 2026`, `7 – 13 Sep 2026`,
-`Wed 9 Sep 2026`).
+Cause, established by regenerating and diffing: commit `1c58185` added 67 Phase 2
+tokens to `design/tokens.json` and never regenerated `Tokens.swift`. Running the
+generator produces a **+96 / −1** diff against the committed file — the source
+fingerprint line, plus new leaves that are all Phase 2 surface:
 
-## Done
+- `color.window.peakFocusEdge`, `color.window.peakFocusFill` (§7 editor exception)
+- `motion.PreviewRevert`, `motion.SnoozeConfirmHold`
+- `opacity.blockPreviewed`, `opacity.editorInactiveLayer`
+- `size.conflictOption*`, `size.editorInspectorWidth`, `size.editorModeBarHeight`,
+  `size.popover*`, `size.previewCanvasBorder`, `size.resyncPopoverWidth`,
+  `size.routineEditor*`, `size.statusItem*`
+- typography groups `ConflictOptionTitle`, `ConflictOptionDelta`,
+  `EditorModeLabel`, `PopoverNextTitle`, `PopoverNextMeta`, `PopoverRow`,
+  `PopoverSectionLabel`, `StatusItem`
 
-### Design system
-- `Scripts/generate-tokens.swift` → `Kadence/DesignSystem/Tokens.swift`.
-  259 constants, every one cross-checked against `tokens.json`. Never hand-edited;
-  `--check` fails the build if it is stale or edited.
-- `TypeStyle` — the `typography.*` groups as applyable styles. Fonts are built
-  with `@ScaledMetric(relativeTo:)` against each token's `textStyle`, so explicit
-  point sizes still scale with Dynamic Type.
-- `SourceKey` — the eight palette slots. Hue carries source and nothing else.
-- `Elevation`, `BlockStyle`, `RailStyle`, `BadgeSpec`.
-- `resolveBlockStyle` — one pure function, no view or environment dependencies,
-  consumed by all three block views. 30 tests.
+No Phase 1 token changed. Nothing was hand-edited. The generated file is simply
+one design pass behind its source.
 
-### Models (SwiftData)
-- `Event`, `Place`. The Core Data template (`Persistence.swift`,
-  `ContentView.swift`, `Kadence.xcdatamodeld`) is gone — the brief says SwiftData.
-  Recoverable from commit `6a615c1` if you want to look at it.
-- **One correction to the brief's model:** `colorTag` is replaced by `sourceKey`.
-  components.md §1 makes hue mean *source and nothing else*, so a free colour tag
-  would be a second, conflicting hue channel. The palette slot is derived from
-  the source, never chosen per event.
-- `origin`, `status`, `flexibility`, `sourceKey` persist as raw strings — keeps
-  the store readable and migration-friendly for when Phase 3 writes imports into it.
-- Display-only fixtures for what Phase 1 has no services for: `TravelFixture`,
-  `AllDayFixture`, `TimeWindowFixture`, `CalendarSource`. Not persisted.
+**I did not fix this.** P3-T01 is a documentation-reconciliation task and is
+scoped to touch no code; I regenerated only to identify the drift, then reverted
+with `git checkout` so the tree is byte-identical to `HEAD`. Regenerating is a
+one-command fix and belongs to whoever picks up the next build task — see §5.
 
-### Layout
-- `DayLayoutEngine` — layouts.md §3.3 in full: cluster → column-pack → cascade,
-  pure functions over value types, no SwiftUI and no clock. 22 tests, including
-  the spec's own numbers: 22pt indent at a 114pt Week column, Week cascades where
-  Day packs, every cascaded block keeps a rail and a glyph visible, `+N` past five.
-- `DensityTier` — the four tiers by rendered height, never duration.
-- `TimeGeometry` — time↔point, snapping (15 min, 5 with `⌃`), and the clamp
-  duration the engine uses.
+### 1.2 `./Scripts/check-accessibility.sh` — **PASS**
 
-### Views
-- Three block geometries: `GridBlockView`, `TravelBandView`, `AllDayItemView`,
-  plus `MonthChipView` for the compressed month row. All driven by the resolver —
-  not one view with six branches (DECISIONS.md 2026-09-09).
-- Canvas layers: background windows (protected/low-energy, below the grid lines,
-  spanning the gutter), hour and half-hour lines, time gutter, now line.
-- `TimedCanvasView` (Week and Day share the machinery), `MonthGridView` (always
-  six rows), `DayHeaderRow`, `AllDayRowView` (hidden entirely when empty).
-- `SidebarView` (sources with symbol swatches, filters), `InspectorView` (day
-  summary when nothing is selected, never a placeholder graphic), toolbar, menus.
-- Create by double-click, drag, `⌘N` or the `+` button; drag to move; drag the
-  edges to resize; delete with `⌫`. Drop preview with the protected-window alert
-  outline. Every mutation is undoable and **named** — see the undo section below.
+```
+building…
+querying pid 19877
+block-shaped elements in the tree: 20
+carrying the §11 label:            0
+  AXHelp=Check mail · 12:50–13:00 · Mail appointments · event ~~
+  AXHelp=Stand-up · 12:30–12:45 · Personal · event ~~
+  AXHelp=Reading · 21:00–21:30 · Daily routine · routine block, Reading · 21:00–21:30 · Daily routine · routine block ~~
 
-### Mock data
-- `MockData` — components.md §12's sixteen fixtures on one day grid, seeded once
+WARN: blocks are in the tree, but 0 carry the §11 label.
+      Known open defect A20b — VoiceOver reads the hover-help string
+      instead of 'title, time, kind, source, status'.
+PASS (elements present)
+```
+
+Exit status 0. 20 block elements, matching the 20 renderable fixtures. The A20b
+warning is a known open defect, not a new one — DEVIATIONS.md A20b.
+
+### 1.3 `xcodebuild -scheme Kadence -destination 'platform=macOS' build` — **PASS**
+
+```
+** BUILD SUCCEEDED **
+```
+
+Exit status 0.
+
+### 1.4 `xcodebuild -scheme Kadence -destination 'platform=macOS' -only-testing:KadenceTests test` — **PASS**
+
+```
+** TEST SUCCEEDED **
+```
+
+Exit status 0. Counted from the log: **149 passed / 0 failed** (129 unique test
+cases; the surplus is parameterised cases reported per argument).
+
+Always use `-only-testing:KadenceTests`. A plain `test` also runs the empty
+`KadenceUITests` template, whose runner cannot start on this machine ("Timed out
+while enabling automation mode"). That red is the template, not a failure.
+
+---
+
+## 2. Phase 1 — complete and verified
+
+Phase 1 as defined in `BRIEF-PRODUCT.md` "Phase 1" is **done**. It builds, its
+149 tests pass, its blocks reach the accessibility tree, and it has been run and
+exercised in Month / Week / Day.
+
+Built and standing:
+
+- **Design system.** `Scripts/generate-tokens.swift` → `Tokens.swift`;
+  `TypeStyle` (Dynamic Type via `@ScaledMetric(relativeTo:)`); `SourceKey`
+  (eight palette slots, hue carries source only); `Elevation`, `BlockStyle`,
+  `RailStyle`, `BadgeSpec`; `resolveBlockStyle` as one pure function consumed by
+  all three block views.
+- **Models (SwiftData).** `Event`, `Place`, `EventDraft`. `colorTag` is replaced
+  by `sourceKey` (components.md §1 makes hue mean source and nothing else).
+  Display-only fixtures where Phase 1 has no service: `TravelFixture`,
+  `AllDayFixture`, `TimeWindowFixture`, `CalendarSource`.
+- **Layout.** `DayLayoutEngine` (layouts.md §3.3 in full: cluster → column-pack
+  → cascade → vertical gaps), `DensityTier`, `TimeGeometry`. Pure functions over
+  value types, no SwiftUI and no clock.
+- **Views.** `GridBlockView`, `TravelBandView`, `AllDayItemView`, `MonthChipView`;
+  canvas layers (background windows spanning the gutter, hour lines, gutter, now
+  line); `TimedCanvasView`, `MonthGridView`, `DayHeaderRow`, `AllDayRowView`;
+  `SidebarView`, `InspectorView`, toolbar, menus.
+- **Interaction.** Create by double-click, drag, `⌘N` or `+`; drag to move;
+  edge-drag to resize; `⌫` to delete. Creation is commit-or-discard through
+  `EventDraft`, so an untitled event cannot be persisted.
+- **Undo.** Explicit inverse-command stack (`UndoStack`), depth 50, named actions
+  in the Edit menu, re-entrant grouping, full redo branch. Events are addressed
+  by `id` and resolved at execution time, so undoing a delete survives the object
+  identity change. Not `ModelContext.undoManager` — that groups at the wrong
+  grain and cannot survive that identity change.
+- **Focus.** `⇥` / `⇧⇥` cycle sidebar → all-day row → grid → inspector, wrapping
+  and skipping hidden regions, as a pure function with 13 tests.
+- **Sidebar visibility.** One source of truth (`CalendarState.isSidebarVisible`),
+  with the split view's `columnVisibility` derived from it.
+- **Mock data.** `MockData` — components.md §12's sixteen fixtures, seeded once
   and idempotent.
 
-## Three defects found by actually running it
+### 2.1 Corrections to what this file previously claimed
 
-Worth recording, because none would have been caught by reading the code:
+The old text carried three statements that were false when it was written or had
+since gone stale. Recording them so they do not reappear:
 
-1. **Adaptive colours were not equatable.** `NSColor(name:dynamicProvider:)`
-   returns a fresh catalog colour on every call, so two reads of the *same* token
-   compared unequal. That silently broke `Equatable` on `BlockStyle` and made
-   SwiftUI treat every render as a change. Fixed in the **generator** (the cache
-   is in `TokenSupport`, so it regenerates) — not by patching `Tokens.swift`.
-2. **`.opacity(1)` is not the same value as the bare colour.** The Increase
-   Contrast branch of the routine border wrapped the colour in a modifier instead
-   of dropping it. Fixed by branching rather than always calling `.opacity`.
-3. **Two sidebar toggles and two View menus.** `NavigationSplitView` installs its
-   own sidebar toggle and SwiftUI owns a View menu; mine were duplicates. Fixed
-   with `.toolbar(removing: .sidebarToggle)` and by moving the items into
-   `CommandGroup(after: .sidebar)`. Also caught: the inspector button announced
-   itself to VoiceOver as "sidebar.trailing".
+- It said `⇥` region cycling "is not implemented" under *Not done*, while a
+  section above it correctly described A11 as fixed with 13 tests. **It is
+  implemented.**
+- It said inline title editing on create was "stubbed rather than built". **It is
+  built** — A13, via `EventDraft` / `DraftBlockView`.
+- It said "Five gaps remain (G-003, G-005)" — a count of five against a list of
+  two. Two remain, and neither blocks.
 
-A fourth, from the accessibility tree: the now-time in the Week gutter was placed
-by absolute offset from the grid's first day rather than by clock time, so it
-landed two days down the ruler. Fixed with `TimeGeometry.yForTimeOfDay`, with a
-test.
+### 2.2 The one thing Phase 1 is missing
 
-## Swift 6 — done, with one exception
+**The Phase 1 screenshot set does not exist.** `CONTEXT.md` requires every phase
+to end with `screenshots/<phase>/` populated plus an `INDEX.md`, reviewed by the
+design agent.
 
-I previously reported the app target was on Swift 5. **That was wrong** — a
-`sort -u` collapsed the grep output and I read it off the wrong build config.
-The app target was already `SWIFT_VERSION = 6.0` with
-`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, so all Phase 1 code has been
-compiling in Swift 6 language mode from the start.
+- `screenshots/` on disk contains one file: `.DS_Store`. No PNGs.
+- `git ls-files screenshots` returns **nothing**. No screenshot is tracked.
+- History shows only two ad-hoc macOS screengrabs, added and then deleted:
+  `7fad990` added `Screenshot 2026-09-09 at 23.31.04.png`, `1590a0d` replaced it
+  with `Screenshot 2026-09-10 at 01.14.33.png`, and `15718a9` deleted that.
+- Root `INDEX.md` nevertheless describes a 16-file set by name
+  (`day-full-dark.png`, `week-overlap4-dark.png`, …). **Those files were never
+  committed and are not on disk.** `INDEX.md` is not mine to edit under this
+  task; it is flagged here so nobody plans against it.
 
-What actually needed changing was the *test* targets, which were on 5.0:
+So Phase 1 is complete and verified *by build, test and accessibility check*, but
+its screenshot review artefact is absent.
 
-- `KadenceTests` → Swift 6.0 + `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`
-  (needed: `Tokens` is MainActor-isolated in the app, so the test target has to
-  match or its file-level constants fail to compile). Builds and passes.
-- `KadenceUITests` → **left on Swift 5.0.** The XCTestCase template overrides
-  are nonisolated and produce 11 isolation errors under MainActor-by-default.
-  It contains no tests of ours and its runner cannot start on this machine
-  anyway ("Timed out while enabling automation mode"). Not worth converting now.
+---
 
-`project.pbxproj` before the change is at `/tmp/pbxproj.before` for this session;
-the committed version is in `6a615c1`.
+## 3. Phase 2 — full design spec, **zero implementation**
 
-## The 17:14 cascade revision — applied
+> **Read this before trusting the commit log.** Git history contains commits
+> titled **"Phase 2"** (`1590a0d`) and **"Phase 2 finish"** (`15718a9`). Neither
+> contains any Phase 2 feature work. Phase 2 has not been started.
 
-`design/tokens.json`, `layouts.md` and `components.md` were revised mid-build
-(worked from a screenshot of the running app). All of it is now implemented:
+`BRIEF-PRODUCT.md` "Phase 2 — routines, conflicts, protected time, and the menu
+bar" requires a routine engine, a TimeWindow editor, conflict detection and a
+menu bar extra. **None of it exists in `Kadence/`.**
 
-- `dayColumnCascadeThreshold` 96 → 72, so Week **packs** the common two-block
-  overlap and cascades only the pile-up. At this window (1680pt, ~153pt columns)
-  a 2-up packs and a 3-up cascades, which is the intent.
-- `blockCascadeIndentMin` removed; indent is `min(round(w × ratio), max)`.
-- **New:** a block whose *visible* width is under
-  `blockCascadeMinReadableWidth` (44) drops to glyph-only whatever its height —
-  a clipped title reads as damage, not as occlusion. `LaidOutBlock.visibleWidth`
-  → `resolveBlockStyle` → `BlockStyle.contentTier`.
-- The `+N` chip now draws above every block in its cluster.
-- **New §3.4:** the source name is required as text at tier ≥ 44
-  (`Source · Location`), and every block, band, pill and chip carries
-  `Title · HH:mm–HH:mm · Source · Kind` as hover help.
+### 3.1 Evidence — searched this session
 
-Ten tests cover it, including the spec's own worked table (184pt column: 2-up
-packs, 3-up cascades; 114pt and 78pt cascade).
+`Kadence/` contains 36 Swift files. Searching all of `Kadence/` and
+`KadenceTests/` for the Phase 2 vocabulary:
 
-## Undo — rebuilt (2026-09-09)
+| Looked for | Found |
+|---|---|
+| `RoutineEngine` | **nothing** |
+| conflict detection (`conflictDetect`, `ConflictResolv`) | **nothing** |
+| `MenuBarExtra` scene | **nothing** |
+| `Snooze` | **nothing** |
+| a `TimeWindow` *editor* | **nothing** |
 
-**Correction to what this file previously claimed.** It said ⌘Z was "wired to
-SwiftData's undo manager with named actions". It was not: `EventStore` read
-`context.undoManager`, and nothing ever assigned one. The container was created
-without undo support, so `undoManager` was always `nil` and every
-`beginUndoGrouping` / `setActionName` call was a no-op. Undo was not one step
-deep — it did nothing at all.
+The only hits are Phase 1 display fixtures, and the code says so itself.
+`Kadence/Models/DisplayFixtures.swift:65` reads:
 
-Replaced with an explicit inverse-command stack, `Kadence/State/UndoStack.swift`:
+```swift
+/// Stands in for `TimeWindow` (Phase 2). Weekday numbers follow
+struct TimeWindowFixture: Identifiable, Equatable, Sendable {
+```
 
-- **Depth.** `UndoStack.defaultDepth = 50`, overridable per instance
-  (`UndoStack(depth:)`, which the tests use). Oldest steps fall off the bottom.
-- **Grouping.** `EventStore.transaction("Resolve Conflict") { … }` records
-  everything inside it as ONE step. `perform` is **re-entrant**: a composite
-  operation is written by calling the ordinary verbs (`store.move`,
-  `store.toggleSkipped`), and because a group is already open they join it
-  instead of pushing steps of their own. The outermost name is the one the user
-  sees. That is the shape Phase 2 needs — conflict resolution applying 2–3
-  changes, and the routine engine materialising many blocks — without either
-  duplicating the verbs or leaving three separate steps behind them.
-- **Named.** `CommandGroup(replacing: .undoRedo)` supplies the Edit menu items,
-  so it reads "Undo Move Event" / "Redo Resolve Conflict", disabled when empty.
-- **Redo.** Full branch, cleared when a new action diverges from history.
+`TimeWindowFixture` is generated data drawn by `GridLayers.swift` as a background
+band. There is no model behind it, no persistence, no editor, and nothing that
+computes a routine. components.md §12 states the same thing for the whole Phase 1
+fixture set: *"no TravelLeg computation, no routine engine, no work item model
+behind them."*
 
-Two details that are load-bearing rather than incidental:
+### 3.2 What the two misleadingly-titled commits actually contain
 
-- **Events are addressed by `id`, resolved at execution time.** Undoing a delete
-  cannot resurrect a deleted `@Model` instance, so the event returns as a new
-  object carrying the same `id`. No undo closure holds an `Event` reference, so
-  an event can be deleted, restored and moved again in any order.
-- **A replay guard.** Undo closures call back into the same code paths that
-  record. Without it, one ⌘Z would push a fresh step and the stack would never
-  empty. There is a test for exactly that.
+- **`1590a0d` "Phase 2"** — Phase 1 polish. `EventDraft.swift` and
+  `DraftBlockView.swift` (commit-or-discard creation, DEVIATIONS A13),
+  `FocusRegionTests` (focus-region cycling, A11), `SidebarVisibilityTests`
+  (sidebar-visibility unification), `EventCreationTests`. Every changed file is
+  Phase 1 scope.
+- **`15718a9` "Phase 2 finish"** — three files: `DECISIONS.md` (+83),
+  `INDEX.md` (+6/−5), and the deletion of one screenshot. **No source file at
+  all.**
 
-Why not `ModelContext.undoManager`: it groups by begin/end pairs around whatever
-SwiftData registers per property, which is the wrong grain for "these three
-edits are one user action", and it cannot survive the object identity change
-that undoing a delete forces.
+### 3.3 The commit titled "Phase 3" added the **Phase 2 design spec**
 
-**Verified end to end in the running app**, not only by unit test: with an empty
-stack the Edit menu reads `Undo` / `Redo`, both disabled; after File ▸ New Event
-it reads `Undo New Event`, enabled; clicking that leaves `Undo` disabled and
-`Redo New Event` enabled.
+`1c58185`, titled **"Phase 3"** in `git log`, contains no Phase 3 work and no
+Swift. It touched `design/` and `orchestrator/` only:
 
-18 new tests (`KadenceTests/UndoStackTests.swift`) cover depth and its bound,
-grouping and reverse-order unwind, re-entrancy, the interleaved
-single → group → single case unwinding one press at a time, redo round-trip,
-redo invalidation, the replay guard, and the menu titles.
+```
+design/GAPS.md          |  61 +++++
+design/components.md    | 320 +++++++++++++++++++++++++-
+design/interactions.md  | 144 +++++++++++-
+design/layouts.md       | 103 +++++++++
+design/tokens.json      | 103 ++++++++-
+orchestrator/…          (new files)
+```
 
-## A1, A11, A12 — done (2026-09-09)
+What it added is the **Phase 2 UI design**:
 
-- **A1 / review D-3 — background windows span the gutter.** The layer moved out
-  of `DayColumnView` (which starts after the gutter) into
-  `TimedCanvasView.windowsBackdrop`: one continuous canvas layer behind gutter +
-  every column, below the hour lines and below every block. §7's point is that
-  the edges stay visible when a column is full of blocks, which needs the band to
-  cross the gutter. The gutter takes the leading day's windows, since one gutter
-  serves all seven columns.
-- **A11 — `⇥` region cycling.** sidebar → all-day row → grid → inspector, wrapping,
-  skipping the all-day row when hidden and the inspector when collapsed. The rule
-  is a pure function (`CalendarState.FocusRegion.next`) with 13 tests. Each region
-  draws the standard focus ring per §1, so the grid no longer disables it.
-  **Gap: the toolbar is not a `⇥` stop.** §1 lists it first, but SwiftUI toolbar
-  items are not addressable as a focus region without adding a phantom item;
-  macOS reaches the toolbar via Full Keyboard Access. A test asserts the omission
-  is deliberate rather than an oversight.
-- **A12 — cursor time in the gutter**, `hourLabel` / `color.interactive.accent`,
-  suppressing a colliding hour label by the same rule the now time uses.
+- `design/components.md` §13 The Routines window, §14 Conflict resolution,
+  §15 Menu bar extra, §16 Snooze confirmation, §17 fixtures
+- `design/layouts.md` §8 The Routines window, §8.1 Editor inspector,
+  §9 Menu bar popover, §10 The conflict panel
+- `design/interactions.md` §10 Conflict resolution, §11 The Routines window,
+  §12 The menu bar popover
+- 67 new tokens in `design/tokens.json`
 
-**Spec conflict to reconcile.** components.md §7 (revised 17:15) says the gutter
-carries hour labels and the now time "and nothing else may be drawn in it".
-interactions.md §1 puts the cursor time in the gutter. Built per §1 on your
-instruction; the two specs still disagree.
+Its own section banner and final header say so. components.md line 572 opens the
+new material with:
 
-**Also noticed, not fixed (out of scope):** `CalendarState.isSidebarVisible` and
-the split view's `columnVisibility` are two sources of truth for the same thing
-and are not kept in sync — the Edit-menu toggle writes one, auto-collapse writes
-the other. A11 sidesteps it by reading `columnVisibility` directly.
+```
+# Phase 2 — routines, conflicts, protected time, the menu bar
+```
 
-## Sidebar visibility — one source of truth (2026-09-10)
+and the section closing it, at line 825, is headed — verbatim:
 
-`CalendarState.isSidebarVisible` is now the only stored sidebar state. The split
-view's `columnVisibility` is derived from it (`sidebarColumnVisibility`) through a
-binding that writes back, so all four paths move the same value: the Edit-menu
-toggle, the toolbar button, width-driven auto-collapse, and the split view's own
-divider. Previously the menu wrote `isSidebarVisible` while auto-collapse wrote a
-separate `@State columnVisibility`, so the menu could offer "Hide Sidebar" for a
-sidebar that was already hidden.
+```
+## 17. What Phase 2 must render for review
+```
 
-The §1.1 rule — auto-collapse must never overwrite an explicit choice — now lives
-in exactly one place, `setSidebarVisible(_:isUserAction:)`. A change arriving from
-the split view's own divider counts as explicit, or the next resize would undo it.
-8 tests in `SidebarVisibilityTests`, plus `availableFocusRegions` reads the same
-flag so `⇥` can never land on a sidebar that is not on screen.
+followed by *"Additions to the §12 fixture set. Same rule: display fixtures, no
+services."* and twelve numbered Phase 2 fixtures (routine template, windows mode,
+detached instances, conflict options, preview state, status item, popover, snooze
+result row).
 
-The inspector was already single-source (`isInspectorVisible`) and is unchanged.
+**So: Phase 2 has a complete design and no code.** The commit title is the only
+thing in the repository that suggests otherwise.
 
-## A13 — creation is commit-or-discard (2026-09-10)
+---
 
-A new event is an `EventDraft` held in `CalendarState`. It is laid out and drawn
-like a block — it packs and cascades with everything else, and carries the
-inline `TextField` §3 asks for — but it is **never in the store**.
-`EventStore.commit(_:)` is the only path that persists one, and it refuses a
-draft with no usable title.
+## 4. Phase 3 — no design coverage at all
 
-That makes §3's rule true by construction rather than by cleanup: there is
-nothing to delete on cancel because nothing was written. The old flow inserted
-first and deleted on cancel, which is what left untitled events behind whenever
-the delete did not happen.
+`BRIEF-PRODUCT.md` scopes Phase 3 as work items, time logging, ICS import,
+`TravelTimeProvider`, Moodle and CalDAV. **There is no Phase 3 design anywhere in
+`design/`, and no Phase 3 code.**
 
-- `⌘N`, the toolbar `+`, double-click and drag-create all call
-  `CalendarState.beginDraft`; none of them touch SwiftData.
-- `↩` commits and selects the result. `⎋` and an empty title discard.
-- `UndoStack.discardLastStep` is gone — it existed only to paper over the old
-  insert-then-cancel flow.
+Searched `design/` this session for `assignment`, `workItem`, `work item`,
+`TimeLog`, `time log`, `effort`, `confidence`, `ICS`, `Moodle`, `CalDAV`,
+`TravelTimeProvider`:
 
-**Behaviour note, worth a second look in use:** losing focus abandons the draft,
-following the instruction that ⎋, focus loss and an empty title all count as
-abandonment. The cost is that a title typed and then clicked away from is lost.
-Committing a non-empty title on blur is a one-line change in `DraftBlockView`.
+- `TimeLog`, `time log`, `effort`, `confidence`, `CalDAV`, `TravelTimeProvider`
+  — **zero occurrences in `design/`.**
+- `ICS` — one false positive, `GAPS.md:54`, matching inside the word
+  "CoreGraphics".
+- The rest are **incidental Phase 1 styling references, not feature design**:
+  components.md §3.2 keys two all-day glyphs off `WorkItem.kind`
+  (`.assignment/.project` → `flag.fill`, `.exam` → `graduationcap.fill`);
+  §1 and §10.1 mention Moodle as a *source* for hue and swatch symbols
+  (`tray.2.fill`); §10.1's assignment *rule* is about palette-slot assignment,
+  not about assignments. components.md §12 explicitly notes there is "no work
+  item model behind them."
 
-**A bug this surfaced.** `commit` and `duplicate` inserted the event **twice** —
-`UndoStack.perform` runs its `redo` closure immediately, and both also inserted
-directly, so two rows appeared with the same `id`. Pre-existing in `create` and
-`duplicate` and invisible until now: the new tests run against a real in-memory
-`ModelContainer` rather than a stub, which is the only reason it showed up.
+That is a handful of icon and colour rules that anticipate Phase 3 data. It is
+not a design for work items, time logging, feed import, or travel-time lookup.
+No layout, no interaction model, no tokens, no fixture list exists for any of it.
+Phase 3 vocabulary appears only in `BRIEF-PRODUCT.md`, `BRIEF-DESIGN.md` and
+`CONTEXT.md` — the briefs, not the spec.
 
-**The stray event is gone.** `MockData.removeUntitledEvents` sweeps empty-title
-events at launch — a repair for stores written by the older build, since an
-untitled event is now impossible to create. Two tests cover the sweep and its
-no-op case.
+---
 
-## Accessibility check — 20, as expected
+## 5. What is actually next
 
-`./Scripts/check-accessibility.sh` → **PASS, 20 block elements** (was 21). The
-extra one was the stray untitled 23:30–00:30 event; the sweep removed it, and the
-count now matches the 20 renderable fixtures exactly — 21 timed fixtures with
-Overlap 6 correctly hidden behind the cascade's `+1` chip.
+Stating facts, not choosing an order. The Phase 2-vs-Phase 3 build order is not
+mine to decide.
 
-The A20b warning still stands and is unchanged: blocks reach the tree, but carry
-the hover-help string rather than the §11 label.
+1. **`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**
+   Fixed by running `swift Scripts/generate-tokens.swift` and committing the
+   result. It is a prerequisite for any task that reports a green token check,
+   and for any Phase 2 code, since all 67 Phase 2 tokens are missing from the
+   generated file. Nothing else in the repo is blocked by it — the app builds and
+   tests pass, because no Phase 1 code references the new leaves.
+2. **Phase 2 has a design and no code.** `design/components.md` §13–§17,
+   `layouts.md` §8–§10, `interactions.md` §10–§12 and the 67 new tokens are
+   complete and frozen. Nothing in `Kadence/` implements any of it. The design
+   pass also notes two deliberate reuses: the Routines window **is** the Week
+   canvas with dates, now line, all-day row and travel bands removed
+   (components.md §13.1 lists every difference), and conflict preview **is** the
+   drag-drop drop-preview vocabulary. Neither needs a new renderer.
+3. **Phase 3 has neither design nor code.** It cannot be built without a design
+   pass first; per `CONTEXT.md` the coding agent cannot invent UI values.
+4. **Phase 1 has open deviations.** 15 absent, 6 built-differently, **0 invented
+   values**, **0 open spec contradictions** — see `DEVIATIONS.md`, re-audited
+   2026-09-10 against the current spec text.
+5. **Phase 1 never produced its screenshot set** (§2.2), and root `INDEX.md`
+   describes 16 files that do not exist.
 
-## Blocked / needs your ruling
+### 5.1 Needs a ruling
 
-- **`DEVIATIONS.md`** — full punch list of where the build does not match the
-  frozen spec: 17 absent, 6 built differently, **0 invented values**, 0 open
-  spec contradictions. Read that before Phase 2.
-- ~~`design/GAPS.md` G-004 — the sidebar source symbols.~~ **Closed.** §10.1 is
-  normative and the code implements it. **There are no invented design values
-  left in the codebase.**
-- **A20b in `DEVIATIONS.md`** — A20 is fixed (blocks reach the accessibility
-  tree: 20 elements, up from 0). A20b is **attempted and not fixed**: six
-  configurations measured against the running app, including the preferred real
-  `Button` route, and the §11 label is discarded in every one that produces an
-  element at all. Evidence table and next candidates are in DEVIATIONS.md.
-  Needs a decision — every remaining option trades something.
-- G-006 and G-009 are **closed** by the 17:14 revision. Five gaps remain
-  (G-003, G-005), neither blocking. G-004, G-006, G-007, G-008 and G-009 are
-  closed.
+- **A20b** — blocks reach the accessibility tree but carry the §3.4 hover-help
+  string instead of the §11 label. Six configurations were measured against the
+  running app, including the preferred real-`Button` route; the label is
+  discarded in every one that produces an element at all. Three next candidates,
+  each trading something, are in DEVIATIONS.md. Unchanged this session.
+- **A21** — the sidebar's needs-attention row draws `tray.full`, which the
+  amended components.md §10.2 now forbids outright. New, and a one-line fix; see
+  DEVIATIONS.md.
 
-## Not done, on purpose
+### 5.2 Gaps
 
-- Undo: see the section above. Selection restoration (interactions.md §9's
-  "undo restores the selection state that was in effect") is still **not** done —
-  DEVIATIONS.md A19. ⌘Z puts the data back, not the user.
-- Inline title editing on a newly created block: the event is created and
-  selected, and `inlineEditingEventID` is set, but the in-place `TextField` in
-  the block is not yet wired — you name it in the inspector instead. It is the
-  one thing in interactions.md §3 that is stubbed rather than built.
-- `⇥` region cycling and the full focus-order model (interactions.md §1) are
-  partial: the grid is focusable and handles its own keys, but the four-region
-  cycle is not implemented.
-- Everything in Phases 2–6, per the scope rule.
+Two remain open, neither blocking: **G-003** and **G-005**. Closed: G-004, G-006,
+G-007, G-008, G-009. **There are no invented design values in the codebase** and
+no `// SPEC-GAP` markers left in `Kadence/`.
 
-## Next
-
-1. Reconcile the gutter conflict below.
-2. Finish the three partial items above — they are all Phase 1 scope.
-3. Then Phase 2 (routines, conflicts, protected time, menu bar extra), not before.
+No new gap was filed by this reconciliation. The three defects it found —
+the stale `Tokens.swift`, the `tray.full` collision, and the missing screenshots
+— are all cases where `design/` is unambiguous and the build or the repo has
+drifted from it. None is a question for the designer, so none belongs in
+`GAPS.md`.

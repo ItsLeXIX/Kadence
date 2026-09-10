@@ -81,9 +81,25 @@ def main() -> int:
                  ("CA", "Kadence/Views/DayView.swift"),
                  ("CA", "KadenceTests/ATests.swift"),
                  ("CA", "STATUS.md"), ("CA", "DEVIATIONS.md"),
-                 ("CA", "screenshots/3/INDEX.md")]:
+                 ("CA", "screenshots/3/INDEX.md"), ("CA", "INDEX.md")]:
         ok, why = guards.check_write(a, f)
         check(f"{a} allowed {f}", ok, why)
+
+    print("\nPreToolUse gate (the layer that runs under bypassPermissions)")
+    from kadence_flow.guards import judge
+    for a, tool, inp, want in [
+            ("DA", "Write", {"file_path": str(root / "Kadence/X.swift")}, False),
+            ("DA", "Edit", {"file_path": str(root / "design/layouts.md")}, True),
+            ("CA", "Write", {"file_path": str(root / "design/GAPS.md")}, False),
+            ("CA", "Edit", {"file_path": str(root / "design/GAPS.md")}, True),
+            ("CA", "Write", {"file_path": str(root / "STATUS.md")}, True),
+            ("CA", "Bash", {"command": "git commit -m x"}, False),
+            ("CA", "Bash", {"command": "git checkout -- ."}, False),
+            ("CA", "Bash", {"command": "xcodebuild -scheme Kadence build"}, True),
+            ("DA", "Read", {"file_path": "/etc/hosts"}, True)]:
+        ok, why = judge(a, tool, inp, root)
+        check(f"{a} {tool} {'allowed' if want else 'denied'}: "
+              f"{str(list(inp.values())[0])[-38:]}", ok == want, why)
 
     # ------------------------------------------- 2. a rogue write is reverted
     print("\nrogue writes are undone, and the task fails")
@@ -129,10 +145,17 @@ def main() -> int:
              ("Your credit balance is too low", "quota"),
              ("529 overloaded_error", "transient"),
              ("connection reset by peer", "transient"),
-             ("TypeError: object is not callable", "fatal")]
+             ("TypeError: object is not callable", "fatal"),
+             ("Failed to authenticate: OAuth session expired", "auth"),
+             ("401 Unauthorized", "auth"),
+             ("You've hit your session limit · resets 1:20pm (Europe/Vienna)",
+              "quota")]
     for text, want in cases:
         got = classify(text).kind
         check(f"{want:<9} ← {text[:38]}", got == want, f"got {got}")
+    check("clock-style reset parsed",
+          classify("You've hit your session limit · resets 1:20pm "
+                   "(Europe/Vienna)").reset_at is not None)
     check("reset time parsed",
           classify("Claude usage limit reached, resets at 2026-09-10T18:00:00Z").reset_at is not None)
 

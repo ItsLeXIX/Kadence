@@ -21,7 +21,7 @@ WRITE_SCOPE: dict[str, list[str]] = {
     # coding agent: the Swift target, tests, screenshots + the gap channel
     "CA": ["Kadence/**", "KadenceTests/**", "KadenceUITests/**",
            "screenshots/**", "Scripts/**", "design/GAPS.md",
-           "STATUS.md", "DEVIATIONS.md"],
+           "STATUS.md", "DEVIATIONS.md", "INDEX.md"],
 }
 
 # Never writable by any agent, whatever the scope says.
@@ -74,6 +74,57 @@ def check_write(agent: str, path: str) -> tuple[bool, str]:
     return True, ""
 
 
+def _deny(reason: str) -> dict:
+    return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                   "permissionDecision": "deny",
+                                   "permissionDecisionReason": reason}}
+
+
+def _allow() -> dict:
+    return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                   "permissionDecision": "allow"}}
+
+
+def judge(agent: str, tool_name: str, tool_input: dict[str, Any],
+          repo: Path) -> tuple[bool, str]:
+    """The single scope decision, shared by the hook and the callback."""
+    if tool_name in WRITE_TOOLS:
+        raw = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
+        rel = relpath(repo, raw)
+        ok, why = check_write(agent, rel)
+        if not ok:
+            return False, why
+        if tool_name == "Write" and _match(rel, APPEND_ONLY.get(agent, [])):
+            return False, (f"{rel} is append-only for {agent}. Use Edit to add an "
+                           f"entry at the end; do not rewrite the file.")
+    if tool_name == "Bash":
+        cmd = tool_input.get("command", "")
+        for pat in BASH_DENY:
+            if re.search(pat, cmd):
+                return False, ("git history and destructive commands are the "
+                               "orchestrator's job. Leave your changes in the "
+                               "working tree.")
+    return True, ""
+
+
+def make_pretool_hooks(agent: str, repo: Path):
+    """PreToolUse hooks. Under permission_mode 'bypassPermissions' the
+    can_use_tool callback is never consulted — the SDK auto-approves first —
+    so this is the layer that actually holds the line before a write lands."""
+    try:
+        from claude_agent_sdk import HookMatcher
+    except ImportError:          # dry runs / stubbed agents
+        return None
+
+    async def gate(input_data, tool_use_id, context):
+        ok, why = judge(agent, input_data.get("tool_name", ""),
+                        input_data.get("tool_input") or {}, repo)
+        return _allow() if ok else _deny(why)
+
+    return {"PreToolUse": [HookMatcher(
+        matcher="Write|Edit|MultiEdit|NotebookEdit|Bash", hooks=[gate])]}
+
+
 def make_permission_hook(agent: str, repo: Path):
     """Returns a can_use_tool callback for ClaudeAgentOptions."""
     try:
@@ -83,24 +134,9 @@ def make_permission_hook(agent: str, repo: Path):
         return None
 
     async def can_use_tool(tool_name: str, input_data: dict[str, Any], context):
-        if tool_name in WRITE_TOOLS:
-            raw = input_data.get("file_path") or input_data.get("notebook_path") or ""
-            rel = relpath(repo, raw)
-            ok, why = check_write(agent, rel)
-            if not ok:
-                return PermissionResultDeny(message=why)
-            if tool_name == "Write" and _match(rel, APPEND_ONLY.get(agent, [])):
-                return PermissionResultDeny(
-                    message=f"{rel} is append-only for {agent}. Use Edit to add an "
-                            f"entry at the end; do not rewrite the file.")
-        if tool_name == "Bash":
-            cmd = input_data.get("command", "")
-            for pat in BASH_DENY:
-                if re.search(pat, cmd):
-                    return PermissionResultDeny(
-                        message="git history and destructive commands are the "
-                                "orchestrator's job. Just leave your changes in "
-                                "the working tree.")
+        ok, why = judge(agent, tool_name, input_data or {}, repo)
+        if not ok:
+            return PermissionResultDeny(message=why)
         return PermissionResultAllow(updated_input=input_data)
 
     return can_use_tool

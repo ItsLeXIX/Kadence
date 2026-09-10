@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from .errors import (ContractError, OrchestratorError, QuotaExhausted,
-                     TransientError, classify)
+from .errors import (AuthExpired, ContractError, OrchestratorError,
+                     QuotaExhausted, TransientError, classify)
 from . import guards
 
 BACKOFF = [10, 30, 90]          # seconds, transient errors only
@@ -63,7 +63,8 @@ class AgentRun:
 async def _once(prompt: str, *, system_prompt: str, cwd: Path,
                 allowed_tools: list[str], permission_mode: str,
                 max_turns: int, model: Optional[str],
-                can_use_tool=None, max_budget_usd: Optional[float] = None,
+                can_use_tool=None, hooks=None,
+                max_budget_usd: Optional[float] = None,
                 on_event: Optional[Callable[[str], None]] = None) -> AgentRun:
     from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions,
                                   ResultMessage, TextBlock, ToolUseBlock, query)
@@ -75,7 +76,11 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
         permission_mode=permission_mode,
         max_turns=max_turns,
         model=model,
-        can_use_tool=can_use_tool,
+        # under bypassPermissions the SDK auto-approves before can_use_tool is
+        # consulted, so passing it there is dead weight and warns; the
+        # PreToolUse hook is what actually gates.
+        can_use_tool=None if permission_mode == "bypassPermissions" else can_use_tool,
+        hooks=hooks,
         max_budget_usd=max_budget_usd,
         setting_sources=["project"],
     )
@@ -97,6 +102,8 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
                 text = res if isinstance(res, str) else json.dumps(res or {})
                 text = f"{message.subtype or ''} {message.terminal_reason or ''} {text}"
                 c = classify(text)
+                if c.kind == "auth":
+                    raise AuthExpired(text)
                 if c.kind == "quota":
                     raise QuotaExhausted(text, c.reset_at)
                 if c.kind == "transient":
@@ -108,7 +115,8 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
 def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
               allowed_tools: list[str], permission_mode: str = "bypassPermissions",
               max_turns: int = 60, model: Optional[str] = None,
-              can_use_tool=None, max_budget_usd: Optional[float] = None,
+              can_use_tool=None, hooks=None,
+              max_budget_usd: Optional[float] = None,
               on_event: Optional[Callable[[str], None]] = None) -> AgentRun:
     """Synchronous wrapper with backoff. Quota errors are NOT retried --
     they propagate so the run loop can checkpoint and stop cleanly."""
@@ -124,14 +132,16 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
                 prompt, system_prompt=system_prompt, cwd=cwd,
                 allowed_tools=allowed_tools, permission_mode=permission_mode,
                 max_turns=max_turns, model=model, can_use_tool=can_use_tool,
-                max_budget_usd=max_budget_usd, on_event=on_event))
-        except QuotaExhausted:
+                hooks=hooks, max_budget_usd=max_budget_usd, on_event=on_event))
+        except (QuotaExhausted, AuthExpired):
             raise
         except TransientError as e:
             last = e
             continue
         except Exception as e:                     # noqa: BLE001
             c = classify(str(e))
+            if c.kind == "auth":
+                raise AuthExpired(str(e)) from e
             if c.kind == "quota":
                 raise QuotaExhausted(str(e), c.reset_at) from e
             if c.kind == "transient":
@@ -154,3 +164,7 @@ def tools_for(agent: str) -> list[str]:
 
 def permission_for(agent: str, repo: Path):
     return guards.make_permission_hook(agent, repo)
+
+
+def hooks_for(agent: str, repo: Path):
+    return guards.make_pretool_hooks(agent, repo)
