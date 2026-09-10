@@ -76,7 +76,10 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
         permission_mode=permission_mode,
         max_turns=max_turns,
         model=model,
-        can_use_tool=can_use_tool,
+        # under bypassPermissions the SDK auto-approves before can_use_tool is
+        # consulted, so passing it there is dead weight and warns; the
+        # PreToolUse hook is what actually gates.
+        can_use_tool=None if permission_mode == "bypassPermissions" else can_use_tool,
         hooks=hooks,
         max_budget_usd=max_budget_usd,
         setting_sources=["project"],
