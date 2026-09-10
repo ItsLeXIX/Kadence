@@ -207,6 +207,7 @@ struct DayColumnView: View {
             hoveredID = hovering ? event.id : (hoveredID == event.id ? nil : hoveredID)
         }
         .onTapGesture {
+            TapProbe.log("BLOCK onTapGesture fired for \(event.title)")
             state.selectedEventID = event.id
             state.timeCursor = nil
         }
@@ -243,6 +244,7 @@ struct DayColumnView: View {
     private func blockGesture(event: Event, laidOut: LaidOutBlock) -> some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { value in
+                TapProbe.log("BLOCK drag onChanged translation=\(value.translation) for \(event.title)")
                 guard event.isMovable else { return }
                 let handle = Tokens.Size.blockResizeHandleHeight
                 let localY = value.startLocation.y - laidOut.frame.minY
@@ -264,7 +266,8 @@ struct DayColumnView: View {
                 drag?.current = TimeGeometry.snap(
                     event.start.addingTimeInterval(deltaTime), toMinutes: snap)
             }
-            .onEnded { _ in
+            .onEnded { v in
+                TapProbe.log("BLOCK drag onEnded translation=\(v.translation) for \(event.title) session=\(String(describing: drag?.mode))")
                 defer { drag = nil }
                 guard let session = drag, session.eventID == event.id else { return }
                 switch session.mode {
@@ -295,6 +298,7 @@ struct DayColumnView: View {
                 state.beginDraft(at: start)
             }
             .onTapGesture { location in
+                TapProbe.log("SURFACE onTapGesture at \(location)")
                 state.selectedEventID = nil
                 state.timeCursor = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15)
             }
