@@ -97,6 +97,22 @@ struct EventStore {
         return event(snapshot.id)
     }
 
+    /// Insert an already-fully-formed event as part of an open transaction.
+    ///
+    /// Unlike `commit`, this takes no draft, does no title validation and
+    /// forces no `origin`/`sourceKey` — the caller (currently only
+    /// `RoutineEngine.materialize`) already knows every field. Called inside
+    /// `store.transaction(...)`, so it joins that transaction's undo group
+    /// instead of pushing a step of its own (see `UndoStack.perform`'s
+    /// re-entrancy).
+    @discardableResult
+    func insertMaterialized(_ snapshot: EventSnapshot) -> Event? {
+        undo.perform("Insert Event",
+                     redo: { insert(snapshot) },
+                     undo: { remove(snapshot.id) })
+        return event(snapshot.id)
+    }
+
     // MARK: Mutate
 
     func delete(_ event: Event) {

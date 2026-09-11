@@ -946,22 +946,31 @@ its screenshot review artefact is absent.
 > titled **"Phase 2"** (`1590a0d`) and **"Phase 2 finish"** (`15718a9`). Neither
 > contains any Phase 2 feature work. Phase 2 has not been started.
 
+*(Corrected 2026-09-11 by task P2-T08 — this section, including §3.1's table,
+described a "zero implementation" state that is now stale for one row: a
+`RoutineEngine` exists. It is the **data layer only** — `RoutineTemplate`,
+`RoutineBlock` and `RoutineEngine.materialize`, no UI. See §6 below for what
+was actually built and what still has "nothing" next to it: the Routines
+window, conflict detection, the menu bar extra, snooze, and the TimeWindow
+editor are all still exactly as this section describes them.)*
+
 `BRIEF-PRODUCT.md` "Phase 2 — routines, conflicts, protected time, and the menu
 bar" requires a routine engine, a TimeWindow editor, conflict detection and a
-menu bar extra. **None of it exists in `Kadence/`.**
+menu bar extra. Everything except the routine engine's data layer (§6) still
+does not exist in `Kadence/`.
 
 ### 3.1 Evidence — searched this session
 
 `Kadence/` contains 36 Swift files. Searching all of `Kadence/` and
 `KadenceTests/` for the Phase 2 vocabulary:
 
-| Looked for | Found |
-|---|---|
-| `RoutineEngine` | **nothing** |
-| conflict detection (`conflictDetect`, `ConflictResolv`) | **nothing** |
-| `MenuBarExtra` scene | **nothing** |
-| `Snooze` | **nothing** |
-| a `TimeWindow` *editor* | **nothing** |
+| Looked for | Found | |
+|---|---|---|
+| `RoutineEngine` | **nothing** | *(stale — see §6, task P2-T08: now exists, data layer only)* |
+| conflict detection (`conflictDetect`, `ConflictResolv`) | **nothing** | still true |
+| `MenuBarExtra` scene | **nothing** | still true |
+| `Snooze` | **nothing** | still true |
+| a `TimeWindow` *editor* | **nothing** | still true |
 
 The only hits are Phase 1 display fixtures, and the code says so itself.
 `Kadence/Models/DisplayFixtures.swift:65` reads:
@@ -1073,9 +1082,13 @@ mine to decide.
 1. ~~**`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**~~
    **Done** — `--check` is green, see §1.1. Not this task's doing; it was already
    regenerated when P2-T01 picked the tree up.
-2. **Phase 2 has a design and no code.** `design/components.md` §13–§17,
-   `layouts.md` §8–§10, `interactions.md` §10–§12 and the 67 new tokens are
-   complete and frozen. Nothing in `Kadence/` implements any of it. The design
+2. **Phase 2 has a design and, as of task P2-T08, one data-layer slice of
+   code.** `design/components.md` §13–§17, `layouts.md` §8–§10,
+   `interactions.md` §10–§12 and the 67 new tokens are complete and frozen.
+   `RoutineTemplate`/`RoutineBlock` (models) and `RoutineEngine.materialize`
+   exist and are tested (§6) — everything else (the Routines window itself,
+   conflict detection, the menu bar extra, snooze, the TimeWindow editor, and
+   detachment/re-sync per components.md §13.4) is still unbuilt. The design
    pass also notes two deliberate reuses: the Routines window **is** the Week
    canvas with dates, now line, all-day row and travel bands removed
    (components.md §13.1 lists every difference), and conflict preview **is** the
@@ -1171,3 +1184,112 @@ the stale `Tokens.swift`, the `tray.full` collision, and the missing screenshots
 — are all cases where `design/` is unambiguous and the build or the repo has
 drifted from it. None is a question for the designer, so none belongs in
 `GAPS.md`.
+
+## 6. P2-T08 — RoutineTemplate/RoutineBlock + RoutineEngine.materialize (data layer only, 2026-09-11)
+
+Scope was explicitly data-layer only: **no** Routines window, TimeWindow
+editor, conflict detection, menu bar extra or snooze (components.md §13–§16,
+layouts.md §8, interactions.md §11), and **no** detachment tracking or re-sync
+(components.md §13.4, interactions.md §11.2) — that needs the main-grid
+edit-command path wired up first and is a separate follow-up task. Section 3's
+"zero implementation" framing is corrected above; this is the one slice that
+now exists.
+
+**Built:**
+
+- `Kadence/Models/RoutineTemplate.swift` — two `@Model` types, following
+  `Event.swift`'s conventions (stable `id: UUID`, raw-string-backed enum
+  storage with a computed accessor, a doc comment at every departure from the
+  brief):
+  - `RoutineTemplate(name, activeWeekdays: Set<Int>, blocks: [RoutineBlock]`
+    cascade-deleted`, sourceKey)`. `activeWeekdays` uses `Calendar`'s own
+    `weekday` convention (1 = Sunday … 7 = Saturday) — documented on the
+    property so nothing has to guess it later. `sourceKey` reuses the existing
+    `SourceKey` enum: components.md §13.1, "the routine's own palette slot, one
+    hue for the whole template."
+  - `RoutineBlock(title, startMinutes: Int, duration: TimeInterval, flexibility,
+    shiftableMinutes: Int?, priority: Int)`. `startMinutes` (minutes since
+    midnight) was chosen over `DateComponents(hour:minute:)` — documented on
+    the property — because `RoutineEngine.materialize` only ever adds it to a
+    day's start as a plain calendar offset.
+  - `.shiftable(±minutes)` from BRIEF-PRODUCT.md's data-model draft has no
+    associated value on the shared `Flexibility` enum (`Enums.swift`), which
+    `Event` also uses and which Phase 1 never needed one on. Rather than change
+    a shared type, the ± minutes value components.md §13.2 specifies (a
+    stepper, 15-minute steps, range 15–180) lives on `RoutineBlock` as its own
+    `shiftableMinutes: Int?`, `nil` unless `flexibility == .shiftable`. This
+    reading is unambiguous against components.md §13.2's own numbers, so
+    **no `design/GAPS.md` entry was filed for it.**
+- `Kadence/State/RoutineEngine.swift` —
+  `materialize(template:into:store:calendar:) -> Int`. For each date in the
+  given `DateInterval` whose `calendar.component(.weekday, from:)` is in
+  `template.activeWeekdays`, and for each block, creates one `Event` with
+  `origin = .routine`, `sourceKey` = the template's, `flexibility` = the
+  block's, `sourceID` = `template.id.uuidString`, `externalID` =
+  `"<block.id>#<yyyy-MM-dd>"` — exactly the `(sourceID, externalID)` identity
+  `Event.swift`'s own doc comment already describes as "stable across re-sync,
+  so importing twice updates instead of duplicating." Before creating an event
+  for a given pair, the engine fetches on `(sourceID, externalID)` and skips if
+  one already exists — chose **skip over update**, since an update-in-place
+  policy needs detachment tracking (which pair got hand-edited vs. untouched)
+  to avoid silently stomping a manual edit, and that tracking is exactly the
+  §13.4 work this task explicitly excludes. The whole run is one
+  `store.transaction("Materialize <name>")`, so it is one `⌘Z`.
+- `EventStore.insertMaterialized(_:)` — a small addition to
+  `Kadence/State/EventStore.swift`. `commit()` validates a title and forces
+  `origin = .manual`/`sourceKey = .graphite`, neither of which fits a routine
+  instance that already has every field decided; this new method inserts a
+  fully-formed `EventSnapshot` and joins whatever transaction is currently open
+  (see `UndoStack.perform`'s re-entrancy), which is what lets
+  `RoutineEngine.materialize` register every created event under its own named
+  step.
+
+**Verified:**
+
+- `KadenceTests/RoutineEngineTests.swift`, same in-memory
+  `ModelContainer`/`ModelContext` pattern as `EventCreationTests.swift`. 14
+  tests: exact count (2 blocks × 3 active weekdays over an exact 2-week span =
+  12), every common field (`origin`, `sourceKey`, `sourceID`,
+  non-nil `externalID`), per-block start-time/duration/flexibility correctness
+  (verified via independent `Calendar` component checks, not by re-deriving
+  the engine's own arithmetic), `externalID`'s `"<block id>#<date>"` shape, the
+  empty-`activeWeekdays` no-op case, idempotence on an exact re-run (count
+  unchanged, identical `(sourceID, externalID)` pair set), idempotence when the
+  range is *extended* (the first run's event `id`s are an untouched subset of
+  the second run's), a single named undo step for a whole run (`⌘Z` removes
+  every event the run created, `⌘⇧Z` restores them), and priority/flexibility
+  round-tripping (`priority` persists on the `RoutineBlock` through SwiftData;
+  `flexibility` transfers onto every `Event` the block materializes).
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` — **BUILD
+  SUCCEEDED**, no new warnings (the one pre-existing warning,
+  `MonthGridView.swift:153`, is untouched by this task).
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — **TEST SUCCEEDED**, 201 test cases run
+  (full suite, including the 14 new ones), **0 failed**. No regressions.
+- `swift Scripts/generate-tokens.swift --check` — **up to date**. This task
+  changed no tokens.
+
+**A note on "priority ... survives onto the materialized `Event`"** (from this
+task's own acceptance wording): the field-by-field list of what `materialize`
+writes onto an `Event` — title, start/end, origin, sourceKey, flexibility,
+sourceID, externalID — has no `priority`, and `Event` itself has no such
+field. Adding one would be inventing a field neither `Event.swift` nor
+BRIEF-PRODUCT.md's `Event` draft has, for a value nothing yet reads. What is
+tested instead is that `priority` survives SwiftData round-tripping on the
+`RoutineBlock` itself, alongside the `flexibility` check, which genuinely does
+transfer onto the `Event` per the task's own field list. Flagged here rather
+than silently resolved, in case a later task (e.g. §14 conflict detection)
+does need priority on `Event` and this becomes worth revisiting.
+
+**What is next:** wiring a real Routines window (components.md §13,
+layouts.md §8, interactions.md §11) to call `RoutineEngine.materialize`, and —
+separately — detachment tracking and re-sync (§13.4), which needs the
+main-grid edit-command path to know it is touching a routine instance.
+Neither is started; both are correctly out of this task's scope.
+
+**Blocked:** nothing. No new `design/GAPS.md` entries were opened — every
+value this task needed was either already specified (components.md §13.1's
+"one hue for the whole template", §13.2's stepper range/step) or was a
+data-layer engineering decision (skip-vs-update on re-materialize,
+minutes-since-midnight vs. `DateComponents`) rather than a UI value the design
+spec was expected to supply.

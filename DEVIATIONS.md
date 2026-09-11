@@ -1,9 +1,15 @@
 # Phase 1 — deviation punch list
 
 Scope: **Phase 1 only.** `design/` gained a full Phase 2 spec in `1c58185`
-(components.md §13–§17, layouts.md §8–§10, interactions.md §10–§12). None of it
-is built and none of it is listed here — unbuilt Phase 2 is not a deviation, it
-is an unstarted phase. See `STATUS.md` §3.
+(components.md §13–§17, layouts.md §8–§10, interactions.md §10–§12). Almost
+none of it is built and almost none of it is listed here — unbuilt Phase 2 is
+not a deviation, it is an unstarted phase. See `STATUS.md` §3.
+
+*(Noted 2026-09-11, task P2-T08 — the one exception: `RoutineTemplate`,
+`RoutineBlock` and `RoutineEngine.materialize` (data layer only, no UI) now
+exist per components.md §13.1/§13.2 and BRIEF-PRODUCT.md's data-model draft.
+Nothing about that work is a deviation — every value it needed was already
+specified, so nothing is listed here for it either. See `STATUS.md` §6.)*
 
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
