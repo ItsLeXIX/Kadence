@@ -18,8 +18,10 @@ private func at(_ hour: Int, _ minute: Int = 0) -> Date {
     day.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60))
 }
 
-private func item(_ title: String, _ from: (Int, Int), _ to: (Int, Int)) -> LayoutItem {
-    LayoutItem(id: UUID(), start: at(from.0, from.1), end: at(to.0, to.1), title: title)
+private func item(
+    _ title: String, _ from: (Int, Int), _ to: (Int, Int), departAt: Date? = nil
+) -> LayoutItem {
+    LayoutItem(id: UUID(), start: at(from.0, from.1), end: at(to.0, to.1), title: title, departAt: departAt)
 }
 
 private let weekGeometry = TimeGeometry(dayStart: day, hourHeight: Tokens.Size.hourHeightWeek)
@@ -33,7 +35,8 @@ struct ClusteringTests {
     @Test("Non-overlapping blocks form separate clusters")
     func separateClusters() {
         let items = [item("A", (9, 0), (10, 0)), item("B", (11, 0), (12, 0))]
-        let clusters = DayLayoutEngine.cluster(items, minimumDuration: dayGeometry.minimumRenderedDuration)
+        let clusters = DayLayoutEngine.cluster(
+            items, geometry: dayGeometry, minimumDuration: dayGeometry.minimumRenderedDuration)
         #expect(clusters.count == 2)
     }
 
@@ -41,7 +44,7 @@ struct ClusteringTests {
     func touchingIsNotOverlap() {
         // a.start < b.end && b.start < a.end — 10:00–11:00 does not overlap 09:00–10:00.
         let items = [item("A", (9, 0), (10, 0)), item("B", (10, 0), (11, 0))]
-        let clusters = DayLayoutEngine.cluster(items, minimumDuration: 0)
+        let clusters = DayLayoutEngine.cluster(items, geometry: dayGeometry, minimumDuration: 0)
         #expect(clusters.count == 2)
     }
 
@@ -52,7 +55,7 @@ struct ClusteringTests {
             item("B", (9, 30), (10, 30)),
             item("C", (10, 15), (11, 0)),
         ]
-        let clusters = DayLayoutEngine.cluster(items, minimumDuration: 0)
+        let clusters = DayLayoutEngine.cluster(items, geometry: dayGeometry, minimumDuration: 0)
         #expect(clusters.count == 1)
         #expect(clusters[0].count == 3)
     }
@@ -63,8 +66,45 @@ struct ClusteringTests {
         // block's rendered box reaches into the second.
         let items = [item("A", (9, 0), (9, 5)), item("B", (9, 8), (9, 13))]
         let clusters = DayLayoutEngine.cluster(
-            items, minimumDuration: weekGeometry.minimumRenderedDuration)
+            items, geometry: weekGeometry, minimumDuration: weekGeometry.minimumRenderedDuration)
         #expect(clusters.count == 1, "clamped blocks must be treated as overlapping")
+    }
+
+    @Test("G-012 — a case-1 band pulls its neighbour into the same cluster in Day")
+    func caseOneBandClustersInDay() {
+        // layouts.md §3.3's worked example: Morning review 08:00–09:00,
+        // Datenmodellierung 09:00–10:30 with a 22-minute band departing 08:38.
+        // The events alone do not overlap; the footprint does.
+        let departAt = at(8, 38)
+        let items = [
+            item("Morning review", (8, 0), (9, 0)),
+            item("Datenmodellierung", (9, 0), (10, 30), departAt: departAt),
+        ]
+        let clusters = DayLayoutEngine.cluster(
+            items, geometry: dayGeometry, minimumDuration: dayGeometry.minimumRenderedDuration)
+        #expect(clusters.count == 1, "a case-1 band's footprint must merge the two into one cluster")
+    }
+
+    @Test("G-012 — the same band is case 2 in Week and does not cluster")
+    func caseTwoBandDoesNotClusterInWeek() {
+        // Same pair, same 22-minute band — but at hourHeightWeek the band is
+        // under size.travelBandHeight, so it is case 2 and extends nothing.
+        let departAt = at(8, 38)
+        let items = [
+            item("Morning review", (8, 0), (9, 0)),
+            item("Datenmodellierung", (9, 0), (10, 30), departAt: departAt),
+        ]
+        let clusters = DayLayoutEngine.cluster(
+            items, geometry: weekGeometry, minimumDuration: weekGeometry.minimumRenderedDuration)
+        #expect(clusters.count == 2, "a case-2 band must not extend its parent's footprint")
+    }
+
+    @Test("An event with no travel band clusters exactly as before")
+    func noTravelBandUnaffected() {
+        let items = [item("A", (9, 0), (10, 0), departAt: nil), item("B", (9, 30), (10, 30), departAt: nil)]
+        let clusters = DayLayoutEngine.cluster(items, geometry: dayGeometry, minimumDuration: 0)
+        #expect(clusters.count == 1)
+        #expect(clusters[0].count == 2)
     }
 }
 
@@ -80,7 +120,7 @@ struct PackingTests {
             item("Apple", (9, 0), (9, 30)),
             item("Long", (9, 0), (11, 0)),
             item("Early", (8, 0), (8, 30)),
-        ])
+        ], geometry: dayGeometry)
         #expect(sorted.map(\.title) == ["Early", "Long", "Apple", "Zebra"])
     }
 
@@ -89,8 +129,8 @@ struct PackingTests {
         let sorted = DayLayoutEngine.sortForLayout([
             item("A", (9, 0), (10, 0)),
             item("B", (10, 0), (11, 0)),
-        ])
-        let packed = DayLayoutEngine.packIntoSubColumns(sorted, minimumDuration: 0)
+        ], geometry: dayGeometry)
+        let packed = DayLayoutEngine.packIntoSubColumns(sorted, geometry: dayGeometry, minimumDuration: 0)
         #expect(packed.subColumnCount == 1)
         #expect(packed.indices == [0, 0])
     }
@@ -101,8 +141,8 @@ struct PackingTests {
             item("A", (18, 0), (19, 30)),
             item("B", (18, 15), (19, 0)),
             item("C", (18, 45), (19, 45)),
-        ])
-        let packed = DayLayoutEngine.packIntoSubColumns(sorted, minimumDuration: 0)
+        ], geometry: dayGeometry)
+        let packed = DayLayoutEngine.packIntoSubColumns(sorted, geometry: dayGeometry, minimumDuration: 0)
         #expect(packed.subColumnCount == 3)
         #expect(Set(packed.indices) == [0, 1, 2])
     }
@@ -115,8 +155,8 @@ struct PackingTests {
         let sorted = DayLayoutEngine.sortForLayout([
             item("A", (9, 0), (9, 30)),
             item("C", (9, 0), (9, 15)),
-        ])
-        let packed = DayLayoutEngine.packIntoSubColumns(sorted, minimumDuration: 0)
+        ], geometry: dayGeometry)
+        let packed = DayLayoutEngine.packIntoSubColumns(sorted, geometry: dayGeometry, minimumDuration: 0)
         #expect(packed.subColumnCount == 2)
         // Neither can expand: they overlap each other.
         #expect(packed.spans == [1, 1])
@@ -133,6 +173,52 @@ struct PackingTests {
         let layout = DayLayoutEngine.layout(items: items, columnWidth: 900, geometry: dayGeometry)
         #expect(layout.blocks.allSatisfy { !$0.isCascaded })
         #expect(layout.overflow.isEmpty)
+    }
+
+    @Test("G-012 — Morning review and Datenmodellierung pack side by side in Day")
+    func gapG012PacksInDay() {
+        // layouts.md §3.3's worked example, end to end through `layout()`.
+        // Datenmodellierung's footprint (08:38–10:30) overlaps Morning review's
+        // (08:00–09:00), so the two form one cluster and, at a 1060pt column,
+        // pack into 2 side-by-side sub-columns rather than the band drawing over
+        // Morning review's meta line.
+        let departAt = at(8, 38)
+        let morningReview = item("Morning review", (8, 0), (9, 0))
+        let datenmodellierung = item("Datenmodellierung", (9, 0), (10, 30), departAt: departAt)
+        let layout = DayLayoutEngine.layout(
+            items: [morningReview, datenmodellierung], columnWidth: 1060, geometry: dayGeometry)
+        #expect(layout.blocks.count == 2)
+        #expect(layout.blocks.allSatisfy { !$0.isCascaded })
+
+        guard let morning = layout.block(for: morningReview.id),
+              let dm = layout.block(for: datenmodellierung.id) else {
+            Issue.record("expected both blocks to be present")
+            return
+        }
+        // Side by side: they form one 2-column cluster and neither frame
+        // overlaps the other, so the band has nothing foreign to draw over.
+        #expect(!morning.frame.intersects(dm.frame))
+        #expect(morning.frame.maxX <= dm.frame.minX || dm.frame.maxX <= morning.frame.minX)
+    }
+
+    @Test("G-012 — the same pair does not cluster in Week and each keeps full width")
+    func gapG012DoesNotPackInWeek() {
+        // Same pair, hourHeightWeek: the band is case 2 (16.1pt < 18), so it
+        // extends nothing and the two stay in separate clusters — unchanged
+        // behaviour, each block gets the full column.
+        let departAt = at(8, 38)
+        let columnWidth: CGFloat = 152.14
+        let items = [
+            item("Morning review", (8, 0), (9, 0)),
+            item("Datenmodellierung", (9, 0), (10, 30), departAt: departAt),
+        ]
+        let layout = DayLayoutEngine.layout(items: items, columnWidth: columnWidth, geometry: weekGeometry)
+        #expect(layout.blocks.count == 2)
+        let fullWidth = columnWidth - 2 * Tokens.Spacing.xxs - Tokens.Size.blockColumnGap
+        for block in layout.blocks {
+            #expect(abs(block.frame.width - fullWidth) < 0.01,
+                    "each block should keep the full column width, no packing triggered")
+        }
     }
 }
 

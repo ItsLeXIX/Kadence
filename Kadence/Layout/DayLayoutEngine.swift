@@ -19,12 +19,38 @@ struct LayoutItem: Identifiable, Equatable, Sendable {
     var end: Date
     /// Third sort key, so ordering is total and reproducible.
     var title: String
+    /// The attached travel band's departure time (`components.md` §4), nil
+    /// when the event has no band. Feeds the layout footprint below
+    /// (`layouts.md` §3.3, GAPS.md G-012) — the engine, not the caller,
+    /// decides whether the band is case 1 or case 2.
+    var departAt: Date?
 
-    init(id: UUID, start: Date, end: Date, title: String) {
+    init(id: UUID, start: Date, end: Date, title: String, departAt: Date? = nil) {
         self.id = id
         self.start = start
         self.end = end
         self.title = title
+        self.departAt = departAt
+    }
+
+    /// layouts.md §3.3 — the layout footprint's top edge. `departAt` when the
+    /// band is `components.md` §4 case 1 (true band height ≥
+    /// `size.travelBandHeight` at this geometry's hour height); `event.start`
+    /// otherwise, including when there is no band at all. A case-2 band is
+    /// drawn inside its parent's own frame and extends nothing.
+    func footprintTop(geometry: TimeGeometry) -> Date {
+        guard let departAt else { return start }
+        return geometry.height(from: departAt, to: start) >= Tokens.Size.travelBandHeight
+            ? departAt
+            : start
+    }
+
+    /// layouts.md §3.3 — `max(event.end, footprintTop + minInterval)`. The
+    /// clamp only ever extends the bottom; it never moves the top. On an event
+    /// carrying a case-1 band this is already satisfied and does nothing.
+    func footprintBottom(geometry: TimeGeometry, minimumDuration: TimeInterval) -> Date {
+        let top = footprintTop(geometry: geometry)
+        return Swift.max(end, top.addingTimeInterval(minimumDuration))
     }
 }
 
@@ -98,15 +124,15 @@ enum DayLayoutEngine {
     ) -> DayLayout {
         guard !items.isEmpty, columnWidth > 0 else { return DayLayout() }
 
-        let clusters = cluster(items, minimumDuration: geometry.minimumRenderedDuration)
+        let clusters = cluster(items, geometry: geometry, minimumDuration: geometry.minimumRenderedDuration)
         var result = DayLayout()
         // z-order is global across the column, not per cluster, so two clusters
         // can never hand out the same index.
         var zBase = 0
 
         for cluster in clusters {
-            let sorted = sortForLayout(cluster)
-            let packed = packIntoSubColumns(sorted, minimumDuration: geometry.minimumRenderedDuration)
+            let sorted = sortForLayout(cluster, geometry: geometry)
+            let packed = packIntoSubColumns(sorted, geometry: geometry, minimumDuration: geometry.minimumRenderedDuration)
 
             let inset = Tokens.Spacing.xxs
             let available = columnWidth - 2 * inset
@@ -162,45 +188,52 @@ enum DayLayoutEngine {
     // MARK: Step 1 — cluster
 
     /// Maximal sets connected transitively by overlap, where overlap is tested
-    /// after both blocks have been clamped to the minimum rendered height.
-    static func cluster(_ items: [LayoutItem], minimumDuration: TimeInterval) -> [[LayoutItem]] {
+    /// on layout **footprints** — `a.footprintTop < b.footprintBottom &&
+    /// b.footprintTop < a.footprintBottom` (layouts.md §3.3, GAPS.md G-012) —
+    /// not on raw `start`/`end`. A case-1 travel band's interval is part of its
+    /// parent's footprint, so a neighbour it would otherwise be drawn over is
+    /// pulled into the same cluster instead.
+    static func cluster(
+        _ items: [LayoutItem], geometry: TimeGeometry, minimumDuration: TimeInterval
+    ) -> [[LayoutItem]] {
         let ordered = items.sorted { lhs, rhs in
-            if lhs.start != rhs.start { return lhs.start < rhs.start }
+            let lhsTop = lhs.footprintTop(geometry: geometry)
+            let rhsTop = rhs.footprintTop(geometry: geometry)
+            if lhsTop != rhsTop { return lhsTop < rhsTop }
             return lhs.id.uuidString < rhs.id.uuidString
         }
 
         var clusters: [[LayoutItem]] = []
         var current: [LayoutItem] = []
-        var currentEnd: Date?
+        var currentBottom: Date?
 
         for item in ordered {
-            let itemEnd = effectiveEnd(item, minimumDuration: minimumDuration)
-            if let end = currentEnd, item.start < end {
+            let itemTop = item.footprintTop(geometry: geometry)
+            let itemBottom = item.footprintBottom(geometry: geometry, minimumDuration: minimumDuration)
+            if let bottom = currentBottom, itemTop < bottom {
                 current.append(item)
-                currentEnd = Swift.max(end, itemEnd)
+                currentBottom = Swift.max(bottom, itemBottom)
             } else {
                 if !current.isEmpty { clusters.append(current) }
                 current = [item]
-                currentEnd = itemEnd
+                currentBottom = itemBottom
             }
         }
         if !current.isEmpty { clusters.append(current) }
         return clusters
     }
 
-    static func effectiveEnd(_ item: LayoutItem, minimumDuration: TimeInterval) -> Date {
-        let natural = item.end
-        let clamped = item.start.addingTimeInterval(minimumDuration)
-        return Swift.max(natural, clamped)
-    }
-
     // MARK: Step 2 — column packing
 
-    /// Start ascending, then duration descending, then title ascending.
-    /// `id` is the final tiebreak so the sort is total even for identical items.
-    static func sortForLayout(_ items: [LayoutItem]) -> [LayoutItem] {
+    /// `footprintTop` ascending, then duration descending, then title
+    /// ascending. `id` is the final tiebreak so the sort is total even for
+    /// identical items (layouts.md §3.3, GAPS.md G-012 — step 2 sorts on the
+    /// same footprints step 1 clustered on).
+    static func sortForLayout(_ items: [LayoutItem], geometry: TimeGeometry) -> [LayoutItem] {
         items.sorted { lhs, rhs in
-            if lhs.start != rhs.start { return lhs.start < rhs.start }
+            let lhsTop = lhs.footprintTop(geometry: geometry)
+            let rhsTop = rhs.footprintTop(geometry: geometry)
+            if lhsTop != rhsTop { return lhsTop < rhsTop }
             let lhsDuration = lhs.end.timeIntervalSince(lhs.start)
             let rhsDuration = rhs.end.timeIntervalSince(rhs.start)
             if lhsDuration != rhsDuration { return lhsDuration > rhsDuration }
@@ -217,24 +250,31 @@ enum DayLayoutEngine {
         var subColumnCount: Int
     }
 
-    /// Place each block in the lowest-index sub-column whose last block ends at
-    /// or before this block's start, then expand trailing-ward.
-    static func packIntoSubColumns(_ sorted: [LayoutItem], minimumDuration: TimeInterval) -> Packing {
+    /// Place each block in the lowest-index sub-column whose last block's
+    /// `footprintBottom` is at or before this block's `footprintTop`, then
+    /// expand trailing-ward. Uses the **same** footprints step 1 clustered on
+    /// (layouts.md §3.3, GAPS.md G-012) — packing on raw times here would put a
+    /// footprint-extended neighbour back in the band's own sub-column and
+    /// undo the point of clustering on the footprint at all.
+    static func packIntoSubColumns(
+        _ sorted: [LayoutItem], geometry: TimeGeometry, minimumDuration: TimeInterval
+    ) -> Packing {
         var columnEnds: [Date] = []
         var indices: [Int] = []
 
         for item in sorted {
-            let itemEnd = effectiveEnd(item, minimumDuration: minimumDuration)
+            let itemTop = item.footprintTop(geometry: geometry)
+            let itemBottom = item.footprintBottom(geometry: geometry, minimumDuration: minimumDuration)
             var placed = false
-            for index in columnEnds.indices where columnEnds[index] <= item.start {
-                columnEnds[index] = itemEnd
+            for index in columnEnds.indices where columnEnds[index] <= itemTop {
+                columnEnds[index] = itemBottom
                 indices.append(index)
                 placed = true
                 break
             }
             if !placed {
                 indices.append(columnEnds.count)
-                columnEnds.append(itemEnd)
+                columnEnds.append(itemBottom)
             }
         }
 
@@ -245,14 +285,16 @@ enum DayLayoutEngine {
         var spans = [Int](repeating: 1, count: sorted.count)
         for i in sorted.indices {
             let item = sorted[i]
-            let itemEnd = effectiveEnd(item, minimumDuration: minimumDuration)
+            let itemTop = item.footprintTop(geometry: geometry)
+            let itemBottom = item.footprintBottom(geometry: geometry, minimumDuration: minimumDuration)
             var span = 1
             var candidate = indices[i] + 1
             while candidate < count {
                 let blocked = sorted.indices.contains { j in
                     guard j != i, indices[j] == candidate else { return false }
-                    let otherEnd = effectiveEnd(sorted[j], minimumDuration: minimumDuration)
-                    return item.start < otherEnd && sorted[j].start < itemEnd
+                    let otherTop = sorted[j].footprintTop(geometry: geometry)
+                    let otherBottom = sorted[j].footprintBottom(geometry: geometry, minimumDuration: minimumDuration)
+                    return itemTop < otherBottom && otherTop < itemBottom
                 }
                 if blocked { break }
                 span += 1

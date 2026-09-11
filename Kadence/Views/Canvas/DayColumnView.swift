@@ -114,8 +114,13 @@ struct DayColumnView: View {
     }
 
     private var layoutItems: [LayoutItem] {
+        // The engine, not this view, decides case 1 vs case 2 and whether the
+        // footprint extends (layouts.md §3.3, GAPS.md G-012) — we only supply
+        // the band's departure time, or nil for an event with no band.
         var items = timedEvents.map {
-            LayoutItem(id: $0.id, start: $0.start, end: $0.end, title: $0.title)
+            LayoutItem(
+                id: $0.id, start: $0.start, end: $0.end, title: $0.title,
+                departAt: fixtures.travel(forEvent: $0.id)?.departAt)
         }
         // The draft is laid out with everything else so the user sees where it
         // will land, even though it is not in the store (interactions.md §3).
