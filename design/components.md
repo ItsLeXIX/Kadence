@@ -138,10 +138,17 @@ The timed block in the hour grid. Covers variants 1–3. One view.
                                               the rail's trailing edge
 ```
 
-- Corner radius `radius.block`; `radius.blockCompact` when rendered height < 16.
+- Corner radius `radius.block`; `radius.blockCompact` at tier `.glyphOnly`
+  (rendered height < 18). **Amended 2026-09-11 (G-011):** this boundary was 16,
+  an independent number that no longer matched any tier edge. It now follows the
+  ladder, so there is one boundary to keep, not two.
 - Vertical gap to the next block in the same column: `size.blockVerticalGap`.
+  The gap is subtracted from the block's geometric height **before** the floor in
+  §3.3 is applied, so a short block loses no height to it.
 - Gap between overlap columns: `size.blockColumnGap`.
-- Glyph is vertically aligned to the first text baseline's cap height, not centred.
+- Glyph is vertically aligned to the first text baseline's cap height, not
+  centred — except at `.glyphOnly`, where there is no text baseline to align
+  to and the glyph is centred in the frame (§3.3).
 - Time is always `blockMeta` with monospaced digits, format `HH:mm-HH:mm`, 24-hour.
 
 ### 3.2 The three timed variants
@@ -167,28 +174,98 @@ Driven by **rendered height in points**, never by duration. At
 `size.hourHeightWeek` a 30-minute block is 22pt; at `size.hourHeightDay` it is
 30pt. The same event therefore shows more in Day than in Week, which is correct.
 
-| Rendered height | Content |
-|---|---|
-| ≥ 44 | glyph + title (`blockTitle`, up to 2 lines) + time range + meta line, each on its own line. The meta line is `Source · Location` — see §3.4, the source name is required here |
-| 28–43 | glyph + title (`blockTitleCompact`, 1 line) + time range trailing-aligned on the same row |
-| 16–27 | glyph + title (`blockTitleCompact`, 1 line, truncated tail) |
-| 11–15 | rail + glyph only, no text |
-| < 11 | clamp to `size.blockMinRenderedHeight`; extend the hit region by `size.blockHitExtension` centred on the true frame |
+**Revised 2026-09-11 (GAPS.md G-011).** The bands below are derived from each
+tier's own content set rather than chosen; the previous table's bands were
+smaller than the content they assigned, and every block of 21pt or less was
+specified to be drawn taller than its own frame. See the ruling for what moved.
 
-Truncation is always `.tail` with no ellipsis character when the tier is 16–27
-(the clip edge reads as truncation and the ellipsis costs 6pt of a very short
-line). Tiers ≥ 28 use a standard ellipsis.
+**Rendered height** is the block's laid-out frame height: its geometric height
+for its interval, minus `size.blockVerticalGap`, floored at
+`size.blockMinRenderedHeight` (11). The floor is applied **last**.
+`layouts.md` §3.3 clamps to the same floor before testing overlap, and that
+pairing is the whole reason the floor exists: a block is never drawn taller than
+the interval the overlap test used for it, so two blocks that do not overlap in
+time can never be drawn on top of each other.
+
+**Padding is per tier.** Horizontal padding is `size.blockPadding` (5) at every
+tier, measured from the rail's trailing edge (§3.1). Vertical padding is not:
+
+| Tier | Vertical padding, top and bottom |
+|---|---|
+| `.full` | `size.blockPadding` (5) |
+| `.compact` | `size.blockPadding` (5) |
+| `.titleOnly` | `spacing.xxs` (2) |
+| `.glyphOnly` | 0 — at this tier the glyph *is* the block |
+
+No token was added for the 2: `spacing.xxs` already exists and already carries
+2pt insets elsewhere in this file (§6's conflict badge inset).
+
+**Line heights.** `lineHeight(style) = ceil(typography.<style>.size × 1.2)`, with
+no extra line spacing and no gap between rows of the content stack. At the
+default Dynamic Type size: `blockTitle` 15, `blockTitleCompact` 14, `blockMeta`
+14. Those are the figures the table below is derived from. The implementation
+must read the **resolved** font's line height, which is what keeps the ladder
+correct under Dynamic Type (§11).
+
+**The ladder.** Tier names are `.glyphOnly` < `.titleOnly` < `.compact` <
+`.full` — the names the build already uses.
+
+| Tier | Rendered height | Content | Minimum it needs |
+|---|---|---|---|
+| `.full` | ≥ 53 | glyph + title (`blockTitle`, up to 2 lines) + time range + meta line, each on its own line. The meta line is `Source · Location` — see §3.4, the source name is required here | 5 + 15 + 14 + 14 + 5 = **53** |
+| `.compact` | 28–52 | glyph + title (`blockTitleCompact`, 1 line) + time range trailing-aligned on the same row | 5 + 14 + 5 = **24** |
+| `.titleOnly` | 18–27 | glyph + title (`blockTitleCompact`, 1 line, truncated tail) | 2 + 14 + 2 = **18** |
+| `.glyphOnly` | 11–17 | rail (full height) + glyph only, no text. The glyph is centred vertically in the frame — there is no text baseline to align to, and it can never overflow because the glyph's 11pt is the band's bottom | 0 + `size.blockGlyphSize` (11) + 0 = **11** |
+| < 11 | — | cannot occur: the floor above has already raised it to 11 | |
+
+**The second title line is paid for, not assumed.** `.full` renders the title on
+two lines only at rendered height ≥ **68** (53 + `lineHeight(blockTitle)`); below
+that the title is one line with an ellipsis. "Up to 2 lines" is a permission.
+
+**The invariant the bands exist to satisfy: a tier's band bottom is never below
+that tier's own minimum.** Where the bottom sits above the minimum — `.compact`
+starts at 28 though it needs 24 — that is a deliberate density preference, not
+slack to be reclaimed. Re-check this arithmetic whenever a content set, a padding
+rule or a `typography.*` size changes. It is the invariant G-011 broke, and it
+broke silently.
+
+**Tier selection.** Take the tier whose band contains the available height, then
+step down while that tier's minimum exceeds the available height. At the default
+Dynamic Type size the second step never fires; under a larger Dynamic Type size
+the minima grow while the bands do not, and stepping down is how the ladder stays
+honest (§11). **Available height** is the rendered height minus the travel-band
+strip in §4's short case — and the content is then drawn into that same reduced
+area, not into the full frame (§3.5).
+
+**The hit region at the floor.** A block whose geometric height is under
+`size.blockMinRenderedHeight` is laid out at exactly 11pt with its frame's **top**
+edge at its true start; the floor only ever extends the frame downward. Its hit
+region is that frame outset by `size.blockHitExtension / 2` (3pt) at the top and
+bottom edges only — 17pt tall, never wider than the frame. The outset is a hit
+region, never paint (§3.5), and it loses to any real block's frame
+(`interactions.md` §6.1).
+
+Truncation is always `.tail` with no ellipsis character at `.titleOnly` (the clip
+edge reads as truncation and the ellipsis costs 6pt of a very short line).
+`.compact` and `.full` use a standard ellipsis.
 
 If two clamped blocks would overlap after clamping, they enter cascade layout
 (see `layouts.md` §3.3) rather than being drawn on top of each other.
 
 **Visible width overrides the tier.** In a cascade a block can be partly covered
 by the block in front of it. When a block's visible width is below
-`size.blockCascadeMinReadableWidth` (44), it renders the 11–15 content set —
-glyph only, no text — regardless of its height. A covered block that renders its
+`size.blockCascadeMinReadableWidth` (44), it renders the `.glyphOnly` content set
+— glyph only, no text — regardless of its height. A covered block that renders its
 full content gets clipped mid-string and reads as damage (`10:`), not as
 something behind something else. `resolveBlockStyle` therefore takes visible
 width as well as rendered height.
+
+**Reading the old numbers.** Prose elsewhere in this file was written against the
+previous bands. The mapping is normative: "11–15" or "below 16" means
+`.glyphOnly`; "16–27" means `.titleOnly`; "28–43" means `.compact`; "≥ 44" means
+`.full`. All Phase 1 prose in this file has been restated in tier names; the
+Phase 2 sections (§13–§17) still use the old numbers and are not re-edited here —
+read them through this mapping until the next Phase 2 revision window.
 
 ### 3.4 Source name in text — required
 
@@ -199,8 +276,8 @@ name available as text, by these rules:
 
 | Where | Rule |
 |---|---|
-| Density tier ≥ 44 | The source name is rendered on the block, on the meta line, as `Source · Location`. `blockMeta` type. |
-| Density tiers below 44 | The source name is **not** on the block — there is no room for it without evicting the time. Hover help and the inspector carry it. |
+| Tier `.full` (≥ 53) | The source name is rendered on the block, on the meta line, as `Source · Location`. `blockMeta` type. |
+| Tiers below `.full` | The source name is **not** on the block — there is no room for it without evicting the time. Hover help and the inspector carry it. |
 | All-day items (§5) | Never on the pill; `size.allDayRowHeight` fits a title and nothing else. Hover help and the inspector carry it. |
 | Month chips (§9) | Never. Hover help carries it. |
 | Inspector | Always, as swatch + name, per `layouts.md` §6. |
@@ -214,12 +291,59 @@ it is not a nice-to-have — it is what makes the greyscale trade in §1 accepta
 
 Layout priority on the meta line: **source wins, location truncates first.**
 Location is recoverable from the inspector and from the travel band's own label;
-source, below tier 44, is recoverable only from hover help and the inspector.
+source, below `.full`, is recoverable only from hover help and the inspector.
 When there is no location the line is just the source name.
 
 The two closest hues in the palette are `amber` and `orange`
 (`color.sourcePalette.adjacencyWarning`). They are separated in the default
 assignment order, but the text rule above is what actually makes them safe.
+
+**The `.full` boundary moved from 44 to 53 on 2026-09-11 (G-011),** which narrows
+where this rule applies: blocks of 44–52pt — 46–54 minutes in Day, 63–74 minutes
+in Week — no longer carry the meta line. This is not a weakening of the rule. At
+44pt the meta line was specified but could not be drawn: the content set needs
+53pt, so what those blocks actually rendered was a meta line clipped or spilling
+outside the frame. A tier that cannot draw the source name must not claim to. For
+those blocks the source is carried by hover help and the inspector, exactly as
+for every other tier below `.full`.
+
+### 3.5 Confinement — a block never paints outside its laid-out frame
+
+**New 2026-09-11 (GAPS.md G-011).** Nothing in this spec previously said where a
+block's rendering may put its ink. §4 said it for one case (a short travel band
+stays inside its event); the general rule was missing, and the result was blocks
+that drew their content centred on a frame too small for it, spilling equally
+above and below and damaging the *neighbouring* block as well as their own.
+
+1. **A block paints only inside its own laid-out frame.** Clip to the frame's
+   rounded rect at the radius from §3.1. Fill, border, rail, glyph, text, badge,
+   travel strip — all of it, without exception.
+2. **The content stack is top-anchored.** It is laid out from the frame's top
+   inset downward. Never vertically centred on the frame, never bottom-anchored.
+   A height-setting modifier that centres its child by default is specifically
+   wrong here; the anchoring must be stated, not inherited. The single exception
+   is `.glyphOnly`, whose one item is 11pt against a band that starts at 11pt and
+   so can never overflow: there the glyph is centred (§3.3).
+3. **Content that does not fit is clipped at the bottom edge.** No scaling, no
+   shrink-to-fit, no overflow. The worst case is therefore a block that shows
+   less than its tier claims — never a block that damages the one below it. With
+   §3.3's derived bands this should not arise at the default Dynamic Type size;
+   rule 3 is what bounds the damage when it does.
+4. **Exceptions, exhaustively.** The selection focus ring (§6) is drawn outside
+   the bounds with a 1pt gap, by design. Elevation shadows fall outside by
+   definition. The `size.blockHitExtension` outset (§3.3) is a hit region, not
+   paint. A case-1 travel band has a laid-out frame **of its own** — the
+   `departAt → event.start` rect (§4) — and is confined to that, not to its
+   parent's. Nothing else.
+5. **Scope.** GridBlock (§3), TravelBand (§4), AllDayItem (§5) and the month
+   chip (§9). §5 and §9 are fixed-height rows whose content is guaranteed to fit
+   and is vertically centred within the row; rules 1 and 3 still bind them.
+6. **A travel band's strip is inside its parent's frame in the short case.** The
+   parent's content area is its frame minus the strip; §3.3's tier is evaluated
+   against that area's height *and the content is drawn into that area*. A tier
+   chosen against remaining height but rendered into full height is the same bug
+   one level up, and it is what pushed a Week block's strip above its own top
+   edge in the 2026-09-09 screenshots.
 
 ---
 
@@ -230,13 +354,34 @@ Not a block. A leading edge attached to the event it belongs to.
 - Occupies the interval `departAt → event.start` in the same column as its event.
 - Height and placement, two cases:
   - **True interval ≥ `size.travelBandHeight`.** The band occupies the interval
-    above its event, in that event's slot, at its true height. Drawn above other
-    blocks in z-order but below the now line.
+    above its event, in that event's slot, at its true height. That interval is
+    part of its parent's layout footprint for overlap resolution — `layouts.md`
+    §3.3, steps 1 and 2 — so the band occupies grid time that no other cluster
+    can be placed into.
+
+    **Z-order, amended 2026-09-11 (GAPS.md G-012).** The band paints at its
+    parent event's index in the paint order, immediately *below* its parent so
+    the parent's top edge wins where the two meet, and above or below exactly
+    the blocks its parent is above or below. Below the now line. A band is never
+    given a z-index of its own.
+
+    This line previously read "Drawn above other blocks in z-order", which
+    licensed a case-1 band to paint over a block belonging to a **different**
+    cluster — and it did, over the meta line of "Morning review" in the
+    2026-09-09 Day screenshot, which is the exact failure this section's own
+    rationale says is not worth 18pt. With the footprint rule in `layouts.md`
+    §3.3 there is no foreign block left to draw above: anything sharing the
+    band's interval is now in the band's own cluster and packed beside it.
+    Inside that cluster, under cascade, the band overlaps by design and its
+    parent's index is the correct one.
   - **True interval < `size.travelBandHeight`.** The band does **not** grow
     upward out of its event. It becomes a `size.travelBandHeight` strip inside
     the top of the event's own frame, and the event's content starts below it —
     the event's density tier is then evaluated against its remaining height, not
-    its full height.
+    its full height, **and the event's content is drawn into that remaining area
+    rather than into the full frame** (§3.5 rule 6). A case-2 band extends
+    nothing: it is inside its parent's frame, so its parent's layout footprint is
+    unchanged (`layouts.md` §3.3).
 
   A band never draws outside its own event's bounds in the short case. The first
   draft of this spec had it grow upward and overlap whatever was above; the
@@ -299,11 +444,11 @@ conflicted. Order of application is the order of this table.
 | **hover** | 1pt inset ring in `color.interactive.hoverOverlay`, drawn inside the border. Resize handles become visible (`size.blockResizeHandleHeight` top and bottom). Cursor `.resizeUpDown` over a handle, `.openHand` elsewhere. Transition `motion.hover`. |
 | **selected** | Focus ring `color.interactive.focusRing`, `size.borderSelected`, drawn **outside** the block bounds with a 1pt gap, corner radius `radius.block + 2`. Block rises to `elevation.level1`. Fill unchanged. |
 | **dragging** | `opacity.blockDragging`, `elevation.level2`. Original slot stays visible at `opacity.blockDragOrigin`. Drop target drawn as a 1pt dashed outline in `color.interactive.accent`, dash `[3, 3]`, at the snapped frame. |
-| **conflicted** | Border becomes `color.semantic.alert` at `size.borderEmphasis`, replacing whatever border the variant had (dash pattern is preserved if the variant had one). Badge `exclamationmark.triangle.fill`, `size.conflictBadgeSize`, in `color.semantic.alert`, trailing-top corner, inset `spacing.xxs`. **Fill is never changed** — fill still has to carry source and movability. Below 16pt rendered height the badge replaces the type glyph. **At tiers 16–43 the badge and the trailing-aligned time both want the trailing-top corner: the badge wins and the time is dropped.** The time is recoverable from hover help and the inspector; the conflict is not recoverable from anywhere else on the grid. At tier ≥ 44 both fit — badge in the corner, time on its own line. |
+| **conflicted** | Border becomes `color.semantic.alert` at `size.borderEmphasis`, replacing whatever border the variant had (dash pattern is preserved if the variant had one). Badge `exclamationmark.triangle.fill`, `size.conflictBadgeSize`, in `color.semantic.alert`, trailing-top corner, inset `spacing.xxs`. **Fill is never changed** — fill still has to carry source and movability. At `.glyphOnly` the badge replaces the type glyph. **At `.titleOnly` and `.compact` the badge and the trailing-aligned time both want the trailing-top corner: the badge wins and the time is dropped.** The time is recoverable from hover help and the inspector; the conflict is not recoverable from anywhere else on the grid. At `.full` both fit — badge in the corner, time on its own line. |
 | **past** | Content opacity `opacity.blockPastContent`. Fill blended with `color.surface.canvas` at `opacity.blockPastFillBlend`. Border and rail take the same blend. No strikethrough. |
 | **inProgress** | 3pt bar in `color.semantic.now` on the **trailing** edge, full height, square caps. Block rises to `elevation.level1`. The leading rail and glyph are untouched — type must stay readable while an item is running. |
 | **done** | Fill blended with canvas at `opacity.blockDoneFillBlend`. Type glyph replaced by `checkmark.circle.fill` in `color.text.secondary`. Label `color.text.secondary`. No strikethrough (it costs legibility and reads as a cancellation, not a completion). |
-| **skipped** | Fill blended with canvas at `opacity.blockSkippedFillBlend`. Border becomes dashed `[3, 3]`, `size.borderRegular`, `color.separator.strong`. Glyph replaced by `arrow.uturn.forward.circle` in `color.text.secondary`. At tier ≥ 44 a meta line reads `Re-offered`. No red, no counter, no badge. |
+| **skipped** | Fill blended with canvas at `opacity.blockSkippedFillBlend`. Border becomes dashed `[3, 3]`, `size.borderRegular`, `color.separator.strong`. Glyph replaced by `arrow.uturn.forward.circle` in `color.text.secondary`. At `.full` a meta line reads `Re-offered`. No red, no counter, no badge. |
 
 | **previewed** | The block is shown at a **proposed** frame during conflict resolution (`interactions.md` §10), not a committed one. It renders at `opacity.blockPreviewed` inside a `size.borderSelected` dashed outline in `color.interactive.accent`, dash `[3, 3]`, **and its current frame stays visible at `opacity.blockDragOrigin`**. Applied last, after every row above it. |
 
@@ -395,8 +540,16 @@ sides plus the fill; low-energy's hatch pitch tightens from 6pt to 4pt.
 
 ## 9. Month cell chip
 
-Month uses the same signal system at the 16–27 density tier, compressed to
-`size.monthCellRowHeight`.
+Month uses the same signal system with the `.titleOnly` content set — glyph +
+one truncated title line, no time — at `size.monthCellRowHeight`.
+
+**Clarified 2026-09-11 (G-011).** This is an **explicit content-set assignment,
+not a height-derived tier**: the month chip is a fixed-height row and §3.3's band
+table governs GridBlock only. `size.monthCellRowHeight` (17) is
+`lineHeight(blockTitleCompact)` (14) + 3, so the chip carries **no vertical
+padding** and its text is vertically centred in the row. Reading 17 through
+§3.3's bands would land on `.glyphOnly` and silently delete every title in Month;
+it does not apply here.
 
 - Height `size.monthCellRowHeight`, radius `radius.blockCompact`, full cell width
   minus `spacing.xs` on each side.
@@ -529,7 +682,11 @@ prefer the named platform value, fall back to the literal pair.
 **Dynamic Type.** All text resolves through the `textStyle` in
 `typography.*`. When the resolved title height would exceed the block, the
 density ladder drops a tier — the ladder is evaluated against *resolved* text
-height, not against the default point sizes.
+height, not against the default point sizes. §3.3 states this as a rule with
+numbers: each tier's minimum is recomputed from the resolved line heights, and
+tier selection steps down while the selected tier's minimum exceeds the available
+height. The bands in §3.3's table are the default-size figures; the minima are
+not constants.
 
 **VoiceOver.** Each block is one accessibility element. Label order:
 title, time range, kind, source, status, then conflict if present. Example:
@@ -554,15 +711,20 @@ so this spec can actually be checked. Minimum fixture for a single day:
 8. A `.travelBand` attached to (2) whose true height is under the floor
 9. `.deadlineAllDay`, source `orange`
 10. `.examAllDay` with `T−6d`, source `teal`
-11. A 15-minute block (density tier 11–15) and a 10-minute block (clamped)
+11. A 15-minute block (tier `.glyphOnly` in both views) and a 10-minute block
+    (clamped to `size.blockMinRenderedHeight`), placed 5 minutes apart so the
+    §3.5 confinement rule is actually exercised
 12. Three mutually overlapping timed blocks, to exercise column packing
 13. Six mutually overlapping timed blocks in a narrow week column, to exercise cascade
 14. One block in each of: conflicted, past, inProgress, done, skipped
 15. A protected window 22:00–07:00 and a low-energy window 13:00–14:30
 16. A day with nothing on it at all, to check the empty grid
 17. Two blocks side by side on sources `amber` and `orange` — the closest hue
-    pair — one above and one below the 44pt tier, to check that §3.4 does the
-    work that hue cannot
+    pair — one above and one below the `.full` boundary (53pt), to check that
+    §3.4 does the work that hue cannot
+18. One event of 55–60 minutes in Day carrying a case-1 travel band, with an
+    unrelated event ending inside the band's interval, to exercise the footprint
+    rule in `layouts.md` §3.3 — the pair must pack side by side, not overlap
 
 Items 1–16 are display fixtures only. They are generated data, not services:
 no TravelLeg computation, no routine engine, no work item model behind them.

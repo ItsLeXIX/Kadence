@@ -144,6 +144,70 @@ selected and scrolls it into view. Selection survives paging only if the block i
 still in range; otherwise the grid falls back to cursor mode at the same time of
 day.
 
+### 6.1 Hit resolution — paint order is hit order
+
+*Added 2026-09-11 (GAPS.md G-010).* The rule above is complete for a click that
+lands on exactly one block. Blocks overlap — in cascade by design, and at the
+edges of the density floor by arithmetic — so a click point can be inside more
+than one hit region. One rule settles it, and it is the rule the user can check
+with their own eyes: **what is painted on top is what gets selected.**
+
+**The hit order, front to back.** It is exactly the paint order, with one
+subtraction:
+
+1. The `+N` cascade chip (`layouts.md` §3.3), which paints above every block in
+   its cluster. It is not a block and does not select: it opens that day in Day
+   view.
+2. Blocks, in the paint order from `layouts.md` §3.3 — the step 2 sort, later on
+   top. That sort is a total order (its final key is `id`), so "the frontmost
+   block" always names exactly one block.
+3. Travel bands, each at its **parent's** index rather than one of its own
+   (`components.md` §4). A band's hit region belongs to its parent event: a
+   case-2 band lies inside the parent's frame and adds nothing; a case-1 band
+   adds its own rect to the parent's hit region. Clicking either selects the
+   parent, as §6 already says.
+4. Empty grid — deselect, and place the time cursor at the clicked slot.
+
+**Subtracted:** non-interactive layers are transparent to hit-testing and can
+never take a click, however high they paint. That is the now line
+(`components.md` §8, which paints above every block), the background window
+treatments (§7), the hour and half-hour lines, and the time gutter.
+
+**Frontmost wins.** Test the point against hit regions front to back; the first
+hit takes the click. This is the behaviour the build already has, so nothing
+changes — it is now a decision rather than a side effect of the view hierarchy's
+traversal order, and it may not be reordered by a refactor.
+
+**A cascaded block's hit region is its full laid-out frame, not its visible
+sliver.** There is no second geometry computed for hit-testing. Combined with
+frontmost-wins the two answers coincide anyway: the covered part of the frame
+always loses to the block covering it, so the *effective* target is exactly what
+is visible — the leading sliver of `indent` points (15pt at the narrowest column,
+22pt at any column of 116pt or wider, `layouts.md` §3.3) by the block's full
+height. That is a usable pointer target, it is the part of the block that carries
+rail and glyph (which is why the indent is sized the way it is), and it is never
+the *only* route to a covered block: keyboard focus reaches every block in the
+grid regardless of coverage (§1, §2). Computing a visible-region hit shape would
+produce the same clicks at more cost and one more thing to keep in sync.
+
+**A real block's frame always beats a hit extension.** Resolve in two passes:
+
+- **Pass 1** tests laid-out **frames** only, front to back.
+- **Pass 2** runs only if pass 1 found nothing, and tests the
+  `size.blockHitExtension` outsets of floored blocks (`components.md` §3.3),
+  front to back.
+
+So the extension can only claim canvas that no block is painted on. It can never
+take a click that lands on another block's pixels, in either z-direction. The
+extension exists to make a block shorter than `size.blockMinRenderedHeight`
+reachable with a pointer, not to win arguments with its neighbours — a click that
+selects a block whose ink is nowhere near the pointer is worse than a click that
+misses.
+
+**One hit order, not several.** The same order governs hover (the ring and resize
+handles in `components.md` §6), the drag grab (§4) and the double-click that
+creates (§3). Anything the pointer can address is resolved by the list above.
+
 ---
 
 ## 7. Motion

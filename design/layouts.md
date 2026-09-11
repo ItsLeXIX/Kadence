@@ -135,16 +135,43 @@ Between the day header and the hour grid; pinned, does not scroll with the grid.
 
 Deterministic, three steps. Run per day column.
 
-**Step 1 — cluster.** Group timed blocks into maximal sets connected transitively
-by overlap. Two blocks overlap if `a.start < b.end && b.start < a.end` after both
-have been clamped to `size.blockMinRenderedHeight`.
+**Steps 1 and 2 operate on layout footprints, not on raw event times.**
+*Added 2026-09-11, GAPS.md G-012.* An event's **layout footprint** is the
+interval of grid time its drawing actually occupies:
 
-**Step 2 — column packing.** Within a cluster, sort by start ascending, then
-duration descending, then title ascending (stable and reproducible). Place each
-block in the lowest-index sub-column whose last block ends at or before this
-block's start. The cluster's sub-column count is the maximum index used + 1.
-Then expand: each block grows trailing-ward through adjacent sub-columns until it
-reaches one occupied by a block it overlaps.
+- `footprintTop` = `departAt` when the event has a travel band in
+  `components.md` §4's **case 1** — true band height ≥ `size.travelBandHeight` at
+  the current view's hour height — and `event.start` otherwise. A case-2 band is
+  drawn inside its parent's own frame and extends nothing.
+- `footprintBottom` = `max(event.end, footprintTop + minInterval)`, where
+  `minInterval` is `size.blockMinRenderedHeight` converted to minutes at the
+  current hour height. **The clamp only ever extends the bottom; it never moves
+  the top.** This is the same clamp as before, applied to the footprint rather
+  than to the raw interval — on an event with a case-1 band it is already
+  satisfied and does nothing.
+- All-day items have no footprint here; they are excluded from all three steps.
+
+**Step 1 — cluster.** Group timed blocks into maximal sets connected transitively
+by overlap. Two blocks overlap if
+`a.footprintTop < b.footprintBottom && b.footprintTop < a.footprintBottom`.
+
+**Step 2 — column packing.** Within a cluster, sort by `footprintTop` ascending,
+then duration descending, then title ascending, then `id` ascending (stable and
+reproducible). Place
+each block in the lowest-index sub-column whose last block's `footprintBottom` is
+at or before this block's `footprintTop`. The cluster's sub-column count is the
+maximum index used + 1. Then expand: each block grows trailing-ward through
+adjacent sub-columns until it reaches one occupied by a block it overlaps.
+
+Step 2 uses the **same** footprints as step 1, deliberately. If step 1 pulled a
+neighbour into the cluster and step 2 then packed on raw times, the neighbour
+would land in the same sub-column and the band would still be drawn on top of it
+— the extension would have changed the cluster and fixed nothing.
+
+The `id` tie-break is why this sort is a **total order**: two distinct events may
+legitimately share a start, a duration and a title, and without it the paint
+order of that pair would be undefined. It is what lets `interactions.md` §6.1 say
+"the frontmost block" and always mean exactly one block.
 
 Slot width = `(columnWidth − 2 × spacing.xxs) / subColumnCount −
 size.blockColumnGap`.
@@ -170,7 +197,9 @@ keeps a title and in a cascade only the topmost one does.
 - Sort as in step 2. Block *i* has a leading inset of
   `min(i, size.blockCascadeMaxSteps) × indent` and spans to the column's trailing
   edge.
-- Z-order follows start order — later blocks draw on top. Every covered block
+- Z-order follows the step 2 sort order — later blocks draw on top. It is the
+  paint order, and `interactions.md` §6.1 makes it the hit order too, so what is
+  on top is what a click selects. Every covered block
   still shows its **glyph, and its leading rail where its variant has one** —
   which is exactly why type, flexibility and source live on the leading edge
   (`components.md` §1). Note that `.fixedTimed` has no rail by design, so a
@@ -179,8 +208,8 @@ keeps a title and in a cascade only the topmost one does.
   the absolute minimum.
 - **A covered block shows no text.** A block whose *visible* width — its own
   width minus whatever the next block covers — is below
-  `size.blockCascadeMinReadableWidth` (44) renders the 11–15 content set from
-  `components.md` §3.3 (glyph only), whatever its height tier would otherwise
+  `size.blockCascadeMinReadableWidth` (44) renders the `.glyphOnly` content set
+  from `components.md` §3.3, whatever its height tier would otherwise
   allow. Without this rule a covered block renders its full content and gets
   clipped mid-string, producing slivers that read as `10:` — visible damage
   rather than a partially covered block. The layout engine passes visible width
@@ -217,8 +246,39 @@ first block's title was entirely hidden. 96 answered "how wide is a comfortable
 block"; the question the threshold actually decides is "how wide is a block that
 still beats being hidden".
 
-Travel bands are laid out with their parent event and occupy the parent's slot
-width. All-day items are excluded from all three steps.
+**Travel bands.** A band is laid out with its parent event, occupies the parent's
+slot width, takes the parent's cascade indent, and paints at the parent's index
+in the paint order (`components.md` §4). A case-1 band's interval is part of its
+parent's footprint, per the definition above, so a block that would otherwise sit
+under the band is clustered with it and packed beside it instead. All-day items
+are excluded from all three steps.
+
+**This makes clustering scale-dependent, and that is said out loud.** §4's case
+split is decided on the band's height in *points*, so the same 22-minute band is
+case 1 in Day (22pt at `size.hourHeightDay`) and case 2 in Week (16.1pt at
+`size.hourHeightWeek`). The same two events therefore cluster in Day and do not
+cluster in Week. A cluster is a property of **(the day's events, the view's hour
+height)** — not of the events alone. This is not a new kind of dependency: the
+density ladder (`components.md` §3.3) and the pack-versus-cascade decision in
+step 3 are already scale-dependent for exactly the same reason. It does mean
+layout is recomputed on a view change and **never cached across views**.
+
+Worked on the case that produced G-012 — "Morning review" 08:00–09:00 and
+"Datenmodellierung" 09:00–10:30 with a 22-minute band. In **Day** the band is
+case 1, so Datenmodellierung's footprint is 08:38–10:30, the two footprints
+overlap, they form one 2-block cluster, the slot width is
+`(1060 − 4) / 2 − 2` = 526 — far above `size.dayColumnCascadeThreshold` (72) — so
+they pack side by side and the band has nothing foreign to cover. In **Week** the
+band is case 2, no extension applies, and the two stay in separate clusters,
+which is correct: a case-2 band never leaves its parent's frame.
+
+**Why extend the footprint rather than clip or demote the band.** The two
+alternatives were to clip a case-1 band to the part of its interval no other
+block covers, or to draw it under blocks it does not belong to. Both hide the one
+thing the product exists to tell the user — when to leave — behind an unrelated
+block, and the clipped version can lose the label entirely. A band is opaque, it
+occupies grid time, and anything opaque that occupies grid time has to take part
+in overlap resolution or the engine is not describing what is on the canvas.
 
 ---
 

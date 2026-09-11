@@ -699,3 +699,219 @@ blocks it does not belong to. Both contradict §4's "Drawn above other blocks in
 z-order", so either would need §4 amended too.
 
 **Not blocking.** No value was invented; the diagnosis changed no code.
+
+---
+
+## 2026-09-11 — G-010 — CLOSED
+
+**Ruled in `interactions.md` §6.1** (new subsection), with the supporting
+statements in `layouts.md` §3.3 (the step 2 sort is a total order; z-order is the
+paint order and the hit order) and `components.md` §3.3 (the hit region at the
+floor, stated geometrically) and §4 (a band paints at its parent's index).
+
+**Frontmost wins, and it is now a decision rather than a side effect.** The
+build's current behaviour stands — §6.1 states the hit order front to back,
+subtracts the layers that may never take a click (the now line, background
+windows, grid lines, the gutter), and pins the rule to the one thing the user can
+verify with their eyes: what is painted on top is what gets selected. Because the
+step 2 sort in `layouts.md` §3.3 is now a total order — it gains an `id` ascending
+final key, since two distinct events may legitimately share a start, a duration
+and a title — "the frontmost block" always names exactly one block. What this closes is the risk
+of it being silently reordered by a refactor of the view hierarchy.
+
+**Sub-question 1 — the cascade sliver.** A cascaded block's hit region is its
+**full laid-out frame**, not its visible sliver. No second geometry is computed
+for hit-testing. Under frontmost-wins the two answers coincide anyway: the
+covered part of the frame always loses to the block covering it, so the effective
+target *is* the visible sliver — `indent` points wide (15 at the narrowest
+column, 22 at 116pt or wider) by the block's full height. That is a usable
+pointer target, it is the part of the block carrying rail and glyph, and keyboard
+focus reaches every block regardless of coverage, so it is never the only route
+in. A visible-region hit shape would produce identical clicks at more cost and
+one more thing to keep in sync.
+
+**Sub-question 2 — `size.blockHitExtension`.** The extension **loses** to a real
+block's frame, in either z-direction. §6.1 resolves in two passes: pass 1 tests
+laid-out frames only, front to back; pass 2 runs only if pass 1 found nothing and
+tests the extensions. The extension can therefore only claim canvas no block is
+painted on. It exists to make a block shorter than `size.blockMinRenderedHeight`
+reachable with a pointer, not to win arguments with its neighbours — a click that
+selects a block whose ink is nowhere near the pointer is worse than a click that
+misses. `components.md` §3.3 also now states the extension's geometry exactly,
+which "extend the hit region by `size.blockHitExtension` centred on the true
+frame" did not: the floored frame keeps its **top** edge at the true start, and
+the hit region is that frame outset by `size.blockHitExtension / 2` (3pt) top and
+bottom only, never horizontally — 17pt tall. That matches what the build does.
+
+**Tokens:** none added, none changed. `size.blockHitExtension` (6) keeps its
+value; only its geometry is now unambiguous.
+
+**Effect on the build:** none required. `Scripts/check-block-click-selects.sh`
+may now legitimately pick a click target that sits under another block, provided
+it asserts the frontmost one is selected.
+
+---
+
+## 2026-09-11 — G-011 — CLOSED
+
+**Ruled in `components.md` §3.3 (the ladder, rewritten), the new §3.5
+(confinement), §3.1 (corner-radius boundary), §3.4 (the `.full` boundary moved),
+§6 (state rows restated in tier names), §9 (the month chip), §11 (Dynamic Type)
+and §12 (fixtures 11, 17, and a new 18); and in `layouts.md` §3.3 where the
+cascade rule referenced the old band by number.** Supersedes the original §3.3
+table in full. DEVIATIONS.md D4 is the same defect and is answered by this entry.
+
+**None of the three listed candidates, taken alone.** Candidate 1 (reduced
+padding) does not reach the floor — the gap entry says so itself: 2 + 11 + 2 = 15
+against a floor of 11. Candidate 2 (a smaller or clipped glyph) spends the last
+non-hue kind signal at the tier that has nothing else left. Candidate 3 (raise
+`size.blockMinRenderedHeight`) changes a Phase 1 token that `layouts.md` §3.3's
+clamp depends on, to fix a symptom of the real defect. The real defect is
+structural and was one rung wider than the gap reported: at
+`size.blockPadding` on all sides, **the 16–27 tier does not fit either**
+(5 + 14 + 5 = 24 > 16), and **neither does ≥ 44** (5 + 15 + 14 + 14 + 5 = 53 >
+44 — which is why the STATUS §1.7 diagnosis measured `.full` needing ~73pt for a
+2-line title). The table's bands were chosen; they should have been derived.
+
+**The ruling: derive every band from its own content set, and state the invariant
+that was missing.** A tier's band bottom is never below that tier's own minimum.
+§3.3 now carries a normative line-height rule
+(`lineHeight(style) = ceil(typography.<style>.size × 1.2)`, no extra line
+spacing, no inter-row gap → `blockTitle` 15, `blockTitleCompact` 14, `blockMeta`
+14), a per-tier vertical-padding table, and the arithmetic for each minimum
+alongside its band:
+
+| Tier | Band | Vertical padding | Minimum |
+|---|---|---|---|
+| `.full` | ≥ 53 | 5 | 5 + 15 + 14 + 14 + 5 = 53 |
+| `.compact` | 28–52 | 5 | 5 + 14 + 5 = 24 |
+| `.titleOnly` | 18–27 | `spacing.xxs` (2) | 2 + 14 + 2 = 18 |
+| `.glyphOnly` | 11–17 | 0 | 0 + 11 + 0 = 11 |
+
+`.glyphOnly` takes **no** vertical padding — at 11pt the glyph is the block, and
+this is what makes the floor honest: `size.blockMinRenderedHeight` is now, by
+construction, the smallest height at which a block can actually be drawn, which
+is the property `layouts.md` §3.3's clamp always assumed and never had. Tier
+names are `.glyphOnly` / `.titleOnly` / `.compact` / `.full` — the names the build
+already uses — and §3.3 carries a normative mapping from the old numeric bands so
+the Phase 2 sections (§13–§17), which are not re-edited here, still read
+correctly.
+
+Two riders. `.full` earns its second title line only at ≥ 68 (53 +
+`lineHeight(blockTitle)`); "up to 2 lines" is a permission that must be paid for
+in real height. And tier selection is now fit-based — take the tier whose band
+contains the available height, then step down while that tier's minimum exceeds
+it — which is what makes §11's Dynamic Type rule computable instead of
+aspirational.
+
+**The confinement invariant — `components.md` §3.5, new.** Stated regardless of
+the above, and this is the part CA is blocked on:
+
+1. A block paints only inside its own laid-out frame, clipped to the frame's
+   rounded rect. Fill, border, rail, glyph, text, badge, strip — all of it.
+2. The content stack is **top-anchored**, laid out from the top inset downward.
+   Never vertically centred, never bottom-anchored. A height-setting modifier
+   that centres its child by default is specifically wrong here.
+3. Content that does not fit is clipped at the **bottom** edge. No scaling, no
+   shrink-to-fit, no overflow. The worst case becomes a block that shows less
+   than its tier claims — never one that damages its neighbour.
+4. Exceptions, exhaustively: the §6 selection ring (outside by design), elevation
+   shadows, the `size.blockHitExtension` outset (a hit region, not paint), and a
+   case-1 travel band, whose laid-out frame is its own rect (§4).
+5. Scope: §3, §4, §5 and §9. The fixed-height rows (§5, §9) centre their content
+   vertically and are guaranteed to fit; rules 1 and 3 still bind them.
+6. In §4's short case the parent's content area is its frame **minus** the strip,
+   and the content is drawn into that area — not into the full frame. This is the
+   "also reachable from above" half of the gap: a tier chosen against remaining
+   height but rendered into full height is the same bug one level up, and it is
+   what pushed a Week block's strip above its own top edge.
+
+**Tokens: none added, none changed.** `.titleOnly`'s 2pt vertical padding uses
+the existing `spacing.xxs`, which already carries 2pt insets in §6.
+`size.blockMinRenderedHeight` keeps its value of 11 — deliberately, because the
+ruling makes the content fit the floor rather than moving the floor to fit the
+content, so `layouts.md` §3.3's clamp maths is untouched.
+
+**Non-token Phase 1 values that did move, called out by name:**
+- The `.full` boundary, **44 → 53**. Blocks of 44–52pt (46–54 min in Day, 63–74
+  min in Week) lose the meta line and therefore the on-block source name. §3.4
+  now says why this is not a weakening: at 44pt that line was specified but could
+  not be drawn, so what those blocks actually rendered was a clipped or spilling
+  meta line. A tier that cannot draw the source name must not claim to.
+- The `.titleOnly` bottom, **16 → 18**, and the `.glyphOnly` top, **15 → 17**.
+- `radius.blockCompact`'s threshold, **< 16 → < 18** (§3.1), so it follows the
+  tier edge instead of being a second independent number.
+- `size.monthCellRowHeight` (17) is **not** affected: §9 now states that the
+  month chip is an explicit content-set assignment, not a height-derived tier,
+  with no vertical padding and vertically centred text. Read through §3.3's bands
+  a 17pt row would land on `.glyphOnly` and silently delete every title in Month.
+
+**Effect on the build:** `DensityTier.init(renderedHeight:)`'s three boundaries
+become 18 / 28 / 53, `showsLocation` still means `.full`, and the view layer must
+clip and top-anchor. The fix for STATUS §1.7 symptoms (a) and (c)-Week is now
+unblocked; note that with §3.5 alone both symptoms disappear, since the 12:30 and
+12:50 pair are 13pt and 11pt frames drawing 22pt of content.
+
+---
+
+## 2026-09-11 — G-012 — CLOSED
+
+**Ruled in `layouts.md` §3.3 (footprint definition before step 1; steps 1 and 2
+restated; the travel-band paragraph rewritten) and `components.md` §4, whose
+z-order line is amended to match.** Supersedes §4's "Drawn above other blocks in
+z-order".
+
+**Yes — a case-1 band's visual footprint extends its parent event's footprint for
+clustering.** §3.3 now defines a **layout footprint** as the interval of grid time
+a block's drawing actually occupies: `footprintTop` is `departAt` when the event
+has a `components.md` §4 case-1 band (true band height ≥ `size.travelBandHeight`
+at the current hour height) and `event.start` otherwise.
+
+**It feeds step 1 *and* step 2, not step 1 only.** If step 1 clustered on
+footprints and step 2 packed on raw times, the neighbour pulled into the cluster
+would land in the same sub-column and the band would still be drawn on top of it
+— the extension would have changed the cluster and fixed nothing. Both steps use
+the same footprints; step 2's sort key becomes `footprintTop`, and z-order
+follows that sort.
+
+**And yes, it is clamped like a raw interval,** but the clamp is restated to be
+unambiguous about direction: `footprintBottom = max(event.end, footprintTop +
+minInterval)` where `minInterval` is `size.blockMinRenderedHeight` in minutes at
+the current hour height. **The clamp only ever extends the bottom; it never moves
+the top.** On an event carrying a case-1 band the clamp is already satisfied and
+does nothing.
+
+**Scale dependence, said out loud, as the gap asked.** §4's case split is decided
+on the band's height in *points*, so the same 22-minute band is case 1 in Day
+(22pt) and case 2 in Week (16.1pt), and the same two events cluster in Day and do
+not cluster in Week. §3.3 now states plainly that a cluster is a property of **(the
+day's events, the view's hour height)**, not of the events alone — which is not a
+new kind of dependency, since the density ladder and the pack-versus-cascade
+decision are already scale-dependent for the same reason — and that layout is
+therefore recomputed on a view change and never cached across views. The worked
+Day/Week numbers for the G-012 pair are in §3.3.
+
+**The alternative was rejected, with reasons.** Clipping a case-1 band to the
+uncovered part of its interval, or drawing it under blocks it does not belong to,
+both hide the one thing the product exists to tell the user — when to leave —
+behind an unrelated block, and the clipped version can lose the label entirely. A
+band is opaque and occupies grid time; anything opaque that occupies grid time
+has to take part in overlap resolution, or the engine is not describing what is
+on the canvas.
+
+**`components.md` §4 amended to agree.** A band now paints at its parent event's
+index in the paint order, immediately *below* its parent so the parent's top edge
+wins where they meet, above or below exactly the blocks its parent is above or
+below, and below the now line. It is never given a z-index of its own. With the
+footprint rule there is no foreign block left for it to draw above: anything
+sharing its interval is in its own cluster and packed beside it. Inside that
+cluster, under cascade, the band overlaps by design and the parent's index is the
+right one. This also gives `interactions.md` §6.1 a band's place in the hit
+order for free.
+
+**Tokens: none added, none changed.**
+
+**Effect on the build:** `DayLayoutEngine` clustering takes travel legs as an
+input rather than raw event times only, and must be told the view's hour height
+so it can evaluate §4's case split. This is independent of the §3.5 view-layer
+fix and can land separately.
