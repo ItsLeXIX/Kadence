@@ -64,6 +64,34 @@ unchanged behaviour), plus a no-band control case. `design/` was not touched —
 the ruling already existed there; this task only built it. No live on-screen
 capture was taken — out of scope per this task's brief, a separate follow-up.
 
+**Amended 2026-09-11 by a follow-up task (P2-T06 fix — `check-accessibility.sh`
+regressed to `FAIL: no Kadence process has a window` after the commit above).**
+§1.2 is rewritten in place: the failure was investigated and is **not a defect
+in `DayLayoutEngine.swift` or `DayColumnView.swift`**. Reproduced by hand
+(`open`/direct launch, no `check-accessibility.sh` involved): a launch showed
+AppKit's own log reporting window restoration succeeding (non-nil window,
+`error=(null)`), yet `System Events` reported 0 windows and a screen capture
+showed nothing on screen — stale/corrupted saved window-restoration state
+(`~/Library/Saved Application State/XIX.Kadence.savedState`, most likely left
+over from the earlier interrupted P2-T06 session) was silently failing to
+present the restored window. Launching once with `-ApplePersistenceIgnoreState
+YES` wrote a fresh, good state file; every launch after that — with no flag —
+came up normally. Code review of both files found no force-unwrap, no
+precondition, and no unbounded loop (`packIntoSubColumns`'s expansion loop is
+bounded by `subColumnCount`); `fixtures.travel(forEvent:)` is a plain `.first`
+optional lookup, safe for events with no travel fixture. `sample` on a hung
+reproduction showed the main thread parked in `mach_msg2_trap` (idle, waiting
+for events) at 0% CPU — not spinning, not deadlocked in layout code. Two
+consecutive clean runs of `Scripts/check-accessibility.sh` (all Kadence
+processes killed first) both **PASS**ed — see §1.2. A second agent session was
+independently assigned this same fix task concurrently on this machine
+(duplicate assignment, flagged to the orchestrator); some of the intermittent
+failures seen mid-investigation were the two sessions' `pkill`/`open -n`
+sequences racing each other, which is a separate, purely environmental
+artefact of running two verification passes at once and not evidence of a
+code defect either. No change was made to `Kadence/Layout/DayLayoutEngine.swift`
+or `Kadence/Views/Canvas/DayColumnView.swift` by this follow-up task.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -120,6 +148,32 @@ now, so the script has nothing to count. It is intermittent — window enumerati
 worked earlier in the same session, which is how the ⎋/↩ crash was driven through
 the menu bar. Nothing in this task touched block accessibility. Treat the PASS
 above as the standing result and re-run when AX is healthy.
+
+**Re-run 2026-09-11 by the P2-T06 fix follow-up task: two consecutive clean
+PASSes, after diagnosing and closing out the `FAIL: no Kadence process has a
+window` regression reported against commit a3cece1 — see the amendment above
+§1. Transcript of the second of the two runs (all Kadence processes killed
+first, no interference):**
+
+```
+building…
+querying pid 72031
+block-shaped elements in the tree: 20
+carrying the §11 label:            0
+  AXHelp=Breakfast · 07:15–07:45 · Daily routine · routine block, Breakfast · 07:15–07:45 · Daily routine · routine block ~~
+  AXHelp=Morning review · 08:00–09:00 · Daily routine · routine block, Morning review · 08:00–09:00 · Daily routine · routine block, Morning review · 08:00–09:00 · Daily routine · routine block ~~
+  AXHelp=Datenmodellierung · 09:00–10:30 · University timetable · lecture, Datenmodellierung · 09:00–10:30 · University timetable · lecture, Datenmodellierung · 09:00–10:30 · University timetable · lecture ~~
+
+WARN: blocks are in the tree, but 0 carry the §11 label.
+      Known open defect A20b — VoiceOver reads the hover-help string
+      instead of 'title, time, kind, source, status'.
+PASS (elements present)
+```
+
+Root cause of the regression: stale saved window-restoration state, not
+DayLayoutEngine/DayColumnView — see the amendment above §1 for the full
+diagnosis. No code fix was needed or made; the two runs above stand as the
+regression's resolution.
 
 ### 1.3 `xcodebuild -scheme Kadence -destination 'platform=macOS' build` — **PASS**
 

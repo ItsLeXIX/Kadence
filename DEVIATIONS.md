@@ -74,6 +74,16 @@ to strike; this note exists only to keep the sentence above from misleading a
 future reader. D4 and B13 are untouched by this task and remain closed, as
 above.
 
+**Amended 2026-09-11 (P2-T06 fix follow-up — `check-accessibility.sh`
+regression investigation).** No deviation entry here changes. The task
+investigated a `FAIL: no Kadence process has a window` result reported against
+the P2-T06 commit above and found the cause was stale saved window-restoration
+state left over from the earlier interrupted P2-T06 session, not a code defect
+in `DayLayoutEngine.swift` or `DayColumnView.swift` — see STATUS.md's amendment
+near the top and §1.2 for the full diagnosis and two clean re-runs. Recorded
+here only so this file's account of P2-T06 stays complete; the G-012 note
+immediately above is otherwise unchanged.
+
 ### What this re-audit changed
 
 The Phase 1 section numbering in all three spec files is **unchanged** —
