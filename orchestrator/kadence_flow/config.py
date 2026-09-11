@@ -23,6 +23,7 @@ class Config:
     max_cost_usd: float = 0.0          # 0 = no ceiling (subscription runs)
     worker_budget_usd: float = 0.0     # per-task ceiling, 0 = none
     max_consecutive_failures: int = 3
+    max_buffer_mb: int = 32            # per-JSON-message transport cap
     skip_build: bool = False           # true off-Mac / for dry runs
     on_quota: str = "stop"             # "stop" | "wait"
     work_branch: str = ""              # default: auto/phase-<phase>

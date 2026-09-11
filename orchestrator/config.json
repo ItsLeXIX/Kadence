@@ -12,5 +12,6 @@
   "worker_budget_usd": 0,
   "max_consecutive_failures": 3,
   "skip_build": false,
-  "on_quota": "stop"
+  "on_quota": "stop",
+  "max_buffer_mb": 32
 }

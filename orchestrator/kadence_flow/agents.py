@@ -94,6 +94,7 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
                 max_turns: int, model: Optional[str],
                 can_use_tool=None, hooks=None,
                 max_budget_usd: Optional[float] = None,
+                max_buffer_size: int = 32 * 1024 * 1024,
                 on_event: Optional[Callable[[str], None]] = None) -> AgentRun:
     from claude_agent_sdk import (AssistantMessage, ClaudeAgentOptions,
                                   ResultMessage, TextBlock, ToolUseBlock, query)
@@ -117,6 +118,10 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
         can_use_tool=None if permission_mode == "bypassPermissions" else can_use_tool,
         hooks=hooks,
         max_budget_usd=max_budget_usd,
+        # The default is 1MB per JSON message. A diagnose task that cats a
+        # build log or a big spec into one tool result blows straight past it
+        # and the transport dies mid-run, which is not worth losing a task for.
+        max_buffer_size=max_buffer_size,
         setting_sources=["project"],
     )
 
@@ -162,6 +167,7 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
               max_turns: int = 60, model: Optional[str] = None,
               can_use_tool=None, hooks=None,
               max_budget_usd: Optional[float] = None,
+              max_buffer_size: int = 32 * 1024 * 1024,
               on_event: Optional[Callable[[str], None]] = None) -> AgentRun:
     """Synchronous wrapper with backoff. Quota errors are NOT retried --
     they propagate so the run loop can checkpoint and stop cleanly."""
@@ -177,7 +183,8 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
                 prompt, system_prompt=system_prompt, cwd=cwd,
                 allowed_tools=allowed_tools, permission_mode=permission_mode,
                 max_turns=max_turns, model=model, can_use_tool=can_use_tool,
-                hooks=hooks, max_budget_usd=max_budget_usd, on_event=on_event))
+                hooks=hooks, max_budget_usd=max_budget_usd,
+                max_buffer_size=max_buffer_size, on_event=on_event))
         except (QuotaExhausted, AuthExpired, MaxTurnsReached):
             raise
         except TransientError as e:

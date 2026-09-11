@@ -218,6 +218,7 @@ def build(cfg: Config):
                 can_use_tool=agents.permission_for(agent, repo),
                 hooks=agents.hooks_for(agent, repo),
                 max_budget_usd=cfg.worker_budget_usd or None,
+                max_buffer_size=cfg.max_buffer_mb * 1024 * 1024,
                 on_event=lambda s: persist.log(s, echo=True))
         except MaxTurnsReached as e:
             # Whatever it wrote is on disk. Let verification judge it and let
