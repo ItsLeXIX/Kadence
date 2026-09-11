@@ -44,6 +44,26 @@ G-012 is the only symptom-(c) gap left open. DEVIATIONS.md D4 and B13 are
 resolved and moved out of the open tables. `DayLayoutEngine.swift` was **not**
 touched — confirmed by diff against the commit immediately before this task.
 
+**Amended 2026-09-11 by task P2-T06 (build G-012's already-CLOSED ruling — fix
+(c)-Day).** §1.7 is rewritten in place again: **(c)-Day is now fixed**, per
+`design/GAPS.md` G-012's CLOSED ruling in `layouts.md` §3.3 (layout footprint,
+steps 1 and 2 restated to share it) and `components.md` §4 (z-order line
+amended). This was a ruling built at the spec level only by DA's task P2-T04
+and left unimplemented; P2-T06 is the code side. `LayoutItem` gained an
+optional `departAt`, `footprintTop`/`footprintBottom`, and `cluster`,
+`sortForLayout` and `packIntoSubColumns` now all key off the footprint instead
+of raw `start`/`end`; `DayColumnView.layoutItems` now supplies each event's
+travel-band `departAt` (`fixtures.travel(forEvent:)?.departAt`, `nil` when
+there is no band). Verified: build succeeds, no new warnings;
+`KadenceTests` — 189 `passed` lines / 160 unique / 0 failed, including five new
+`DayLayoutEngineTests.swift` cases that pin the spec's own worked example
+("Morning review" 08:00–09:00, "Datenmodellierung" 09:00–10:30, 22-minute band
+departing 08:38): the pair clusters and packs into 2 side-by-side sub-columns
+at `hourHeightDay` (case 1) and does *not* cluster at `hourHeightWeek` (case 2,
+unchanged behaviour), plus a no-band control case. `design/` was not touched —
+the ruling already existed there; this task only built it. No live on-screen
+capture was taken — out of scope per this task's brief, a separate follow-up.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -115,7 +135,7 @@ Exit status 0.
 ** TEST SUCCEEDED **
 ```
 
-Exit status 0. **156 unique test cases, 0 failed.** The log prints 184
+Exit status 0. **160 unique test cases, 0 failed.** The log prints 189
 `passed` lines; the surplus is parameterised cases reported per argument, and
 the count can wobble by one because that per-argument logging is racy
 (`SourceSymbolTests/normativeTable` printed 9 lines in one run and 10 in the
@@ -129,6 +149,10 @@ cases are `KadenceTests/BlockHitRegionTests.swift` — see §1.6.)*
 
 *(updated 2026-09-11 by P2-T05: was "140 unique / 160 lines". The sixteen new
 cases are `KadenceTests/BlockConfinementTests.swift` — see §1.7, and G-011 in
+`design/GAPS.md`.)*
+
+*(updated 2026-09-11 by P2-T06: was "156 unique / 184 lines". The five new cases
+are in `KadenceTests/DayLayoutEngineTests.swift` — see §1.7, and G-012 in
 `design/GAPS.md`.)*
 
 Always use `-only-testing:KadenceTests`. A plain `test` also runs the empty
@@ -347,14 +371,63 @@ The mock store was reset after this testing (the drags above are persisted by
 SwiftData), so the fixed dataset is back to its seeded values and future
 captures stay comparable.
 
-### 1.7 The block-overlap defect — (a) and (c)-Week **fixed** (task P2-T05); (c)-Day open as G-012
+### 1.7 The block-overlap defect — all three symptoms now fixed or confirmed-correct: (a) and (c)-Week (task P2-T05), (c)-Day (task P2-T06)
 
-**Status as of task P2-T05, 2026-09-11.** Symptom (a) and the Week half of (c)
-are fixed, per `design/GAPS.md`'s **G-011 — CLOSED** ruling. The diagnosis below
-(task P2-T03) is kept as the historical record of what was wrong and is
-annotated in place rather than rewritten; do not read it as still-open. The Day
-half of (c) is untouched — it is **G-012**, a separate spec gap not covered by
-this task — and remains open exactly as diagnosed.
+**Status as of task P2-T06, 2026-09-11.** All three reported symptoms are now
+resolved. (a) and the Week half of (c) were fixed by task P2-T05, per
+`design/GAPS.md`'s **G-011 — CLOSED** ruling. (b) was always correct, per
+diagnosis below. The Day half of (c) — **G-012** — is now **fixed in code** by
+this task (P2-T06), per `design/GAPS.md`'s **G-012 — CLOSED** ruling
+(`layouts.md` §3.3, `components.md` §4). The diagnosis below (task P2-T03) is
+kept as the historical record of what was wrong and is annotated in place
+rather than rewritten; do not read any of it as still-open.
+
+**What changed for (c)-Day, and why it closes G-012.** `layouts.md` §3.3 now
+defines a **layout footprint** — `footprintTop` is a case-1 travel band's
+`departAt` when the true band height (`geometry.height(from: departAt, to:
+start)`) is at least `size.travelBandHeight`, else the event's own `start`;
+`footprintBottom = max(end, footprintTop + minInterval)`, and the clamp only
+ever extends the bottom, never moves the top. Both step 1 (clustering) and step
+2 (column packing) now key off the same footprint — the ruling's explicit
+warning was against clustering on footprints while packing on raw times, which
+would pull a neighbour into the cluster and then still pack it into the band's
+own sub-column, fixing nothing. The fix:
+
+- `Kadence/Layout/DayLayoutEngine.swift` — `LayoutItem` gained an optional
+  `departAt: Date?` (nil when the event has no band) and
+  `footprintTop(geometry:)` / `footprintBottom(geometry:minimumDuration:)`
+  methods implementing the definition above. `cluster`, `sortForLayout` (whose
+  primary key is now `footprintTop`) and `packIntoSubColumns` all read the
+  footprint instead of `start`/`end` directly. `layout(...)` needed no new
+  parameter — it already receives `geometry: TimeGeometry`, which is what the
+  case-1/case-2 height test needs.
+- `Kadence/Views/Canvas/DayColumnView.swift` — `layoutItems` now passes
+  `departAt: fixtures.travel(forEvent: $0.id)?.departAt` into each
+  `LayoutItem`, so the engine — not the view — decides case 1 vs case 2 and
+  whether the footprint extends. Drafts and events with no band pass `nil`,
+  unchanged from before.
+
+**Verified.** `xcodebuild build` succeeds, no new warnings.
+`swift Scripts/generate-tokens.swift --check` is green (this task touched no
+tokens). `KadenceTests` — 189 `passed` lines / 160 unique test names / 0
+failed. Five new cases in `KadenceTests/DayLayoutEngineTests.swift` reproduce
+the spec's own worked example directly: "Morning review" 08:00–09:00 and
+"Datenmodellierung" 09:00–10:30 with a 22-minute band departing 08:38 —
+`caseOneBandClustersInDay` and `gapG012PacksInDay` assert the pair forms one
+cluster and packs into 2 non-overlapping side-by-side sub-columns at
+`size.hourHeightDay` (case 1, footprint 08:38–10:30 vs 08:00–09:00, verified on
+the resulting frames' x-ranges); `caseTwoBandDoesNotClusterInWeek` and
+`gapG012DoesNotPackInWeek` assert the identical pair does **not** cluster at
+`size.hourHeightWeek` (case 2, band under `travelBandHeight`, extends nothing —
+unchanged behaviour, each block keeps the full column width); and
+`noTravelBandUnaffected` pins that an event with `departAt: nil` clusters
+exactly as before the change. No live on-screen capture was taken this
+session — out of scope per this task's brief, a separate follow-up once this
+lands.
+
+`design/layouts.md` and `design/components.md` were **not** touched — the
+ruling already existed there from task P2-T04; this task only built the code
+side of it.
 
 **What changed, and why it closes (a) and (c)-Week.** `design/GAPS.md` G-011
 ruled that `DensityTier`'s three boundaries move 16/28/44 → **18/28/53**, each
@@ -496,10 +569,12 @@ the Week half of (c); G-012 is independent of it and can be fixed separately.
 Splitting the follow-up per symptom is therefore warranted, but (a) and (c)-Week
 should be one change, not two.
 
-**Superseded by task P2-T05, above.** (a) and (c)-Week are fixed; the "one fix
-in the view layer" this paragraph anticipated is the change documented at the
-top of this section. (c)-Day / G-012 is exactly as described here and is still
-open.
+**Superseded by tasks P2-T05 and P2-T06, above.** (a) and (c)-Week are fixed;
+the "one fix in the view layer" this paragraph anticipated is the change
+documented at the top of this section. (c)-Day / G-012, described here as still
+open, is now also fixed — task P2-T06 built the footprint-clustering fix; see
+the top of this section. All three symptoms are now closed or confirmed
+correct; nothing from this diagnosis remains open.
 
 
 ---
@@ -740,14 +815,17 @@ mine to decide.
    when a click lands on two) — are both open and neither blocks Phase 2.
    The **block-overlap rendering defect** was the next task; G-010 is its
    spec-side neighbour and worth reading first.
-8. **The block-overlap defect: (a) and (c)-Week are fixed** (§1.7, task P2-T05,
-   per `design/GAPS.md` G-011 — CLOSED). The view-layer bug — blocks painting
-   outside their laid-out frame because `GridBlockView` was never constrained to
-   `renderedHeight` and `DayColumnView.swift` centred it — is fixed together
-   with `DensityTier`'s new 18/28/53 boundaries; neither alone would have
-   closed it. (c)-Day is still **G-012**, open, and untouched by this task — it
-   needs a ruling of its own before it can be fixed. The 18:00 cascade (symptom
-   (b)) was always correct and was not touched.
+8. **The block-overlap defect is fully resolved.** (a) and (c)-Week are fixed
+   (§1.7, task P2-T05, per `design/GAPS.md` G-011 — CLOSED): the view-layer
+   bug — blocks painting outside their laid-out frame because `GridBlockView`
+   was never constrained to `renderedHeight` and `DayColumnView.swift` centred
+   it — is fixed together with `DensityTier`'s new 18/28/53 boundaries; neither
+   alone would have closed it. (c)-Day is now also fixed (§1.7, task P2-T06,
+   per `design/GAPS.md` G-012 — CLOSED): `DayLayoutEngine` clusters and packs
+   on a layout footprint rather than raw event times, so a case-1 travel band
+   pulls its parent's overlapping neighbour into the same cluster instead of
+   drawing over it. The 18:00 cascade (symptom (b)) was always correct and was
+   not touched.
 
 ### 5.1 Needs a ruling
 
@@ -766,8 +844,13 @@ mine to decide.
 task P2-T04 in `design/GAPS.md` but this section still listed them as open.
 That was a stale-entry bug in this file, not in the spec; it is fixed below.)*
 
-Three remain open, none blocking: **G-003**, **G-005** and **G-012**. Closed:
-G-004, G-006, G-007, G-008, G-009, G-010, G-011. **There are no invented design
+*(Corrected again 2026-09-11 by task P2-T06 — G-012 was ruled CLOSED at the
+spec level by task P2-T04 on the same day as G-010/G-011, but this section
+kept listing it as open because the code side had not been built yet. It is
+fixed in code now too; the stale entry is corrected below.)*
+
+Two remain open, none blocking: **G-003** and **G-005**. Closed: G-004, G-006,
+G-007, G-008, G-009, G-010, G-011, G-012. **There are no invented design
 values in the codebase** and no `// SPEC-GAP` markers left in `Kadence/`.
 
 **G-010 — CLOSED** (ruled 2026-09-11, task P2-T04, design agent):
@@ -785,12 +868,15 @@ tier's band from its own content set (boundaries 18/28/53) and added §3.5's
 confinement invariant; both are now implemented — see §1.7. **Closes
 DEVIATIONS.md D4 and B13.**
 
-**G-012 is still open**, from the block-overlap diagnosis in §1.7 (task
-P2-T03), unchanged and out of scope for this task: layouts.md §3.3 step 1
-clusters on raw event times and is silent on whether a case-1 travel band's
-visual footprint (`departAt` → `event.start`) extends its parent's footprint,
-which is why a band lands on a neighbouring block that does not overlap it in
-time. Awaiting a ruling.
+**G-012 — CLOSED** (ruled 2026-09-11, task P2-T04; fixed in code 2026-09-11,
+task P2-T06). From the block-overlap diagnosis in §1.7 (task P2-T03):
+layouts.md §3.3 step 1 clustered on raw event times and was silent on whether
+a case-1 travel band's visual footprint (`departAt` → `event.start`) extends
+its parent's footprint, which is why a band landed on a neighbouring block
+that did not overlap it in time. The ruling defined a **layout footprint**
+(`layouts.md` §3.3) that both step 1 and step 2 key off, and amended
+`components.md` §4's z-order line to match; both are now implemented — see
+§1.7.
 
 No new gap was filed by this reconciliation. The three defects it found —
 the stale `Tokens.swift`, the `tray.full` collision, and the missing screenshots

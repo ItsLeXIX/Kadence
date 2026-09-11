@@ -60,7 +60,19 @@ implemented both in `Kadence/Layout/DensityTier.swift`,
 cover, including a pixel-level render of the two named fixtures. See
 STATUS.md §1.7. `DayLayoutEngine.swift` was not touched. B4–B9 (excluding B13)
 are unaffected and unchanged; G-012 (the travel-band footprint question behind
-the Day half of symptom (c)) is separate and still open.
+the Day half of symptom (c)) was separate and, at the time of this task, still
+open.
+
+**Amended 2026-09-11 (task P2-T06, G-012 fix).** The sentence above is now
+stale: G-012 was ruled CLOSED at the spec level by task P2-T04 and this task
+built the code side — `DayLayoutEngine.cluster`, `sortForLayout` and
+`packIntoSubColumns` now key off a layout footprint (`layouts.md` §3.3) that a
+case-1 travel band extends, and `DayColumnView.layoutItems` supplies each
+event's `departAt`. G-012 was never listed as its own D/B entry in this file
+(only in `design/GAPS.md` and STATUS.md §1.7/§5.2), so there is no entry here
+to strike; this note exists only to keep the sentence above from misleading a
+future reader. D4 and B13 are untouched by this task and remain closed, as
+above.
 
 ### What this re-audit changed
 
