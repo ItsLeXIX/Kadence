@@ -571,3 +571,131 @@ this ambiguity cannot make that check flap. No value was invented.
 
 **Related:** the block-overlap *rendering* defect is a separate, already-known
 item and is not this gap.
+
+---
+
+## 2026-09-11 — G-011 — the 11–15pt density tier cannot be drawn at `size.blockPadding`
+
+**Where it bit:** task P2-T03, diagnosing the block-overlap defect Parsa reported
+in `screenshots/day-full-light.png` and `screenshots/week-full-dark.png` —
+symptom (a), the two bars between 12:00 and 13:00 that render on top of each
+other. `Kadence/Views/Blocks/GridBlockView.swift`,
+`Kadence/Views/Canvas/DayColumnView.swift`.
+
+**What happened.** "Stand-up" (12:30–12:45) and "Check mail" (12:50–13:00) do not
+overlap, cluster separately and are laid out full-width and 20 minutes apart —
+`DayLayoutEngine` is correct here and was verified directly (Day: y=750 h=13 and
+y=770 h=11; Week: y=550 h=11 and y=564.67 h=11). Both are nevertheless *drawn*
+~22pt tall in both views, centred on their frames, so each spills ~5pt above and
+below and the two collide. 22pt is not arbitrary: it is what the spec's own
+chrome adds up to.
+
+**The arithmetic that does not close.** components.md §3.1 sets padding to
+`size.blockPadding` (5) on all sides, measured from the rail's trailing edge.
+§3.3's 11–15 tier is "rail + glyph only", and the glyph is `size.blockGlyphSize`
+(11). So the *minimum* height of a glyph-only block is 5 + 11 + 5 = **21pt** —
+above the top of the tier band it belongs to (15) and nearly twice
+`size.blockMinRenderedHeight` (11), which is the height the clamp rule in the
+same table hands it. Every block in the 11–15 tier is therefore specified to be
+smaller than the content the same section specifies for it. At
+`size.hourHeightWeek` that is every event of 20 minutes or less; at
+`size.hourHeightDay` every event of 21 minutes or less.
+
+**What is needed to close it.** A rule for what gives at the bottom of the
+ladder. Candidates, none of which I may pick:
+
+1. A reduced padding token for the glyph-only tier (e.g. vertical padding drops
+   to `spacing.xxs`, giving 2 + 11 + 2 = 15 — which lands exactly on the top of
+   the tier band and still does not fit an 11pt block).
+2. A smaller glyph at this tier, or the glyph clipped/scaled to the available
+   height.
+3. Raising `size.blockMinRenderedHeight` so the floor and the content agree, and
+   restating the tier boundary — this changes the cascade and clustering maths
+   in layouts.md §3.3, which clamps overlap tests to that token.
+
+**Second question, same interaction.** Independently of which of those is
+chosen, the spec never says that a block's rendering is **confined to its
+laid-out frame**. components.md §4 says it explicitly for a travel band in the
+short case ("A band never draws outside its own event's bounds"); layouts.md
+§3.3 defines block frames but says nothing about what happens when the content
+set for a tier does not fit the frame that tier was derived from. Today the
+overflow escapes symmetrically in both directions, which is the worst of the
+three options (clip, top-anchor, overflow) because it damages the *neighbouring*
+block as well as its own. A one-line rule — blocks never paint outside their
+laid-out frame; content that does not fit is clipped, top-anchored — would make
+the fix unambiguous and would also bound the damage from the case below.
+
+**Also reachable from above.** The same unconfined-render path produces the Week
+rendering of "Datenmodellierung": frame 64pt, but with the short-case travel-band
+strip occupying `size.travelBandHeight` (18) of its top, the tier evaluated
+against the remaining 46pt is `.full`, whose four lines need ~73pt. The block
+draws 73pt centred on a 64pt frame and its strip lands ~4.5pt above its own top
+edge, on the bottom of "Morning review". So §4's "the event's density tier is
+then evaluated against its remaining height" can itself select a content set
+that does not fit — a tier chosen against remaining height is still rendered
+into the full height *minus* the strip, and 46 ≥ 44 only by 2pt.
+
+**Not blocking.** No value was invented; the diagnosis changed no code. The fix
+is a separate task and cannot start until this is answered.
+
+---
+
+## 2026-09-11 — G-012 — §3.3 step 1 is silent on a travel band's visual footprint
+
+**Where it bit:** task P2-T03, symptom (c) — the "Leave 08:38 · 22min" band
+overlapping the bottom of "Morning review" in `screenshots/day-full-light.png`.
+`Kadence/Layout/DayLayoutEngine.swift` (clustering),
+`Kadence/Views/Canvas/DayColumnView.swift` (band placement).
+
+**What happened.** The band belongs to "Datenmodellierung" (09:00–10:30), not to
+"Morning review". Its true interval is 22 minutes, which at
+`size.hourHeightDay` is 22pt ≥ `size.travelBandHeight` (18), so components.md §4
+case 1 applies and it correctly occupies 08:38–09:00 *above* its event, at true
+height, "drawn above other blocks in z-order". "Morning review" occupies
+08:00–09:00. The two **events** do not overlap, so layouts.md §3.3 step 1 puts
+them in different clusters, each gets the full column, and the band paints over
+the bottom 20pt of a block that has no idea it is there — hiding its meta line,
+which at 58pt is tier `.full` and is required by §3.4. This is precisely the
+failure mode §4's own rationale calls out ("A travel band that destroys another
+block's content to announce itself is not worth the 18pt") — the short case was
+fixed for it; the long case still does it, to a *neighbour* instead of to the
+block above.
+
+**What the spec says, exactly.** §3.3 step 1: "Two blocks overlap if
+`a.start < b.end && b.start < a.end` after both have been clamped to
+`size.blockMinRenderedHeight`." Raw event times, clamped. The only sentence
+about bands in §3.3 is "Travel bands are laid out with their parent event and
+occupy the parent's slot width" — which fixes the band's *width* and says
+nothing about its *extent in time*. The implementation matches the spec
+literally; the spec does not cover the interaction.
+
+**What is needed to close it.** Whether an event's footprint for clustering
+purposes starts at `departAt` rather than `event.start` when its band is in the
+≥ `size.travelBandHeight` case, and if so:
+
+1. Does the extended footprint feed **step 1 only** (so the neighbour is pulled
+   into the cluster and packed beside it), or also **step 2's** sub-column
+   occupancy test, and is the extended interval clamped like a raw one?
+2. The extension is scale-dependent, because the case split in §4 is on the
+   band's height in *points*: the same 22-minute band is case 1 in Day (22pt)
+   and case 2 in Week (16.1pt). So the same two events would cluster differently
+   in Day and in Week. That is defensible — the density ladder is already
+   scale-dependent by design — but it should be said out loud, because it means
+   a cluster is no longer a property of the day's events alone.
+3. Worth knowing before choosing: for this exact pair the answer changes the
+   picture only in Day. Extending the footprint makes it a 2-block cluster;
+   the Day slot width is `(1060 − 4) / 2 − 2` = 526, far above
+   `size.dayColumnCascadeThreshold` (72), so it packs side by side and the
+   overlap disappears. In Week the band is case 2 and no extension applies.
+   (For reference, the Week column at the reproduced window size is 152.14pt, so
+   a hypothetical 2-block cluster there would be `(152.14 − 4) / 2 − 2` = 72.07 —
+   it packs, but by 0.07pt. The threshold is genuinely load-bearing at this
+   window size.)
+
+**Alternative that needs no clustering change**, if the above is judged too
+invasive: state that a case-1 band is clipped to the part of its interval not
+covered by another block's frame, or that it draws *under* rather than over
+blocks it does not belong to. Both contradict §4's "Drawn above other blocks in
+z-order", so either would need §4 amended too.
+
+**Not blocking.** No value was invented; the diagnosis changed no code.

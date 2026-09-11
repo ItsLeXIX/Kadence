@@ -1,6 +1,6 @@
 # Status
 
-Updated: **2026-09-10**
+Updated: **2026-09-11**
 Phase 1: **complete and verified.** Phase 2: **designed, not built.** Phase 3:
 **neither designed nor built.**
 
@@ -21,6 +21,14 @@ unique). §5 is re-ordered again. Note for anyone reading the old §2/§5 text:
 they described selection as working. Selection by *keyboard* worked; selection
 by *mouse* did nothing at all, and had not since the hit region regressed. See
 §1.6 and the corrected DEVIATIONS.md B9.
+
+**Amended 2026-09-11 by task P2-T03 (block-overlap diagnosis — report only).**
+§1.7 is new. That task changed **no** code: it reproduced and root-caused the
+three symptoms Parsa reported and filed the two spec questions they raised
+(G-011, G-012). §1.1, §1.3 and §1.4 were re-run and are **unchanged** — build
+succeeded, 160 `passed` lines / 140 unique / 0 failed, `--check` green — so
+nothing in those sections needed correcting. §5.2 lists the new gaps. The fix is
+a separate, future task.
 
 ---
 
@@ -321,6 +329,89 @@ The mock store was reset after this testing (the drags above are persisted by
 SwiftData), so the fixed dataset is back to its seeded values and future
 captures stay comparable.
 
+### 1.7 The block-overlap defect — diagnosed, **not fixed** (task P2-T03)
+
+Parsa reported three symptoms visible in `screenshots/day-full-light.png` and
+`screenshots/week-full-dark.png` (mock fixtures, Wed 9 Sep). P2-T03 was a
+report-only task: reproduce, root-cause, classify, change nothing. **No file
+under `Kadence/` was modified.** The findings, in full, are in the task report;
+the short version:
+
+**Method.** The three symptoms were measured out of the committed PNGs at pixel
+level (hour lines recovered from the images themselves, then times derived from
+them), and `DayLayoutEngine` was run directly against the Wed 9 Sep fixture set
+at the reproduced column widths — Day 1060pt, Week 152.14pt — by compiling
+`DayLayoutEngine.swift`, `TimeGeometry.swift` and `Tokens.swift` into a
+throwaway command-line driver outside the repo. Engine output and measured
+pixels agree everywhere, which is what makes the split below trustworthy.
+
+A live capture was **not** possible this session: the app launches but the Mac
+is not vending windows — `Kadence` reports 0 windows and so does TextEdit, and
+`screencapture` returns an all-black frame. That is the machine, not the code.
+Everything below therefore rests on the committed screenshots plus the engine
+run, and none of it depends on a screenshot being current.
+
+**(a) The two bars at 12:30 and 12:50 — a *view* bug, plus G-011.**
+`DayLayoutEngine` is correct and is not involved. "Stand-up" (12:30–12:45) and
+"Check mail" (12:50–13:00) do not overlap even after the §3.3 clamp, cluster
+separately, and each takes the whole column (Day y=750 h=13 / y=770 h=11; Week
+y=550 h=11 / y=564.67 h=11). No packing and no cascade: slot width is the full
+column, 1054pt in Day and 146.14pt in Week, against
+`size.dayColumnCascadeThreshold` of 72. They collide because
+`GridBlockView` never constrains itself to `renderedHeight` and
+`DayColumnView.blockStack` sizes it with a default-**centred**
+`.frame(height:)` (DayColumnView.swift:194), so a block whose content cannot fit
+overflows its laid-out frame symmetrically instead of being clipped. Both bars
+draw ~22pt tall — `size.blockGlyphSize` (11) + 2 × `size.blockPadding` (5) — and
+spill ~5pt each way, closing the 7pt / 3.5pt gap between them. Measured, Day:
+frames 1376–1402 and 1416–1438 device px; drawn 1367–~1410 and 1405–1448.
+The underlying spec problem is **G-011**: the 11–15 tier is not renderable at
+the specced padding at all.
+
+**(b) The 18:00 trio in Week — working as specified.** 3-block cluster, Week
+column 152.14pt, slot width `(152.14 − 4) / 3 − 2` = **47.38 < 72**, so step 3
+fires exactly as §3.3 says it should. Indent
+`min(round(152.14 × 0.19), 22)` = 22; blocks land at x = 0 / 22 / 44 with
+visible widths 22 / 22 / 108.14, and 22 < `size.blockCascadeMinReadableWidth`
+(44), so the first two are glyph-only. All of that is confirmed in the pixels
+(blue starts 42–44px into the column, the dashed block 86–88px in) and in the
+z-order (start order, later on top). Nothing to fix. For contrast, the same trio
+in **Day** packs — slot width 350 — which is also what §3.3 predicts.
+
+**(c) The 08:38 travel band — G-012, plus the same view bug as (a).** The band
+belongs to "Datenmodellierung", not to "Morning review". Two separate things:
+
+- *Day.* True interval 22 minutes = 22pt ≥ `size.travelBandHeight` (18), so
+  components.md §4 case 1 applies and the band correctly draws above its own
+  event, 08:38–09:00. It lands on "Morning review" (08:00–09:00) because
+  §3.3 step 1 clusters on raw event times only
+  (`DayLayoutEngine.swift:166-189`, fed from `DayColumnView.swift:117-119`) and
+  knows nothing about the band's visual footprint. The two events do not
+  overlap, so both get the full column and the band paints over the bottom 20pt
+  of a block that has no idea it is there — hiding the §3.4 meta line, which is
+  visibly missing from "Morning review" in the screenshot while
+  "Datenmodellierung" below it has one. **This is a spec gap, G-012**, not an
+  implementation error: the code matches §3.3 literally. It is *not* the
+  short-case bug the report suspected — the short case (6-minute band on "Coffee
+  with Nora") renders correctly as an 18pt strip inside the block's own top,
+  which the pixels confirm (strip 11:00–11:18, block frame starts at 11:00).
+  The claim that "Datenmodellierung starts on top of it" does not reproduce: the
+  band ends at 09:00 and the block starts at 09:00, exactly adjacent.
+- *Week.* The same 22-minute band is only 16.1pt, so it is case 2 and correctly
+  becomes an inside-strip. It still clips "Morning review" by ~2.5pt, and for a
+  different reason: with an 18pt strip at its top the block's `.full` tier needs
+  ~73pt in a 64pt frame, and the centred overflow from (a) pushes the strip
+  ~4.5pt above its own frame. Same `DayColumnView.swift:194` root cause.
+
+**Classification, stated plainly.** (a) code bug + **G-011**; (b) correct, no
+action; (c) **G-012** in Day, code bug in Week. **None of the three is a stale
+screenshot** — every one reproduces against today's engine output and today's
+view code. The code bug is one fix in the view layer and is common to (a) and
+the Week half of (c); G-012 is independent of it and can be fixed separately.
+Splitting the follow-up per symptom is therefore warranted, but (a) and (c)-Week
+should be one change, not two.
+
+
 ---
 
 ## 2. Phase 1 — complete and verified
@@ -538,8 +629,10 @@ mine to decide.
    drag-drop drop-preview vocabulary. Neither needs a new renderer.
 3. **Phase 3 has neither design nor code.** It cannot be built without a design
    pass first; per `CONTEXT.md` the coding agent cannot invent UI values.
-4. **Phase 1 has open deviations.** 18 absent, 6 built-differently, **0 invented
-   values**, **0 open spec contradictions** — see `DEVIATIONS.md`, re-audited
+4. **Phase 1 has open deviations.** 18 absent, 7 built-differently, **0 invented
+   values**, **1 open spec contradiction** (D4, new 2026-09-11 — the 11–15pt
+   density tier cannot be drawn at `size.blockPadding`; it is G-011 restated in
+   deviation terms) — see `DEVIATIONS.md`, re-audited
    2026-09-10 against the current spec text, plus A22/A23 from P2-T01 and A24
    from P2-T02. **A22 is the one to take next**: `⎋` does not cancel a draft at
    all, which is a §3 rule the build simply does not implement, and it is a
@@ -555,8 +648,17 @@ mine to decide.
    things it left behind — **A24** (a block reporting itself selected to
    accessibility when it is not) and **G-010** (§6 does not say which block wins
    when a click lands on two) — are both open and neither blocks Phase 2.
-   The **block-overlap rendering defect** is the next task and was deliberately
-   left alone here; G-010 is its spec-side neighbour and worth reading first.
+   The **block-overlap rendering defect** was the next task; G-010 is its
+   spec-side neighbour and worth reading first.
+8. **The block-overlap defect is diagnosed but NOT fixed** (§1.7, task P2-T03,
+   report only). Two of its three symptoms are one view-layer bug — blocks paint
+   outside their laid-out frame because `GridBlockView` is never constrained to
+   `renderedHeight` and `DayColumnView.swift:194` centres it. The third is
+   **G-012** and needs a ruling before it can be fixed. The third *reported*
+   symptom, the 18:00 cascade, is correct and must not be "fixed". Fixing the
+   view bug does not require either gap to be answered first, but **G-011**
+   decides what a glyph-only block should actually look like once it stops
+   overflowing, so answering it first avoids doing the work twice.
 
 ### 5.1 Needs a ruling
 
@@ -571,9 +673,9 @@ mine to decide.
 
 ### 5.2 Gaps
 
-Three remain open, none blocking: **G-003**, **G-005** and **G-010**. Closed:
-G-004, G-006, G-007, G-008, G-009. **There are no invented design values in the
-codebase** and no `// SPEC-GAP` markers left in `Kadence/`.
+Five remain open, none blocking: **G-003**, **G-005**, **G-010**, **G-011** and
+**G-012**. Closed: G-004, G-006, G-007, G-008, G-009. **There are no invented
+design values in the codebase** and no `// SPEC-GAP` markers left in `Kadence/`.
 
 **G-010 is new** (2026-09-11, task P2-T02): interactions.md §6 does not say
 which block a click selects when the click point lands inside two overlapping
@@ -583,6 +685,18 @@ that point. The build keeps the frontmost-wins behaviour it already had, which
 falls out of SwiftUI hit-testing rather than out of a decision; **no value was
 invented and no placeholder was needed**, so there is still no `// SPEC-GAP`
 marker in `Kadence/`. Open, awaiting a ruling.
+
+**G-011 and G-012 are new** (2026-09-11, task P2-T03), both from the
+block-overlap diagnosis in §1.7 and both append-only — no prior entry was
+touched or resolved. G-011: components.md §3.1 padding (5) plus §3.3's glyph
+(11) make the 11–15pt density tier 21pt of chrome, so that tier cannot be drawn
+at the height the same table assigns it, and the spec never says a block's
+render is confined to its laid-out frame. G-012: layouts.md §3.3 step 1 clusters
+on raw event times and is silent on whether a case-1 travel band's visual
+footprint (`departAt` → `event.start`) extends its parent's footprint, which is
+why a band lands on a neighbouring block that does not overlap it in time.
+Neither needed a placeholder: P2-T03 wrote no code, so there is still no
+`// SPEC-GAP` marker in `Kadence/`. Both open, awaiting a ruling.
 
 No new gap was filed by this reconciliation. The three defects it found —
 the stale `Tokens.swift`, the `tray.full` collision, and the missing screenshots

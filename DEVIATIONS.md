@@ -15,7 +15,7 @@ search against the working tree, not carried forward.
 Legend: **A** absent · **B** built differently · **C** value I invented (none
 remain) · **D** spec contradiction · ~~struck~~ = closed.
 
-**Counts: A ×18 · B ×6 · C ×0 · D ×0** — open items only, counted from this
+**Counts: A ×18 · B ×7 · C ×0 · D ×1** — open items only, counted from this
 file rather than carried forward. (A ×7 and B ×6 more are closed and struck
 below; the previous audit's "A ×14" did not match its own list.)
 
@@ -31,6 +31,18 @@ old wording implied mouse selection worked, and it did not. The click-to-select
 defect itself is *not* listed here, for the same reason the ⎋/↩ crash is not:
 the spec and the build agreed on the feature, the build simply broke it, and it
 is fixed. See STATUS.md §1.6.
+
+**Amended 2026-09-11 (task P2-T03, block-overlap diagnosis — report only).**
+That task wrote no code. **B13 is new** and **D4 is new**, both found by
+measuring the committed screenshots against a direct run of `DayLayoutEngine`
+over the Wed 9 Sep fixtures; see STATUS.md §1.7 for the method and the full
+per-symptom root cause. Nothing was closed and nothing else was rewritten.
+D4 re-opens the D section, which had been empty since 2026-09-10 — it is
+`design/GAPS.md` G-011 restated in this file's terms, because it is a genuine
+contradiction between two Phase 1 rules and not only an unanswered question.
+`DayLayoutEngine` itself came out of that diagnosis **clean**: every cluster,
+sub-column, slot width, cascade indent and z-index it produced for that day
+matches §3.3, in both Day and Week. The defect is in the view layer.
 
 ### What this re-audit changed
 
@@ -52,7 +64,17 @@ changed is the *content* of three Phase 1 sections, plus three stale entries:
 
 ## D — spec contradictions
 
-**None open.**
+- **D4 — components.md §3.1 vs §3.3. The 11–15pt density tier cannot be drawn.**
+  *(new 2026-09-11, task P2-T03; `design/GAPS.md` G-011.)* §3.3's ladder gives a
+  block of rendered height 11–15 the content set "rail + glyph only", and clamps
+  anything shorter to `size.blockMinRenderedHeight` (11). §3.1 sets padding to
+  `size.blockPadding` (5) on all sides and the glyph to `size.blockGlyphSize`
+  (11). 5 + 11 + 5 = **21pt**, which is above the top of the tier's own band and
+  nearly twice the clamp floor, so no block in that tier can hold the content
+  the same table assigns it. This is not hypothetical: it is why the two blocks
+  at 12:30 and 12:50 draw ~22pt tall in both Day and Week (B13). Neither rule
+  can be weakened by the build — picking a smaller padding or a smaller glyph
+  would be an invented value — so this is open until `design/` answers G-011.
 
 D1 and D2 were closed by the 17:14 revision (`size.blockCascadeIndentMin`
 removed; `increaseContrast` parameter, GAPS G-003).
@@ -452,6 +474,35 @@ Still open, all re-checked against the current spec text this session:
 - **B8 — layouts.md §3.1. `T` / Today does not scroll the current time to 1/3 from
   the top.** Initial scroll uses `min(07:00, firstEventStart − 1h)` as specified
   (`TimedCanvasView:58`); the Today-key behaviour is not implemented.
+- **B13 — layouts.md §3.3 / components.md §3.1. A block paints outside its
+  laid-out frame.** *(new 2026-09-11, task P2-T03. Diagnosed, not fixed.)*
+  §3.3 gives every block an exact frame and the whole overlap system depends on
+  those frames being what is drawn. They are not. `GridBlockView` never
+  constrains itself to its own `renderedHeight` parameter — it has no
+  `.frame(height:)` at all — and its caller sizes it with
+  `.frame(height: laidOut.frame.height)` at `DayColumnView.swift:194`, which
+  takes SwiftUI's **default `.center` alignment** and does not clip. So whenever
+  the content set chosen for a tier is taller than the frame that tier was
+  derived from, the block overflows **symmetrically, in both directions**, and
+  damages its neighbours as well as itself. Two measured cases on Wed 9 Sep:
+
+  - "Stand-up" (frame 13pt) and "Check mail" (frame 11pt) both draw ~22pt — the
+    21pt of glyph chrome from D4 — and each spills ~5pt above and below, closing
+    the 7pt (Day) / 3.5pt (Week) gap between two blocks that do not overlap in
+    time and are in different clusters. This is the symptom Parsa reported as
+    "two bars on top of each other".
+  - "Datenmodellierung" in **Week**: frame 64pt, but with the components.md §4
+    short-case travel strip taking 18pt of its top, §4's "tier evaluated against
+    the remaining height" selects `.full` on 46pt (44 by 2pt), whose four lines
+    need ~73pt. The block draws 73pt centred on 64, so its strip lands ~4.5pt
+    above its own top edge and clips the bottom of "Morning review".
+
+  The spec never states the invariant this breaks — components.md §4 says it for
+  a travel band ("A band never draws outside its own event's bounds") and nothing
+  says it for a block — so the second half of G-011 asks for it. The fix is a
+  view-layer change and does not need G-011 answered first; G-011 only decides
+  what a glyph-only block should look like once it stops overflowing.
+
 - **B9 — interactions.md §6. Selection survives view changes but does not scroll
   into view.** *(corrected 2026-09-11, task P2-T02)* §6: "switching Week → Day
   keeps the same block selected and scrolls it into view." The keeping works;
@@ -488,6 +539,15 @@ Still open, all re-checked against the current spec text this session:
 ---
 
 ## Not listed here on purpose
+
+- **The 18:00 cascade in `screenshots/week-full-dark.png`** — the magenta / blue
+  / dashed pile-up Parsa flagged. Measured against `DayLayoutEngine` at the
+  reproduced 152.14pt Week column: 3-block cluster, slot width
+  `(152.14 − 4) / 3 − 2` = 47.38, below `size.dayColumnCascadeThreshold` (72),
+  so §3.3 step 3 is *supposed* to fire; indent 22, x = 0 / 22 / 44, visible
+  widths 22 / 22 / 108, glyph-only below `size.blockCascadeMinReadableWidth`
+  (44), z-order by start. Every one of those matches the pixels. It looks like a
+  defect and is not one. Recorded here so the next task does not "fix" it.
 
 - **`Tokens.swift` is one design pass behind `design/tokens.json`** and
   `generate-tokens.swift --check` is red at `HEAD`. That is not a spec deviation —
