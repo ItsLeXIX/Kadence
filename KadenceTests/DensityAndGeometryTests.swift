@@ -11,15 +11,19 @@ import CoreGraphics
 @Suite("Density ladder")
 struct DensityTierTests {
 
+    // Bands revised 2026-09-11 by design/GAPS.md G-011 (CLOSED): 16 / 28 / 44
+    // became 18 / 28 / 53, derived from each tier's own content set. The edges
+    // themselves are pinned in BlockConfinementTests together with the minima
+    // they have to cover; this table is the ladder read end to end.
     @Test("Tier boundaries match components.md §3.3 exactly", arguments: [
         (10.0, DensityTier.glyphOnly),
         (11.0, DensityTier.glyphOnly),
-        (15.0, DensityTier.glyphOnly),
-        (16.0, DensityTier.titleOnly),
+        (17.0, DensityTier.glyphOnly),
+        (18.0, DensityTier.titleOnly),
         (27.0, DensityTier.titleOnly),
         (28.0, DensityTier.compact),
-        (43.0, DensityTier.compact),
-        (44.0, DensityTier.full),
+        (52.0, DensityTier.compact),
+        (53.0, DensityTier.full),
         (200.0, DensityTier.full),
     ])
     func boundaries(height: Double, expected: DensityTier) {

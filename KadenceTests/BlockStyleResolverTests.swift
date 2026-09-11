@@ -86,11 +86,20 @@ struct StateTests {
         #expect(style(.plannedTimed, presentation: .conflicted).borderDash == [4, 3])
     }
 
-    @Test("Below 16pt the conflict badge replaces the type glyph")
+    @Test("At `.glyphOnly` the conflict badge replaces the type glyph")
     func conflictBadgeReplacesGlyph() {
-        let small = style(.routineTimed, presentation: .conflicted, height: 12)
-        #expect(small.glyph == "exclamationmark.triangle.fill")
-        #expect(small.badge == nil)
+        // §6's state rows were restated in tier names by GAPS.md G-011; the
+        // literal 16 this rule used to carry is no longer a tier edge. 17pt is
+        // `.glyphOnly` under the new ladder and was `.titleOnly` under the old.
+        for height in [12.0, 17.0] as [CGFloat] {
+            let small = style(.routineTimed, presentation: .conflicted, height: height)
+            #expect(small.glyph == "exclamationmark.triangle.fill")
+            #expect(small.badge == nil)
+        }
+        // At `.titleOnly` and above the type glyph stays and the badge is drawn.
+        let taller = style(.routineTimed, presentation: .conflicted, height: 18)
+        #expect(taller.glyph == "repeat")
+        #expect(taller.badge?.symbol == "exclamationmark.triangle.fill")
     }
 
     @Test("Done and skipped are siblings: neither is styled as a failure")
@@ -148,7 +157,10 @@ struct GeometryContrastTests {
 
     @Test("Very short timed blocks take the compact radius")
     func compactRadius() {
+        // §3.1, amended by G-011: the cutover is the `.glyphOnly` top (18), not 16.
         #expect(style(.fixedTimed, height: 12).cornerRadius == Tokens.Radius.blockCompact)
+        #expect(style(.fixedTimed, height: 17).cornerRadius == Tokens.Radius.blockCompact)
+        #expect(style(.fixedTimed, height: 18).cornerRadius == Tokens.Radius.block)
         #expect(style(.fixedTimed, height: 40).cornerRadius == Tokens.Radius.block)
     }
 

@@ -39,15 +39,26 @@ struct GridBlockView: View {
             increaseContrast: increaseContrast)
     }
 
-    /// §4 — with a strip inside the top, the tier is decided by what is left.
-    private var tier: DensityTier {
-        contentTopInset > 0
-            ? DensityTier(renderedHeight: renderedHeight - contentTopInset)
-            : style.contentTier
+    /// §3.5 rule 6 — with a §4 short-case strip inside the top, the block's
+    /// content area is its frame MINUS the strip, and the ladder is evaluated
+    /// against that area *and the content is drawn into it*. A tier chosen
+    /// against remaining height but rendered into full height is the same bug
+    /// one level up.
+    private var availableHeight: CGFloat { max(0, renderedHeight - contentTopInset) }
+
+    /// §3.3 — the content set. The height ladder decides against the content
+    /// area; "visible width overrides the tier" can drop a mostly-covered block
+    /// to `.glyphOnly` whatever its height allows. The narrower of the two wins.
+    private func metrics(style: BlockStyle) -> BlockContentMetrics {
+        let byHeight = BlockContentMetrics.resolve(availableHeight: availableHeight).tier
+        return BlockContentMetrics.metrics(
+            tier: min(style.contentTier, byHeight),
+            availableHeight: availableHeight)
     }
 
     var body: some View {
         let style = self.style
+        let metrics = self.metrics(style: style)
         let shape = PartialRoundedRectangle(
             topRadius: squareTopCorners ? 0 : style.cornerRadius,
             bottomRadius: style.cornerRadius)
@@ -75,10 +86,23 @@ struct GridBlockView: View {
                 if style.railStyle != .none, let rail = style.rail {
                     RailView(style: style.railStyle, color: rail)
                 }
-                content(style: style)
-                    .padding(Tokens.Size.blockPadding)
+                content(style: style, metrics: metrics)
+                    // §3.3 — horizontal padding is `size.blockPadding` at every
+                    // tier, measured from the rail's trailing edge; vertical
+                    // padding is per tier (5 / 5 / 2 / 0).
+                    .padding(.horizontal, metrics.horizontalPadding)
+                    .padding(.vertical, metrics.verticalPadding)
+                    // §3.5 rule 6 — the strip's height comes off the top of the
+                    // content area, it is not drawn over the content.
                     .padding(.top, contentTopInset)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    // §3.5 rule 2 — top-anchored, laid out from the top inset
+                    // downward. The single exception is `.glyphOnly`, whose one
+                    // 11pt item against an 11pt band can never overflow and is
+                    // centred in the frame (§3.3).
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: metrics.tier == .glyphOnly ? .leading : .topLeading)
             }
             .opacity(style.contentOpacity)
 
@@ -117,6 +141,24 @@ struct GridBlockView: View {
                 }
             }
         }
+        // §3.5 rules 1–3 — a block paints only inside its own laid-out frame,
+        // clipped to the frame's rounded rect, and whatever does not fit is
+        // clipped at the BOTTOM edge. Both halves are load-bearing and they are
+        // the fix for STATUS.md §1.7 symptom (a) and the Week half of (c):
+        //
+        //   • the `.frame` is what makes the view's own bounds equal the frame
+        //     `DayLayoutEngine` laid out. Without it the view sized itself to
+        //     its content, its caller's `.frame(height:)` centred that content
+        //     on the real frame, and a block too small for its content spilled
+        //     ~5pt above AND below — onto its neighbour. `alignment: .top` is
+        //     the rule-2 half: a height-setting modifier that centres its child
+        //     by default is specifically wrong here.
+        //   • `.clipShape` after it is rule 1. Before the frame existed it
+        //     clipped to the content's bounds, which is not a clip at all.
+        //
+        // Everything drawn after this point is a §3.5 rule-4 exception: the
+        // selection ring (outside by design) and the elevation shadow.
+        .frame(height: renderedHeight, alignment: .top)
         .clipShape(shape)
         .opacity(presentation.contains(.dragging) ? Tokens.Opacity.blockDragging : 1)
         .elevation(style.elevation)
@@ -163,22 +205,18 @@ struct GridBlockView: View {
     // MARK: Content by density tier (§3.3)
 
     @ViewBuilder
-    private func content(style: BlockStyle) -> some View {
-        switch tier {
+    private func content(style: BlockStyle, metrics: BlockContentMetrics) -> some View {
+        switch metrics.tier {
         case .glyphOnly:
             glyph(style)
 
         case .titleOnly:
             HStack(alignment: .firstTextBaseline, spacing: Tokens.Size.blockGlyphGap) {
                 glyph(style)
-                // §3.3: "no ellipsis character when the tier is 16–27 — the clip
-                // edge reads as truncation and the ellipsis costs 6pt of a very
-                // short line". SwiftUI always draws one when it truncates, so the
-                // text is laid out at its natural width and clipped instead.
-                // §3.3: "no ellipsis character when the tier is 16–27 — the clip
-                // edge reads as truncation and the ellipsis costs 6pt of a very
-                // short line". SwiftUI always draws one when it truncates, so the
-                // text is laid out at its natural width and clipped instead.
+                // §3.3: no ellipsis character at `.titleOnly` — the clip edge
+                // reads as truncation and the ellipsis costs 6pt of a very short
+                // line. SwiftUI always draws one when it truncates, so the text
+                // is laid out at its natural width and clipped instead.
                 Text(model.title)
                     .typeStyle(.blockTitleCompact)
                     .foregroundStyle(style.label)
@@ -212,7 +250,10 @@ struct GridBlockView: View {
                     Text(model.title)
                         .typeStyle(.blockTitle)
                         .foregroundStyle(style.label)
-                        .fixedSize(horizontal: false, vertical: true)
+                        // §3.3 — the second title line is paid for, not assumed:
+                        // `.full` gets two lines only at ≥ 53 + lineHeight(title),
+                        // and one line with an ellipsis below that.
+                        .lineLimit(metrics.titleLineLimit)
                 }
                 Text(model.timeRange(formatter: BlockFormatters.time))
                     .typeStyle(.blockMeta)

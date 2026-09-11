@@ -191,7 +191,13 @@ struct DayColumnView: View {
                                 bottomRadius: 0))
                 }
             }
-            .frame(height: laidOut.frame.height)
+            // §3.5 rule 2 — `alignment: .top`, never SwiftUI's default `.center`.
+            // This line took the default and centred a block's content on the
+            // laid-out frame, which is how two non-overlapping blocks ended up
+            // drawn on top of each other (STATUS.md §1.7 (a), DEVIATIONS B13).
+            // `GridBlockView` now also constrains and clips itself, so this is
+            // the second of two locks on the same rule, not the only one.
+            .frame(height: laidOut.frame.height, alignment: .top)
         }
         .frame(width: laidOut.frame.width, alignment: .topLeading)
         // Clamped blocks get a larger hit area centred on the true frame

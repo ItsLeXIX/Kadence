@@ -144,8 +144,11 @@ func resolveBlockStyle(
         ? .glyphOnly
         : DensityTier(renderedHeight: renderedHeight)
 
-    // §3.1 — compact radius for very short blocks.
-    if renderedHeight < 16 && kind != .deadlineAllDay && kind != .examAllDay {
+    // §3.1 — compact radius at `.glyphOnly`. Amended 2026-09-11 (GAPS.md
+    // G-011): the threshold was 16, an independent number that no longer matched
+    // any tier edge; it now follows the ladder's `.glyphOnly` top at 18, so
+    // there is one boundary to keep rather than two.
+    if renderedHeight < 18 && kind != .deadlineAllDay && kind != .examAllDay {
         style.cornerRadius = Tokens.Radius.blockCompact
     }
 
@@ -204,8 +207,12 @@ func resolveBlockStyle(
         style.glyphColor = Tokens.Color.Text.secondary
     }
 
-    // §6 conflicted: below 16pt the badge replaces the type glyph.
-    if presentation.contains(.conflicted), renderedHeight < 16 {
+    // §6 conflicted: at `.glyphOnly` the badge replaces the type glyph. Keyed
+    // on the resolved content set rather than a literal height — §6's state rows
+    // were restated in tier names by GAPS.md G-011, and the 16 it used to carry
+    // is no longer a tier edge. A narrow cascaded block reaches `.glyphOnly` by
+    // width, and the rule is just as true there: there is one glyph slot.
+    if presentation.contains(.conflicted), style.contentTier == .glyphOnly {
         style.glyph = "exclamationmark.triangle.fill"
         style.glyphColor = Tokens.Color.Semantic.alert
         style.badge = nil

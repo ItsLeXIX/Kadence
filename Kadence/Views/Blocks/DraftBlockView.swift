@@ -61,6 +61,9 @@ struct DraftBlockView: View {
             }
             .padding(Tokens.Size.blockPadding)
         }
+        // components.md §3.5 — a draft renders as a §3 GridBlock and is confined
+        // like one: its own laid-out frame, top-anchored, clipped at the bottom.
+        .frame(height: renderedHeight, alignment: .top)
         .clipShape(shape)
         .elevation(.level1)
         .overlay {
