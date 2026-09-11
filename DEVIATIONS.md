@@ -84,6 +84,20 @@ near the top and §1.2 for the full diagnosis and two clean re-runs. Recorded
 here only so this file's account of P2-T06 stays complete; the G-012 note
 immediately above is otherwise unchanged.
 
+**Correction, 2026-09-11 (task P2-T07, report-only re-diagnosis).** The
+paragraph above's framing ("resolved") did not hold — independent
+verification of the same HEAD failed twice more after it was written. No
+deviation entry changes here either (this remains a build/verification-
+process question, not a spec deviation), but see STATUS.md §1.2.1 for the
+corrected, evidence-backed account: `check-accessibility.sh` still stands at
+**FAIL** per independent verification; this task's own 5/5 clean local runs
+and matched timing measurements against baseline `03fb5cd` rule out
+"footprint-clustering rendering got too slow for the fixed 9s sleep" as the
+mechanism, and point instead to an environmental AX-enumeration flake on this
+shared, concurrently-loaded machine — not a code defect. Left for a future fix
+task to harden the script and get an independent re-verification; not fixed by
+this task.
+
 ### What this re-audit changed
 
 The Phase 1 section numbering in all three spec files is **unchanged** —

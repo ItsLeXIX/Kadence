@@ -92,6 +92,30 @@ artefact of running two verification passes at once and not evidence of a
 code defect either. No change was made to `Kadence/Layout/DayLayoutEngine.swift`
 or `Kadence/Views/Canvas/DayColumnView.swift` by this follow-up task.
 
+**IMPORTANT — the paragraph immediately above did not hold up.** Independent
+machine verification of P2-T06's HEAD (`2e5c211`/`a3cece1`/`90cd142`) has since
+**failed twice** — once `no Kadence process has a window`, once a window found
+but `block-shaped elements in the tree: 0` — after that follow-up task reported
+"two consecutive clean PASSes" and treated the regression as resolved. It was
+not. Task **P2-T07** (2026-09-11, report-only, no code touched) was assigned to
+re-derive this from scratch rather than trust the prior agent's claim, and its
+findings are below as a new §1.2 sub-entry. **`check-accessibility.sh` is not
+being marked PASS by this correction — the independent-verification result
+stands at FAIL until a fix lands and is independently reverified.** What
+P2-T07 adds: this session could not reproduce the failure either (5/5 clean
+runs passed, plus 6 more timed launches, all fast and clean), and — the part
+the prior follow-up's code-review-only conclusion did not have — direct timing
+evidence that the footprint-clustering code added by P2-T06 renders all 20
+blocks in ~1s, statistically indistinguishable from the pre-P2-T06 baseline at
+commit `03fb5cd`, which also renders in ~1s. That rules out "the fixed 9s
+sleep is no longer enough" as the mechanism. See the new §1.2 sub-entry for the
+full method, the raw timing numbers, and the root-cause hypothesis this leaves
+standing: a genuine intermittent flake in AX window enumeration on this shared,
+concurrently-loaded Mac (not a defect in `DayLayoutEngine.swift` or
+`DayColumnView.swift`, and not a hang) — consistent with the system-wide 0-window
+control test already on record at §1.2 / task P2-T01, and with real concurrent
+agent-session contention observed on this machine during P2-T07 itself.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -172,8 +196,218 @@ PASS (elements present)
 
 Root cause of the regression: stale saved window-restoration state, not
 DayLayoutEngine/DayColumnView — see the amendment above §1 for the full
-diagnosis. No code fix was needed or made; the two runs above stand as the
-regression's resolution.
+diagnosis. **This "resolution" did not hold — see the superseding entry
+immediately below (task P2-T07).**
+
+#### 1.2.1 P2-T07 — `check-accessibility.sh` re-diagnosis (report only, 2026-09-11)
+
+**Status: still FAIL per independent verification. Nothing below marks it
+PASS.** This task changed no file under `Kadence/`, `KadenceTests/` or
+`Scripts/`. It was assigned because independent machine verification of
+P2-T06's HEAD failed twice after the P2-T06-fix follow-up task (above) claimed
+resolution from two local PASSes — that claim did not match the independent
+result, so this task re-derived everything rather than trusting it.
+
+**Step 1 — fully clean state, 5 consecutive runs.** All processes matching
+`Kadence.app/Contents/MacOS/Kadence` killed by pid; `~/Library/Saved
+Application State/*Kadence*` checked and found **empty** (nothing to move
+aside — no stale saved-state file existed this session, unlike the prior
+follow-up's reproduction); `xcodebuild … clean` then a genuine from-scratch
+`xcodebuild … build` (whole-module compile confirmed in the build log, not an
+incremental no-op — `** BUILD SUCCEEDED **`, 5.7s wall on this machine).
+`Scripts/check-accessibility.sh` was then run **five** times back to back, no
+cherry-picking, full output logged each time. All five **PASS**ed, 20 block
+elements every time:
+
+```
+=== RUN 1 ===
+building…
+querying pid 73843
+block-shaped elements in the tree: 20
+carrying the §11 label:            0
+  AXHelp=Breakfast · 07:15–07:45 · Daily routine · routine block, Breakfast · 07:15–07:45 · Daily routine · routine block ~~
+  AXHelp=Morning review · 08:00–09:00 · Daily routine · routine block, Morning review · 08:00–09:00 · Daily routine · routine block, Morning review · 08:00–09:00 · Daily routine · routine block ~~
+  AXHelp=Datenmodellierung · 09:00–10:30 · University timetable · lecture, Datenmodellierung · 09:00–10:30 · University timetable · lecture, Datenmodellierung · 09:00–10:30 · University timetable · lecture ~~
+
+WARN: blocks are in the tree, but 0 carry the §11 label.
+      Known open defect A20b — VoiceOver reads the hover-help string
+      instead of 'title, time, kind, source, status'.
+PASS (elements present)
+
+=== RUN 2 === (exit 0)
+building…
+querying pid 73947
+block-shaped elements in the tree: 20
+carrying the §11 label:            0
+  [same three AXHelp lines as run 1]
+WARN: blocks are in the tree, but 0 carry the §11 label.
+PASS (elements present)
+
+=== RUN 3 === (exit 0)
+building…
+querying pid 74015
+block-shaped elements in the tree: 20
+carrying the §11 label:            0
+  [same three AXHelp lines]
+PASS (elements present)
+
+=== RUN 4 === (exit 0)
+building…
+querying pid 74080
+block-shaped elements in the tree: 20
+carrying the §11 label:            0
+  [same three AXHelp lines]
+PASS (elements present)
+
+=== RUN 5 === (exit 0)
+building…
+querying pid 74128
+block-shaped elements in the tree: 20
+carrying the §11 label:            0
+  [same three AXHelp lines]
+PASS (elements present)
+```
+
+(Truncated here to the varying `pid` line per run — the AXHelp lines and the
+WARN/PASS text are byte-identical across all five; the full untruncated logs
+were captured to `/tmp/p2t07-run{1..5}.log` during this session, not committed,
+since this task ships no new files outside `STATUS.md`/`DEVIATIONS.md`/
+`design/GAPS.md`.)
+
+So: **on this machine, right now, with a genuinely clean process/state, the
+regression does not reproduce at all — 5/5 clean.** That is itself useful
+negative evidence, not a resolution: the independent verifier's two failures
+against this same HEAD are the ground truth this task defers to.
+
+**Step 2 — time-to-first-block instrumentation, HEAD (`90cd142`).** A
+throwaway poller (not part of the repo) killed all Kadence processes,
+`open -n`'d the built app, then polled once per second for up to 30s, each
+poll independently checking (a) via `System Events … count windows` whether a
+window has appeared for the launched pid, and (b) via the same AX-tree walk
+`check-accessibility.sh` uses, whether at least one block-shaped element
+(matching the `HH:MM–HH:MM` pattern) is present — recording the elapsed
+second each condition is first true. Three runs against the fresh HEAD build:
+
+```
+[HEAD-90cd142-run1] t=1s: window appeared (pid 74226)
+[HEAD-90cd142-run1] t=1s: first block-shaped element observed (20 present)
+[HEAD-90cd142-run1] RESULT: window_t=1 block_t=1 final_block_count=20
+
+[HEAD-90cd142-run2] t=1s: window appeared (pid 74280)
+[HEAD-90cd142-run2] t=1s: first block-shaped element observed (20 present)
+[HEAD-90cd142-run2] RESULT: window_t=1 block_t=1 final_block_count=20
+
+[HEAD-90cd142-run3] t=1s: window appeared (pid 74320)
+[HEAD-90cd142-run3] t=1s: first block-shaped element observed (20 present)
+[HEAD-90cd142-run3] RESULT: window_t=1 block_t=1 final_block_count=20
+```
+
+Window and all 20 blocks are present at the very first 1-second poll, every
+time — true latency is somewhere under 1s at 1s poll granularity, not
+measured more finely because the script under diagnosis itself works at
+whole-second granularity (`sleep 9`).
+
+**Step 3 — same procedure, baseline `03fb5cd`** (the last commit that passed
+`check-accessibility.sh` per this file's own record, immediately before
+P2-T06's footprint-clustering change). Checked out read-only via
+`git worktree add /tmp/kadence-baseline-03fb5cd 03fb5cd` (nothing committed
+from that checkout; the worktree directory is left for the orchestrator to
+prune — `git worktree remove`/`prune` is a destructive git command this task
+is not permitted to run itself, per the harness). `xcodebuild … clean` then
+`build` there produced a second, independent `Kadence.app` under its own
+DerivedData path (`Kadence-anyrgcrnvakkuufbxcruiirpxfgl`, distinct from HEAD's
+`Kadence-awxeycchcevpyseftwfscfywnnnp`), confirming the two builds could not
+interfere with each other. Same poller, same three-runs procedure:
+
+```
+[baseline-03fb5cd-run1] t=1s: window appeared (pid 74417)
+[baseline-03fb5cd-run1] t=1s: first block-shaped element observed (20 present)
+[baseline-03fb5cd-run1] RESULT: window_t=1 block_t=1 final_block_count=20
+
+[baseline-03fb5cd-run2] t=1s: window appeared (pid 74470)
+[baseline-03fb5cd-run2] t=1s: first block-shaped element observed (20 present)
+[baseline-03fb5cd-run2] RESULT: window_t=1 block_t=1 final_block_count=20
+
+[baseline-03fb5cd-run3] t=1s: window appeared (pid 74500)
+[baseline-03fb5cd-run3] t=1s: first block-shaped element observed (20 present)
+[baseline-03fb5cd-run3] RESULT: window_t=1 block_t=1 final_block_count=20
+```
+
+Identical: window and all 20 blocks present at the first 1-second poll, every
+run, at the baseline commit too.
+
+**Step 4 — comparison and root-cause hypothesis.** HEAD's footprint-clustering
+change (`LayoutItem.footprintTop`/`footprintBottom`, the `fixtures.travel(forEvent:)`
+lookup feeding `departAt` into every `LayoutItem`) shows **no measurable
+timing difference** from the pre-change baseline: both render all 20 blocks to
+the accessibility tree within the same 1-second poll window, roughly **8×**
+inside the script's fixed 9s sleep budget in both cases. On direct
+measurement — not code review — **the "per-event footprintTop/footprintBottom
+evaluation made rendering too slow for the fixed 9s sleep" hypothesis is
+refuted**: there is nothing to speed up that would move the needle on a 9s
+budget when six independent launches (3 HEAD + 3 baseline) all finish in ≤1s.
+A genuine hang/deadlock is also not supported: none of the 5 check-
+accessibility.sh runs nor the 6 timed launches in this session stalled,
+wedged, or produced a diagnostic report (`~/Library/Logs/DiagnosticReports`
+has no Kadence entries from this session's window; `log show --predicate
+'process == "Kadence"' --last 2h` has no error/fail/hang/timeout lines
+either).
+
+What the evidence does support: a **genuine, environment-level flake in AX
+window enumeration**, not a code defect in `DayLayoutEngine.swift` or
+`DayColumnView.swift`. Two concrete, on-the-record reasons to believe that
+rather than shrug at "it didn't reproduce":
+
+1. This exact machine already has a **documented, independent instance** of
+   system-wide AX window-vending going to zero for *every* app, not just
+   Kadence — §1.2 / task P2-T01, 2026-09-10: `Kadence` reported 0 windows and
+   so did **TextEdit**, in the same control test, in the same minute. That is
+   this file's own prior evidence that the AX subsystem on this Mac
+   intermittently stops vending windows for reasons outside any one app's
+   code.
+2. This diagnosis session itself observed **real concurrent load** on the
+   machine while running: `ps aux` showed **two** separate
+   `claude_agent_sdk` processes running at once (this task's own, plus a
+   second one, pid 71120, that had been running since before this task
+   started), system load average 2.27/2.93/3.73 on an 8-core Mac. The P2-T06
+   fix follow-up's own entry above already records a concrete case of this
+   same condition causing failures: "a second agent session was independently
+   assigned this same fix task concurrently on this machine … some of the
+   intermittent failures seen mid-investigation were the two sessions'
+   `pkill`/`open -n` sequences racing each other." Concurrent orchestrator
+   sessions sharing this Mac is therefore not a one-off but a **recurring,
+   currently-observed condition**, and `check-accessibility.sh`'s pid-targeting
+   loop (`pgrep -f "Kadence.app/Contents/MacOS/Kadence"` matched against
+   whichever process first reports ≥1 window) has no defence against a second
+   session's `pkill`/`open -n` landing mid-run.
+
+**This is a hypothesis, not a closed case** — the failure did not reproduce
+during this session, so it was not caught in the act, and this task did not
+prove the mechanism (e.g. by deliberately running two sessions against each
+other and reproducing the exact `FAIL` text). What the timing evidence *does*
+establish concretely is negative: it rules out the one mechanism the task
+brief flagged as most likely going in (P2-T06's new per-event footprint
+evaluation being slow enough to blow the 9s budget). What remains standing,
+backed by the two points above, is environmental AX/window-enumeration flake —
+plausibly worsened by concurrent sessions on a shared Mac — not a
+`DayLayoutEngine`/`DayColumnView` defect.
+
+**This is a script robustness gap, not a spec ambiguity — left for a future
+fix task, not fixed here**, per this task's report-only scope. Concretely:
+`check-accessibility.sh`'s fixed `sleep 9` and single-shot pid-targeting loop
+have no retry and no defence against a second concurrent session's
+`pkill`/`open -n` landing mid-run; a poll-until-ready loop (the shape used for
+this diagnosis's timing measurement) or an outer retry-on-FAIL wrapper would
+make the script itself resilient to exactly the flake this task diagnoses.
+Filing this as a to-do rather than fixing it — this task's brief is
+report-only and touches no file under `Scripts/`.
+
+**No `design/GAPS.md` entry filed.** The evidence points to an environmental/
+script-robustness issue, not an unanswered spec question — `design/` is not
+ambiguous about anything this diagnosis touched.
+
+Processes were left clean at the end of this task (`pkill -9` against
+`Kadence.app/Contents/MacOS/Kadence`, confirmed zero matches).
 
 ### 1.3 `xcodebuild -scheme Kadence -destination 'platform=macOS' build` — **PASS**
 
