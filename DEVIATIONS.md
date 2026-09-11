@@ -15,9 +15,12 @@ search against the working tree, not carried forward.
 Legend: **A** absent · **B** built differently · **C** value I invented (none
 remain) · **D** spec contradiction · ~~struck~~ = closed.
 
-**Counts: A ×18 · B ×7 · C ×0 · D ×1** — open items only, counted from this
-file rather than carried forward. (A ×7 and B ×6 more are closed and struck
+**Counts: A ×18 · B ×6 · C ×0 · D ×0** — open items only, counted from this
+file rather than carried forward. (A ×7 and B ×7 more are closed and struck
 below; the previous audit's "A ×14" did not match its own list.)
+
+*(Updated 2026-09-11 by task P2-T05: was "B ×7 · D ×1". D4 and B13 are now
+closed — see the amendment note below and the entries themselves.)*
 
 **Amended 2026-09-10 (task P2-T01, crash fix).** A22 and A23 are new, both found
 while reproducing the ⎋/↩ crash rather than by re-reading the spec. The crash
@@ -44,6 +47,21 @@ contradiction between two Phase 1 rules and not only an unanswered question.
 sub-column, slot width, cascade indent and z-index it produced for that day
 matches §3.3, in both Day and Week. The defect is in the view layer.
 
+**Amended 2026-09-11 (task P2-T05, block-overlap fix).** **D4 and B13 are now
+closed**, both struck below rather than deleted. `design/GAPS.md` G-011 was
+ruled and closed by task P2-T04 (design agent) — `DensityTier`'s boundaries are
+now 18/28/53, derived from each tier's own content set, and a new §3.5
+confinement invariant states the rule B13 said the spec was missing. This task
+implemented both in `Kadence/Layout/DensityTier.swift`,
+`Kadence/DesignSystem/BlockStyleResolver.swift`,
+`Kadence/Views/Blocks/GridBlockView.swift` and
+`Kadence/Views/Blocks/DraftBlockView.swift`, and added
+`KadenceTests/BlockConfinementTests.swift` (sixteen new cases) as regression
+cover, including a pixel-level render of the two named fixtures. See
+STATUS.md §1.7. `DayLayoutEngine.swift` was not touched. B4–B9 (excluding B13)
+are unaffected and unchanged; G-012 (the travel-band footprint question behind
+the Day half of symptom (c)) is separate and still open.
+
 ### What this re-audit changed
 
 The Phase 1 section numbering in all three spec files is **unchanged** —
@@ -64,17 +82,20 @@ changed is the *content* of three Phase 1 sections, plus three stale entries:
 
 ## D — spec contradictions
 
-- **D4 — components.md §3.1 vs §3.3. The 11–15pt density tier cannot be drawn.**
-  *(new 2026-09-11, task P2-T03; `design/GAPS.md` G-011.)* §3.3's ladder gives a
-  block of rendered height 11–15 the content set "rail + glyph only", and clamps
-  anything shorter to `size.blockMinRenderedHeight` (11). §3.1 sets padding to
-  `size.blockPadding` (5) on all sides and the glyph to `size.blockGlyphSize`
-  (11). 5 + 11 + 5 = **21pt**, which is above the top of the tier's own band and
-  nearly twice the clamp floor, so no block in that tier can hold the content
-  the same table assigns it. This is not hypothetical: it is why the two blocks
-  at 12:30 and 12:50 draw ~22pt tall in both Day and Week (B13). Neither rule
-  can be weakened by the build — picking a smaller padding or a smaller glyph
-  would be an invented value — so this is open until `design/` answers G-011.
+- ~~**D4 — components.md §3.1 vs §3.3. The 11–15pt density tier cannot be drawn.**~~
+  **Closed 2026-09-11** — ruled by `design/GAPS.md` G-011 — CLOSED (task P2-T04)
+  and implemented in code by task P2-T05 (see STATUS.md §1.7). *(was: new
+  2026-09-11, task P2-T03; §3.3's ladder gave a block of rendered height 11–15
+  the content set "rail + glyph only" and clamped anything shorter to
+  `size.blockMinRenderedHeight` (11); §3.1's padding (5, all sides) plus the
+  glyph (11) made that 21pt of chrome — above the tier's own band and nearly
+  twice the clamp floor, which is why the two blocks at 12:30 and 12:50 drew
+  ~22pt tall (B13).)* The ruling rederived every tier's band from its own
+  content set instead of picking one: boundaries moved 16/28/44 → 18/28/53, with
+  a normative per-tier padding table and minimum, so the 11–15 (now 11–17)
+  tier's minimum (11) sits at or below its own band bottom for the first time.
+  No padding or glyph value was weakened — the boundaries moved instead, which
+  is not an invented value.
 
 D1 and D2 were closed by the 17:14 revision (`size.blockCascadeIndentMin`
 removed; `increaseContrast` parameter, GAPS G-003).
@@ -474,34 +495,29 @@ Still open, all re-checked against the current spec text this session:
 - **B8 — layouts.md §3.1. `T` / Today does not scroll the current time to 1/3 from
   the top.** Initial scroll uses `min(07:00, firstEventStart − 1h)` as specified
   (`TimedCanvasView:58`); the Today-key behaviour is not implemented.
-- **B13 — layouts.md §3.3 / components.md §3.1. A block paints outside its
-  laid-out frame.** *(new 2026-09-11, task P2-T03. Diagnosed, not fixed.)*
-  §3.3 gives every block an exact frame and the whole overlap system depends on
-  those frames being what is drawn. They are not. `GridBlockView` never
-  constrains itself to its own `renderedHeight` parameter — it has no
-  `.frame(height:)` at all — and its caller sizes it with
+- ~~**B13 — layouts.md §3.3 / components.md §3.1. A block paints outside its
+  laid-out frame.**~~ **Closed 2026-09-11, task P2-T05.** *(was: new
+  2026-09-11, task P2-T03, diagnosed not fixed.)* §3.3 gives every block an
+  exact frame and the whole overlap system depends on those frames being what
+  is drawn. They were not: `GridBlockView` never constrained itself to its own
+  `renderedHeight` parameter, and its caller sized it with
   `.frame(height: laidOut.frame.height)` at `DayColumnView.swift:194`, which
-  takes SwiftUI's **default `.center` alignment** and does not clip. So whenever
-  the content set chosen for a tier is taller than the frame that tier was
-  derived from, the block overflows **symmetrically, in both directions**, and
-  damages its neighbours as well as itself. Two measured cases on Wed 9 Sep:
+  took SwiftUI's **default `.center` alignment** and did not clip — so whenever
+  a tier's content set was taller than the frame it was derived from, the block
+  overflowed **symmetrically, in both directions**, damaging its neighbours as
+  well as itself ("Stand-up" / "Check mail" at 12:30/12:50, and
+  "Datenmodellierung" in Week — see the measurements this entry used to carry,
+  now in STATUS.md §1.7's historical diagnosis).
 
-  - "Stand-up" (frame 13pt) and "Check mail" (frame 11pt) both draw ~22pt — the
-    21pt of glyph chrome from D4 — and each spills ~5pt above and below, closing
-    the 7pt (Day) / 3.5pt (Week) gap between two blocks that do not overlap in
-    time and are in different clusters. This is the symptom Parsa reported as
-    "two bars on top of each other".
-  - "Datenmodellierung" in **Week**: frame 64pt, but with the components.md §4
-    short-case travel strip taking 18pt of its top, §4's "tier evaluated against
-    the remaining height" selects `.full` on 46pt (44 by 2pt), whose four lines
-    need ~73pt. The block draws 73pt centred on 64, so its strip lands ~4.5pt
-    above its own top edge and clips the bottom of "Morning review".
-
-  The spec never states the invariant this breaks — components.md §4 says it for
-  a travel band ("A band never draws outside its own event's bounds") and nothing
-  says it for a block — so the second half of G-011 asks for it. The fix is a
-  view-layer change and does not need G-011 answered first; G-011 only decides
-  what a glyph-only block should look like once it stops overflowing.
+  Fixed by implementing `design/GAPS.md` G-011's new components.md §3.5
+  confinement invariant — the rule this entry said the spec was missing:
+  `GridBlockView` and `DraftBlockView` now apply
+  `.frame(height: renderedHeight, alignment: .top)` **before** `.clipShape`,
+  content is laid out `alignment: .topLeading` (not the SwiftUI default), and
+  `DayColumnView`'s own `.frame(height:)` also gained `alignment: .top` as a
+  second, independent lock on the same rule. Verified with a pixel-level render
+  of the two named fixtures (`KadenceTests/BlockConfinementTests.swift`) showing
+  no ink in the gap between them. See STATUS.md §1.7.
 
 - **B9 — interactions.md §6. Selection survives view changes but does not scroll
   into view.** *(corrected 2026-09-11, task P2-T02)* §6: "switching Week → Day

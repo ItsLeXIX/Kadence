@@ -30,6 +30,20 @@ succeeded, 160 `passed` lines / 140 unique / 0 failed, `--check` green — so
 nothing in those sections needed correcting. §5.2 lists the new gaps. The fix is
 a separate, future task.
 
+**Amended 2026-09-11 by task P2-T05 (fix symptom (a), and the Week half of (c),
+per G-011's CLOSED ruling in `design/GAPS.md`).** §1.7 is rewritten in place:
+(a) and (c)-Week are now **fixed**, verified against the two named fixtures
+("Stand-up" / "Check mail") and against the "Datenmodellierung" Week strip case.
+`DensityTier`'s boundaries are now 18/28/53 (`components.md` §3.3); §3.5's new
+confinement invariant is implemented in `GridBlockView` and `DraftBlockView`
+(top-anchored `.frame(height:, alignment: .top)` before `.clipShape`, in that
+order). (c)-Day remains open as **G-012**, unchanged, out of scope for this
+task. §1.4's count is updated (156 unique / 184 lines, +16 unique from
+`BlockConfinementTests.swift`). §5 and §5.2 are corrected: G-011 is closed,
+G-012 is the only symptom-(c) gap left open. DEVIATIONS.md D4 and B13 are
+resolved and moved out of the open tables. `DayLayoutEngine.swift` was **not**
+touched — confirmed by diff against the commit immediately before this task.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -101,7 +115,7 @@ Exit status 0.
 ** TEST SUCCEEDED **
 ```
 
-Exit status 0. **140 unique test cases, 0 failed.** The log prints 160
+Exit status 0. **156 unique test cases, 0 failed.** The log prints 184
 `passed` lines; the surplus is parameterised cases reported per argument, and
 the count can wobble by one because that per-argument logging is racy
 (`SourceSymbolTests/normativeTable` printed 9 lines in one run and 10 in the
@@ -112,6 +126,10 @@ are `KadenceTests/DraftBindingTests.swift` — see §1.5.)*
 
 *(updated 2026-09-11 by P2-T02: was "135 unique / 154–155 lines". The five new
 cases are `KadenceTests/BlockHitRegionTests.swift` — see §1.6.)*
+
+*(updated 2026-09-11 by P2-T05: was "140 unique / 160 lines". The sixteen new
+cases are `KadenceTests/BlockConfinementTests.swift` — see §1.7, and G-011 in
+`design/GAPS.md`.)*
 
 Always use `-only-testing:KadenceTests`. A plain `test` also runs the empty
 `KadenceUITests` template, whose runner cannot start on this machine ("Timed out
@@ -329,7 +347,74 @@ The mock store was reset after this testing (the drags above are persisted by
 SwiftData), so the fixed dataset is back to its seeded values and future
 captures stay comparable.
 
-### 1.7 The block-overlap defect — diagnosed, **not fixed** (task P2-T03)
+### 1.7 The block-overlap defect — (a) and (c)-Week **fixed** (task P2-T05); (c)-Day open as G-012
+
+**Status as of task P2-T05, 2026-09-11.** Symptom (a) and the Week half of (c)
+are fixed, per `design/GAPS.md`'s **G-011 — CLOSED** ruling. The diagnosis below
+(task P2-T03) is kept as the historical record of what was wrong and is
+annotated in place rather than rewritten; do not read it as still-open. The Day
+half of (c) is untouched — it is **G-012**, a separate spec gap not covered by
+this task — and remains open exactly as diagnosed.
+
+**What changed, and why it closes (a) and (c)-Week.** `design/GAPS.md` G-011
+ruled that `DensityTier`'s three boundaries move 16/28/44 → **18/28/53**, each
+now derived from its own tier's content set so a band's bottom is never below
+that tier's own minimum (`components.md` §3.3), and added a new **§3.5
+confinement invariant**: a block paints only inside its own laid-out frame,
+clipped to its rounded rect, top-anchored, clipped at the bottom — never
+centred. Implementing both together is what closes the defect; either alone
+does not (a shrunk floor is still centred and still spills, and top-anchoring a
+block still 22pt tall into a 13pt frame still clips into a neighbour rather
+than fixing the number). The fix:
+
+- `Kadence/Layout/DensityTier.swift` — boundaries 18/28/53, per-tier vertical
+  padding (0 / `spacing.xxs` / `size.blockPadding` / `size.blockPadding`),
+  minima matching G-011's table exactly (11/18/24/53).
+- `Kadence/DesignSystem/BlockStyleResolver.swift` — `radius.blockCompact`'s
+  threshold moved `< 16` → `< 18`, and the conflicted-badge swap at
+  `.glyphOnly` is now keyed on the resolved content tier rather than a literal
+  height, so a narrow cascaded block gets the same rule.
+- `Kadence/Views/Blocks/GridBlockView.swift` — content is laid out into
+  `.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)`
+  (was default-centred), the view is constrained to
+  `.frame(height: renderedHeight, alignment: .top)` **before** `.clipShape`
+  (was clipping to the content's own bounds, which clipped nothing), and a
+  §4 short-case travel strip's height comes off the top of the content area via
+  `contentTopInset`, not drawn over content sized to the full frame.
+- `Kadence/Views/Blocks/DraftBlockView.swift` — the in-progress drag/create
+  draft is a GridBlock too and gets the same `.frame(height:, alignment: .top)`
+  fix, since it renders a block's content stack into a laid-out frame exactly
+  as `GridBlockView` does.
+- `Kadence/Views/Canvas/DayColumnView.swift` — the caller's own
+  `.frame(height: laidOut.frame.height)` also picked up `alignment: .top`; it
+  was the second, independent place the SwiftUI default centred a block, and
+  both had to move for the fix to hold under either code path.
+- `Kadence/DesignSystem/SourceColor.swift` and `MonthChipView` (§9's explicit,
+  non-tier-derived content set) were **not** touched, per G-011's own scope
+  note.
+
+**Verified.** `xcodebuild build` succeeds; `KadenceTests` passes 184 `passed`
+lines / 156 unique / 0 failed, including sixteen new cases in
+`KadenceTests/BlockConfinementTests.swift` that pin the 18/28/53 boundaries, the
+per-tier padding and minima, the confinement invariant over an `NSHostingView`
+(a block reports exactly its laid-out height regardless of content), and a
+pixel-level render of the two named fixtures ("Stand-up" 12:30–12:45, "Check
+mail" 12:50–13:00) at their `DayLayoutEngine` frames in both Day and Week
+geometry, asserting no ink lands in the gap between them — the direct
+regression test for the symptom Parsa reported. A live on-screen capture was
+still not possible this session for the same reason as P2-T03 (the Mac vends 0
+windows); the `ImageRenderer`-based pixel test is the closest verification
+available and does not depend on window vending.
+
+`Kadence/Layout/DayLayoutEngine.swift` was **not modified** by this task —
+confirmed by diffing it against the commit immediately preceding this task's
+work, which is empty. G-012 (the travel-band footprint/clustering question) is
+untouched and still open; nothing in this fix depends on it or forecloses it.
+
+---
+
+The diagnosis that follows is task P2-T03's original report-only finding, kept
+verbatim as the record of what the defect was before the fix above:
 
 Parsa reported three symptoms visible in `screenshots/day-full-light.png` and
 `screenshots/week-full-dark.png` (mock fixtures, Wed 9 Sep). P2-T03 was a
@@ -410,6 +495,11 @@ view code. The code bug is one fix in the view layer and is common to (a) and
 the Week half of (c); G-012 is independent of it and can be fixed separately.
 Splitting the follow-up per symptom is therefore warranted, but (a) and (c)-Week
 should be one change, not two.
+
+**Superseded by task P2-T05, above.** (a) and (c)-Week are fixed; the "one fix
+in the view layer" this paragraph anticipated is the change documented at the
+top of this section. (c)-Day / G-012 is exactly as described here and is still
+open.
 
 
 ---
@@ -629,10 +719,10 @@ mine to decide.
    drag-drop drop-preview vocabulary. Neither needs a new renderer.
 3. **Phase 3 has neither design nor code.** It cannot be built without a design
    pass first; per `CONTEXT.md` the coding agent cannot invent UI values.
-4. **Phase 1 has open deviations.** 18 absent, 7 built-differently, **0 invented
-   values**, **1 open spec contradiction** (D4, new 2026-09-11 — the 11–15pt
-   density tier cannot be drawn at `size.blockPadding`; it is G-011 restated in
-   deviation terms) — see `DEVIATIONS.md`, re-audited
+4. **Phase 1 has open deviations.** 18 absent, 6 built-differently, **0 invented
+   values**, **0 open spec contradictions** (D4 closed 2026-09-11 by task
+   P2-T05, per `design/GAPS.md` G-011 — CLOSED; see §1.7 and DEVIATIONS.md) —
+   see `DEVIATIONS.md`, re-audited
    2026-09-10 against the current spec text, plus A22/A23 from P2-T01 and A24
    from P2-T02. **A22 is the one to take next**: `⎋` does not cancel a draft at
    all, which is a §3 rule the build simply does not implement, and it is a
@@ -650,15 +740,14 @@ mine to decide.
    when a click lands on two) — are both open and neither blocks Phase 2.
    The **block-overlap rendering defect** was the next task; G-010 is its
    spec-side neighbour and worth reading first.
-8. **The block-overlap defect is diagnosed but NOT fixed** (§1.7, task P2-T03,
-   report only). Two of its three symptoms are one view-layer bug — blocks paint
-   outside their laid-out frame because `GridBlockView` is never constrained to
-   `renderedHeight` and `DayColumnView.swift:194` centres it. The third is
-   **G-012** and needs a ruling before it can be fixed. The third *reported*
-   symptom, the 18:00 cascade, is correct and must not be "fixed". Fixing the
-   view bug does not require either gap to be answered first, but **G-011**
-   decides what a glyph-only block should actually look like once it stops
-   overflowing, so answering it first avoids doing the work twice.
+8. **The block-overlap defect: (a) and (c)-Week are fixed** (§1.7, task P2-T05,
+   per `design/GAPS.md` G-011 — CLOSED). The view-layer bug — blocks painting
+   outside their laid-out frame because `GridBlockView` was never constrained to
+   `renderedHeight` and `DayColumnView.swift` centred it — is fixed together
+   with `DensityTier`'s new 18/28/53 boundaries; neither alone would have
+   closed it. (c)-Day is still **G-012**, open, and untouched by this task — it
+   needs a ruling of its own before it can be fixed. The 18:00 cascade (symptom
+   (b)) was always correct and was not touched.
 
 ### 5.1 Needs a ruling
 
@@ -673,30 +762,35 @@ mine to decide.
 
 ### 5.2 Gaps
 
-Five remain open, none blocking: **G-003**, **G-005**, **G-010**, **G-011** and
-**G-012**. Closed: G-004, G-006, G-007, G-008, G-009. **There are no invented
-design values in the codebase** and no `// SPEC-GAP` markers left in `Kadence/`.
+*(Corrected 2026-09-11 by task P2-T05 — G-010 and G-011 had been closed by DA's
+task P2-T04 in `design/GAPS.md` but this section still listed them as open.
+That was a stale-entry bug in this file, not in the spec; it is fixed below.)*
 
-**G-010 is new** (2026-09-11, task P2-T02): interactions.md §6 does not say
-which block a click selects when the click point lands inside two overlapping
-blocks. Found by driving real clicks at the running app — clicking the visual
-centre of "Statistik übung" selects "Coffee with Nora", which is drawn on top at
-that point. The build keeps the frontmost-wins behaviour it already had, which
-falls out of SwiftUI hit-testing rather than out of a decision; **no value was
-invented and no placeholder was needed**, so there is still no `// SPEC-GAP`
-marker in `Kadence/`. Open, awaiting a ruling.
+Three remain open, none blocking: **G-003**, **G-005** and **G-012**. Closed:
+G-004, G-006, G-007, G-008, G-009, G-010, G-011. **There are no invented design
+values in the codebase** and no `// SPEC-GAP` markers left in `Kadence/`.
 
-**G-011 and G-012 are new** (2026-09-11, task P2-T03), both from the
-block-overlap diagnosis in §1.7 and both append-only — no prior entry was
-touched or resolved. G-011: components.md §3.1 padding (5) plus §3.3's glyph
-(11) make the 11–15pt density tier 21pt of chrome, so that tier cannot be drawn
-at the height the same table assigns it, and the spec never says a block's
-render is confined to its laid-out frame. G-012: layouts.md §3.3 step 1 clusters
-on raw event times and is silent on whether a case-1 travel band's visual
-footprint (`departAt` → `event.start`) extends its parent's footprint, which is
-why a band lands on a neighbouring block that does not overlap it in time.
-Neither needed a placeholder: P2-T03 wrote no code, so there is still no
-`// SPEC-GAP` marker in `Kadence/`. Both open, awaiting a ruling.
+**G-010 — CLOSED** (ruled 2026-09-11, task P2-T04, design agent):
+interactions.md gains §6.1, stating frontmost-wins as "paint order is hit
+order" — the build's existing behaviour is now a decision, not a side effect.
+"Effect on the build: none required" per the ruling; nothing in `Kadence/`
+changed for it.
+
+**G-011 — CLOSED** (ruled 2026-09-11, task P2-T04; fixed in code 2026-09-11,
+task P2-T05, this task). components.md §3.1 padding (5) plus §3.3's glyph (11)
+made the 11–15pt density tier 21pt of chrome, so that tier could not be drawn
+at the height the same table assigned it, and the spec had never said a
+block's render is confined to its laid-out frame. The ruling rederived every
+tier's band from its own content set (boundaries 18/28/53) and added §3.5's
+confinement invariant; both are now implemented — see §1.7. **Closes
+DEVIATIONS.md D4 and B13.**
+
+**G-012 is still open**, from the block-overlap diagnosis in §1.7 (task
+P2-T03), unchanged and out of scope for this task: layouts.md §3.3 step 1
+clusters on raw event times and is silent on whether a case-1 travel band's
+visual footprint (`departAt` → `event.start`) extends its parent's footprint,
+which is why a band lands on a neighbouring block that does not overlap it in
+time. Awaiting a ruling.
 
 No new gap was filed by this reconciliation. The three defects it found —
 the stale `Tokens.swift`, the `tray.full` collision, and the missing screenshots
