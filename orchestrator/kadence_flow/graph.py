@@ -119,6 +119,7 @@ def build(cfg: Config):
                 prompt, system_prompt=cfg.prompt("manager"), cwd=repo,
                 allowed_tools=agents.READ_ONLY, permission_mode="dontAsk",
                 max_turns=cfg.manager_max_turns, model=cfg.manager_model,
+                fallback_model=cfg.fallback_model or None,
                 on_event=lambda s: persist.log(s, echo=True))
             data = run.json
         except MaxTurnsReached as e:
@@ -190,7 +191,9 @@ def build(cfg: Config):
         task = state.get("task", {})
         guards.ensure_branch(repo, cfg.work_branch)
         base = guards.head(repo)
-        persist.log(f"  {agent} working: {task.get('task_id')} — {task.get('title')}")
+        model = cfg.designer_model if agent == "DA" else cfg.coder_model
+        persist.log(f"  {agent} ({model}) working: {task.get('task_id')} — "
+                    f"{task.get('title')}")
 
         resumed = _resumed_note(repo, task.get("task_id", ""))
         prompt = textwrap.dedent(f"""
@@ -215,6 +218,7 @@ def build(cfg: Config):
                 permission_mode="bypassPermissions",
                 max_turns=cfg.worker_max_turns,
                 model=cfg.designer_model if agent == "DA" else cfg.coder_model,
+                fallback_model=cfg.fallback_model or None,
                 can_use_tool=agents.permission_for(agent, repo),
                 hooks=agents.hooks_for(agent, repo),
                 max_budget_usd=cfg.worker_budget_usd or None,

@@ -16,7 +16,8 @@ class Config:
     goal: str = ""
     manager_model: str | None = "sonnet"
     designer_model: str | None = "opus"
-    coder_model: str | None = "opus"
+    coder_model: str | None = "sonnet"
+    fallback_model: str | None = "sonnet"
     manager_max_turns: int = 15
     worker_max_turns: int = 90
     max_cycles: int = 12

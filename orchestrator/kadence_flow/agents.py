@@ -92,6 +92,7 @@ def _typed(text: str, chunks: str = "", cost: float = 0.0, turns: int = 0,
 async def _once(prompt: str, *, system_prompt: str, cwd: Path,
                 allowed_tools: list[str], permission_mode: str,
                 max_turns: int, model: Optional[str],
+                fallback_model: Optional[str] = None,
                 can_use_tool=None, hooks=None,
                 max_budget_usd: Optional[float] = None,
                 max_buffer_size: int = 32 * 1024 * 1024,
@@ -112,6 +113,8 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
         permission_mode=permission_mode,
         max_turns=max_turns,
         model=model,
+        # if the primary model is rate-limited, drop a tier rather than die
+        fallback_model=fallback_model,
         # under bypassPermissions the SDK auto-approves before can_use_tool is
         # consulted, so passing it there is dead weight and warns; the
         # PreToolUse hook is what actually gates.
@@ -165,6 +168,7 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
 def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
               allowed_tools: list[str], permission_mode: str = "bypassPermissions",
               max_turns: int = 60, model: Optional[str] = None,
+              fallback_model: Optional[str] = None,
               can_use_tool=None, hooks=None,
               max_budget_usd: Optional[float] = None,
               max_buffer_size: int = 32 * 1024 * 1024,
@@ -182,7 +186,8 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
             return asyncio.run(_once(
                 prompt, system_prompt=system_prompt, cwd=cwd,
                 allowed_tools=allowed_tools, permission_mode=permission_mode,
-                max_turns=max_turns, model=model, can_use_tool=can_use_tool,
+                max_turns=max_turns, model=model,
+                fallback_model=fallback_model, can_use_tool=can_use_tool,
                 hooks=hooks, max_budget_usd=max_budget_usd,
                 max_buffer_size=max_buffer_size, on_event=on_event))
         except (QuotaExhausted, AuthExpired, MaxTurnsReached):
