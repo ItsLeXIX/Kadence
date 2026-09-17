@@ -61,6 +61,23 @@ opening a new one. Still absent, unchanged: the `[Blocks | Windows]` mode
 control, the flexibility control's interactive stepper, detached-instance
 tracking/Re-sync, the background windows layer. See `STATUS.md` §10.)*
 
+*(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
+(`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/
+imported overlap and builds each one's ranked resolution options
+(BRIEF-PRODUCT.md's Phase 2 section; `components.md` §14.3), data layer only —
+no wiring into `Presentation.conflicted`/`BlockStyleResolver`/`GridBlockView`,
+no "Needs your attention" row, no conflict panel, no applying an option to the
+store, no protected-window conflicts (no `TimeWindow` model exists yet).
+Nothing about what was built is a deviation: every value it needed was either
+already specified (the 15-minute snap and floor, `RoutineBlock.shiftableMinutes`,
+the externalID scheme `RoutineEngine.swift` already documents) or a judgement
+call the task's own brief explicitly left open and is documented as such
+rather than invented — which minute-scale metric puts `.skipToday` on the same
+disturbance axis as a shift or a shorten, and why a `.droppable` conflict's
+option list has exactly 1 entry (its flexibility-derived option already *is*
+"skip today", so the brief's own "always offer skip as a fallback" does not
+duplicate it). See `STATUS.md` §12.)*
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in

@@ -172,6 +172,27 @@ third-party application contending for OS-wide frontmost status on this
 machine) was found and partially worked around in `check-routines-window.sh`;
 see §11 for what remains open and explicitly out of scope.
 
+**Amended 2026-09-18 by task P2-T13 (ConflictEngine — conflict detection and
+resolution-option generation, data layer only).** New §12. A third exception
+to §3's "full design spec, zero implementation" framing (the first was §6's
+`RoutineEngine.materialize`, the second §8's Routines window shell):
+`Kadence/State/ConflictEngine.swift` now detects every routine-vs-manual/
+imported overlap in a given `[Event]` collection (BRIEF-PRODUCT.md's Phase 2
+section) and builds each one's ranked, structured resolution options
+(components.md §14.3 — title/disturbance/exactly-one-recommended, though the
+prose formatting itself is left to the future UI task). Deliberately narrow,
+same shape as §6/§8's own exceptions: no wiring into
+`Presentation.conflicted`/`BlockStyleResolver`/`GridBlockView`, no "Needs your
+attention" row, no conflict panel, no protected-window conflicts (no
+`TimeWindow` model exists yet), and nothing applies an option to the store —
+all separate, future tasks. See §12 for the full account, including two
+documented engineering calls the task's own brief left as judgement (which
+minute-scale disturbance metric ties `.skipToday` onto the same axis as the
+other two option kinds, and why a `.droppable` conflict's option list has
+exactly 1 entry rather than 2 — its flexibility-derived option already *is*
+"skip today", so the task's own "always also offer a plain skip fallback"
+does not duplicate it).
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -1151,17 +1172,20 @@ mine to decide.
 1. ~~**`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**~~
    **Done** — `--check` is green, see §1.1. Not this task's doing; it was already
    regenerated when P2-T01 picked the tree up.
-2. **Phase 2 has a design and, as of tasks P2-T08–P2-T11, three slices of
+2. **Phase 2 has a design and, as of tasks P2-T08–P2-T13, four slices of
    code.** `design/components.md` §13–§17, `layouts.md` §8–§10,
    `interactions.md` §10–§12 and the 67 new tokens are complete and frozen.
    `RoutineTemplate`/`RoutineBlock` (models) and `RoutineEngine.materialize`
    exist and are tested (§6), a Routines window shell exists and renders one
-   template's blocks (§8), and that window's blocks can now be moved, resized
-   and deleted, undoably (§9) — everything else (creating new routine blocks,
-   the Blocks/Windows mode control, the interactive flexibility control,
-   detached-instance tracking and re-sync, conflict detection, the menu bar
-   extra, snooze, and the `TimeWindow` model and editor) is still unbuilt. The
-   design pass also notes two deliberate
+   template's blocks (§8), that window's blocks can now be moved, resized,
+   created and deleted, undoably (§9, §10), and `ConflictEngine` now detects
+   routine-vs-manual/imported overlaps and generates their ranked resolution
+   options, data layer only (§12) — everything else (the Blocks/Windows mode
+   control, the interactive flexibility control, detached-instance tracking
+   and re-sync, wiring detected conflicts onto the grid or into a panel,
+   applying a resolution option, the menu bar extra, snooze, and the
+   `TimeWindow` model and editor) is still unbuilt. The design pass also notes
+   two deliberate
    reuses: the Routines window **is** the Week canvas with dates, now line,
    all-day row and travel bands removed (components.md §13.1 lists every
    difference) — confirmed in §8's build, which reuses `DayLayoutEngine`,
@@ -2133,3 +2157,119 @@ clean run this session, but not yet directly observed clean end-to-end.
 **Blocked:** nothing for this task's own scope. The frontmost-contention
 issue above is not blocked, just out of scope; it is an environmental fact
 about this Mac at this moment, not a design or code question.
+
+---
+
+## 12. P2-T13 — ConflictEngine: conflict detection and resolution-option generation (data layer only, 2026-09-18)
+
+Built `Kadence/State/ConflictEngine.swift` and
+`KadenceTests/ConflictEngineTests.swift`. BRIEF-PRODUCT.md's Phase 2 section
+("Conflict detection: any overlap between a routine block and an imported/
+manual event ... generate 2-3 concrete resolution options ranked by how
+little they disturb the day ... with one marked recommended") and
+components.md §14.3 (the option row's required fields: an imperative title, a
+disturbance delta, and exactly one `recommended` flag). Same shape as
+P2-T08's `RoutineEngine.materialize`: a pure, `@MainActor`-scoped engine that
+reads already-fetched `Event`/`RoutineBlock` model objects and produces new
+value types (`Conflict`, `ConflictOption`) — it mutates nothing, touches no
+`ModelContext`, and touches no `UndoStack`.
+
+**What `ConflictEngine.detect(events:routineBlocks:)` does:**
+1. Pairwise-scans `events` (O(n²), deliberately simple — nothing in scope
+   runs this over more than a day's or a week's worth of events) and keeps a
+   pair only when exactly one side has `origin == .routine` and the other has
+   `origin == .manual` or `.imported`, and their intervals strictly overlap
+   (`a.start < b.end && b.start < a.end` — touching endpoints do not count).
+   Two `.routine` events overlapping each other, two non-routine events
+   overlapping each other, and a `.routine` event overlapping a `.planned`
+   event are all excluded by construction — the brief only ever names
+   routine-vs-imported/manual.
+2. For each surviving pair, builds a `Conflict` (the two `Event` references,
+   the overlap window, and its ranked `[ConflictOption]`), keyed on the
+   routine event's `flexibility` (already transferred onto every materialized
+   `Event` by `RoutineEngine.materialize`, per §6):
+   - `.shiftable` — a `.shiftLater` option: the minimal 15-minute-incremented
+     later shift (interactions.md §3/§4's own snap) that clears the overlap,
+     clamped to the routine's own `RoutineBlock.shiftableMinutes`. Omitted
+     when the needed shift exceeds that range.
+   - `.droppable` — a `.skipToday` option, marking that one occurrence
+     `.skipped` (`EventStatus`), never the whole template.
+   - `.fixed` — a `.shorten` option: trims the routine event to end where the
+     other event starts, or to start where it ends, whichever keeps more of
+     the original duration (ties keep the original start). Omitted when the
+     kept duration would fall below interactions.md §4's 15-minute floor.
+   - Every case also gets a `.skipToday` fallback, so the option list never
+     goes to zero — except `.droppable`, where the flexibility-derived option
+     *is* `.skipToday` already; adding it a second time would be a literal
+     duplicate, not a genuinely different fallback, so it is not added twice.
+     Documented consequence: a `.droppable` conflict, and the (rare) edge
+     case where a `.shiftable`/`.fixed` conflict's derived option doesn't
+     fit, end up with exactly 1 option rather than the typical 2. "At least
+     one option, exactly one of them recommended" always holds; the "2-3
+     typically" shape is what narrows in that edge case. This reading is
+     documented at length in `ConflictEngine.makeOptions`'s own doc comment,
+     in the same spirit P2-T08 used for the priority-field question — kept
+     building around it rather than blocking or filing a gap, since it
+     resolves cleanly from the brief's and components.md's own wording.
+   - `RoutineBlock` lookup reverses `RoutineEngine.swift`'s own documented
+     `externalID` shape (`"<block.id>#<yyyy-MM-dd>"`) against a caller-
+     supplied `[RoutineBlock]` array — no `shiftableMinutes` field was added
+     to `Event` itself. §6 already declined to add one for the same
+     `priority` question; this task makes the identical call for
+     `shiftableMinutes`, for the identical reason (not inventing a field
+     neither `Event.swift` nor the brief's data-model draft has).
+3. `ConflictOption.disturbanceMinutes` puts all three option kinds on one
+   comparable axis: minutes shifted (`.shiftLater`), minutes trimmed off the
+   original duration (`.shorten`), or the occurrence's full original duration
+   in minutes (`.skipToday` — losing the whole block reads as more
+   disturbance than trimming part of it). The task text allowed either
+   "minutes moved" or "a count of affected occurrences"; a bare occurrence
+   count would not sit on the same axis as the other two kinds' minute
+   figures, so this engine uses minutes throughout. Documented in
+   `ConflictOption`'s own doc comment.
+4. Options are sorted ascending by `disturbanceMinutes` and the first
+   (least-disturbance) one is marked `isRecommended = true` — components.md
+   §14.3's own documented default ("Options are ordered by disturbance, least
+   first... The recommended one is usually but not necessarily first"), which
+   the task brief explicitly allows as the engineering tie-break since the
+   spec does not mandate a different one.
+
+**Explicitly out of scope, not built here** (all separate, future tasks, same
+as this task's own brief): wiring detected conflicts into
+`Presentation.conflicted`/`BlockStyleResolver`/`GridBlockView`, the "Needs
+your attention" row, the conflict panel view (components.md §14,
+interactions.md §10), applying an option to the store or `UndoStack`
+(interactions.md §10.1's "one named undo step" is the future task's job), and
+protected-window conflicts (no `TimeWindow` model exists yet).
+
+**Verified:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`, no new warnings (`grep -i warning:` on the full log
+  found only xcodebuild's own harmless "multiple matching destinations"
+  notice, unrelated to this task).
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 249 `passed`
+  lines / 0 `failed`, including the 16 new `ConflictEngineTests.swift` cases:
+  routine-vs-manual detected, routine-vs-imported detected, manual-vs-manual
+  not detected, routine-vs-routine not detected, routine-vs-planned not
+  detected (bonus coverage beyond the task's own list), touching endpoints
+  not detected, non-overlapping pair produces nothing, `.shiftable`
+  shift-in-range and shift-exceeds-range, `.droppable` skip option,
+  `.fixed` shorten-fits and shorten-below-floor, exactly-one-recommended
+  across three simultaneous conflicts of different flexibilities, and
+  ascending-disturbance ordering.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.` (expected: a data-layer
+  engine needs no new tokens.)
+- Confirmed by `git status`: this task touched exactly
+  `Kadence/State/ConflictEngine.swift` and `KadenceTests/ConflictEngineTests.swift`
+  (plus `STATUS.md`) — no file under `Kadence/Views/`, and
+  `GridBlockView.swift`/`BlockStyleResolver.swift` untouched.
+
+**What is next:** the three follow-up tasks this one deliberately left open —
+wiring `Presentation.conflicted` for detected conflicts, the "Needs your
+attention" row + conflict panel (components.md §14, interactions.md §10), and
+an "apply an option" command on `EventStore`/`UndoStack` (one named undo step,
+per interactions.md §10.1). None of those are blocked by anything found here.
+
+**Blocked:** nothing.
