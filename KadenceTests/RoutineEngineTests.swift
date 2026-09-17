@@ -311,3 +311,65 @@ struct MaterializePriorityFlexibilityTests {
         #expect(refetched.blocks.first { $0.title == "Gym" }?.shiftableMinutes == nil)
     }
 }
+
+// MARK: - App schema registration (P2-T09)
+
+/// `KadenceApp.init` builds its real `ModelContainer` with a fixed type list —
+/// `Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self` — and
+/// `emptyFallback()` mirrors it for the in-memory last resort. Neither is
+/// reachable from a test target, so this suite hard-codes the same literal
+/// list rather than reflecting on `KadenceApp` (SwiftUI `App` types expose no
+/// API to inspect a live `Scene`'s `.modelContainer(_:)`). If a future change
+/// drops `RoutineTemplate` or `RoutineBlock` from either call in
+/// `KadenceApp.swift`, this test does not catch that by construction — but it
+/// does catch the underlying regression this task exists to prevent: a
+/// `RoutineTemplate`/`RoutineBlock` pair that cannot round-trip through a
+/// container built the same way the app's own container is.
+@Suite("KadenceApp schema — RoutineTemplate/RoutineBlock round-trip")
+@MainActor
+struct AppSchemaRegistrationTests {
+
+    @Test("A RoutineTemplate with a nested RoutineBlock saves and fetches back through the app's own schema list")
+    func routineTemplateRoundTripsThroughAppSchema() throws {
+        // Mirrors `KadenceApp.init`'s primary `ModelContainer(for:)` call and
+        // `emptyFallback()`'s type list exactly — same four types, same order.
+        let container = try ModelContainer(
+            for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let writeContext = ModelContext(container)
+
+        let block = RoutineBlock(
+            title: "Gym",
+            startMinutes: 6 * 60,
+            duration: 3600,
+            flexibility: .fixed,
+            priority: 1)
+        let template = RoutineTemplate(
+            name: "Weekday Routine",
+            activeWeekdays: [2, 4, 6],
+            blocks: [block],
+            sourceKey: .teal)
+        writeContext.insert(template)
+        try writeContext.save()
+
+        // A fresh `ModelContext` on the same container, so the assertions
+        // below read back what was actually persisted rather than an
+        // in-memory reference to the object just inserted.
+        let readContext = ModelContext(container)
+        let fetched = try readContext.fetch(FetchDescriptor<RoutineTemplate>())
+        #expect(fetched.count == 1)
+
+        let refetchedTemplate = try #require(fetched.first)
+        #expect(refetchedTemplate.name == "Weekday Routine")
+        #expect(refetchedTemplate.activeWeekdays == [2, 4, 6])
+        #expect(refetchedTemplate.sourceKey == .teal)
+        #expect(refetchedTemplate.blocks.count == 1)
+
+        let refetchedBlock = try #require(refetchedTemplate.blocks.first)
+        #expect(refetchedBlock.title == "Gym")
+        #expect(refetchedBlock.startMinutes == 6 * 60)
+        #expect(refetchedBlock.duration == 3600)
+        #expect(refetchedBlock.flexibility == .fixed)
+        #expect(refetchedBlock.priority == 1)
+    }
+}

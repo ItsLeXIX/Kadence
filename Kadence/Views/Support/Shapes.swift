@@ -14,7 +14,7 @@ struct HatchPattern: Shape {
     var pitch: CGFloat
     var lineWidth: CGFloat = 1
 
-    func path(in rect: CGRect) -> Path {
+    nonisolated func path(in rect: CGRect) -> Path {
         var path = Path()
         guard pitch > 0 else { return path }
         // Sweep far enough that the 45° lines cover the whole rect.
@@ -39,13 +39,13 @@ struct PartialRoundedRectangle: InsettableShape {
     /// border does not bleed 1pt outside the block's frame.
     var insetAmount: CGFloat = 0
 
-    func inset(by amount: CGFloat) -> PartialRoundedRectangle {
+    nonisolated func inset(by amount: CGFloat) -> PartialRoundedRectangle {
         var copy = self
         copy.insetAmount += amount
         return copy
     }
 
-    func path(in rect: CGRect) -> Path {
+    nonisolated func path(in rect: CGRect) -> Path {
         let rect = rect.insetBy(dx: insetAmount, dy: insetAmount)
         guard rect.width > 0, rect.height > 0 else { return Path() }
         let top = min(topRadius, min(rect.width, rect.height) / 2)

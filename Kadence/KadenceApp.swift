@@ -69,7 +69,9 @@ private extension ModelContainer {
     static func emptyFallback() -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         do {
-            return try ModelContainer(for: Event.self, configurations: configuration)
+            return try ModelContainer(
+                for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self,
+                configurations: configuration)
         } catch {
             fatalError("SwiftData could not create even an in-memory store: \(error)")
         }
