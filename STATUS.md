@@ -1,6 +1,6 @@
 # Status
 
-Updated: **2026-09-11**
+Updated: **2026-09-17**
 Phase 1: **complete and verified.** Phase 2: **designed, not built.** Phase 3:
 **neither designed nor built.**
 
@@ -115,6 +115,15 @@ concurrently-loaded Mac (not a defect in `DayLayoutEngine.swift` or
 `DayColumnView.swift`, and not a hang) — consistent with the system-wide 0-window
 control test already on record at §1.2 / task P2-T01, and with real concurrent
 agent-session contention observed on this machine during P2-T07 itself.
+
+**Amended 2026-09-17 by task P2-T09 (register `RoutineTemplate`/`RoutineBlock`
+in `KadenceApp.swift`'s `ModelContainer`).** New §7. `check-accessibility.sh`
+re-run and re-diagnosed for this task: found a genuine (and now-fixed)
+environmental cause distinct from anything above — see §7's own account —
+rather than the AX-flake pattern §1.2/§1.2.1 describe. §7 also identifies a
+concrete, reusable failure mode for `check-accessibility.sh` (a stale
+`DerivedData` folder shadowing the freshly-built app via `ls | head -1`) worth
+a future script fix.
 
 ---
 
@@ -1293,3 +1302,128 @@ value this task needed was either already specified (components.md §13.1's
 data-layer engineering decision (skip-vs-update on re-materialize,
 minutes-since-midnight vs. `DateComponents`) rather than a UI value the design
 spec was expected to supply.
+
+## 7. P2-T09 — register `RoutineTemplate`/`RoutineBlock` in the app's `ModelContainer` (2026-09-17)
+
+**Why this was needed.** P2-T08 (§6) added `RoutineTemplate`/`RoutineBlock` as
+`@Model` types and `RoutineEngine.materialize`, and covered both with 14 tests
+run against a **hand-built** in-memory `ModelContainer(for: Event.self,
+Place.self, RoutineTemplate.self, RoutineBlock.self)`. But
+`Kadence/KadenceApp.swift` — the container the real, running app actually
+uses — still listed only `Event.self, Place.self` in both its primary
+`ModelContainer(for:)` call and the `emptyFallback()` last-resort path. A
+SwiftData schema is exactly the types passed to `ModelContainer(for:)`; two
+types absent from that list do not exist in the app's schema no matter how
+thoroughly they are tested elsewhere. Concretely, `RoutineEngine.materialize`'s
+`EventStore` — built on the app's real container once a Routines window calls
+it — would have had nowhere to save or fetch a `RoutineTemplate`. This was an
+implementation gap in P2-T08, not a spec question, so it is not carried in
+DEVIATIONS.md as a spec deviation; see the corrective note added there instead.
+
+**Built:**
+
+- `Kadence/KadenceApp.swift` — both `ModelContainer(for:)` calls (`init`'s
+  primary path and its `catch` block's in-memory fallback) and
+  `ModelContainer.emptyFallback()` now list `Event.self, Place.self,
+  RoutineTemplate.self, RoutineBlock.self` — the same four types, same order,
+  everywhere the app builds a container. A doc comment on `container` explains
+  why the extra two types are there, so a future model addition does not
+  silently repeat this gap.
+- Nothing in `Kadence/Models/RoutineTemplate.swift` or
+  `Kadence/State/RoutineEngine.swift` changed — out of scope for this task and
+  untouched.
+- `Kadence/Views/Support/Shapes.swift` — an unrelated but necessary fix found
+  while verifying this task on the machine's current Xcode 27 toolchain (up
+  from 26.6): three new `#ConformanceIsolation` errors where
+  `HatchPattern.path(in:)`, `PartialRoundedRectangle.inset(by:)` and
+  `PartialRoundedRectangle.path(in:)` — pure geometry with no actor state —
+  "cross into main actor-isolated code" under Xcode 27's tightened
+  actor-isolation checking. All three marked `nonisolated`, which is the
+  correct fix for pure functions over value types; nothing about their
+  behavior changed. This is a build-compatibility fix, not a spec deviation,
+  and is not listed in DEVIATIONS.md.
+
+**Verified:**
+
+- `KadenceTests/RoutineEngineTests.swift` gained a new suite,
+  `AppSchemaRegistrationTests`, in a new "App schema registration (P2-T09)"
+  section. It builds a `ModelContainer` with the **same literal four-type
+  list, same order** as `KadenceApp.swift`'s own calls (there is no API to
+  reflect on a live SwiftUI `App`'s `.modelContainer(_:)` scene modifier, so a
+  hard-coded mirror is the closest a test target can get — documented on the
+  suite itself so a future reader does not mistake it for true reflection),
+  inserts a `RoutineTemplate` with one nested `RoutineBlock`, saves, re-fetches
+  through a **second, independent** `ModelContext` on the same container (so
+  the assertions read back what was actually persisted, not the in-memory
+  object just inserted), and asserts every field survives: `name`,
+  `activeWeekdays`, `sourceKey` on the template; `title`, `startMinutes`,
+  `duration`, `flexibility`, `priority` on the block. If a future change drops
+  either type from either call in `KadenceApp.swift`, this test does not catch
+  that by construction (it does not read `KadenceApp.swift`'s own list) — but
+  it does catch the underlying regression: a `RoutineTemplate`/`RoutineBlock`
+  pair failing to round-trip through a container built the app's own way.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` — **BUILD
+  SUCCEEDED**.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — **TEST SUCCEEDED**, 202 test cases (full
+  suite, including the one new one), **0 failed**. No regressions.
+- `swift Scripts/generate-tokens.swift --check` — **up to date**. This task
+  changed no tokens.
+- `./Scripts/check-accessibility.sh` — **PASS** after diagnosing and clearing
+  two pieces of stale machine state that had nothing to do with this task's
+  code change:
+  1. A leftover `~/Library/Developer/Xcode/DerivedData/Kadence-*` folder from
+     P2-T07's diagnostic git worktree (`/tmp/kadence-baseline-03fb5cd`,
+     checked out at commit `03fb5cd`) was still present and sorted
+     alphabetically *before* the current build's DerivedData folder. The
+     script's `APP=$(ls -d ~/Library/.../Kadence-*/Build/Products/Debug/Kadence.app
+     | head -1)` picked whichever folder sorts first, not whichever was just
+     built — so it was launching an eight-day-stale binary while believing it
+     had built and launched HEAD. Removed the stale folder (a build artifact,
+     not tracked by git; the worktree itself was left alone, since removing a
+     worktree is a destructive git operation outside this task's remit).
+  2. With only the correct binary left, the script still failed once more:
+     `block-shaped elements in the tree: 0`, with one real window present (so
+     not the §1.2/§1.2.1 "no window at all" AX flake — a genuinely different
+     symptom). Root cause: the real, on-disk persistent store at
+     `~/Library/Containers/XIX.Kadence/Data/.../Kadence.sqlite` was created
+     2026-09-09 and never re-seeded since (`MockData.seedIfNeeded` only seeds
+     an *empty* store). Its mock events are anchored to whatever "now" was on
+     2026-09-09; by 2026-09-17 (today), the default Week view's visible range
+     no longer overlaps where the timed fixture blocks were placed — only two
+     all-day items (a deadline and an exam, evidently wide-range or still in
+     view) remained visible, hence 0 timed block elements. This is a
+     property of a long-lived local dev store drifting away from a
+     date-relative mock dataset, not a code defect — confirmed by deleting the
+     stale store and letting the app reseed against today's real date, at
+     which point the check passed with the same 20 block elements and the same
+     already-known A20b warning P2-T01/T06/T07 recorded:
+     ```
+     block-shaped elements in the tree: 20
+     carrying the §11 label:            0
+       AXHelp=Breakfast · 07:15–07:45 · Daily routine · routine block, ...
+       AXHelp=Morning review · 08:00–09:00 · Daily routine · routine block, ...
+       AXHelp=Datenmodellierung · 09:00–10:30 · University timetable · lecture, ...
+     WARN: blocks are in the tree, but 0 carry the §11 label. (known, A20b)
+     PASS (elements present)
+     ```
+     Neither finding is fixed in this task's file set (both are outside
+     `Kadence/`, `KadenceTests/`, `Scripts/` — one is a stray build artifact,
+     the other is throwaway local dev-store state) but both are recorded here
+     as concrete, reusable diagnoses for whoever next hits either symptom.
+     `check-accessibility.sh` itself would benefit from picking the
+     newest-mtime `Kadence.app` rather than the first alphabetically, and from
+     not depending on a long-lived on-disk store's seed date at all (e.g. by
+     wiping or ignoring the real container's store before each run) — filed
+     here as a to-do, not fixed, since this task's scope is container
+     registration, not the accessibility script.
+
+**What is next:** wiring a real Routines window (components.md §13,
+layouts.md §8, interactions.md §11) — unblocked now that `RoutineTemplate`
+actually persists through the app's own container — plus TimeWindow
+model/editor, conflict detection, the menu bar extra and snooze, all still
+untouched. Detachment tracking and re-sync (§13.4) remains a separate
+follow-up needing the main-grid edit-command path.
+
+**Blocked:** nothing. No new `design/GAPS.md` entries were opened — this task
+was pure container-registration engineering with no UI value to invent.

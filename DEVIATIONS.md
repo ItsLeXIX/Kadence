@@ -11,6 +11,16 @@ exist per components.md §13.1/§13.2 and BRIEF-PRODUCT.md's data-model draft.
 Nothing about that work is a deviation — every value it needed was already
 specified, so nothing is listed here for it either. See `STATUS.md` §6.)*
 
+*(Corrected 2026-09-17, task P2-T09. P2-T08's own text above did not flag it,
+but at `ba4f3d8` `RoutineTemplate`/`RoutineBlock` were never added to
+`KadenceApp.swift`'s `ModelContainer(for:)` — the real app's schema still had
+only `Event`/`Place`, so nothing running through the actual app (as opposed to
+a test's own hand-built container) could persist or fetch a `RoutineTemplate`.
+Not written up as a deviation at the time because nothing in `design/`
+specifies container wiring; it was an implementation gap, not a spec question.
+P2-T09 registers both types in `KadenceApp.swift`'s primary `init` and in
+`emptyFallback()`, closing it. See `STATUS.md` §7.)*
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in
