@@ -143,6 +143,17 @@ see §8's own verification notes for the full account. This is a pre-existing
 script assumption (one window, ever) now visibly outgrown by a second window
 existing at all, not a defect this task introduced in either window's code.
 
+**Amended 2026-09-17 by task P2-T11 (Routine block editing: move, resize,
+delete, undo).** New §9. Builds `interactions.md` §11.1's move/resize/delete
+for `RoutineBlock`s on top of P2-T10's read-only window — drag the body to
+move, drag the top/bottom edge to resize (same 15-minute snap, `⌃` for
+5-minute, and handles as the main grid's §3/§4), `⌫` deletes, `⌘Z`/`⌘⇧Z`
+undo/redo with the names §11.1 prescribes. §3, §5 and §8's "not built"/"read
+only" framing each get a correction (§3's own text and the stale bullet inside
+§8's "explicitly out of scope" list are amended in place, not left to
+contradict this section). Creation, the flexibility control and Windows mode
+remain out of scope, per this task's own brief — see §9.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -990,6 +1001,10 @@ built and what is still unbuilt. Conflict detection, the menu bar extra,
 snooze and the `TimeWindow` editor itself remain exactly as this section
 describes them.)*
 
+*(Corrected again 2026-09-17 by task P2-T11 — the paragraph immediately above
+is itself now stale on "no create/move/resize/delete": move, resize and
+delete are now built (creation is still absent). See §9 below.)*
+
 `BRIEF-PRODUCT.md` "Phase 2 — routines, conflicts, protected time, and the menu
 bar" requires a routine engine, a TimeWindow editor, conflict detection and a
 menu bar extra. Everything except the routine engine's data layer (§6) still
@@ -1118,16 +1133,17 @@ mine to decide.
 1. ~~**`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**~~
    **Done** — `--check` is green, see §1.1. Not this task's doing; it was already
    regenerated when P2-T01 picked the tree up.
-2. **Phase 2 has a design and, as of tasks P2-T08–P2-T10, two slices of
+2. **Phase 2 has a design and, as of tasks P2-T08–P2-T11, three slices of
    code.** `design/components.md` §13–§17, `layouts.md` §8–§10,
    `interactions.md` §10–§12 and the 67 new tokens are complete and frozen.
    `RoutineTemplate`/`RoutineBlock` (models) and `RoutineEngine.materialize`
-   exist and are tested (§6), and a Routines window shell now exists and
-   renders one template's blocks read-only (§8) — everything else (routine
-   block create/move/resize/delete, the Blocks/Windows mode control, the
-   interactive flexibility control, detached-instance tracking and re-sync,
-   conflict detection, the menu bar extra, snooze, and the `TimeWindow` model
-   and editor) is still unbuilt. The design pass also notes two deliberate
+   exist and are tested (§6), a Routines window shell exists and renders one
+   template's blocks (§8), and that window's blocks can now be moved, resized
+   and deleted, undoably (§9) — everything else (creating new routine blocks,
+   the Blocks/Windows mode control, the interactive flexibility control,
+   detached-instance tracking and re-sync, conflict detection, the menu bar
+   extra, snooze, and the `TimeWindow` model and editor) is still unbuilt. The
+   design pass also notes two deliberate
    reuses: the Routines window **is** the Week canvas with dates, now line,
    all-day row and travel bands removed (components.md §13.1 lists every
    difference) — confirmed in §8's build, which reuses `DayLayoutEngine`,
@@ -1649,7 +1665,9 @@ template's blocks — not the full editor.
 
 - Creating, moving, resizing or deleting routine blocks (`interactions.md`
   §11.1) — this window has no drag or create surface at all; every block view
-  in it is read-only (`GridBlockModel.isMovable = false`).
+  in it is read-only (`GridBlockModel.isMovable = false`). **STALE as of task
+  P2-T11 (§9 below): move, resize and delete are now built.** Only
+  drag-to-create/double-click creation remains out of scope from this bullet.
 - The `[Blocks | Windows]` mode control and Windows-mode editing
   (`components.md` §13.3) — there is no `TimeWindow` model yet. The toolbar's
   `Picker` is the only toolbar content.
@@ -1681,3 +1699,138 @@ value this task needed was already specified (`layouts.md` §8/§8.1,
 `components.md` §13.1) or was explicitly left to this task's own judgement by
 the brief (the flexibility read-only-text presentation, the total-hours
 formula), and is documented as such above rather than guessed silently.
+
+## 9. P2-T11 — Routine block editing: move, resize, delete, undo (2026-09-17)
+
+Builds `interactions.md` §11.1's move/resize/delete on top of P2-T10's
+read-only Routines window. Scope, per the task brief: **only** move, resize
+and delete. Creating new routine blocks (drag-to-create, double-click), the
+flexibility three-segment control (`components.md` §13.2) and Windows mode
+(§13.3) are explicitly out — left for follow-up tasks, same as §8 left them.
+
+**Built:**
+
+- `Kadence/State/RoutineEngine.swift` — a new `RoutineBlockStore`, the
+  Routines-window sibling of `EventStore`: `move(_:toStartMinutes:)`,
+  `resize(_:newStartMinutes:newEndMinutes:)` and `delete(_:from:)`, each one
+  named `UndoStack` step ("Move Routine Block" / "Resize Routine Block" /
+  "Delete Routine Block" — `UndoStack` itself prepends "Undo "/"Redo ", so the
+  Edit menu reads exactly as `interactions.md` §11.1 prescribes). Same two
+  rules `EventStore.swift`'s header states and this file's own new header
+  paragraph repeats: blocks are addressed by `id` and resolved at execution
+  time (never a captured `@Model` reference — undoing a delete recreates a
+  `RoutineBlock` carrying the same `id`, via a new `RoutineBlockRestoreSnapshot`
+  mirroring `EventSnapshot`'s shape), and every mutation goes through `undo.perform`.
+  One deliberate divergence from `EventStore`, documented in the type's own doc
+  comment and in `design/GAPS.md` G-013 below: a `RoutineBlock` has no `Date`
+  of its own (`startMinutes` is a time-of-day offset applied uniformly across
+  every active weekday, not an instant — `RoutineTemplate.swift`'s own doc
+  comment), so `move`/`resize` take minutes-since-midnight and clamp to a
+  single day (`0...1440`) rather than letting a drag roll a block into
+  "tomorrow", which `interactions.md` §3/§4 never had to answer for a bounded
+  field like this because `Event.start`/`.end` are ordinary free-floating
+  `Date`s.
+- `Kadence/Views/Routines/RoutinesWindow.swift` — `RoutineDayColumnView` gained
+  a `DragGesture(minimumDistance: 3)` mirroring
+  `DayColumnView.blockGesture`'s shape exactly: classify move/resizeTop/
+  resizeBottom by comparing the drag's start-Y against
+  `size.blockResizeHandleHeight`, snap via `TimeGeometry.snap(_:toMinutes:)`
+  with 15 or 5 (`⌃` held, `NSEvent.modifierFlags.contains(.control)`, same as
+  the main grid), and on `.onEnded` resolve the *live* `RoutineBlock` from
+  `template.blocks` (not the `RoutineBlockSnapshot` the view renders from) and
+  call into `RoutineBlockStore`. `GridBlockModel.isMovable` is now `true` for
+  routine blocks, which for free gives `GridBlockView`'s existing hover resize
+  handles and open-hand cursor (`.cursor(.openHand)`) — no new chrome was
+  written, exactly per the task's own note that this should fall out of
+  `GridBlockView`'s existing behaviour. A drop-preview overlay
+  (`dropPreviewFrame`/`dropPreview`) mirrors `DayColumnView`'s own — the
+  dashed `1pt` outline only; the main grid's own drop preview has no time
+  badge either (`DEVIATIONS.md` A15, pre-existing, not reintroduced or fixed
+  by this task) and there is no protected-window shading in this window yet
+  (§8's own note), so the outline never turns alert here. `RoutinesWindow`
+  itself gained `⌫` handling — `.focusable()` + `.onKeyPress(keys: [.delete])`
+  at the window's content level (not per-block, so it fires regardless of
+  which weekday column the block was last clicked in), with a `@FocusState`
+  requested on window open and again on every selection change so the key has
+  somewhere to land. A single edit from *any* one weekday column's copy of a
+  block changes the one underlying `RoutineBlock` (`startMinutes`/`duration`),
+  which is why it shows up correctly on every other active-weekday column
+  immediately — this falls out of the existing data model
+  (`RoutineWeekLayout.swift`'s own header) and needed no per-instance state.
+- `Kadence/KadenceApp.swift` — the `routines` `WindowGroup` now also gets
+  `.environment(undoStack)` (previously only `MainWindow`'s `WindowGroup` did).
+  Without it, `RoutinesWindow`'s `@Environment(UndoStack.self)` has nothing to
+  resolve at runtime. Same instance as `MainWindow`'s, so `⌘Z`/`⌘⇧Z`
+  (`KadenceCommands`, wired once, app-wide) undo/redo routine edits exactly
+  like event edits, and the Edit menu reads correctly regardless of which
+  window is key.
+- `KadenceTests/RoutineWeekLayoutTests.swift` — 13 new tests across three
+  `@Suite`s (`RoutineBlockStore.move`, `.resize`, `.delete`), same in-memory
+  `ModelContainer`/`ModelContext` pattern as `RoutineEngineTests.swift` and the
+  same rigor as `UndoStackTests.swift` for the undo/redo half: move sets
+  `startMinutes` and names the step correctly; a no-op move pushes no undo
+  step; a move past either end of the day clamps (G-013); resize-top/-bottom
+  move the correct edge and leave the other fixed; resize clamps to the
+  15-minute floor rather than inverting (`interactions.md` §4); delete removes
+  the block from both `template.blocks` and the store immediately, no
+  confirmation, and undo reinserts a block carrying the same `id`, title,
+  timing and flexibility back onto the same template; redo-after-undo is
+  checked for all three verbs.
+
+**Verified:**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  **BUILD SUCCEEDED**, no new warnings.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — **TEST SUCCEEDED**, 227 `passed` lines /
+  0 failed, including all 13 new `RoutineBlockStore` tests
+  (`RoutineBlockStoreMoveTests`, `RoutineBlockStoreResizeTests`,
+  `RoutineBlockStoreDeleteTests`).
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/Tokens.swift`
+  is up to date. This task added no new tokens (§3/§4 are reused unchanged, so
+  every geometric constant it needed — `size.blockResizeHandleHeight`,
+  `size.blockMinRenderedHeight`, `radius.block`, `color.interactive.accent`,
+  `opacity.blockDragOrigin` — already existed).
+- `Scripts/check-accessibility.sh` — **PASS**, 9 block-shaped elements
+  reached, none crashed/wedged. As §8 already recorded, this Mac's
+  window-restoration behaviour means a plain `open -n` can bring the Routines
+  window up as "window 1" ahead of the main window; that is what this run
+  queried, and it shows exactly the seeded template's three blocks (Gym,
+  Morning review, Reading) with correct titles and times, confirming the
+  window still launches and renders cleanly with `isMovable` now `true` and
+  the new gesture/key-press modifiers attached. The gesture and `⌫` path
+  themselves are not exercisable through this script (it does not drive
+  drags or key presses) — covered instead by the `RoutineBlockStore` unit
+  tests above, which is where §11.1's actual mutation logic lives; the
+  SwiftUI wiring (gesture classification, key-press routing, focus) has no
+  pure-function seam, the same reasoning `RoutineWeekLayoutTests.swift`'s
+  header already gives for click-to-select.
+
+**Explicitly out of scope, and not built, per the task brief:**
+
+- Creating new routine blocks (drag-to-create, double-click) —
+  `interactions.md` §11.1 groups this with move/resize, but the task brief
+  carves it out separately; this window still has no create surface.
+- The `[Blocks | Windows]` mode control and Windows-mode editing
+  (`components.md` §13.3) — unchanged from §8, still no `TimeWindow` model.
+- The flexibility control's interactive stepper (`components.md` §13.2) —
+  unchanged from §8, the inspector still shows flexibility as read-only text.
+- Detached-instance tracking and Re-sync (`components.md` §13.4,
+  `interactions.md` §11.2) — unchanged from §8.
+- The background-windows layer — unchanged from §8.
+- Screenshots — not asked for by this task's acceptance criteria.
+
+**What is next:** drag-to-create/double-click creation for routine blocks
+(the other half of `interactions.md` §11.1), then the flexibility control and
+the `[Blocks | Windows]` mode control, in whatever order Phase 2 is
+sequenced next.
+
+**Blocked:** nothing. One new `design/GAPS.md` entry, **G-013**: neither
+`interactions.md` §3 nor §4 says what a drag that would push a
+`RoutineBlock`'s start before 00:00 or its end past 24:00 should do — both
+sections assume a freely-floating `Event.start`/`.end`, which a
+`RoutineBlock`'s bounded `startMinutes` field is not. Built as a clamp at the
+day boundary (same shape as the already-specified 15-minute-minimum-duration
+clamp) rather than guessed past silently; not blocking, since no acceptance
+criterion for this task approaches either edge (a 07:00 Gym block, a 20:00
+Study block). Needs an explicit ruling in `interactions.md` §11.1 to close.

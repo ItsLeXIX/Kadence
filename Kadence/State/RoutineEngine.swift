@@ -4,10 +4,10 @@
 //
 //  Turns a `RoutineTemplate` into ordinary `Event`s on the calendar
 //  (BRIEF-PRODUCT.md; components.md §13). This is the data-layer
-//  materialisation pass only:
+//  materialisation pass:
 //
-//  - No Routines window, no TimeWindow editor, no menu bar extra, no snooze
-//    (components.md §13, layouts.md §8, interactions.md §11, §15, §16).
+//  - No TimeWindow editor, no menu bar extra, no snooze (layouts.md §8,
+//    interactions.md §15, §16).
 //  - No conflict detection (components.md §14).
 //  - No detachment tracking or re-sync (components.md §13.4, interactions.md
 //    §11.2). This engine never touches a materialized event once it exists —
@@ -22,6 +22,14 @@
 //  re-sync, so importing twice updates instead of duplicating". Here that
 //  means: calling `materialize` again over an overlapping range creates
 //  nothing new for a date/block pair that already exists.
+//
+//  `RoutineBlockStore` below (task P2-T11) is the Routines-window sibling of
+//  `EventStore`: move, resize and delete for `RoutineBlock`s, undoable and
+//  named, per interactions.md §11.1 ("Creating, moving and resizing routine
+//  blocks uses §3 and §4 unchanged ... `⌫` deletes. `⌘Z` undoes, with names").
+//  Not a UI type — `RoutinesWindow.swift` is what calls it from a drag gesture
+//  and a key handler. Creating new blocks and the flexibility control remain
+//  out of scope (see `RoutinesWindow.swift`'s own header).
 //
 
 import Foundation
@@ -109,5 +117,169 @@ enum RoutineEngine {
     private static func dayKey(_ date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+    }
+}
+
+// MARK: - Editing (task P2-T11)
+
+/// Move, resize and delete for `RoutineBlock`s. Same two rules as
+/// `EventStore.swift`'s header, for the same reasons:
+///
+/// 1. **Blocks are addressed by `id`, resolved at execution time.** Undoing a
+///    delete cannot resurrect the deleted `@Model` instance, so the block
+///    comes back as a new object carrying the same `id`. Nothing here
+///    captures a `RoutineBlock` reference inside an undo closure.
+/// 2. Every mutation is one named `UndoStack` step, named exactly as
+///    interactions.md §11.1 prescribes ("Move Routine Block" / "Resize
+///    Routine Block" / "Delete Routine Block" — `UndoStack` itself prepends
+///    "Undo "/"Redo ").
+///
+/// The one thing that does NOT carry over from `EventStore`: a `RoutineBlock`
+/// has no `Date` of its own (`RoutineTemplate.swift`'s own doc comment on
+/// `startMinutes` — it is a time-of-day offset applied uniformly across every
+/// active weekday, not an instant). So where `EventStore.move`/`resize` take
+/// `Date`s, these take minutes-since-midnight, and clamp to a single day
+/// (0...1440) rather than letting a drag roll a block over into "tomorrow",
+/// which has no meaning for a template. `RoutinesWindow.swift`'s drag gesture
+/// does the Date-to-minutes conversion (via `RoutineWeekLayout.referenceDayStart`)
+/// before calling in, exactly the inverse of what `RoutineWeekLayout.layoutItems`
+/// already does to turn `startMinutes` into a `Date` for the layout engine.
+///
+/// SPEC-GAP (design/GAPS.md): interactions.md §11.1 says §3/§4 apply
+/// "unchanged", but those sections assume a freely-floating `Date` — they
+/// never say what happens when a drag would push a block's start before
+/// 00:00 or its end past 24:00 on its own day, which a bounded `startMinutes`
+/// field can hit and an `Event` never could. Clamped at the day boundary
+/// (same shape as the existing 15-minute-minimum-duration clamp already in
+/// §4) rather than left undefined, pending a real answer.
+@MainActor
+struct RoutineBlockStore {
+    let context: ModelContext
+    let undo: UndoStack
+
+    // MARK: Resolving
+
+    private func block(_ id: UUID) -> RoutineBlock? {
+        var descriptor = FetchDescriptor<RoutineBlock>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
+    private func template(_ id: UUID) -> RoutineTemplate? {
+        var descriptor = FetchDescriptor<RoutineTemplate>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
+    private func edit(_ id: UUID, _ change: (RoutineBlock) -> Void) {
+        guard let block = block(id) else { return }
+        change(block)
+        try? context.save()
+    }
+
+    // MARK: Move
+
+    func move(_ block: RoutineBlock, toStartMinutes newStart: Int) {
+        let durationMinutes = max(1, Int(block.duration / 60))
+        let clamped = min(max(newStart, 0), 1440 - durationMinutes)
+        guard clamped != block.startMinutes else { return }
+        let id = block.id
+        let old = block.startMinutes
+        undo.perform("Move Routine Block",
+                     redo: { edit(id) { $0.startMinutes = clamped } },
+                     undo: { edit(id) { $0.startMinutes = old } })
+    }
+
+    // MARK: Resize
+
+    /// The drag clamps rather than inverting; minimum resulting duration is
+    /// 15 minutes, same as `EventStore.resize` (interactions.md §4).
+    func resize(_ block: RoutineBlock, newStartMinutes: Int? = nil, newEndMinutes: Int? = nil) {
+        let minimum = 15
+        let id = block.id
+        let oldStart = block.startMinutes
+        let oldEnd = oldStart + Int(block.duration / 60)
+
+        var start = oldStart
+        var end = oldEnd
+        if let newStartMinutes { start = min(max(newStartMinutes, 0), oldEnd - minimum) }
+        if let newEndMinutes { end = max(min(newEndMinutes, 1440), start + minimum) }
+        guard start != oldStart || end != oldEnd else { return }
+
+        let finalStart = start
+        let finalDuration = TimeInterval((end - start) * 60)
+        let oldDuration = block.duration
+        undo.perform("Resize Routine Block",
+                     redo: { edit(id) { $0.startMinutes = finalStart; $0.duration = finalDuration } },
+                     undo: { edit(id) { $0.startMinutes = oldStart; $0.duration = oldDuration } })
+    }
+
+    // MARK: Delete
+
+    /// Removes `block` from `template.blocks` (SwiftData's cascade rule only
+    /// fires when the *template* is deleted, not when one block is dropped
+    /// from its array, so both the array membership and the row itself are
+    /// cleaned up here). `⌘Z` reinserts a fresh `RoutineBlock` carrying the
+    /// same `id` and appends it back onto the same template.
+    func delete(_ block: RoutineBlock, from template: RoutineTemplate) {
+        let snapshot = RoutineBlockRestoreSnapshot(block)
+        let id = block.id
+        let templateID = template.id
+        undo.perform("Delete Routine Block",
+                     redo: { removeBlock(id, templateID: templateID) },
+                     undo: { insertBlock(snapshot, templateID: templateID) })
+    }
+
+    private func removeBlock(_ id: UUID, templateID: UUID) {
+        guard let template = template(templateID) else { return }
+        template.blocks.removeAll { $0.id == id }
+        if let block = block(id) {
+            context.delete(block)
+        }
+        try? context.save()
+    }
+
+    private func insertBlock(_ snapshot: RoutineBlockRestoreSnapshot, templateID: UUID) {
+        guard let template = template(templateID) else { return }
+        let block = snapshot.makeBlock()
+        context.insert(block)
+        template.blocks.append(block)
+        try? context.save()
+    }
+}
+
+// MARK: - Snapshot (delete/undo)
+
+/// Everything needed to bring a `RoutineBlock` back after a delete — the same
+/// shape as `EventStore.swift`'s `EventSnapshot`, and for the same reason: a
+/// `@Model` instance cannot be re-inserted once deleted, so undo recreates one
+/// carrying the same `id`.
+struct RoutineBlockRestoreSnapshot: Sendable {
+    var id: UUID
+    var title: String
+    var startMinutes: Int
+    var duration: TimeInterval
+    var flexibility: Flexibility
+    var shiftableMinutes: Int?
+    var priority: Int
+
+    @MainActor
+    init(_ block: RoutineBlock) {
+        id = block.id
+        title = block.title
+        startMinutes = block.startMinutes
+        duration = block.duration
+        flexibility = block.flexibility
+        shiftableMinutes = block.shiftableMinutes
+        priority = block.priority
+    }
+
+    @MainActor
+    func makeBlock() -> RoutineBlock {
+        let block = RoutineBlock(
+            title: title, startMinutes: startMinutes, duration: duration,
+            flexibility: flexibility, shiftableMinutes: shiftableMinutes, priority: priority)
+        block.id = id
+        return block
     }
 }

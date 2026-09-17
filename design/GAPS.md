@@ -915,3 +915,41 @@ order for free.
 input rather than raw event times only, and must be told the view's hour height
 so it can evaluate §4's case split. This is independent of the §3.5 view-layer
 fix and can land separately.
+
+---
+
+## 2026-09-17 — G-013 — §3/§4 assume a free `Date`; a `RoutineBlock`'s day boundary is unhandled
+
+**Where it bit:** task P2-T11, wiring move/resize drag gestures for
+`RoutineBlock`s in the Routines window (`Kadence/State/RoutineEngine.swift`'s
+new `RoutineBlockStore`, `Kadence/Views/Routines/RoutinesWindow.swift`).
+
+**What interactions.md §11.1 says.** "Creating, moving and resizing routine
+blocks uses §3 and §4 unchanged — same 15-minute snap, same `⌃` for 5-minute,
+same handles, same drop preview." §4 in turn says resizing clamps rather than
+inverts, with a 15-minute minimum duration, and says nothing else about limits.
+
+**What is missing.** Both §3 and §4 are written against `Event.start`/`Event.end`
+— ordinary `Date`s with no floor or ceiling; dragging an event past midnight
+just moves it onto the next day, which is a perfectly good `Date`. A
+`RoutineBlock` has no date at all — `startMinutes: Int` is a time-of-day offset
+applied uniformly to every one of the template's active weekdays
+(`RoutineTemplate.swift`'s own doc comment) — so it only makes sense in
+`0...1440`. Neither §3 nor §4 says what a drag that would push a block's start
+before 00:00 or its end past 24:00 should do: wrap to the next/previous
+weekday's column (which has no defined meaning — a block is not "on" any one
+weekday), clamp at the boundary, or something else.
+
+**What was built instead of guessing.** `RoutineBlockStore.move`/`.resize`
+clamp `startMinutes` to `0...(1440 - durationMinutes)` and a resize's `end` to
+`...1440`, the same shape as the existing (specified) 15-minute-minimum clamp
+in §4 — a drag that would cross midnight stops at the boundary rather than
+wrapping or silently producing an out-of-range `startMinutes`. This is a
+placeholder decision, not a spec answer: marked here rather than invented
+silently and moved past.
+
+**Not blocking.** Ordinary use (a Gym block at 07:00, a Study block at 20:00)
+never approaches either edge, so this does not affect the acceptance criteria
+task P2-T11 was built against. Needed only to close: an explicit ruling in
+`interactions.md` §11.1 (or a new subsection) on cross-midnight drag behaviour
+for a `RoutineBlock` specifically.

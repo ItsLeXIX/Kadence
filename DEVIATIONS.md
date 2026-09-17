@@ -34,6 +34,22 @@ left open (read-only flexibility text instead of §13.2's interactive control;
 the total-hours formula) and is documented as such rather than invented. See
 `STATUS.md` §8.)*
 
+*(Amended 2026-09-17, task P2-T11 — move/resize/delete are no longer part of
+the paragraph above's list. That paragraph described the whole window as
+read-only; that is now stale for three of the five items it named.
+`interactions.md` §11.1's move, resize and delete are built (`RoutineBlockStore` in
+`Kadence/State/RoutineEngine.swift`; the drag gesture and `⌫` handler in
+`Kadence/Views/Routines/RoutinesWindow.swift`), undoable and named exactly as
+§11.1 prescribes. Still absent, unchanged from P2-T10: creating new routine
+blocks, the `[Blocks | Windows]` mode control, the flexibility control's
+interactive stepper, detached-instance tracking/Re-sync, the background
+windows layer. One new judgement call, not left open by the brief: §11.1 says
+§3/§4 "apply unchanged", but those sections assume a freely-floating `Date`
+where a `RoutineBlock`'s `startMinutes` is bounded to a single day — a drag
+that would cross midnight has no specified behaviour, so it clamps at the
+boundary rather than wrapping or going out of range. Filed as `design/GAPS.md`
+G-013 rather than guessed past silently. See `STATUS.md` §9.)*
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in

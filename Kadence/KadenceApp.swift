@@ -55,6 +55,15 @@ struct KadenceApp: App {
         // `id: "routines"` is what that command's `openWindow(id:)` targets.
         WindowGroup(id: "routines") {
             RoutinesWindow()
+                // task P2-T11: without this, `RoutinesWindow`'s
+                // `@Environment(UndoStack.self)` (needed so its drag/resize/
+                // delete edits go through the same `RoutineBlockStore` undo
+                // stack as everywhere else) has nothing to resolve — this is
+                // the same instance `MainWindow` uses above, so `⌘Z` means the
+                // same thing in both windows and `KadenceCommands`' Edit menu
+                // (wired once, app-wide) reads correctly no matter which
+                // window is key.
+                .environment(undoStack)
         }
         .modelContainer(container)
         .defaultSize(
