@@ -206,7 +206,13 @@ struct TimedCanvasView: View {
 
 /// Wraps the grid in a horizontal scroll view only when the columns have hit
 /// their minimum width, so the common case keeps a single scroll axis.
-private struct HorizontalScrollIfNeeded: ViewModifier {
+///
+/// Internal rather than `private` so the Routines window (`layouts.md` §8,
+/// `Kadence/Views/Routines/RoutinesWindow.swift`) can reuse the same
+/// column-floor behaviour instead of re-implementing it — its grid is a
+/// different data type (`RoutineBlock`, not `Event`) but the same geometry
+/// rule applies verbatim.
+struct HorizontalScrollIfNeeded: ViewModifier {
     let isEnabled: Bool
 
     func body(content: Content) -> some View {

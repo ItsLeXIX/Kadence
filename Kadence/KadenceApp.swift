@@ -50,6 +50,17 @@ struct KadenceApp: App {
         .modelContainer(container)
         .commands { KadenceCommands(calendar: calendar, undo: undoStack) }
 
+        // layouts.md §8 — "a separate window, not a sheet and not a Settings
+        // pane," opened with ⌘⌥R or Window ▸ Routines (see KadenceCommands).
+        // `id: "routines"` is what that command's `openWindow(id:)` targets.
+        WindowGroup(id: "routines") {
+            RoutinesWindow()
+        }
+        .modelContainer(container)
+        .defaultSize(
+            width: Tokens.Size.routineEditorMinWidth,
+            height: Tokens.Size.routineEditorMinHeight)
+
         Settings {
             SettingsPlaceholderView()
         }

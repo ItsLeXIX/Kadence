@@ -12,6 +12,12 @@ struct KadenceCommands: Commands {
     var calendar: CalendarState
     var undo: UndoStack
 
+    /// layouts.md §8 — opens the Routines window (`WindowGroup(id: "routines")`
+    /// in `KadenceApp.swift`). `Commands` bodies read environment values the
+    /// same way a `View`'s does; this is the standard SwiftUI pattern for a
+    /// custom "open a named window" menu command.
+    @Environment(\.openWindow) private var openWindow
+
     var body: some Commands {
         // interactions.md §9 — each action is named, so the menu reads
         // "Undo Move Event". Replaces AppKit's stock pair, which is driven by an
@@ -67,6 +73,16 @@ struct KadenceCommands: Commands {
             .keyboardShortcut("i", modifiers: [.option, .command])
 
             Divider()
+        }
+
+        // layouts.md §8 — "Opened with ⌘⌥R or Window ▸ Routines." Placed in
+        // the Window menu (`.windowArrangement`'s placement), alongside the
+        // standard window-arrangement commands macOS already puts there.
+        CommandGroup(after: .windowArrangement) {
+            Button("Routines") {
+                openWindow(id: "routines")
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
         }
     }
 }

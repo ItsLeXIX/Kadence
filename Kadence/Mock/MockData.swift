@@ -215,6 +215,51 @@ enum MockData {
         return result
     }
 
+    // MARK: Routine templates (task P2-T10 — Routines window seed data)
+
+    /// Inserts one demo `RoutineTemplate` if the store has none yet.
+    /// Independent of `seedIfNeeded` above (`Event`/`Place` seeding): the
+    /// Routines window can be the first window a session opens, via ⌘⌥R,
+    /// before `MainWindow` has ever run its own `.task`, so this has to be
+    /// callable — and idempotent — on its own. `RoutinesWindow` calls it from
+    /// its own `.task`.
+    @MainActor
+    static func seedRoutineTemplatesIfNeeded(_ context: ModelContext) {
+        let existing = (try? context.fetch(FetchDescriptor<RoutineTemplate>())) ?? []
+        guard existing.isEmpty else { return }
+        for template in makeRoutineTemplates() {
+            context.insert(template)
+        }
+        try? context.save()
+    }
+
+    /// One template, a few blocks, spanning more than one weekday — enough
+    /// for the Routines window (layouts.md §8) to have something to render.
+    /// Not part of components.md §12's block-variant sheet (that sheet is
+    /// Phase 1's `Event` fixtures); this is Phase 2 data, seeded the same
+    /// idempotent way.
+    @MainActor
+    static func makeRoutineTemplates() -> [RoutineTemplate] {
+        let gym = RoutineBlock(
+            title: "Gym", startMinutes: 7 * 60, duration: 60 * 60,
+            flexibility: .shiftable, shiftableMinutes: 30)
+        let review = RoutineBlock(
+            title: "Morning review", startMinutes: 8 * 60 + 15, duration: 30 * 60,
+            flexibility: .fixed)
+        let reading = RoutineBlock(
+            title: "Reading", startMinutes: 21 * 60, duration: 30 * 60,
+            flexibility: .droppable)
+
+        // Calendar's weekday convention (1 = Sunday ... 7 = Saturday, per
+        // `RoutineTemplate.activeWeekdays`'s own doc comment): 2/4/6 = Mon/Wed/Fri.
+        let template = RoutineTemplate(
+            name: "Daily routine",
+            activeWeekdays: [2, 4, 6],
+            blocks: [gym, review, reading],
+            sourceKey: .green)
+        return [template]
+    }
+
     // MARK: All-day items — items 9–10
 
     static func makeAllDay(now: Date) -> [AllDayFixture] {
