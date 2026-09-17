@@ -154,6 +154,34 @@ shared, concurrently-loaded machine — not a code defect. Left for a future fix
 task to harden the script and get an independent re-verification; not fixed by
 this task.
 
+**Fix, 2026-09-18 (P2-T12 follow-up — `check-accessibility.sh` hardened).**
+The `FAIL: no Kadence process has a window` result reported again immediately
+after task P2-T12 (routine block creation), and P2-T12's own STATUS.md entry
+re-quoted the old "TextEdit also shows 0 windows" excuse without re-checking
+it. This task re-checked it and found a real, root-cause fix instead of
+another excuse: `design/`-external, but recorded at STATUS.md §8 back on
+2026-09-17 — a plain `open -n` with no restoration flag can reopen a
+*previously used* window (the Routines window included, since P2-T10/P2-T11/
+P2-T12's own manual verification opened it repeatedly on this machine) as
+"window 1" ahead of the fresh main window, or — the new symptom this session
+— produce no window at all for 40+ seconds while the process sits idle. §8
+named the fix (`-ApplePersistenceIgnoreState YES`) but never applied it to
+any script. It is now applied, consistently, to all four scripts sharing the
+identical `open -n "$APP"` pattern: `check-accessibility.sh`,
+`check-block-click-selects.sh`, `check-block-hit-regions.sh`,
+`check-routines-window.sh`. Evidence it is restoration flake and not a
+P2-T12 code crash: `~/Library/Logs/DiagnosticReports` had no Kadence entries;
+the container's `CrashReporter` plist held only a stale `Date` key from
+2026-09-10; `log show` for the process during a reproduction returned
+nothing; `sample` on a live 0-window reproduction showed the main thread
+idle in `mach_msg2_trap`, process alive per `ps`. `check-accessibility.sh`
+passed three consecutive times after the fix, each reporting the main
+window's 20 block elements. See STATUS.md §11 for the full account,
+including a second, unrelated, NOT-fixed fragility found in the same
+session (a live third-party application intermittently holding OS-wide
+frontmost status on this machine, which can still make the two
+click/keystroke-driven scripts flake independently of this fix).
+
 ### What this re-audit changed
 
 The Phase 1 section numbering in all three spec files is **unchanged** —

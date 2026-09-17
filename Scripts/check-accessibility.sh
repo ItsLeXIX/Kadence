@@ -35,15 +35,29 @@ APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debug
 # app was perfectly healthy. Cost an hour. Hence the pid-targeting below.
 for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill -9 "$PID" 2>/dev/null; done
 sleep 2
-open -n "$APP"
+# -ApplePersistenceIgnoreState YES: this Mac's window-restoration machinery has
+# repeatedly reopened a *previously used* window (the Routines window, opened
+# by hand during P2-T10/P2-T11/P2-T12 verification) as "window 1" ahead of the
+# freshly-launched main window on a plain `open -n`, and on at least one
+# reproduction produced no window at all for 40+ seconds while the process sat
+# idle in mach_msg2_trap (alive, not crashed, not spinning — sampled and
+# confirmed). The flag suppresses restoration entirely so the only window that
+# can ever appear is the one this script means to query. See STATUS.md §8 and
+# the follow-up task that applied this fix.
+open -n "$APP" --args -ApplePersistenceIgnoreState YES
 sleep 9
 
 # Query the instance that actually has a window, never the one that merely has
-# the right name.
+# the right name. Poll rather than check once: even with restoration
+# suppressed, a cold launch has been observed taking ~17s to vend its first
+# window to System Events, longer than the original single 9s sleep allowed.
 TARGET=""
-for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do
-  N=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to count windows" 2>/dev/null)
-  if [[ "${N:-0}" -ge 1 ]]; then TARGET=$PID; break; fi
+for ATTEMPT in $(seq 1 10); do
+  for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do
+    N=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to count windows" 2>/dev/null)
+    if [[ "${N:-0}" -ge 1 ]]; then TARGET=$PID; break 2; fi
+  done
+  sleep 2
 done
 if [[ -z "$TARGET" ]]; then
   echo "FAIL: no Kadence process has a window — the app did not come up."

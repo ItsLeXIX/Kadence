@@ -66,13 +66,26 @@ APP=$(ls -td ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debu
 for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill -9 "$PID" 2>/dev/null; done
 sleep 2
 "$WORK/kclick" 5 5 >/dev/null 2>&1
-open -n "$APP"
+# -ApplePersistenceIgnoreState YES: this script's own baseline depends on the
+# freshly-launched process opening exactly one window (the main window) before
+# it drives ⌘⌥R itself to open the Routines window — the thing it means to
+# test. Without this flag, this Mac's window-restoration has instead reopened
+# a previously-used window (e.g. a Routines window left over from a manual
+# verification session) as "window 1" ahead of the main window, or produced no
+# window at all for 40+ seconds, on a plain `open -n`. See check-accessibility.sh
+# and STATUS.md §8.
+open -n "$APP" --args -ApplePersistenceIgnoreState YES
 sleep 9
 
+# Poll rather than check once — even with restoration suppressed, a cold
+# launch has been observed taking ~17s to vend its first window.
 TARGET=""
-for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do
-  N=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to count windows" 2>/dev/null)
-  if [[ "${N:-0}" -ge 1 ]]; then TARGET=$PID; break; fi
+for ATTEMPT in $(seq 1 10); do
+  for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do
+    N=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to count windows" 2>/dev/null)
+    if [[ "${N:-0}" -ge 1 ]]; then TARGET=$PID; break 2; fi
+  done
+  sleep 2
 done
 if [[ -z "$TARGET" ]]; then
   echo "FAIL: no Kadence process has a window — the app did not come up."
@@ -83,6 +96,17 @@ echo "driving pid $TARGET"
 
 BEFORE_COUNT=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $TARGET) to count windows")
 echo "windows before ⌘⌥R: $BEFORE_COUNT"
+
+# `System Events ... keystroke` delivers to whatever is ACTUALLY frontmost
+# system-wide — the `tell (first process ...)` scoping does not redirect it.
+# Found by hand while re-verifying this script for this task: on this Mac
+# another running app (a game client, LeagueClientUx) can hold or reclaim
+# frontmost status right after Kadence launches, silently swallowing the
+# keystroke below and producing a "did not open a new window" false failure
+# that has nothing to do with Kadence. Explicitly activating the target
+# process first makes this deterministic.
+osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $TARGET) to true" >/dev/null 2>&1
+sleep 1
 
 # ⌘⌥R — the same shortcut KadenceCommands.swift binds to "Routines".
 osascript -e "tell application \"System Events\" to tell (first process whose unix id is $TARGET) to keystroke \"r\" using {command down, option down}" >/dev/null 2>&1

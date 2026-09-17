@@ -1,6 +1,6 @@
 # Status
 
-Updated: **2026-09-17**
+Updated: **2026-09-18**
 Phase 1: **complete and verified.** Phase 2: **designed, not built.** Phase 3:
 **neither designed nor built.**
 
@@ -153,6 +153,24 @@ only" framing each get a correction (§3's own text and the stale bullet inside
 §8's "explicitly out of scope" list are amended in place, not left to
 contradict this section). Creation, the flexibility control and Windows mode
 remain out of scope, per this task's own brief — see §9.
+
+**Amended 2026-09-18 by a P2-T12 follow-up (`check-accessibility.sh`'s "no
+window" failure).** New §11. P2-T12's own §10 had waved this failure away by
+re-quoting §1.2's old "TextEdit also reports 0 windows" excuse; this task
+re-verified instead of re-quoting it, and found it does **not** hold up as
+stated, though the underlying cause is still environmental and not a P2-T12
+code defect: it is §8's own already-named, never-applied restoration flake
+(`-ApplePersistenceIgnoreState YES`), confirmed by a flag-comparison relaunch
+and a clean `sample`/log/crash-report check (no crash, process idle in
+`mach_msg2_trap`, no `DiagnosticReports` entry, no relevant `CrashReporter`
+content). The fix is now actually applied, consistently, to all four scripts
+that shared the pattern (`check-accessibility.sh`,
+`check-block-click-selects.sh`, `check-block-hit-regions.sh`,
+`check-routines-window.sh`), and `check-accessibility.sh` passed three
+consecutive times after the fix. A second, unrelated fragility (a live
+third-party application contending for OS-wide frontmost status on this
+machine) was found and partially worked around in `check-routines-window.sh`;
+see §11 for what remains open and explicitly out of scope.
 
 ---
 
@@ -1954,6 +1972,14 @@ no title is never persisted; the block is selected on commit.
   recognition, `@FocusState`, draft binding) has no pure-function seam, the
   same limitation already noted for click-to-select and for P2-T11's own
   drag gestures.
+  **CORRECTED by §11 (2026-09-18 follow-up): the "TextEdit also shows 0
+  windows, so it's the machine" excuse was re-checked, not just re-quoted,
+  and does not hold up as a full explanation — the real, specific mechanism
+  is §8's own already-named window-restoration flake, confirmed by a
+  flag-comparison relaunch and by ruling out a crash with `sample`/log/crash-
+  report evidence. `check-accessibility.sh` (and the other three scripts
+  sharing its `open -n` pattern) now carry the documented fix and pass
+  reliably; see §11.**
 
 **Explicitly out of scope, and not built, per the task brief (unchanged from
 P2-T10/P2-T11):**
@@ -1977,3 +2003,133 @@ G-013's existing clamp rule rather than opening a new question, and every
 other value it needed (the 60-minute default, the 15-minute drag floor, the
 empty-title-persists-nothing rule) was already specified by `interactions.md`
 §3, which §11.1 points back at unchanged.
+
+## 11. P2-T12 follow-up — diagnose and fix `check-accessibility.sh`'s "no
+window" failure (2026-09-18)
+
+P2-T12's own §10 entry above recorded `check-accessibility.sh` as unable to
+run, and reached for the same excuse §1.2's amendment used before ("TextEdit
+also reports 0 windows, so it's the machine"). This task re-investigated
+rather than trusting that, per §8's own explicit unresolved note (a plain
+`open -n` on this Mac can reopen a *previously used* window — the Routines
+window included, since P2-T10/P2-T11/P2-T12's manual verification opened it
+repeatedly this session — as "window 1" ahead of the fresh main window) and
+per the general standard here that a repeated excuse gets re-verified, not
+re-quoted.
+
+**Reproduced:** `./Scripts/check-accessibility.sh` failed exactly as
+recorded: `FAIL: no Kadence process has a window — the app did not come up.`
+
+**Ruled out a genuine crash, with evidence, not assertion:**
+- `~/Library/Logs/DiagnosticReports` has no Kadence entries at all (checked by
+  filename glob for the current session).
+- The container's own `CrashReporter` plist
+  (`~/Library/Containers/XIX.Kadence/Data/Library/Application Support/CrashReporter/Kadence_*.plist`)
+  contains only a stale `Date` key from **2026-09-10**, unrelated to this
+  session or to P2-T12's commits.
+- `log show --predicate 'processImagePath contains "Kadence"' --last 3m`
+  returned **nothing** during a reproduction — no crash, no fault, no error
+  logged for the process at all.
+- `sample <pid> 2` on a live reproduction (plain `open -n`, 0 windows at 40+
+  seconds) showed the main thread parked 100% in `mach_msg2_trap`
+  (`libsystem_kernel.dylib`) — idle, waiting on the run loop, not spinning and
+  not crashed. `ps` confirmed the process was still alive (state `S`) the
+  whole time. This is the identical signature §1.2's amendment recorded for
+  the same class of issue on this machine.
+- Timing is genuinely variable, not deterministically broken: three plain,
+  flagless `open -n` reproductions on this machine, run back to back, gave 0
+  windows at 40s (once), 1 window at 17s (once), and 1 window at 5s (once) —
+  all for the same unmodified binary. That is restoration-timing flake, not a
+  code fault (a real crash would not intermittently succeed on the identical
+  binary).
+
+**Confirmed the restoration mechanism directly (flag-comparison relaunch,
+not a stale saved-state guess):** relaunching with
+`open -n "$APP" --args -ApplePersistenceIgnoreState YES` and querying the
+resulting window's own accessibility tree showed **20** timed-block elements
+every time (Breakfast, Morning review, Datenmodellierung, ... — Phase 1's
+full fixture set) — i.e. the flag reliably produces exactly the main window,
+never the Routines window, and never zero windows within a generous wait.
+Without the flag, a reproduction that happened to still have a window
+appear also showed the main window's 20 elements in one trial and, in an
+earlier trial the session before, a `9`-routine-block Routines-window read
+(consistent with §8's own account) — confirming the restoration mechanism,
+not a P2-T12 code path, decides which window (if any) appears first.
+
+**Root cause, therefore: restoration flake, not a regression in P2-T12's
+create/drag code.** No file under `Kadence/` was touched.
+
+**Fix applied, consistently, to all four scripts that shared the identical
+pattern** (`check-accessibility.sh`, `check-block-click-selects.sh`,
+`check-block-hit-regions.sh`, `check-routines-window.sh`):
+1. `open -n "$APP"` → `open -n "$APP" --args -ApplePersistenceIgnoreState YES`
+   in every script — suppresses restoration entirely so the only window that
+   can ever appear is the freshly-created one, per §8's own named fix, now
+   actually applied instead of only documented.
+2. The single `sleep 9` + one-shot window-count check is now a poll (up to
+   10 attempts, 2s apart, on top of the original 9s) — because even *with*
+   the flag, a cold launch was observed taking ~17s to vend its first window
+   to System Events, longer than the original budget allowed.
+
+**Verified — `check-accessibility.sh` run three times, back to back, after
+the fix (not once):** all three **PASS**, each reporting the main window's
+`20` block-shaped elements:
+```
+building…
+querying pid 63918
+block-shaped elements in the tree: 20
+...
+PASS (elements present)
+```
+(repeated verbatim, modulo pid, at pid 64116 and pid 68009 on the next two
+runs.)
+
+**A second, distinct issue found and fixed while spot-verifying the other
+three scripts (not the mechanism this task was assigned, but the same class
+of "script assumed a quiet foreground" fragility):** `check-routines-window.sh`
+sends its ⌘⌥R keystroke via `System Events ... tell process ... keystroke`,
+but `keystroke` is delivered to whichever process is *actually* frontmost
+system-wide — the `tell process` scoping does not redirect it. On this Mac,
+right now, another running application was intermittently holding or
+reclaiming frontmost status (`osascript ... get name of first process whose
+frontmost is true` returned `LeagueClientUx`, and later, mid-session,
+`LeagueofLegends` — a live game session on this machine, confirmed by
+querying frontmost immediately after an explicit `set frontmost of
+(Kadence process) to true`, which was overridden within about a second).
+Added an explicit `set frontmost of (first process whose unix id is $TARGET)
+to true` immediately before the keystroke in `check-routines-window.sh`.
+Verified: with this added, a reproduction that had previously failed
+(`windows before ⌘⌥R: 1`, `windows after: 1`) now passed
+(`windows after: 2`, `PASS: ⌘⌥R opened a new window.`, 9 routine-block
+elements found, matching §8's own count).
+
+**NOT fixed, and explicitly out of scope for this task:** with the live game
+session described above still running on this machine, `check-block-click-
+selects.sh` and the click-driven tail of `check-routines-window.sh` (the part
+after the ⌘⌥R fix above) still fail intermittently — the block never reads
+selected after the `CGEvent` click. Root-caused as far as is useful here:
+`first process whose frontmost is true` reported `LeagueofLegends` again at
+the moment of the failing runs, and it reclaimed frontmost within ~1s of an
+explicit override, which is consistent with clicks/focus being contended by
+that other application rather than any fault in Kadence's own hit-testing
+(already covered, separately, by `check-block-hit-regions.sh`, which does not
+depend on frontmost/keyboard focus and **passed** cleanly this session — `20`
+timed elements, `20` distinct y positions, `4` columns checked, no
+ordering failures). This is a live, external, third-party application
+contending for OS-wide input focus on this specific Mac at this specific
+time — not a Kadence defect, not the restoration mechanism this task was
+assigned to fix, and not something a `Scripts/` change can neutralise short
+of quitting someone else's running application, which is out of scope. Filed
+here, not silently dropped, so the next person who sees `check-block-click-
+selects.sh` fail on this machine checks what else is running before assuming
+a regression.
+
+**What is next:** re-run `check-block-click-selects.sh` and
+`check-routines-window.sh`'s click assertion once no other application is
+contending for frontmost on this Mac, to confirm they are clean under the
+new launch fix too — expected to pass, per `check-block-hit-regions.sh`'s
+clean run this session, but not yet directly observed clean end-to-end.
+
+**Blocked:** nothing for this task's own scope. The frontmost-contention
+issue above is not blocked, just out of scope; it is an environmental fact
+about this Mac at this moment, not a design or code question.

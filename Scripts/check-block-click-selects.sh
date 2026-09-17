@@ -87,13 +87,23 @@ for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill -9 "$PID" 2
 sleep 2
 # Park the pointer away from the window so nothing is hovered at baseline.
 "$WORK/kclick" 5 5 >/dev/null 2>&1
-open -n "$APP"
+# -ApplePersistenceIgnoreState YES: see check-accessibility.sh for why. This
+# Mac's window-restoration has reopened a previously-used window (e.g. the
+# Routines window) as "window 1" ahead of the main window, or produced no
+# window at all for 40+ seconds, on a plain `open -n`. Suppressing restoration
+# makes the main window the only one that can ever appear.
+open -n "$APP" --args -ApplePersistenceIgnoreState YES
 sleep 9
 
+# Poll rather than check once — even with restoration suppressed, a cold
+# launch has been observed taking ~17s to vend its first window.
 TARGET=""
-for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do
-  N=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to count windows" 2>/dev/null)
-  if [[ "${N:-0}" -ge 1 ]]; then TARGET=$PID; break; fi
+for ATTEMPT in $(seq 1 10); do
+  for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do
+    N=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to count windows" 2>/dev/null)
+    if [[ "${N:-0}" -ge 1 ]]; then TARGET=$PID; break 2; fi
+  done
+  sleep 2
 done
 if [[ -z "$TARGET" ]]; then
   echo "FAIL: no Kadence process has a window — the app did not come up."
