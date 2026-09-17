@@ -21,6 +21,19 @@ specifies container wiring; it was an implementation gap, not a spec question.
 P2-T09 registers both types in `KadenceApp.swift`'s primary `init` and in
 `emptyFallback()`, closing it. See `STATUS.md` §7.)*
 
+*(Noted 2026-09-17, task P2-T10 — a second exception: a Routines window shell
+now exists (`layouts.md` §8, `components.md` §13.1) — a real second `Scene`,
+seven weekday-only columns on the main Week view's own hour-grid geometry, and
+read-only rendering of one seeded template's blocks through `GridBlockView`.
+Deliberately narrow — no create/move/resize/delete, no `[Blocks | Windows]`
+mode control, no interactive flexibility control, no detached-instance
+tracking or re-sync, no `TimeWindow` model. Nothing about what was built is a
+deviation: every value it needed was already specified in `layouts.md` §8/§8.1
+or `components.md` §13.1, or was a judgement call the task brief explicitly
+left open (read-only flexibility text instead of §13.2's interactive control;
+the total-hours formula) and is documented as such rather than invented. See
+`STATUS.md` §8.)*
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in
@@ -600,9 +613,13 @@ Still open, all re-checked against the current spec text this session:
 - Peak-focus windows render nothing on the calendar canvas. §7 was extended on
   2026-09-10 with an **editor exception** — peak focus *is* drawn, as a dashed
   outline in `color.window.peakFocusEdge`, but "only inside the Routines window's
-  windows mode (§13.3), never on the calendar canvas." That is Phase 2 surface and
-  there is no Routines window to draw it in, so it is not a deviation. The calendar
-  canvas rule is unchanged and the build still honours it.
+  windows mode (§13.3), never on the calendar canvas." *(Updated 2026-09-17,
+  task P2-T10: a Routines window now exists, but its Windows mode does not —
+  there is still no `TimeWindow` model and no `[Blocks | Windows]` mode
+  control, which §13.3 needs, so there is still nothing to draw this outline
+  in. Still not a deviation, for the same reason, just a narrower one than
+  before.)* The calendar canvas rule is unchanged and the build still honours
+  it.
 
 ---
 

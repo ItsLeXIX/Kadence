@@ -125,6 +125,24 @@ concrete, reusable failure mode for `check-accessibility.sh` (a stale
 `DerivedData` folder shadowing the freshly-built app via `ls | head -1`) worth
 a future script fix.
 
+**Amended 2026-09-17 by task P2-T10 (Routines window shell — open, weekday
+canvas, read-only block rendering).** New §8. The first Phase 2 UI slice: a
+second `Scene` opening a real, separate window (⌘⌥R / Window ▸ Routines),
+seven weekday-only columns on the same hour-grid geometry the main Week view
+uses, and the seeded demo template's blocks rendered read-only through
+`GridBlockView`. §3's "full design spec, zero implementation" framing gets a
+second correction (the first was §6/P2-T08's data layer) — see §3's own
+amendment. This session also surfaced, while re-verifying
+`check-accessibility.sh`, that this Mac's window-restoration behaviour can
+reopen a previously-used window (the Routines window included) on a plain
+`open -n` with no special flag, ahead of the freshly-launched main window,
+which is why that script's fixed "query window 1" now needs
+`-ApplePersistenceIgnoreState YES` to reliably target the main window whenever
+more than one window type has ever been opened in this app on this machine —
+see §8's own verification notes for the full account. This is a pre-existing
+script assumption (one window, ever) now visibly outgrown by a second window
+existing at all, not a defect this task introduced in either window's code.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -963,6 +981,15 @@ was actually built and what still has "nothing" next to it: the Routines
 window, conflict detection, the menu bar extra, snooze, and the TimeWindow
 editor are all still exactly as this section describes them.)*
 
+*(Corrected again 2026-09-17 by task P2-T10 — a second row is now stale: a
+Routines window exists. It is a narrow first slice — read-only rendering of
+one template's blocks, no create/move/resize/delete, no Blocks/Windows mode
+control, no interactive flexibility control, no detached-instance tracking or
+re-sync, no `TimeWindow` model or editor. See §8 below for exactly what was
+built and what is still unbuilt. Conflict detection, the menu bar extra,
+snooze and the `TimeWindow` editor itself remain exactly as this section
+describes them.)*
+
 `BRIEF-PRODUCT.md` "Phase 2 — routines, conflicts, protected time, and the menu
 bar" requires a routine engine, a TimeWindow editor, conflict detection and a
 menu bar extra. Everything except the routine engine's data layer (§6) still
@@ -979,7 +1006,7 @@ does not exist in `Kadence/`.
 | conflict detection (`conflictDetect`, `ConflictResolv`) | **nothing** | still true |
 | `MenuBarExtra` scene | **nothing** | still true |
 | `Snooze` | **nothing** | still true |
-| a `TimeWindow` *editor* | **nothing** | still true |
+| a `TimeWindow` *editor* | **nothing** | still true — the Routines window built by P2-T10 (§8) renders `RoutineBlock`s only; there is still no `TimeWindow` model anywhere and no Windows-mode editor |
 
 The only hits are Phase 1 display fixtures, and the code says so itself.
 `Kadence/Models/DisplayFixtures.swift:65` reads:
@@ -1091,17 +1118,23 @@ mine to decide.
 1. ~~**`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**~~
    **Done** — `--check` is green, see §1.1. Not this task's doing; it was already
    regenerated when P2-T01 picked the tree up.
-2. **Phase 2 has a design and, as of task P2-T08, one data-layer slice of
+2. **Phase 2 has a design and, as of tasks P2-T08–P2-T10, two slices of
    code.** `design/components.md` §13–§17, `layouts.md` §8–§10,
    `interactions.md` §10–§12 and the 67 new tokens are complete and frozen.
    `RoutineTemplate`/`RoutineBlock` (models) and `RoutineEngine.materialize`
-   exist and are tested (§6) — everything else (the Routines window itself,
-   conflict detection, the menu bar extra, snooze, the TimeWindow editor, and
-   detachment/re-sync per components.md §13.4) is still unbuilt. The design
-   pass also notes two deliberate reuses: the Routines window **is** the Week
-   canvas with dates, now line, all-day row and travel bands removed
-   (components.md §13.1 lists every difference), and conflict preview **is** the
-   drag-drop drop-preview vocabulary. Neither needs a new renderer.
+   exist and are tested (§6), and a Routines window shell now exists and
+   renders one template's blocks read-only (§8) — everything else (routine
+   block create/move/resize/delete, the Blocks/Windows mode control, the
+   interactive flexibility control, detached-instance tracking and re-sync,
+   conflict detection, the menu bar extra, snooze, and the `TimeWindow` model
+   and editor) is still unbuilt. The design pass also notes two deliberate
+   reuses: the Routines window **is** the Week canvas with dates, now line,
+   all-day row and travel bands removed (components.md §13.1 lists every
+   difference) — confirmed in §8's build, which reuses `DayLayoutEngine`,
+   `TimeGeometry`, `HourLinesLayer`/`TimeGutterView` and `GridBlockView`
+   unchanged rather than re-implementing any grid geometry — and conflict
+   preview **is** the drag-drop drop-preview vocabulary. Neither needs a new
+   renderer.
 3. **Phase 3 has neither design nor code.** It cannot be built without a design
    pass first; per `CONTEXT.md` the coding agent cannot invent UI values.
 4. **Phase 1 has open deviations.** 18 absent, 6 built-differently, **0 invented
@@ -1427,3 +1460,224 @@ follow-up needing the main-grid edit-command path.
 
 **Blocked:** nothing. No new `design/GAPS.md` entries were opened — this task
 was pure container-registration engineering with no UI value to invent.
+
+## 8. P2-T10 — Routines window shell: open, weekday canvas, read-only block rendering (2026-09-17)
+
+The first Phase 2 **UI** slice (§6/§7 were data layer only), per `layouts.md`
+§8 and `components.md` §13.1. Deliberately narrow, per the task brief: this is
+the window opening, the weekday grid, and read-only rendering of one
+template's blocks — not the full editor.
+
+**Built:**
+
+- `Kadence/Views/Routines/RoutinesWindow.swift` — a real SwiftUI `View`
+  presented by a second `Scene`. Toolbar holds a `Picker` listing every
+  `RoutineTemplate` by name (`.labelsHidden()`, disabled when the store has
+  none) — no `[Blocks | Windows]` segmented control and no `+` new-template
+  action, exactly per the task's own scope note. Canvas: seven weekday-only
+  columns (`RoutineWeekdayHeaderRow`, `typeStyle(.dayHeaderWeekday)`, no
+  dates), ordered from `Calendar.current.firstWeekday`
+  (`RoutineWeekLayout.orderedWeekdays`), on the same hour-grid geometry as the
+  main Week view — `TimeGeometry`, `HourLinesLayer`, `TimeGutterView`
+  (`GridLayers.swift`) reused unchanged, `hourHeightWeek`. No now-line, no
+  all-day row, no travel bands, no background-windows layer (see the file's
+  own header comment on that last one — `components.md` §13.1 says this
+  window reuses the same background-window layer as the Week canvas, but
+  there is no `TimeWindow` model yet to drive it, and rendering it was never
+  part of this task's "what to build" list; left for the task that builds
+  Windows mode). A column floor of `size.routineEditorColumnMin` (84) reuses
+  the main Week view's own `HorizontalScrollIfNeeded` view modifier
+  (`Kadence/Views/Canvas/TimedCanvasView.swift`, made `internal` rather than
+  `private` for this one caller — the only change to a file outside
+  `Routines/`) rather than re-implementing the "scroll horizontally once
+  columns hit their floor" rule a second time.
+- `Kadence/Layout/RoutineWeekLayout.swift` — the pure glue between a
+  template's weekly shape and `DayLayoutEngine`, which is reused **unmodified**
+  (`DayLayoutEngine.swift` was not touched by this task, confirmed by diff).
+  `RoutineBlockSnapshot` is a plain-value read of a `RoutineBlock`, mirroring
+  why `GridBlockModel` exists for `Event` (`BlockModels.swift`'s own header).
+  `orderedWeekdays(firstWeekday:)`, `referenceDayStart(weekday:now:calendar:)`
+  and `layoutItems(blocks:activeWeekdays:weekday:referenceDayStart:)` are all
+  pure functions over value types, free of SwiftUI and (except where `now` is
+  an explicit parameter) free of the system clock — the same shape
+  `DayLayoutEngine` itself follows, per the build rules. A weekday not in the
+  template's `activeWeekdays` gets an empty item list, since every block in a
+  `RoutineTemplate` repeats on every active weekday uniformly (there is no
+  per-block weekday field — matches exactly the `(active weekday × block)`
+  pairing `RoutineEngine.materialize` already iterates).
+- Selection: `RoutineBlockSelection { blockID, weekday }` — window-scoped
+  `@State` on `RoutinesWindow`, not `CalendarState` (this window's selection
+  model is its own; interactions.md's model belongs to the main-grid window).
+  A block recurs in every one of the template's active columns, so the id
+  alone would be ambiguous — the selection also carries which column was
+  clicked. Clicking a block sets it; clicking empty grid clears it
+  (`interactions.md` §6's "clicking empty grid deselects" carried over as the
+  only other interaction this read-only column offers).
+- Inspector (`layouts.md` §8.1), `size.editorInspectorWidth` (260), collapsing
+  below 1040pt into an overlay exactly as `MainWindow` does for its own
+  inspector below its own literal collapse widths (that 1040pt figure is a
+  literal out of layouts.md §8's prose, not a token — there is no `size.*`
+  token for this particular width, matching the way `MainWindow` already
+  hardcodes its own 1200/900 the same way). With a block selected: title,
+  start, duration, and flexibility as **read-only text** (the interactive
+  three-segment control components.md §13.2 specifies — Fixed / Shiftable /
+  Droppable, a rail-style sample, a ± minutes stepper for `.shiftable` — is
+  explicitly out of scope for this task; the task brief left the choice
+  between omitting it or showing read-only text to this task, and this reads
+  the value rather than inventing a design). With nothing selected: the
+  template's name, active weekdays, block count, and total hours — the
+  formula chosen (`sum(block durations) × active-weekday count`, i.e. hours
+  per *week*, not just per block set) is documented on
+  `RoutineInspectorView.totalHours` as the one reading consistent with what
+  the same row already shows about active-weekday count; `layouts.md` §8.1
+  asks for "total hours" without specifying the formula. Detached-instance
+  count and Re-sync (§13.4) are always zero right now (no main-grid
+  edit-command path can yet tell a hand-edited instance apart from an
+  untouched one), so per the window's own existing zero-state rule (§10.2 —
+  "hidden entirely at zero") the row is **omitted entirely**, not stubbed at
+  "0 instances edited" — matching the task's explicit instruction not to stub
+  it.
+- `Kadence/KadenceApp.swift` — `WindowGroup(id: "routines") { RoutinesWindow() }`,
+  a second, real `Scene` (not a sheet, not a `Settings` pane), sharing the
+  app's one `ModelContainer`, `.defaultSize` set to
+  `Tokens.Size.routineEditorMinWidth` × `routineEditorMinHeight` (780×620);
+  `RoutinesWindow` itself also enforces that floor via
+  `.frame(minWidth:minHeight:)`, so the minimum holds however the window is
+  opened.
+- `Kadence/Views/Chrome/KadenceCommands.swift` — `CommandGroup(after:
+  .windowArrangement)` adds a **Routines** menu item, `⌘⌥R`,
+  `openWindow(id: "routines")` via `@Environment(\.openWindow)` — the standard
+  SwiftUI pattern for a `Commands` body to open a named window, following this
+  file's existing `CommandGroup` shape rather than introducing a new one.
+- `Kadence/Mock/MockData.swift` — `seedRoutineTemplatesIfNeeded(_:)` (idempotent,
+  callable on its own since the Routines window can be the very first window a
+  session opens, before `MainWindow`'s own `.task` has ever run) and
+  `makeRoutineTemplates()`, seeding exactly one demo `RoutineTemplate`
+  ("Daily routine", Mon/Wed/Fri, sourceKey `.green`) with three
+  `RoutineBlock`s spanning the morning and evening (Gym 07:00–08:00
+  shiftable, Morning review 08:15–08:45 fixed, Reading 21:00–21:30
+  droppable) — enough to render something in more than one weekday column,
+  per the task's own instruction not to build any template-creation UI.
+
+**Verified:**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` — **BUILD
+  SUCCEEDED**, re-run this session, no new warnings.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — **TEST SUCCEEDED**, 214 `passed` lines /
+  **186 unique test names**, **0 failed**. The new cases are in
+  `KadenceTests/RoutineWeekLayoutTests.swift`: weekday-ordering rotation for
+  every possible `firstWeekday` (1–7), `referenceDayStart` always returning
+  midnight on the requested weekday, `layoutItems` producing one item per
+  block at the right `start`/`end` on an active weekday and none at all on an
+  inactive one, block ids surviving through unchanged (for `GridBlockView`
+  lookup), and an end-to-end check against `MockData.makeRoutineTemplates()`
+  itself — every weekday in `orderedWeekdays(firstWeekday: 1)` (exhaustive,
+  Sun...Sat) produces exactly the template's block count on an active weekday
+  and none on an inactive one, and running the seeded template's items
+  through `DayLayoutEngine.layout` places each block's frame at exactly the
+  y-position `TimeGeometry` derives from its own `startMinutes`.
+- `swift Scripts/generate-tokens.swift --check` — **up to date**. This task
+  used only already-generated tokens (`routineEditorMinWidth/Height`,
+  `editorInspectorWidth`, `routineEditorColumnMin`, `hourHeightWeek`,
+  `dayHeaderWeekday`, etc.) and added none.
+- `Scripts/check-routines-window.sh` (new — this task's UI-level regression
+  check, sibling of `check-block-click-selects.sh`/`check-accessibility.sh`,
+  same real-`CGEvent`-click technique and the same reason for it: `System
+  Events … click at {x, y}` resolves an element and sends `AXPress`, bypassing
+  hit-testing, which would pass against a broken build). Run clean this
+  session, full transcript:
+  ```
+  PASS: ⌘⌥R opened a new window.
+  routine block elements found: 9
+    Gym                  129x42 at 504,608  selected=False
+    Morning review       129x20 at 504,663  selected=False
+    Reading              129x22 at 504,1224  selected=False
+    Gym                  129x42 at 775,608  selected=False
+    Morning review       129x20 at 775,663  selected=False
+    Reading              129x22 at 775,1224  selected=False
+    Gym                  129x42 at 1045,608  selected=False
+    Morning review       129x20 at 1045,663  selected=False
+    Reading              129x22 at 1045,1224  selected=False
+  clicking "Gym" at 568,629 …
+  PASS: clicking "Gym" selected it (AXSelected true).
+  PASS: the inspector's static text gained "Gym" after the click (the
+  block-detail view replaced the template summary).
+  ```
+  9 elements = the template's 3 blocks × its 3 active weekdays (Mon/Wed/Fri),
+  each at a distinct x (one per weekday column) confirming the seven-column
+  layout, and each block's own y distinct from the other two blocks in its
+  column confirming positioning by `startMinutes`. The script does not try to
+  assert *which* x belongs to *which* weekday column from screen coordinates
+  alone (no reliable way to do that through AppleScript without duplicating
+  the window's own layout math) — that exact claim is covered instead by
+  `RoutineWeekLayoutTests.swift`'s pure-function assertions, which do know
+  which weekday each item belongs to.
+- `./Scripts/check-accessibility.sh`, re-run this session after this task's
+  changes: **PASS**, 9 block-shaped elements, all three of the seeded
+  template's routine blocks (`AXHelp` carries "routine block" as the kind
+  label, `BlockModels.swift`'s existing `accessibilityKindLabel` for
+  `.routineTimed` — untouched by this task). This surfaced a real, if
+  pre-existing, script limitation worth recording precisely: on a plain
+  `open -n` with no special launch flag, this Mac's own window-restoration
+  reliably reopened **the Routines window** as the frontmost ("window 1")
+  window rather than the main window, so this run of a script that always
+  reads "window 1" reported 9 routine blocks and not the main window's usual
+  20. This is **not** a code defect in either window — confirmed by relaunching
+  with `-ApplePersistenceIgnoreState YES` (the documented fix for exactly this
+  class of restoration issue, used previously for the ⎋/↩ crash
+  investigation at §1.2's amendment): with restoration suppressed, the app
+  opens exactly **one** window, and that window's accessibility tree shows
+  the full, unchanged **20** Phase 1 blocks (Breakfast, Morning review,
+  Datenmodellierung, ... — the same fixture set §1.2/§7 have always recorded),
+  proving `MainWindow` is untouched by this task. Neither of the two saved
+  window-state locations this repo has previously implicated
+  (`~/Library/Saved Application State/XIX.Kadence.savedState`, and the
+  sandboxed app's own container equivalent) contained anything after a clean
+  `kill -9` + relaunch, so the actual mechanism keeping this Mac's
+  window-restoration alive across launches was not pinned down further — out
+  of scope for this task to chase to ground, and it is a script-robustness
+  gap (`check-accessibility.sh` assumed exactly one window, ever, which
+  stopped being true the moment a second window *type* existed at all), not a
+  Routines-window defect. Filed here as a to-do for
+  `check-accessibility.sh`/`check-routines-window.sh`: pick the window whose
+  content actually matches what the script means to assert (e.g. by title, or
+  by disambiguating via the block kind found), rather than always reading
+  "window 1".
+
+**Explicitly out of scope, and not built, per the task brief:**
+
+- Creating, moving, resizing or deleting routine blocks (`interactions.md`
+  §11.1) — this window has no drag or create surface at all; every block view
+  in it is read-only (`GridBlockModel.isMovable = false`).
+- The `[Blocks | Windows]` mode control and Windows-mode editing
+  (`components.md` §13.3) — there is no `TimeWindow` model yet. The toolbar's
+  `Picker` is the only toolbar content.
+- The `+` new-template action and any template-creation UI — the one demo
+  template is seeded by `MockData`, not created through any UI.
+- The flexibility control's interactive stepper (`components.md` §13.2) — the
+  inspector shows flexibility as read-only text instead.
+- Detached-instance tracking and Re-sync (`components.md` §13.4,
+  `interactions.md` §11.2) — always zero, so omitted per the window's own
+  zero-state rule rather than stubbed.
+- The background-windows layer inside the Routines canvas — `components.md`
+  §13.1 says this window reuses it, but there is no `TimeWindow` model to
+  drive it and this task's own scope never asked for it; left for the task
+  that builds Windows mode.
+- Calling `RoutineEngine.materialize` from app lifecycle — a separate wiring
+  task once there is a real template-creation UI to call it from.
+- `screenshots/2/` capture — a separate follow-up task per the brief, not
+  this one.
+
+**What is next:** the follow-up tasks listed above, in whatever order Phase 2
+is sequenced — most plausibly template creation/editing (which needs the
+`[Blocks | Windows]` mode control before Windows mode has anything to edit),
+then wiring `RoutineEngine.materialize` to a real creation/apply action, then
+detachment tracking once the main-grid edit-command path can tell an
+untouched instance from a hand-edited one.
+
+**Blocked:** nothing. No new `design/GAPS.md` entries were opened — every
+value this task needed was already specified (`layouts.md` §8/§8.1,
+`components.md` §13.1) or was explicitly left to this task's own judgement by
+the brief (the flexibility read-only-text presentation, the total-hours
+formula), and is documented as such above rather than guessed silently.
