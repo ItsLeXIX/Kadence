@@ -282,7 +282,15 @@ def main() -> int:
             print("nothing to resume — no checkpoint for this phase")
             return 1
         persist.log(f"resuming {_thread(cfg)}")
-        return _drive(cfg, None)
+        # A checkpoint saved at the cycle ceiling still says budget_stop, and
+        # the graph routes straight to END on it — so raising max_cycles alone
+        # cannot restart the loop. Clear that one status; blocked and
+        # phase_done are deliberate and stay.
+        resume_input = None
+        if _last_state().get("status") == "budget_stop":
+            persist.log("  clearing the previous budget_stop so the loop can run")
+            resume_input = {"status": "running", "stop_reason": ""}
+        return _drive(cfg, resume_input)
 
     # run
     _acquire_lock()
