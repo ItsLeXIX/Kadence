@@ -42,6 +42,7 @@ while :; do
         10) say "exit 10 — BLOCKED, MA needs a decision from Parsa."; exit 10 ;;
         20) say "exit 20 — cycle/budget ceiling reached."; exit 20 ;;
         30) say "exit 30 — claude CLI not logged in. Run: claude  (then /login)"; exit 30 ;;
+        2)  say "exit 2 — another orchestrator holds the lock. Standing down."; exit 2 ;;
         *)
             n=$((n + 1))
             if [ "$n" -ge "$MAX_RESTARTS" ]; then

@@ -13,7 +13,9 @@ Exit codes: 0 phase done · 10 blocked (needs Parsa) · 20 budget/cycle stop
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
+import os
 import shutil
 import sys
 import time
@@ -28,8 +30,48 @@ from kadence_flow.config import Config  # noqa: E402
 from kadence_flow.errors import AuthExpired, QuotaExhausted  # noqa: E402
 
 CONFIG_PATH = HERE / "config.json"
+LOCK = HERE / "state" / "orchestrator.lock"
 EXIT = {"phase_done": 0, "blocked": 10, "budget_stop": 20,
         "auth_stop": 30, "quota_stop": 75}
+
+
+def _acquire_lock() -> None:
+    """One orchestrator per repo. Two sharing a checkpoint, a branch and a
+    working tree race each other's app launches and interleave commits —
+    that is what corrupted the ledger on 2026-09-11."""
+    if LOCK.exists():
+        try:
+            pid = int(LOCK.read_text().split()[0])
+        except (ValueError, IndexError, OSError):
+            pid = -1
+        alive = False
+        if pid > 0:
+            try:
+                os.kill(pid, 0)          # signal 0 = "does this pid exist?"
+                alive = True
+            except ProcessLookupError:
+                alive = False            # gone; the lock is stale
+            except PermissionError:
+                alive = True             # exists, just owned by another user
+            except OSError:
+                alive = False
+        if alive:
+            print(f"An orchestrator is already running (pid {pid}).\n"
+                  f"Two at once corrupt the checkpoint and race the app under "
+                  f"test.\nStop it first, or remove {LOCK} if that pid is dead.")
+            sys.exit(2)
+        LOCK.unlink(missing_ok=True)     # stale
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    LOCK.write_text(f"{os.getpid()} {datetime.now().isoformat(timespec='seconds')}\n")
+    atexit.register(_release_lock)
+
+
+def _release_lock() -> None:
+    try:
+        if LOCK.exists() and LOCK.read_text().split()[0] == str(os.getpid()):
+            LOCK.unlink()
+    except (OSError, IndexError):
+        pass
 
 
 def _thread(cfg: Config) -> str:
@@ -235,6 +277,7 @@ def main() -> int:
         return _drive(cfg, _initial(cfg))
 
     if a.command == "resume":
+        _acquire_lock()
         if not persist.DB.exists():
             print("nothing to resume — no checkpoint for this phase")
             return 1
@@ -242,6 +285,7 @@ def main() -> int:
         return _drive(cfg, None)
 
     # run
+    _acquire_lock()
     if a.fresh and persist.DB.exists():
         persist.DB.unlink()
     if not shutil.which("git"):
