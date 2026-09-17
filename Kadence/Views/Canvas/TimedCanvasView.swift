@@ -16,6 +16,12 @@ struct TimedCanvasView: View {
     let hourHeight: CGFloat
     let now: Date
     let store: EventStore
+    /// Every event id that is one half of a `ConflictEngine.detect` result
+    /// (P2-T14) — threaded straight through to `DayColumnView`, same as
+    /// `events`/`fixtures`/`now`, so a routine-vs-manual/imported overlap
+    /// also renders `.conflicted`, alongside (not replacing) the Phase 1
+    /// protected-window placeholder.
+    var conflictedEventIDs: Set<UUID> = []
     /// interactions.md §1 — the all-day row is its own ⇥ stop, and it lives here
     /// rather than in MainWindow, so the focus binding is passed down.
     var focusedRegion: FocusState<CalendarState.FocusRegion?>.Binding
@@ -104,7 +110,8 @@ struct TimedCanvasView: View {
                         // §7 — the window label lives in the LEADING day column,
                         // never the gutter. Only the first column draws it.
                         showsWindowLabels: index == 0,
-                        store: store)
+                        store: store,
+                        conflictedEventIDs: conflictedEventIDs)
                         .frame(width: columnWidth)
                         // Weekend tint has to be behind the blocks but IN FRONT of
                         // nothing — the window backdrop is below it, so the tint is

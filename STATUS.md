@@ -193,6 +193,18 @@ exactly 1 entry rather than 2 — its flexibility-derived option already *is*
 "skip today", so the task's own "always also offer a plain skip fallback"
 does not duplicate it).
 
+**Amended 2026-09-18 by task P2-T14 (wire `ConflictEngine.detect` into
+`Presentation.conflicted` on the live calendar canvas).** New §13. The first
+of §12's three deliberately-deferred follow-ups is now done: `MainWindow`
+queries the live `RoutineBlock`s alongside its existing `Event` query, runs
+`ConflictEngine.detect(events:routineBlocks:)`, and threads the resulting
+conflicted-event-id set through `TimedCanvasView` into `DayColumnView`, which
+now inserts `.conflicted` for either id in that set — additively, alongside
+(not replacing) Phase 1's `conflictsWithProtectedWindow` placeholder. Still
+explicitly not built, same as §12 left them: the "Needs your attention" row,
+the conflict panel, preview-on-focus, and an apply/undo command. See §13 for
+the full account.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -1172,19 +1184,21 @@ mine to decide.
 1. ~~**`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**~~
    **Done** — `--check` is green, see §1.1. Not this task's doing; it was already
    regenerated when P2-T01 picked the tree up.
-2. **Phase 2 has a design and, as of tasks P2-T08–P2-T13, four slices of
+2. **Phase 2 has a design and, as of tasks P2-T08–P2-T14, five slices of
    code.** `design/components.md` §13–§17, `layouts.md` §8–§10,
    `interactions.md` §10–§12 and the 67 new tokens are complete and frozen.
    `RoutineTemplate`/`RoutineBlock` (models) and `RoutineEngine.materialize`
    exist and are tested (§6), a Routines window shell exists and renders one
    template's blocks (§8), that window's blocks can now be moved, resized,
-   created and deleted, undoably (§9, §10), and `ConflictEngine` now detects
+   created and deleted, undoably (§9, §10), `ConflictEngine` now detects
    routine-vs-manual/imported overlaps and generates their ranked resolution
-   options, data layer only (§12) — everything else (the Blocks/Windows mode
-   control, the interactive flexibility control, detached-instance tracking
-   and re-sync, wiring detected conflicts onto the grid or into a panel,
-   applying a resolution option, the menu bar extra, snooze, and the
-   `TimeWindow` model and editor) is still unbuilt. The design pass also notes
+   options, data layer only (§12), and those detected conflicts now render as
+   `.conflicted` on the live calendar canvas (§13) — everything else (the
+   Blocks/Windows mode control, the interactive flexibility control,
+   detached-instance tracking and re-sync, the "Needs your attention" row and
+   conflict panel, preview-on-focus, applying a resolution option, the menu
+   bar extra, snooze, and the `TimeWindow` model and editor) is still
+   unbuilt. The design pass also notes
    two deliberate
    reuses: the Routines window **is** the Week canvas with dates, now line,
    all-day row and travel bands removed (components.md §13.1 lists every
@@ -2271,5 +2285,100 @@ wiring `Presentation.conflicted` for detected conflicts, the "Needs your
 attention" row + conflict panel (components.md §14, interactions.md §10), and
 an "apply an option" command on `EventStore`/`UndoStack` (one named undo step,
 per interactions.md §10.1). None of those are blocked by anything found here.
+
+**Blocked:** nothing.
+
+## 13. P2-T14 — wire `ConflictEngine.detect` into `Presentation.conflicted` on the live calendar canvas (2026-09-18)
+
+The first of §12's three deliberately-deferred follow-ups (`ConflictEngine.swift`'s
+own header, item 1). Purely additive wiring — no change to `ConflictEngine.swift`
+itself (§12's detection/option logic was already tested there in isolation), and
+no change to the still-unbuilt Phase 1 `conflictsWithProtectedWindow` placeholder
+in `DayColumnView.swift`, which stays exactly as it was.
+
+**What changed:**
+1. `Kadence/Views/MainWindow.swift` — added `@Query private var routineBlocks:
+   [RoutineBlock]` alongside the existing `@Query(sort: \Event.start) private
+   var events: [Event]`. Added a computed property `conflictedEventIDs: Set<UUID>`
+   that calls a new `static func conflictedEventIDs(events:routineBlocks:) ->
+   Set<UUID>` — pulled out as its own `@MainActor` static function (rather than
+   left inline in the computed property) specifically so `KadenceTests` can
+   drive it directly without instantiating the view. It runs
+   `ConflictEngine.detect(events:routineBlocks:)` and collects both
+   `conflict.routineEvent.id` and `conflict.otherEvent.id` from every result
+   into one `Set<UUID>`. No hand-rolled caching — it is a plain computed
+   property, recomputed on every body evaluation from the live `@Query` arrays,
+   which is what the task asked for and is cheap enough given `detect`'s own
+   O(n²)-over-one-day/week scope (§12).
+2. The result is passed into both `TimedCanvasView` call sites (week and day
+   mode) as a new `conflictedEventIDs: Set<UUID>` parameter (default `[]`,
+   mirroring how `focusedRegion`/`onTab` are already threaded).
+3. `Kadence/Views/Canvas/TimedCanvasView.swift` — added the same `var
+   conflictedEventIDs: Set<UUID> = []` property and passed it straight through
+   to every `DayColumnView` it constructs, the same way `fixtures`/`now` are
+   already threaded — no per-day filtering needed since `Presentation` is
+   computed per-event by id, not per-day.
+4. `Kadence/Views/Canvas/DayColumnView.swift` — added the same property
+   (default `[]`, since `RoutinesWindow.swift`'s type-named-alike
+   `RoutineDayColumnView` is a distinct type and was never a caller here — the
+   only real caller is `TimedCanvasView`, which now always passes the live
+   set). In `presentation(for:laidOut:)`, added
+   `if conflictedEventIDs.contains(event.id) { presentation.insert(.conflicted) }`
+   as a new line immediately after the existing
+   `if conflictsWithProtectedWindow(event) { presentation.insert(.conflicted) }`
+   — additive, not a replacement; a block can now pick up `.conflicted` from
+   either source, or both.
+
+**Explicitly not built here** (all separate, future tasks, per
+`ConflictEngine.swift`'s own header and this task's brief): the "Needs your
+attention" row, the conflict panel view, preview-on-focus, and an apply/undo
+command on `EventStore`/`UndoStack`. Month view is untouched — it renders a
+different chip component per components.md §9, not `GridBlockView`/
+`Presentation`, so it was never in scope.
+
+**New test coverage:** `KadenceTests/ConflictPresentationWiringTests.swift`
+(new file), same in-memory `ModelContainer`/`ModelContext` pattern as
+`RoutineEngineTests.swift`/`ConflictEngineTests.swift`. Drives
+`MainWindow.conflictedEventIDs(events:routineBlocks:)` directly:
+- a routine event overlapping a manual event — both ids are flagged, and
+  the set has exactly those two members;
+- two overlapping manual events — neither id is flagged (matches
+  `ConflictEngine`'s routine-vs-manual/imported-only scope);
+- two overlapping routine events — neither id is flagged (same reason);
+- a non-overlapping routine/manual pair — not flagged;
+- recomputation: a routine event alone produces an empty set; inserting an
+  overlapping manual event and recomputing flags both ids — proving the
+  computed property genuinely reacts to a change in the underlying `events`
+  list rather than caching a stale answer.
+
+**Verified:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`, no new warnings.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 226 tests / 0
+  failed (254 including parametrized runs), including the 5 new
+  `ConflictPresentationWiringTests.swift` cases listed above.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.` (expected: no new
+  tokens needed for this wiring.)
+- Confirmed by inspection: `git diff --stat` touches exactly
+  `Kadence/Views/MainWindow.swift`, `Kadence/Views/Canvas/TimedCanvasView.swift`,
+  `Kadence/Views/Canvas/DayColumnView.swift`,
+  `KadenceTests/ConflictPresentationWiringTests.swift`, `STATUS.md` and
+  `DEVIATIONS.md` — `Kadence/State/ConflictEngine.swift` is untouched, and no
+  "Needs your attention" row, conflict panel, preview, or apply/undo command
+  was added anywhere.
+- Manual reasoning check on the "protected window still shows `.conflicted`"
+  acceptance point: `conflictsWithProtectedWindow` is an unmodified,
+  independent `if` line in the same `||`-style accumulation into
+  `presentation`; it is not gated on or replaced by the new
+  `conflictedEventIDs` line, so a block in a protected window continues to
+  get `.conflicted` exactly as before, with or without a real
+  `ConflictEngine` conflict also being present.
+
+**What is next:** the two remaining follow-ups §12 named — the "Needs your
+attention" row + conflict panel (components.md §14, interactions.md §10),
+and an "apply an option" command on `EventStore`/`UndoStack` (one named undo
+step, per interactions.md §10.1). Neither is blocked by anything found here.
 
 **Blocked:** nothing.

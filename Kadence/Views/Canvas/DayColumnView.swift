@@ -18,6 +18,11 @@ struct DayColumnView: View {
     /// §7 — the window label is drawn once, in the leading day column.
     var showsWindowLabels: Bool = false
     let store: EventStore
+    /// Every event id that is one half of a `ConflictEngine.detect` result
+    /// (P2-T14). Additive to, and independent of, `conflictsWithProtectedWindow`
+    /// below — that Phase 1 placeholder stays as-is; this is the real-engine
+    /// half of `.conflicted`.
+    var conflictedEventIDs: Set<UUID> = []
 
     @Environment(CalendarState.self) private var state
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -249,6 +254,7 @@ struct DayColumnView: View {
         if drag?.eventID == event.id { presentation.insert(.dragging) }
         if event.isPast(now: now) { presentation.insert(.past) }
         if conflictsWithProtectedWindow(event) { presentation.insert(.conflicted) }
+        if conflictedEventIDs.contains(event.id) { presentation.insert(.conflicted) }
         return presentation
     }
 

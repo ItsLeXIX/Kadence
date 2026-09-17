@@ -78,6 +78,21 @@ option list has exactly 1 entry (its flexibility-derived option already *is*
 "skip today", so the brief's own "always offer skip as a fallback" does not
 duplicate it). See `STATUS.md` §12.)*
 
+**Corrected 2026-09-18, task P2-T14 — the previous entry's "no wiring into
+`Presentation.conflicted`/`BlockStyleResolver`/`GridBlockView`" clause is now
+STALE for the wiring half specifically.** `MainWindow` now runs
+`ConflictEngine.detect` against the live `Event`/`RoutineBlock` queries and
+threads the resulting conflicted-event-id set through `TimedCanvasView` into
+`DayColumnView`, which inserts `.conflicted` for either id — additive to, not
+a replacement of, the pre-existing Phase 1 `conflictsWithProtectedWindow`
+placeholder, which is untouched. Still absent, unchanged: the "Needs your
+attention" row, the conflict panel, preview-on-focus, applying an option to
+the store, and protected-window conflicts (still no `TimeWindow` model).
+Nothing about what was built is a deviation — the wiring needed no new value
+`design/` doesn't already give; `Presentation.conflicted` and
+`BlockStyleResolver`'s handling of it already existed from Phase 1. See
+`STATUS.md` §13.
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in

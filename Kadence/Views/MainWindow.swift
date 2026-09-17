@@ -17,6 +17,11 @@ struct MainWindow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Query(sort: \Event.start) private var events: [Event]
+    /// Live routine blocks, needed only to feed `ConflictEngine.detect`'s
+    /// `routineBlocks:` parameter (it looks up each routine event's
+    /// `shiftableMinutes` range by reversing `RoutineEngine`'s own
+    /// `externalID` scheme — see `ConflictEngine.routineBlock(for:in:)`).
+    @Query private var routineBlocks: [RoutineBlock]
     @State private var fixtures = MockFixtures()
     @State private var didSeed = false
     /// interactions.md §1 — which region ⇥ has landed on.
@@ -111,6 +116,7 @@ struct MainWindow: View {
     @ViewBuilder
     private var canvas: some View {
         let visible = events.filter { state.isVisible($0) }
+        let conflictedIDs = conflictedEventIDs
 
         Group {
             switch state.mode {
@@ -129,6 +135,7 @@ struct MainWindow: View {
                     hourHeight: Tokens.Size.hourHeightWeek,
                     now: state.now,
                     store: store,
+                    conflictedEventIDs: conflictedIDs,
                     focusedRegion: $focusedRegion,
                     onTab: cycleFocus)
             case .day:
@@ -139,6 +146,7 @@ struct MainWindow: View {
                     hourHeight: Tokens.Size.hourHeightDay,
                     now: state.now,
                     store: store,
+                    conflictedEventIDs: conflictedIDs,
                     focusedRegion: $focusedRegion,
                     onTab: cycleFocus)
             }
@@ -183,6 +191,32 @@ struct MainWindow: View {
 
     private var eventsOnAnchorDay: [Event] {
         events.filter { Calendar.current.isDate($0.start, inSameDayAs: state.anchor) }
+    }
+
+    // MARK: Conflicts (P2-T14 — wiring only; see ConflictEngine.swift's header
+    // for what is deliberately still not built: the "needs your attention"
+    // row, the conflict panel, preview-on-focus, and apply/undo).
+
+    /// Recomputed from the live `events`/`routineBlocks` queries on every body
+    /// evaluation — `ConflictEngine.detect` is O(n²) over one day's/week's
+    /// worth of events, cheap enough that hand-rolled caching would only add a
+    /// second, easier-to-desync source of truth.
+    private var conflictedEventIDs: Set<UUID> {
+        Self.conflictedEventIDs(events: events, routineBlocks: routineBlocks)
+    }
+
+    /// The `Presentation.conflicted` input side of the wiring, pulled out as a
+    /// `static` function (rather than left inline in `conflictedEventIDs`
+    /// above) so `KadenceTests` can drive it directly without instantiating
+    /// the view.
+    @MainActor
+    static func conflictedEventIDs(events: [Event], routineBlocks: [RoutineBlock]) -> Set<UUID> {
+        var ids: Set<UUID> = []
+        for conflict in ConflictEngine.detect(events: events, routineBlocks: routineBlocks) {
+            ids.insert(conflict.routineEvent.id)
+            ids.insert(conflict.otherEvent.id)
+        }
+        return ids
     }
 
     // MARK: Sidebar visibility
