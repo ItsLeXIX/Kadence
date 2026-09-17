@@ -48,7 +48,18 @@ windows layer. One new judgement call, not left open by the brief: §11.1 says
 where a `RoutineBlock`'s `startMinutes` is bounded to a single day — a drag
 that would cross midnight has no specified behaviour, so it clamps at the
 boundary rather than wrapping or going out of range. Filed as `design/GAPS.md`
-G-013 rather than guessed past silently. See `STATUS.md` §9.)*
+G-013 rather than guessed past silently. See `STATUS.md` §9.
+
+**Corrected 2026-09-17, task P2-T12 — "creating new routine blocks" above is
+now STALE.** `interactions.md` §11.1's other half — double-click and
+drag-to-create — is built (`RoutineBlockStore.create` in
+`Kadence/State/RoutineEngine.swift`; `RoutineDayColumnView.createSurface` in
+`Kadence/Views/Routines/RoutinesWindow.swift`), reusing §3's model verbatim
+(60-minute double-click default, 15-minute drag floor, empty-title-persists-
+nothing, select-on-commit) and G-013's existing day-boundary clamp rather than
+opening a new one. Still absent, unchanged: the `[Blocks | Windows]` mode
+control, the flexibility control's interactive stepper, detached-instance
+tracking/Re-sync, the background windows layer. See `STATUS.md` §10.)*
 
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather

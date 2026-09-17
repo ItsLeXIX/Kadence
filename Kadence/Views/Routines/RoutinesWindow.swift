@@ -6,15 +6,18 @@
 //  picker, seven weekday-only columns on the same hour-grid geometry as the
 //  main Week view, and an inspector.
 //
-//  Task P2-T10 built this window read-only. Task P2-T11 (this pass) adds
-//  interactions.md §11.1's move / resize / delete — "Creating, moving and
-//  resizing routine blocks uses §3 and §4 unchanged ... same handles, same
-//  drop preview. `⌫` deletes. `⌘Z` undoes, with names." Still explicitly out
-//  of scope, left for follow-up tasks:
-//    - creating new routine blocks (drag-to-create, double-click) —
-//      interactions.md §11.1 groups this with move/resize ("Creating, moving
-//      and resizing ... uses §3 and §4 unchanged"), but this task's own brief
-//      carves it out separately; this window still has no create surface;
+//  Task P2-T10 built this window read-only. Task P2-T11 added interactions.md
+//  §11.1's move / resize / delete — "Creating, moving and resizing routine
+//  blocks uses §3 and §4 unchanged ... same handles, same drop preview. `⌫`
+//  deletes. `⌘Z` undoes, with names." Task P2-T12 (this pass) adds the other
+//  half §11.1 groups with move/resize but P2-T10/P2-T11 both carved out
+//  separately: creating new routine blocks. Double-click empty grid creates a
+//  60-minute block at the snapped slot under the pointer; drag creates a block
+//  of the dragged duration, minimum 15 minutes (interactions.md §3, applied
+//  unchanged per §11.1) — same inline `TextField`-in-place-of-title,
+//  `↩`-commits/`⎋`-cancels-and-removes, empty-title-never-persists shape as an
+//  ordinary event's draft. Still explicitly out of scope, left for follow-up
+//  tasks:
 //    - the Blocks/Windows mode control and Windows-mode editing
 //      (components.md §13.3) — there is no `TimeWindow` model yet;
 //    - the flexibility control's interactive stepper (components.md §13.2) —
@@ -25,15 +28,25 @@
 //    - the background windows layer (protected / low-energy shading), for the
 //      same reason P2-T10 left it out — no `TimeWindow` model to draw yet.
 //
-//  Move/resize/delete go through `RoutineBlockStore`
+//  Move/resize/delete/create all go through `RoutineBlockStore`
 //  (`Kadence/State/RoutineEngine.swift`) — the Routines-window sibling of
 //  `EventStore`, same id-addressed/undo-named shape, written over
 //  `startMinutes`/`duration` instead of `Date` since a `RoutineBlock` has
 //  none of its own. One store instance, one `UndoStack` (the same one
 //  `MainWindow` shares — `KadenceApp.swift` now injects it into this window's
-//  `WindowGroup` too, which it did not before this task), so `⌘Z` in either
+//  `WindowGroup` too, which it did not before P2-T11), so `⌘Z` in either
 //  window means the same thing and the Edit menu names the step correctly no
 //  matter which window is key.
+//
+//  Create (task P2-T12) reuses `EventDraft`/`DraftBlockView` unchanged — both
+//  are already plain `Date`-based types with no `Event`/`CalendarState`
+//  dependency of their own (`EventDraft.swift`'s own header: "Deliberately
+//  not an `Event`"), so the in-flight draft here is `RoutineDayColumnView`'s
+//  own local `@State`, not `CalendarState.draft` (that state belongs to the
+//  main-grid window, same reasoning as `RoutineBlockSelection` below being
+//  its own window-scoped type rather than `CalendarState.selectedEventID`).
+//  The Date-to-minutes conversion on commit is the same
+//  `RoutineWeekLayout.referenceDayStart` inverse move/resize already use.
 //
 //  A single edit to any one weekday's copy of a block changes the
 //  `RoutineBlock`'s own `startMinutes`/`duration` once — there is no
@@ -44,15 +57,19 @@
 //  What IS reused, unchanged: `DayLayoutEngine` (the same overlap-resolution
 //  engine the main grid uses), `TimeGeometry` (including its `snap` — same
 //  15-minute/5-minute-with-⌃ rule as `DayColumnView.blockGesture`),
-//  `HourLinesLayer` / `TimeGutterView` (`GridLayers.swift`) and `GridBlockView`
+//  `HourLinesLayer` / `TimeGutterView` (`GridLayers.swift`), `GridBlockView`
 //  (components.md §13.1: "Anything that looks like a block in this window is
 //  a block, and behaves like one" — including its built-in hover resize
-//  handles, now that `isMovable` is `true`). `DayColumnView`/`TimedCanvasView`
-//  themselves are still not reused as SwiftUI containers — they are
-//  hard-wired to `Event`/`EventStore`/`CalendarState`/drag-and-drop, none of
-//  which apply to a `RoutineBlock` canvas — but the drag gesture below
-//  mirrors `DayColumnView.blockGesture`'s shape (mode classification by
-//  handle-height, snap, drop preview) rather than re-deriving it.
+//  handles, now that `isMovable` is `true`) and, as of this task, `EventDraft`
+//  / `DraftBlockView` (`Kadence/Models/EventDraft.swift`,
+//  `Kadence/Views/Blocks/DraftBlockView.swift`) unchanged for the in-flight
+//  creation UI. `DayColumnView`/`TimedCanvasView` themselves are still not
+//  reused as SwiftUI containers — they are hard-wired to
+//  `Event`/`EventStore`/`CalendarState`/drag-and-drop, none of which apply to
+//  a `RoutineBlock` canvas — but the drag/create gestures below mirror
+//  `DayColumnView.blockGesture`/`.createSurface`'s shape (mode classification
+//  by handle-height, snap, drop preview, double-click/drag-to-create) rather
+//  than re-deriving them.
 //
 
 import SwiftUI
@@ -315,6 +332,15 @@ private struct RoutinesCanvasView: View {
 /// weekday columns changes the one underlying `RoutineBlock`, the edit is
 /// still correct even though this view only ever sees a single column's worth
 /// of geometry.
+///
+/// Create (task P2-T12) mirrors `DayColumnView.createSurface` the same way:
+/// double-click or drag on the empty grid begins a local `EventDraft` (this
+/// view's own `@State`, not `CalendarState.draft`), rendered through the same
+/// `DraftBlockView`. Which weekday column the gesture starts in only decides
+/// *whose* geometry supplies the snapped startMinutes/duration read on commit
+/// — a `RoutineBlock` has no per-weekday instance (see this type's own header
+/// above), so the resulting block, once created, appears on every one of the
+/// template's active weekdays immediately, the same as every other block.
 private struct RoutineDayColumnView: View {
     let weekday: Int
     let template: RoutineTemplate?
@@ -326,11 +352,17 @@ private struct RoutineDayColumnView: View {
     /// rule as `DayColumnView.DragSession`.
     @State private var drag: RoutineDragSession?
     @State private var hoveredID: UUID?
+    /// The in-flight creation draft, if any (task P2-T12). Local to this one
+    /// weekday column, exactly the way `drag` above is — nothing persists
+    /// until `commitDraft()` calls into `RoutineBlockStore.create`.
+    @State private var draft: EventDraft?
 
     struct RoutineDragSession: Equatable {
-        enum Mode: Equatable { case move, resizeTop, resizeBottom }
+        enum Mode: Equatable { case move, resizeTop, resizeBottom, create }
         var mode: Mode
-        var blockID: UUID
+        /// `nil` for `.create` — there is no existing block to address until
+        /// the drag ends and a new one is actually made.
+        var blockID: UUID?
         var origin: Date
         var current: Date
     }
@@ -344,11 +376,22 @@ private struct RoutineDayColumnView: View {
     }
 
     private var layoutItems: [LayoutItem] {
-        RoutineWeekLayout.layoutItems(
+        var items = RoutineWeekLayout.layoutItems(
             blocks: blocks,
             activeWeekdays: template?.activeWeekdays ?? [],
             weekday: weekday,
             referenceDayStart: referenceDayStart)
+        // The draft is laid out with everything else so the user sees where it
+        // will land, even though it is not in the store yet (interactions.md
+        // §3) — same reasoning as `DayColumnView.layoutItems`. Included
+        // regardless of whether `weekday` is one of the template's active
+        // weekdays: the column being dragged in is just where the geometry
+        // comes from, not a claim about which weekdays the eventual block
+        // will render on.
+        if let draft {
+            items.append(LayoutItem(id: draft.id, start: draft.start, end: draft.end, title: draft.title))
+        }
+        return items
     }
 
     var body: some View {
@@ -361,18 +404,16 @@ private struct RoutineDayColumnView: View {
                 HourLinesLayer(geometry: geometry)
 
                 // Empty-grid tap deselects, matching the main grid's
-                // "clicking empty grid deselects" (interactions.md §6). Still
-                // no create surface here — drag-to-create is out of scope.
-                Rectangle()
-                    .fill(.clear)
-                    .contentShape(Rectangle())
-                    .frame(height: geometry.totalHeight)
-                    .accessibilityHidden(true)
-                    .onTapGesture { selection = nil }
+                // "clicking empty grid deselects" (interactions.md §6).
+                // Double-click / drag create (task P2-T12, interactions.md
+                // §3 via §11.1).
+                createSurface(width: proxy.size.width, geometry: geometry)
 
                 ForEach(layout.blocks.sorted(by: { $0.zIndex < $1.zIndex })) { laidOut in
                     if let block = blocks.first(where: { $0.id == laidOut.id }) {
                         blockView(block: block, laidOut: laidOut, geometry: geometry)
+                    } else if let draft, draft.id == laidOut.id {
+                        draftBlock(laidOut: laidOut)
                     }
                 }
 
@@ -493,6 +534,8 @@ private struct RoutineDayColumnView: View {
                     let deltaMinutes = currentMinutes - minutes(for: session.origin)
                     let oldEndMinutes = liveBlock.startMinutes + Int(liveBlock.duration / 60)
                     store.resize(liveBlock, newEndMinutes: oldEndMinutes + deltaMinutes)
+                case .create:
+                    break // Unreachable: `session.blockID == block.id` above already excludes it.
                 }
                 selection = RoutineBlockSelection(blockID: block.id, weekday: weekday)
             }
@@ -502,34 +545,137 @@ private struct RoutineDayColumnView: View {
         Int(date.timeIntervalSince(referenceDayStart) / 60)
     }
 
+    // MARK: Create (task P2-T12, mirrors DayColumnView.createSurface)
+
+    /// Empty grid: double-click or drag creates a new `RoutineBlock`.
+    /// interactions.md §11.1: "Creating ... uses §3 ... unchanged" — §3's own
+    /// model (double-click = 60 minutes at the snapped slot; drag = the
+    /// dragged duration, 15-minute minimum) is reused verbatim, just writing
+    /// into a local `EventDraft` instead of `CalendarState.draft`.
+    private func createSurface(width: CGFloat, geometry: TimeGeometry) -> some View {
+        Rectangle()
+            .fill(.clear)
+            .contentShape(Rectangle())
+            .frame(height: geometry.totalHeight)
+            .cursor(.crosshair)
+            .accessibilityHidden(true)
+            .onTapGesture(count: 2) { location in
+                let start = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15)
+                beginDraft(at: start)
+            }
+            .onTapGesture { selection = nil }
+            .gesture(
+                DragGesture(minimumDistance: 6)
+                    .onChanged { value in
+                        let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
+                        let from = TimeGeometry.snap(geometry.date(forY: value.startLocation.y), toMinutes: snap)
+                        let to = TimeGeometry.snap(geometry.date(forY: value.location.y), toMinutes: snap)
+                        drag = RoutineDragSession(mode: .create, blockID: nil, origin: from, current: to)
+                    }
+                    .onEnded { _ in
+                        defer { drag = nil }
+                        guard let session = drag, session.mode == .create else { return }
+                        let lower = min(session.origin, session.current)
+                        let upper = max(session.origin, session.current)
+                        let duration = max(upper.timeIntervalSince(lower), 15 * 60)
+                        beginDraft(at: lower, duration: duration)
+                    }
+            )
+    }
+
+    /// Start typing a new block. Nothing is persisted until `commitDraft()`.
+    private func beginDraft(at start: Date, duration: TimeInterval = 3600) {
+        selection = nil
+        draft = EventDraft(start: start, end: start.addingTimeInterval(duration))
+    }
+
+    /// A binding to the in-flight draft that stays safe to read after the
+    /// draft is gone — same reasoning and same shape as
+    /// `CalendarState.draftBinding()`: both `↩` (→ `commitDraft` → `draft =
+    /// nil`) and `⎋`/blur (→ `draft = nil` directly) clear the draft from
+    /// inside the draft field's own event handling, and SwiftUI reads the
+    /// field's bindings again while tearing the field down. Do **not**
+    /// replace this with `Binding($draft)` — see that function's own doc
+    /// comment for why a force-unwrapping binding traps here.
+    private func draftBinding() -> Binding<EventDraft>? {
+        guard let current = draft else { return nil }
+        var lastKnown = current
+        return Binding(
+            get: { self.draft ?? lastKnown },
+            set: { newValue in
+                guard self.draft != nil else { return }
+                lastKnown = newValue
+                self.draft = newValue
+            })
+    }
+
+    @ViewBuilder
+    private func draftBlock(laidOut: LaidOutBlock) -> some View {
+        if let binding = draftBinding() {
+            DraftBlockView(
+                draft: binding,
+                renderedHeight: laidOut.frame.height,
+                onCommit: commitDraft,
+                onDiscard: { draft = nil })
+                .frame(width: laidOut.frame.width, height: laidOut.frame.height, alignment: .topLeading)
+                .offset(x: laidOut.frame.minX, y: laidOut.frame.minY)
+        }
+    }
+
+    /// `↩` — persists only if there is a title (`RoutineBlockStore.create`
+    /// enforces this itself, same as `EventStore.commit`), and selects the
+    /// result, per interactions.md §3 ("the event is selected on commit").
+    private func commitDraft() {
+        defer { draft = nil }
+        guard let draft, let template else { return }
+        let startMinutes = minutes(for: draft.start)
+        if let created = store.create(
+            title: draft.title, startMinutes: startMinutes, duration: draft.duration, in: template) {
+            selection = RoutineBlockSelection(blockID: created.id, weekday: weekday)
+        }
+    }
+
     // MARK: Drop preview
 
     private func dropPreviewFrame(in width: CGFloat, geometry: TimeGeometry) -> CGRect? {
-        guard let session = drag,
-              let block = blocks.first(where: { $0.id == session.blockID })
-        else { return nil }
+        guard let session = drag else { return nil }
         let inset = Tokens.Spacing.xxs
-        let originalStart = referenceDayStart.addingTimeInterval(TimeInterval(block.startMinutes * 60))
-        let originalEnd = originalStart.addingTimeInterval(block.duration)
 
-        let start: Date
-        let end: Date
         switch session.mode {
-        case .resizeTop:
-            start = min(session.current, originalEnd.addingTimeInterval(-15 * 60))
-            end = originalEnd
-        case .resizeBottom:
-            start = originalStart
-            let delta = session.current.timeIntervalSince(session.origin)
-            end = max(originalEnd.addingTimeInterval(delta), start.addingTimeInterval(15 * 60))
-        case .move:
-            start = session.current
-            end = session.current.addingTimeInterval(block.duration)
+        case .create:
+            let lower = min(session.origin, session.current)
+            let upper = max(session.origin, session.current)
+            return CGRect(
+                x: inset, y: geometry.y(for: lower),
+                width: width - 2 * inset,
+                height: max(geometry.height(from: lower, to: upper), Tokens.Size.blockMinRenderedHeight))
+
+        case .move, .resizeTop, .resizeBottom:
+            guard let blockID = session.blockID,
+                  let block = blocks.first(where: { $0.id == blockID })
+            else { return nil }
+            let originalStart = referenceDayStart.addingTimeInterval(TimeInterval(block.startMinutes * 60))
+            let originalEnd = originalStart.addingTimeInterval(block.duration)
+
+            let start: Date
+            let end: Date
+            switch session.mode {
+            case .resizeTop:
+                start = min(session.current, originalEnd.addingTimeInterval(-15 * 60))
+                end = originalEnd
+            case .resizeBottom:
+                start = originalStart
+                let delta = session.current.timeIntervalSince(session.origin)
+                end = max(originalEnd.addingTimeInterval(delta), start.addingTimeInterval(15 * 60))
+            default:
+                start = session.current
+                end = session.current.addingTimeInterval(block.duration)
+            }
+            return CGRect(
+                x: inset, y: geometry.y(for: start),
+                width: width - 2 * inset,
+                height: max(geometry.height(from: start, to: end), Tokens.Size.blockMinRenderedHeight))
         }
-        return CGRect(
-            x: inset, y: geometry.y(for: start),
-            width: width - 2 * inset,
-            height: max(geometry.height(from: start, to: end), Tokens.Size.blockMinRenderedHeight))
     }
 
     private func dropPreview(_ rect: CGRect) -> some View {

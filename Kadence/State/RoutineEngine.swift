@@ -23,13 +23,14 @@
 //  means: calling `materialize` again over an overlapping range creates
 //  nothing new for a date/block pair that already exists.
 //
-//  `RoutineBlockStore` below (task P2-T11) is the Routines-window sibling of
-//  `EventStore`: move, resize and delete for `RoutineBlock`s, undoable and
-//  named, per interactions.md §11.1 ("Creating, moving and resizing routine
-//  blocks uses §3 and §4 unchanged ... `⌫` deletes. `⌘Z` undoes, with names").
-//  Not a UI type — `RoutinesWindow.swift` is what calls it from a drag gesture
-//  and a key handler. Creating new blocks and the flexibility control remain
-//  out of scope (see `RoutinesWindow.swift`'s own header).
+//  `RoutineBlockStore` below (tasks P2-T11, P2-T12) is the Routines-window
+//  sibling of `EventStore`: move, resize, delete AND (as of P2-T12) create for
+//  `RoutineBlock`s, undoable and named, per interactions.md §11.1 ("Creating,
+//  moving and resizing routine blocks uses §3 and §4 unchanged ... `⌫`
+//  deletes. `⌘Z` undoes, with names"). Not a UI type — `RoutinesWindow.swift`
+//  is what calls it from a drag gesture, a double-click and a key handler.
+//  The flexibility control remains out of scope (see `RoutinesWindow.swift`'s
+//  own header).
 //
 
 import Foundation
@@ -120,9 +121,9 @@ enum RoutineEngine {
     }
 }
 
-// MARK: - Editing (task P2-T11)
+// MARK: - Editing (tasks P2-T11, P2-T12)
 
-/// Move, resize and delete for `RoutineBlock`s. Same two rules as
+/// Move, resize, delete AND create for `RoutineBlock`s. Same two rules as
 /// `EventStore.swift`'s header, for the same reasons:
 ///
 /// 1. **Blocks are addressed by `id`, resolved at execution time.** Undoing a
@@ -131,8 +132,8 @@ enum RoutineEngine {
 ///    captures a `RoutineBlock` reference inside an undo closure.
 /// 2. Every mutation is one named `UndoStack` step, named exactly as
 ///    interactions.md §11.1 prescribes ("Move Routine Block" / "Resize
-///    Routine Block" / "Delete Routine Block" — `UndoStack` itself prepends
-///    "Undo "/"Redo ").
+///    Routine Block" / "Delete Routine Block" / "Create Routine Block" —
+///    `UndoStack` itself prepends "Undo "/"Redo ").
 ///
 /// The one thing that does NOT carry over from `EventStore`: a `RoutineBlock`
 /// has no `Date` of its own (`RoutineTemplate.swift`'s own doc comment on
@@ -145,13 +146,17 @@ enum RoutineEngine {
 /// before calling in, exactly the inverse of what `RoutineWeekLayout.layoutItems`
 /// already does to turn `startMinutes` into a `Date` for the layout engine.
 ///
-/// SPEC-GAP (design/GAPS.md): interactions.md §11.1 says §3/§4 apply
+/// SPEC-GAP (design/GAPS.md G-013): interactions.md §11.1 says §3/§4 apply
 /// "unchanged", but those sections assume a freely-floating `Date` — they
 /// never say what happens when a drag would push a block's start before
 /// 00:00 or its end past 24:00 on its own day, which a bounded `startMinutes`
 /// field can hit and an `Event` never could. Clamped at the day boundary
 /// (same shape as the existing 15-minute-minimum-duration clamp already in
-/// §4) rather than left undefined, pending a real answer.
+/// §4) rather than left undefined, pending a real answer. `create` below
+/// (task P2-T12) reuses this exact same clamp for the same reason — a
+/// double-click or drag near either end of the day is just as capable of
+/// producing an out-of-range start/end as a move/resize drag is, and G-013
+/// is not reopened or re-litigated for it, just applied consistently.
 @MainActor
 struct RoutineBlockStore {
     let context: ModelContext
@@ -246,6 +251,50 @@ struct RoutineBlockStore {
         template.blocks.append(block)
         try? context.save()
     }
+
+    // MARK: Create (task P2-T12)
+
+    /// Turns a draft (title + minutes-since-midnight + duration) into a
+    /// persisted `RoutineBlock` appended to `template.blocks` — the "the other
+    /// half" of interactions.md §11.1 this task adds. §11.1 points back at §3
+    /// unchanged, and §3's own rule is enforced here exactly the way
+    /// `EventStore.commit` already enforces it for `Event`: "an event created
+    /// with no title is never persisted — cancelling and committing an empty
+    /// field both remove it." A blank (or whitespace-only) `title` persists
+    /// nothing and pushes no undo step — there is nothing to press `⌘Z`
+    /// through, because nothing was ever written.
+    ///
+    /// Reversed shape of `delete`'s own undo, reusing the same
+    /// `RoutineBlockRestoreSnapshot`/`insertBlock`/`removeBlock` plumbing:
+    /// `redo` inserts the new block, `undo` removes it by `id`.
+    ///
+    /// `startMinutes`/`duration` clamp to the same `0...1440` day-boundary
+    /// shape `move`/`resize` already use (this type's own header, G-013) —
+    /// reused for consistency, not a new answer to that gap. The 15-minute
+    /// minimum duration is interactions.md §3's own rule for a drag-created
+    /// block ("drag on empty grid creates a block of the dragged duration,
+    /// minimum 15 minutes"), applied here the same way `resize`'s minimum
+    /// already applies it.
+    @discardableResult
+    func create(title: String, startMinutes: Int, duration: TimeInterval, in template: RoutineTemplate) -> RoutineBlock? {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let durationMinutes = max(15, Int(duration / 60))
+        let clampedStart = min(max(startMinutes, 0), 1440 - durationMinutes)
+        let clampedDurationMinutes = min(durationMinutes, 1440 - clampedStart)
+
+        let id = UUID()
+        let templateID = template.id
+        let snapshot = RoutineBlockRestoreSnapshot(
+            id: id, title: trimmed, startMinutes: clampedStart,
+            duration: TimeInterval(clampedDurationMinutes * 60))
+
+        undo.perform("Create Routine Block",
+                     redo: { insertBlock(snapshot, templateID: templateID) },
+                     undo: { removeBlock(id, templateID: templateID) })
+        return block(id)
+    }
 }
 
 // MARK: - Snapshot (delete/undo)
@@ -254,6 +303,12 @@ struct RoutineBlockStore {
 /// shape as `EventStore.swift`'s `EventSnapshot`, and for the same reason: a
 /// `@Model` instance cannot be re-inserted once deleted, so undo recreates one
 /// carrying the same `id`.
+///
+/// Also (task P2-T12) what `create`'s own `redo` inserts: a brand-new block
+/// has never had a `@Model` instance to snapshot *from*, but it needs the
+/// exact same "values in, `insertBlock` builds the `@Model`" shape `delete`'s
+/// undo already established, so this plain memberwise init supplies it
+/// directly rather than adding a second, parallel insert path.
 struct RoutineBlockRestoreSnapshot: Sendable {
     var id: UUID
     var title: String
@@ -262,6 +317,24 @@ struct RoutineBlockRestoreSnapshot: Sendable {
     var flexibility: Flexibility
     var shiftableMinutes: Int?
     var priority: Int
+
+    init(
+        id: UUID,
+        title: String,
+        startMinutes: Int,
+        duration: TimeInterval,
+        flexibility: Flexibility = .fixed,
+        shiftableMinutes: Int? = nil,
+        priority: Int = 0
+    ) {
+        self.id = id
+        self.title = title
+        self.startMinutes = startMinutes
+        self.duration = duration
+        self.flexibility = flexibility
+        self.shiftableMinutes = shiftableMinutes
+        self.priority = priority
+    }
 
     @MainActor
     init(_ block: RoutineBlock) {

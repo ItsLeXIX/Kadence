@@ -1665,9 +1665,10 @@ template's blocks — not the full editor.
 
 - Creating, moving, resizing or deleting routine blocks (`interactions.md`
   §11.1) — this window has no drag or create surface at all; every block view
-  in it is read-only (`GridBlockModel.isMovable = false`). **STALE as of task
-  P2-T11 (§9 below): move, resize and delete are now built.** Only
-  drag-to-create/double-click creation remains out of scope from this bullet.
+  in it is read-only (`GridBlockModel.isMovable = false`). **STALE, in full,
+  as of tasks P2-T11 and P2-T12 (§9 and §10 below): move, resize and delete
+  were built by P2-T11; drag-to-create/double-click creation was built by
+  P2-T12. Nothing from this bullet remains out of scope.**
 - The `[Blocks | Windows]` mode control and Windows-mode editing
   (`components.md` §13.3) — there is no `TimeWindow` model yet. The toolbar's
   `Picker` is the only toolbar content.
@@ -1811,6 +1812,7 @@ flexibility three-segment control (`components.md` §13.2) and Windows mode
 - Creating new routine blocks (drag-to-create, double-click) —
   `interactions.md` §11.1 groups this with move/resize, but the task brief
   carves it out separately; this window still has no create surface.
+  **STALE as of task P2-T12 (§10 below): creation is now built.**
 - The `[Blocks | Windows]` mode control and Windows-mode editing
   (`components.md` §13.3) — unchanged from §8, still no `TimeWindow` model.
 - The flexibility control's interactive stepper (`components.md` §13.2) —
@@ -1820,10 +1822,10 @@ flexibility three-segment control (`components.md` §13.2) and Windows mode
 - The background-windows layer — unchanged from §8.
 - Screenshots — not asked for by this task's acceptance criteria.
 
-**What is next:** drag-to-create/double-click creation for routine blocks
-(the other half of `interactions.md` §11.1), then the flexibility control and
-the `[Blocks | Windows]` mode control, in whatever order Phase 2 is
-sequenced next.
+**What is next:** ~~drag-to-create/double-click creation for routine blocks
+(the other half of `interactions.md` §11.1)~~ — built by P2-T12 (§10 below).
+What remains: the flexibility control and the `[Blocks | Windows]` mode
+control, in whatever order Phase 2 is sequenced next.
 
 **Blocked:** nothing. One new `design/GAPS.md` entry, **G-013**: neither
 `interactions.md` §3 nor §4 says what a drag that would push a
@@ -1834,3 +1836,144 @@ day boundary (same shape as the already-specified 15-minute-minimum-duration
 clamp) rather than guessed past silently; not blocking, since no acceptance
 criterion for this task approaches either edge (a 07:00 Gym block, a 20:00
 Study block). Needs an explicit ruling in `interactions.md` §11.1 to close.
+
+## 10. P2-T12 — Routine block creation: drag-to-create and double-click (2026-09-17)
+
+Builds the "other half" of `interactions.md` §11.1 that both P2-T10 and
+P2-T11 explicitly carved back out: creating a `RoutineBlock`. §11.1 says
+"Creating, moving and resizing routine blocks uses §3 and §4 unchanged", so
+this task reads §3's own model and applies it verbatim: double-click on empty
+grid creates a 60-minute block at the snapped slot under the pointer; drag on
+empty grid creates a block of the dragged duration, minimum 15 minutes; the
+new block appears immediately with an inline `TextField` in place of its
+title; `↩` commits, `⎋` cancels and removes it entirely; a block created with
+no title is never persisted; the block is selected on commit.
+
+**Built:**
+
+- `Kadence/State/RoutineEngine.swift` — `RoutineBlockStore.create(title:startMinutes:duration:in:)`,
+  the fourth verb alongside `move`/`resize`/`delete`, same id-addressed/
+  undo-named shape: pushes one named `"Create Routine Block"` `UndoStack` step
+  (`⌘Z` removes the block, `⌘⇧Z` restores it), reversing `delete`'s own
+  snapshot/insert plumbing (`redo` inserts via `insertBlock`, `undo` removes
+  via `removeBlock` — the exact same two private helpers `delete` already
+  uses, called in the opposite order). A blank or whitespace-only `title`
+  persists nothing and pushes no undo step at all — mirroring
+  `EventStore.commit`'s own rule for `Event`, interactions.md §3: "an event
+  created with no title is never persisted." `startMinutes`/`duration` clamp
+  to the same `0...1440` day-boundary shape `move`/`resize` already use
+  (`design/GAPS.md` **G-013**, opened by P2-T11) — reused for consistency
+  rather than treated as a fresh question; G-013 itself is not reopened or
+  re-litigated by this task, just applied a third time. `RoutineBlockRestoreSnapshot`
+  gained a second, plain memberwise `init` (defaults for `flexibility`
+  (`.fixed`), `shiftableMinutes` (`nil`), `priority` (`0`)) alongside its
+  existing `init(_ block: RoutineBlock)`, since a brand-new block has no
+  `@Model` instance yet to snapshot values *from* — `create`'s `redo` needed a
+  way to hand `insertBlock` a snapshot built straight from the draft's values.
+- `Kadence/Views/Routines/RoutinesWindow.swift` — `RoutineDayColumnView` gained
+  a `createSurface(width:geometry:)` mirroring `DayColumnView.createSurface`
+  exactly: `.onTapGesture(count: 2)` begins a 60-minute draft at
+  `TimeGeometry.snap(geometry.date(forY:), toMinutes: 15)`; a
+  `DragGesture(minimumDistance: 6)` tracks `.create`-mode drag with the same
+  15/5-minute (`⌃`) snap as move/resize, and on release begins a draft whose
+  duration is `max(upper - lower, 15 minutes)`. The in-flight draft reuses
+  `EventDraft`/`DraftBlockView` (`Kadence/Models/EventDraft.swift`,
+  `Kadence/Views/Blocks/DraftBlockView.swift`) completely unchanged — both
+  were already plain `Date`-based types with no `Event`/`CalendarState`
+  dependency of their own, so the draft here lives in `RoutineDayColumnView`'s
+  own local `@State private var draft: EventDraft?`, not
+  `CalendarState.draft` (which belongs to the main-grid window and would be
+  the wrong scope for a second window's independent selection/draft state —
+  same reasoning `RoutineBlockSelection` already gives for not reusing
+  `CalendarState.selectedEventID`). A `draftBinding()` helper mirrors
+  `CalendarState.draftBinding()`'s own doc comment word for word: it must NOT
+  be `Binding($draft)`, because SwiftUI's force-unwrapping binding reads its
+  base again while `DraftBlockView` tears itself down after `↩`/`⎋` already
+  cleared `draft` to `nil`, which traps. `commitDraft()` converts the draft's
+  `Date`s to minutes via the same `minutes(for:)` helper move/resize already
+  use (the inverse of `RoutineWeekLayout.referenceDayStart`), calls
+  `RoutineBlockStore.create`, and selects the result on success — exactly
+  interactions.md §3's "the event is selected on commit," applied to a
+  `RoutineBlockSelection` scoped to whichever weekday column the gesture
+  started in. `RoutineDragSession.Mode` gained a `.create` case and `blockID`
+  changed from `UUID` to `UUID?` (mirroring `DayColumnView.DragSession.eventID`)
+  so a create-drag's session can exist with no block to address yet;
+  `dropPreviewFrame` gained a `.create` branch (dashed outline sized to the
+  drag span, same as `DayColumnView`'s own) ahead of the existing
+  move/resize/branch. Which weekday column the gesture starts in only
+  supplies the geometry the snapped `startMinutes`/duration are read from — a
+  `RoutineBlock` has no per-weekday instance (`RoutinesWindow.swift`'s own
+  header), so the resulting block appears on every one of the template's
+  active weekdays immediately once created, exactly like every other block,
+  with no extra wiring needed for that to happen.
+- `KadenceTests/RoutineWeekLayoutTests.swift` — a new `@Suite("RoutineBlockStore.create")`,
+  8 tests, same in-memory `ModelContainer`/`ModelContext` pattern and the same
+  helpers (`makeRoutineBlockStore`, `makeGymTemplate`, `fetchRoutineBlock`) the
+  `move`/`resize`/`delete` suites already use: a double-click-shaped call
+  (60-minute duration) lands at the given slot and names the undo step; a
+  drag-shaped call below 15 minutes clamps up to the 15-minute floor
+  (interactions.md §3); a drag-shaped call above the floor persists the exact
+  dragged duration; an empty title and a whitespace-only title both persist
+  nothing and push no undo step; a never-committed `EventDraft` (the ⎋/blur
+  shape — mirrors `EventCreationTests.EventDiscardTests.discardNeverPersists`)
+  touches the store not at all; `⌘Z` after a commit removes the created block
+  and `⌘⇧Z` restores it with the same id/title/timing; creating near the end
+  of the day clamps to the day boundary (G-013, reused). The
+  double-click/drag gesture math itself (`createSurface`, `beginDraft`,
+  `commitDraft`) lives in a **private** SwiftUI view type
+  (`RoutineDayColumnView`) with no seam a unit test can reach even with
+  `@testable import Kadence` — same reasoning this file's own header already
+  gives for click-to-select and for P2-T11's move/resize gesture math; what
+  IS a pure, testable seam is everything the gesture hands off to, which is
+  what these 8 tests actually exercise.
+
+**Verified:**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  **BUILD SUCCEEDED**, no new warnings.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — **TEST SUCCEEDED**, 235 `passed` lines /
+  0 failed (227 from P2-T11 plus the 8 new `RoutineBlockStoreCreateTests`).
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/Tokens.swift`
+  is up to date. No new tokens: creation reuses every geometric constant
+  move/resize/the drop preview already needed
+  (`size.blockMinRenderedHeight`, `radius.block`, `color.interactive.accent`),
+  plus whatever `DraftBlockView`/`EventDraft` already used for the main grid's
+  own draft rendering — nothing new was invented.
+- `Scripts/check-accessibility.sh` — **could not run**: the script reports
+  "no Kadence process has a window — the app did not come up." Checked
+  whether this is this task's own regression by launching plain `TextEdit`
+  and asking System Events for its window count the same way the script
+  does — it also reported 0 windows. That confirms the machine, not this
+  change, is why the script cannot see any window right now (per this
+  project's own standing note that a 0-window report from an unrelated app
+  means the harness's Accessibility/window-server access is the blocker, not
+  the code under test). Creation's actual behaviour is verified instead by
+  the 8 `RoutineBlockStoreCreateTests` above, which is where §3's actual
+  persistence/clamp/undo rules live — the SwiftUI wiring around them (gesture
+  recognition, `@FocusState`, draft binding) has no pure-function seam, the
+  same limitation already noted for click-to-select and for P2-T11's own
+  drag gestures.
+
+**Explicitly out of scope, and not built, per the task brief (unchanged from
+P2-T10/P2-T11):**
+
+- The flexibility control's interactive stepper (`components.md` §13.2).
+- The `[Blocks | Windows]` mode control and Windows-mode editing
+  (`components.md` §13.3).
+- Detached-instance tracking and Re-sync (`components.md` §13.4,
+  `interactions.md` §11.2).
+- The background-windows layer.
+- Anything in the main calendar grid (`Kadence/Views/Canvas/`),
+  `DayLayoutEngine.swift`, `DayColumnView.swift`, or any other Phase-1 file —
+  none of these were touched by this task.
+
+**What is next:** the flexibility control and the `[Blocks | Windows]` mode
+control are the two largest remaining pieces of `components.md` §13 for this
+window; either is a reasonable next slice.
+
+**Blocked:** nothing. No new `design/GAPS.md` entries — this task reused
+G-013's existing clamp rule rather than opening a new question, and every
+other value it needed (the 60-minute default, the 15-minute drag floor, the
+empty-title-persists-nothing rule) was already specified by `interactions.md`
+§3, which §11.1 points back at unchanged.
