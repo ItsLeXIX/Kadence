@@ -7,7 +7,7 @@
   "coder_model": "sonnet",
   "manager_max_turns": 40,
   "worker_max_turns": 100,
-  "max_cycles": 12,
+  "max_cycles": 40,
   "max_cost_usd": 0,
   "worker_budget_usd": 0,
   "max_consecutive_failures": 3,
