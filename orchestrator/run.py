@@ -370,7 +370,12 @@ def main() -> int:
                       '  echo "your ruling" > state/UNBLOCK\n'
                       "then resume.\n")
                 return EXIT["blocked"]
-            resume_input = {"status": "running", "stop_reason": ""}
+            # The streak that tripped max_consecutive_failures is cleared with
+            # the block. Leaving it at the ceiling means the very next failure
+            # -- however unrelated -- blocks again immediately, and Parsa has
+            # just ruled on why those failures happened.
+            resume_input = {"status": "running", "stop_reason": "",
+                            "consecutive_failures": 0}
             # There is no state field for a human note, and MA's context is a
             # digest that drops earlier chat. The goal is the one piece of
             # Parsa-authored text it re-reads every single cycle, so the answer
