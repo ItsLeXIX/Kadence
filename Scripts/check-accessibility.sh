@@ -60,9 +60,36 @@ for ATTEMPT in $(seq 1 10); do
   sleep 2
 done
 if [[ -z "$TARGET" ]]; then
-  echo "FAIL: no Kadence process has a window — the app did not come up."
-  echo "      (If a stale instance is wedged, note that it answers to the app's"
-  echo "       name in System Events even with no window.)"
+  # Before blaming the app: query a control process that is always running
+  # (Finder) the exact same way. This machine has twice before (P2-T01,
+  # P2-T07) gone through stretches where the accessibility API vends 0
+  # windows for *every* process, Kadence included — most concretely, a
+  # locked screen session blocks AX window enumeration session-wide while
+  # WindowServer keeps the real window alive underneath it (confirmed via
+  # `CGSSessionCopyCurrentDictionary`'s `CGSSessionScreenIsLocked` and
+  # `CGWindowListCopyWindowInfo` showing a correctly-sized Kadence window
+  # during the P2-T15 follow-up investigation that added this check — see
+  # STATUS.md). Finder reporting 0 windows too is the same control the CA
+  # brief itself asks for ("if TextEdit also reports 0 windows, that is the
+  # machine, not your code"); this makes the script perform that control
+  # itself instead of leaving it to whoever reads the failure by hand.
+  FINDER_WINDOWS=$(osascript -e 'tell application "System Events" to tell process "Finder" to count windows' 2>/dev/null)
+  if [[ "${FINDER_WINDOWS:-0}" == "0" ]]; then
+    echo "FAIL: no Kadence process has a window — but Finder reports 0 windows too."
+    echo "      This is the accessibility API failing session-wide, not a Kadence"
+    echo "      defect: the most common cause is a locked screen (the login window"
+    echo "      blocks AX window enumeration for every process while the real"
+    echo "      windows stay alive underneath it — WindowServer still has them,"
+    echo "      System Events just cannot see them). Unlock the screen and re-run."
+    echo "      (A revoked Automation/Accessibility permission for whatever is"
+    echo "       running this script is the other known cause — check System"
+    echo "       Settings ▸ Privacy & Security ▸ Accessibility if unlocking the"
+    echo "       screen does not fix it.)"
+  else
+    echo "FAIL: no Kadence process has a window — the app did not come up."
+    echo "      (If a stale instance is wedged, note that it answers to the app's"
+    echo "       name in System Events even with no window.)"
+  fi
   exit 1
 fi
 echo "querying pid $TARGET"
