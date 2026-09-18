@@ -158,6 +158,7 @@ struct RoutinesWindow: View {
             guard !didSeed else { return }
             didSeed = true
             MockData.seedRoutineTemplatesIfNeeded(context)
+            MockData.seedTimeWindowsIfNeeded(context)
             canvasFocused = true
         }
         .onChange(of: selectedTemplateID) { _, _ in

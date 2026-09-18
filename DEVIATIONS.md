@@ -214,6 +214,25 @@ examples already use, and every token/animation reused (`motion.blockMove`,
 scope, unchanged: the `TimeWindow` editor, `MenuBarExtra`, snooze. See
 `STATUS.md` §16.
 
+**Corrected 2026-09-18, task P2-T18 — every earlier entry's "(no `TimeWindow`
+model exists yet)" / "still no `TimeWindow` model" clause (P2-T13/T14/T15, and
+the "Not a deviation" note below on peak-focus windows) is now STALE for the
+model's existence specifically.** `Kadence/Models/TimeWindow.swift` now
+defines a persisted `@Model final class TimeWindow` (`id`, `weekdays`,
+`startMinutes`/`endMinutes`, `kind: TimeWindowKind`, `label` — the same field
+shapes `TimeWindowFixture` already had), registered in `KadenceApp.swift`'s
+`ModelContainer`, seeded via `MockData.seedTimeWindowsIfNeeded`/
+`makeTimeWindows()` with the same two windows the display-only
+`TimeWindowFixture` array already described. This closes no gap and resolves
+no deviation on its own — data layer only, per this task's explicit scope.
+Everything the earlier entries were actually gating on is still true and
+still absent: no `TimeWindow` editor UI, no `[Blocks | Windows]` mode control,
+`GridLayers.swift`/`DayColumnView.swift` still render `TimeWindowFixture`
+exactly as before (untouched by this task — confirmed via `git diff`),
+`RoutineEngine.materialize` still does not honour protected/low-energy
+windows, and `ConflictEngine` still does not detect protected-window
+conflicts. See `STATUS.md` §19.
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in
@@ -866,8 +885,12 @@ Still open, all re-checked against the current spec text this session:
   there is still no `TimeWindow` model and no `[Blocks | Windows]` mode
   control, which §13.3 needs, so there is still nothing to draw this outline
   in. Still not a deviation, for the same reason, just a narrower one than
-  before.)* The calendar canvas rule is unchanged and the build still honours
-  it.
+  before.)* *(Updated 2026-09-18, task P2-T18: a persisted `TimeWindow` model
+  now exists (data layer only — `Kadence/Models/TimeWindow.swift`), but the
+  `[Blocks | Windows]` mode control §13.3 needs still does not, so there is
+  still nothing to draw this outline in. Still not a deviation, still the
+  same narrower reason as above.)* The calendar canvas rule is unchanged and
+  the build still honours it.
 
 ---
 

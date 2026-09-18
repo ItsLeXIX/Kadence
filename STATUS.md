@@ -3254,3 +3254,99 @@ conflict resolution itself (protected-window conflicts still need the
 gap in what §10/§14 describe).
 
 **Blocked:** nothing.
+
+## 19. P2-T18 — `TimeWindow` SwiftData model (data layer only, 2026-09-18)
+
+The piece §18's own note called out as separate, larger scope: the persisted
+`TimeWindow` data model that layouts.md §8.1 and components.md §13.3 both
+presuppose ("a selected time window: kind (protected / low-energy /
+peak-focus), weekdays, start, end, label"). Until now the only thing
+describing a window was `TimeWindowFixture` (`DisplayFixtures.swift`),
+explicitly display-only per its own doc comment, and `RoutineEngine.swift`/
+`ConflictEngine.swift` both carried header comments deferring
+protected-window logic "pending this model existing." This task adds the
+model and its seed data only — no editor UI, no rendering swap, no
+scheduling or conflict change.
+
+**What changed:**
+
+1. `Kadence/Models/TimeWindow.swift` (new file) — `@Model final class
+   TimeWindow`, following `RoutineTemplate.swift`'s exact conventions (P2-T08's
+   own precedent for this kind of task): stable `var id: UUID = UUID()`,
+   `var weekdays: Set<Int> = []` (`Calendar`'s 1=Sunday...7=Saturday
+   convention, matching `RoutineTemplate.activeWeekdays` and
+   `TimeWindowFixture.weekdays`), `var startMinutes: Int = 0` / `var
+   endMinutes: Int = 0` (minutes from midnight, end may be less than start
+   meaning the window wraps past midnight — the same meaning
+   `TimeWindowFixture`'s fields already carry), a `kind: TimeWindowKind`
+   computed over a private raw-string-backed `kindRaw`, same pattern as
+   `RoutineBlock.flexibility`, and `var label: String = ""`. Memberwise
+   `init`. `TimeWindowFixture.spans(on:)` is deliberately not ported onto
+   this model — nothing reads a persisted `TimeWindow` yet, so that logic
+   belongs to whichever future task actually renders or schedules against
+   one, exactly as the task brief specified.
+2. `Kadence/KadenceApp.swift` — `TimeWindow.self` registered at all three
+   `ModelContainer` construction sites (primary, in-memory fallback,
+   `ModelContainer.emptyFallback()`), alongside the existing `Event.self,
+   Place.self, RoutineTemplate.self, RoutineBlock.self` list. Doc comment
+   above `let container: ModelContainer` extended to name this addition, the
+   same way it already named the P2-T08 RoutineTemplate/RoutineBlock one.
+3. `Kadence/Mock/MockData.swift` — `seedTimeWindowsIfNeeded(_:)` and
+   `makeTimeWindows() -> [TimeWindow]`, mirroring
+   `seedRoutineTemplatesIfNeeded`/`makeRoutineTemplates` exactly (fetch
+   existing, insert only if empty, idempotent on a second call). Seeded with
+   the same two windows already described by `MockData.timeWindows:
+   [TimeWindowFixture]` — Sleep (weekdays 1...7, 22:00–07:00, `.protected`)
+   and Low energy (weekdays [2,3,4,5,6], 13:00–14:30, `.lowEnergy`) — so both
+   representations describe the same data, even though nothing yet reads the
+   persisted one.
+4. `Kadence/Views/Routines/RoutinesWindow.swift` — one new line in the
+   existing `.task` block, right after `MockData.seedRoutineTemplatesIfNeeded
+   (context)`: `MockData.seedTimeWindowsIfNeeded(context)`. This is the only
+   existing seed-on-launch hook in the app (`seedRoutineTemplatesIfNeeded`
+   has no other call site — confirmed via `Grep` before assuming it), so the
+   new seeding runs from the same place, guarded by the same `didSeed` flag.
+
+**Explicitly out of scope, confirmed untouched:** `GridLayers.swift`,
+`Views/Day/DayColumnView.swift`, `State/RoutineEngine.swift`,
+`State/ConflictEngine.swift` — no diff against any of the four (`git diff
+--stat` on all four returned empty). The Routines window's toolbar "Windows"
+mode toggle stays exactly as unbuilt as before; `TimeWindowFixture` still
+renders everywhere it already did.
+
+**New test coverage:** `KadenceTests/TimeWindowTests.swift` (new file), same
+in-memory `ModelContainer`/`ModelContext` pattern as
+`RoutineEngineTests.swift`'s `makeStore()`:
+- `TimeWindowModelTests` — `init` sets every field correctly; `kind`
+  round-trips for every `TimeWindowKind` case (same computed-property shape
+  as `RoutineBlock.flexibility`); a real insert/fetch round-trip through an
+  in-memory `ModelContainer`/`ModelContext` confirms every field survives
+  persistence unchanged.
+- `TimeWindowSeedingTests` — `makeTimeWindows()` describes the same two
+  windows (by label, weekdays, start/end minutes, kind) as the existing
+  `MockData.timeWindows` fixture array; `seedTimeWindowsIfNeeded` called
+  twice against the same context still leaves exactly 2 rows.
+
+**Verified:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`; all 7 new
+  `TimeWindowTests.swift` test cases passed alongside the full pre-existing
+  suite, none regressed.
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/
+  Tokens.swift is up to date.` — no new tokens invented; this task added no
+  UI.
+- `Scripts/check-accessibility.sh` — `PASS (elements present)`, 20
+  block-shaped elements in the tree (unchanged from P2-T17's own run); the
+  `0` carrying the §11 label is the pre-existing, already-open A20b defect,
+  untouched by this task. Screen was unlocked for this run.
+
+**Explicitly not built here:** any `TimeWindow` editor UI (the Routines
+window's "Windows" mode toggle); replacing `TimeWindowFixture` anywhere it
+currently renders; `RoutineEngine.materialize` honouring protected/low-energy
+windows; `ConflictEngine` detecting protected-window conflicts. All four are
+separate future tasks, exactly as the brief specified — none blocked by
+anything found here.
+
+**Blocked:** nothing.

@@ -260,6 +260,44 @@ enum MockData {
         return [template]
     }
 
+    // MARK: Time windows (task P2-T18 — persisted TimeWindow seed data)
+
+    /// Inserts the demo `TimeWindow`s if the store has none yet. Mirrors
+    /// `seedRoutineTemplatesIfNeeded` exactly: idempotent, called from
+    /// wherever that one is called, independent of `seedIfNeeded`'s own
+    /// `Event`/`Place` seeding.
+    @MainActor
+    static func seedTimeWindowsIfNeeded(_ context: ModelContext) {
+        let existing = (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? []
+        guard existing.isEmpty else { return }
+        for window in makeTimeWindows() {
+            context.insert(window)
+        }
+        try? context.save()
+    }
+
+    /// The persisted counterpart of `timeWindows` above (`TimeWindowFixture`,
+    /// display-only): the same two windows — Sleep and Low energy — described
+    /// as a real `TimeWindow` model, so both representations agree on the
+    /// data even though nothing yet reads the persisted one.
+    @MainActor
+    static func makeTimeWindows() -> [TimeWindow] {
+        [
+            TimeWindow(
+                weekdays: Set(1...7),
+                startMinutes: 22 * 60,
+                endMinutes: 7 * 60,
+                kind: .protected,
+                label: "Sleep"),
+            TimeWindow(
+                weekdays: [2, 3, 4, 5, 6],
+                startMinutes: 13 * 60,
+                endMinutes: 14 * 60 + 30,
+                kind: .lowEnergy,
+                label: "Low energy"),
+        ]
+    }
+
     // MARK: All-day items — items 9–10
 
     static func makeAllDay(now: Date) -> [AllDayFixture] {
