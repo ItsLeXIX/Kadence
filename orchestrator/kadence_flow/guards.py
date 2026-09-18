@@ -11,7 +11,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 # ---------------------------------------------------------------- scope table
 
@@ -189,9 +189,22 @@ def is_dirty(repo: Path) -> bool:
     return bool(changed_files(repo))
 
 
-def scope_violations(repo: Path, agent: str) -> list[str]:
+def scope_violations(repo: Path, agent: str,
+                     exempt: Optional[Iterable[str]] = None) -> list[str]:
+    """Out-of-scope paths the agent is responsible for.
+
+    `exempt` is the set of files that were already dirty when the agent was
+    dispatched — Parsa's own work in progress. Judging the whole tree cannot
+    tell a human edit from an agent one, and revert_paths would then destroy
+    uncommitted work that no agent ever touched (this happened on 2026-09-18:
+    a live edit to orchestrator/run.py was reverted and an untracked directory
+    deleted). Anything in `exempt` is not the agent's doing, so it is neither
+    reported nor reverted."""
+    skip = set(exempt or ())
     bad = []
     for f in changed_files(repo):
+        if f in skip:
+            continue
         ok, why = check_write(agent, f)
         if not ok:
             bad.append(f"{f}: {why}")

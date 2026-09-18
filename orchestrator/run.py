@@ -31,6 +31,7 @@ from kadence_flow.errors import AuthExpired, QuotaExhausted  # noqa: E402
 
 CONFIG_PATH = HERE / "config.json"
 LOCK = HERE / "state" / "orchestrator.lock"
+UNBLOCK = HERE / "state" / "UNBLOCK"
 EXIT = {"phase_done": 0, "blocked": 10, "budget_stop": 20,
         "auth_stop": 30, "quota_stop": 75}
 
@@ -143,7 +144,9 @@ def _invoke(cfg: Config, fresh_input) -> dict:
 
 
 def _drive(cfg: Config, fresh_input) -> int:
-    """Run, and survive a token limit: checkpoint, then stop or wait."""
+    """Run, and survive a token limit: checkpoint, then rotate, wait or stop."""
+    _apply_quota_policy(cfg)
+    quota_waits = 0
     while True:
         state: dict = {}
         if fresh_input:
@@ -163,10 +166,28 @@ def _drive(cfg: Config, fresh_input) -> int:
             reset = e.reset_at
             persist.log(f"\n■ TOKEN LIMIT: {str(e)[:300]}")
             _rescue(cfg, state, "token/usage limit reached", reset)
-            if cfg.on_quota == "wait" and reset:
-                nap = max(60, (reset - datetime.now(timezone.utc)).total_seconds() + 60)
-                persist.log(f"  waiting {nap/60:.0f} min for the limit to reset "
-                            f"({reset.astimezone():%H:%M})…")
+            # Reaching here under "rotate" means every rotation came back
+            # limited, so this is the whole pool being dry, not one account.
+            if cfg.on_quota in ("wait", "rotate"):
+                if reset:
+                    nap = max(60, (reset - datetime.now(timezone.utc))
+                              .total_seconds() + 60)
+                    when = f"({reset.astimezone():%H:%M})"
+                else:
+                    # A pooled gateway rarely quotes one reset time — there are
+                    # several upstreams with different windows. Re-probing on a
+                    # fixed interval is the only honest option.
+                    nap = cfg.quota_blind_wait_s
+                    when = "(no reset time given — probing again)"
+                quota_waits += 1
+                if quota_waits > cfg.max_quota_waits:
+                    persist.log(f"  ■ {quota_waits} usage-limit stops this "
+                                f"sitting — the pool is not recovering. "
+                                f"Stopping instead of sleeping again.")
+                    print("\nResume later with:  python3 run.py resume")
+                    return EXIT["quota_stop"]
+                persist.log(f"  waiting {nap/60:.0f} min for capacity {when} "
+                            f"— stop {quota_waits}/{cfg.max_quota_waits}…")
                 time.sleep(nap)
                 fresh_input = None          # resume from checkpoint
                 continue
@@ -187,6 +208,51 @@ def _drive(cfg: Config, fresh_input) -> int:
             print("\nMA needs a decision from you:\n  "
                   f"{state.get('stop_reason')}\n")
         return EXIT.get(state.get("status", ""), 1)
+
+
+def _gateway() -> str:
+    """The gateway the agents will actually talk to, or "" for Anthropic direct.
+
+    The SDK inherits this from the environment, so whether a run rotates or not
+    is decided by whoever launched it. That is worth printing rather than
+    assuming: a supervise.sh started from a plain shell has no gateway, and
+    rotation there would be a promise nothing can keep."""
+    url = (os.environ.get("ANTHROPIC_BASE_URL") or "").strip().rstrip("/")
+    return url if url and "api.anthropic.com" not in url else ""
+
+
+def _apply_quota_policy(cfg: Config) -> None:
+    """Turn on rotation only when there is something to rotate onto."""
+    gw = _gateway()
+    if cfg.on_quota != "rotate":
+        if gw:
+            persist.log(f"  gateway: {gw} (on_quota={cfg.on_quota}, "
+                        f"not rotating)")
+        return
+    if not gw:
+        persist.log("  ⚠ on_quota=rotate but ANTHROPIC_BASE_URL points at "
+                    "Anthropic directly — there is no account pool to roll "
+                    "onto. Falling back to waiting for the reset.")
+        cfg.on_quota = "wait"
+        return
+    if cfg.gateway_url and cfg.gateway_url.rstrip("/") != gw:
+        persist.log(f"  ⚠ gateway is {gw}, config expected "
+                    f"{cfg.gateway_url} — using the live one")
+    agents.configure_quota_rotation(cfg.quota_rotations, cfg.quota_backoff)
+    persist.log(f"  gateway: {gw} · on a usage limit, re-issue up to "
+                f"{cfg.quota_rotations}× (waits {cfg.quota_backoff}) so the "
+                f"gateway serves from the next account")
+
+
+def _consume_unblock() -> str | None:
+    """Read and delete state/UNBLOCK. One-shot on purpose: a ruling that stayed
+    on disk would silently re-answer every future block."""
+    try:
+        note = UNBLOCK.read_text().strip()
+    except OSError:
+        return None
+    UNBLOCK.unlink(missing_ok=True)
+    return note or "(no detail given — Parsa cleared the block)"
 
 
 def _last_state() -> dict:
@@ -233,7 +299,7 @@ def main() -> int:
     ap.add_argument("--max-cycles", type=int)
     ap.add_argument("--fresh", action="store_true",
                     help="discard the checkpoint for this phase and start over")
-    ap.add_argument("--on-quota", choices=["stop", "wait"])
+    ap.add_argument("--on-quota", choices=["stop", "wait", "rotate"])
     ap.add_argument("--skip-build", action="store_true")
     a = ap.parse_args()
 
@@ -287,9 +353,34 @@ def main() -> int:
         # cannot restart the loop. Clear that one status; blocked and
         # phase_done are deliberate and stay.
         resume_input = None
-        if _last_state().get("status") == "budget_stop":
+        last = _last_state()
+        if last.get("status") == "budget_stop":
             persist.log("  clearing the previous budget_stop so the loop can run")
             resume_input = {"status": "running", "stop_reason": ""}
+        elif last.get("status") == "blocked":
+            # MA asked Parsa a question and the graph routes straight to END
+            # until it is answered. Answering by hand-editing the checkpoint
+            # would be silent; a sentinel file is visible, greppable and works
+            # from supervise.sh, which cannot pass flags.
+            note = _consume_unblock()
+            if note is None:
+                print("\nrun is BLOCKED until you answer MA:\n  "
+                      f"{last.get('stop_reason')}\n\n"
+                      "Answer it with:\n"
+                      '  echo "your ruling" > state/UNBLOCK\n'
+                      "then resume.\n")
+                return EXIT["blocked"]
+            resume_input = {"status": "running", "stop_reason": ""}
+            # There is no state field for a human note, and MA's context is a
+            # digest that drops earlier chat. The goal is the one piece of
+            # Parsa-authored text it re-reads every single cycle, so the answer
+            # rides there — otherwise MA re-derives the same blocker next cycle.
+            stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            resume_input["goal"] = (
+                (last.get("goal") or cfg.goal or "")
+                + f"\n\n## Parsa's ruling, {stamp} — answers the BLOCKED stop\n"
+                + f"You were blocked on: {last.get('stop_reason', '')}\n\n{note}")
+            persist.log(f"  unblocked by Parsa: {note[:300]}")
         return _drive(cfg, resume_input)
 
     # run

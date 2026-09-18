@@ -17,6 +17,35 @@ from . import guards
 BACKOFF = [10, 30, 90]          # seconds, transient errors only
 JSON_BLOCK = re.compile(r"```json\s*(\{.*?\})\s*```", re.S)
 
+# --- quota rotation -------------------------------------------------------
+# Talking straight to Anthropic, a usage limit is terminal: there is nothing to
+# roll over to, so QuotaExhausted propagates and the run stops or sleeps until
+# the window resets. Behind a gateway (OmniRoute) the same error means only
+# "this target is spent". The gateway keeps a pool of accounts/providers and
+# picks a different healthy one per request, so simply *re-issuing* the call is
+# what "move on to the next account" looks like from in here — we never name an
+# account ourselves.
+#
+# The gateway already does cooldown-aware retries inside a single request and
+# only surfaces an error once its own retry budget is gone, so these waits are
+# deliberately longer than BACKOFF: they exist to let circuit breakers half-open
+# and per-model lockouts lapse, not to hammer a pool that just said no.
+#
+# Zero keeps the original behaviour, so this is inert until run.py turns it on.
+QUOTA_ROTATIONS = 0
+QUOTA_BACKOFF = [30, 90, 180, 300]
+
+
+def configure_quota_rotation(rotations: int,
+                             backoff: Optional[list[int]] = None) -> None:
+    """Set once at startup by run.py. Module-level because run_agent is called
+    from five places in graph.py and threading a knob through all of them buys
+    nothing — the orchestrator lock already guarantees one run per process."""
+    global QUOTA_ROTATIONS, QUOTA_BACKOFF
+    QUOTA_ROTATIONS = max(0, int(rotations))
+    if backoff:
+        QUOTA_BACKOFF = [int(b) for b in backoff]
+
 
 # --------------------------------------------------------------- JSON parsing
 
@@ -165,7 +194,7 @@ async def _once(prompt: str, *, system_prompt: str, cwd: Path,
     return AgentRun("\n".join(chunks), cost, turns, usage=usage)
 
 
-def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
+def _run_once_with_backoff(prompt: str, *, system_prompt: str, cwd: Path,
               allowed_tools: list[str], permission_mode: str = "bypassPermissions",
               max_turns: int = 60, model: Optional[str] = None,
               fallback_model: Optional[str] = None,
@@ -173,8 +202,9 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
               max_budget_usd: Optional[float] = None,
               max_buffer_size: int = 32 * 1024 * 1024,
               on_event: Optional[Callable[[str], None]] = None) -> AgentRun:
-    """Synchronous wrapper with backoff. Quota errors are NOT retried --
-    they propagate so the run loop can checkpoint and stop cleanly."""
+    """One agent call, with transient-error backoff. Quota errors are NOT
+    retried here -- they propagate to run_agent, which decides whether there is
+    another account to roll onto."""
     last: Exception | None = None
     for attempt, wait in enumerate([0, *BACKOFF]):
         if wait:
@@ -212,6 +242,31 @@ def run_agent(prompt: str, *, system_prompt: str, cwd: Path,
                 continue
             raise
     raise TransientError(f"gave up after {len(BACKOFF)} retries: {last}")
+
+
+def run_agent(prompt: str, **kw) -> AgentRun:
+    """Synchronous entry point. Transient failures retry inside; a quota error
+    rotates onto the gateway's next account if rotation is configured, and
+    otherwise propagates so the run loop can checkpoint and stop cleanly."""
+    on_event = kw.get("on_event")
+    last: QuotaExhausted | None = None
+    for rotation in range(QUOTA_ROTATIONS + 1):
+        if rotation:
+            wait = QUOTA_BACKOFF[min(rotation - 1, len(QUOTA_BACKOFF) - 1)]
+            if on_event:
+                on_event(f"    usage limit hit — rotating to the next account "
+                         f"via the gateway in {wait}s "
+                         f"({rotation}/{QUOTA_ROTATIONS})")
+            time.sleep(wait)
+        try:
+            return _run_once_with_backoff(prompt, **kw)
+        except QuotaExhausted as e:
+            last = e
+            continue
+    if last is not None:
+        # Every rotation came back limited: the pool is dry, not one account.
+        raise last
+    raise OrchestratorError("run_agent: unreachable")
 
 
 # ----------------------------------------------------------- tool allow-lists

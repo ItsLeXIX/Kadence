@@ -56,6 +56,10 @@ def main() -> int:
     from kadence_flow.config import Config
     from kadence_flow.errors import QuotaExhausted, classify
 
+    # Sections below swap agents.run_agent for stubs, so grab the real one now
+    # — by the time the rotation section runs, the attribute is a stub.
+    REAL_RUN_AGENT = agents.run_agent
+
     persist.STATE_DIR = root / "orchestrator/state"
     persist.DB = persist.STATE_DIR / "checkpoints.sqlite"
     persist.LOG = persist.STATE_DIR / "run.log"
@@ -127,6 +131,39 @@ def main() -> int:
     led = state.get("ledger") or []
     check("task recorded as failed", led and not led[-1]["verification"]["ok"])
 
+    # ------------------------- 2b. Parsa's own uncommitted work is not touched
+    print("\nedits made by a human before the agent started are left alone")
+    # On 2026-09-18 the guard reverted a live edit to orchestrator/run.py and
+    # deleted an untracked directory, neither of which any agent had written:
+    # it judged the whole dirty tree and could not tell whose work it was.
+    (root / "orchestrator").mkdir(exist_ok=True)
+    mine = root / "orchestrator" / "run.py"
+    mine.write_text("# Parsa was editing this while the agent ran\n")
+    stray = root / "scratch-notes.txt"
+    stray.write_text("untracked human scratch\n")
+    n2 = {"i": 0}
+
+    def polite(prompt, **kw):
+        n2["i"] += 1
+        if n2["i"] == 1:
+            return agent_run(MA)
+        if n2["i"] == 2:
+            return agent_run('{"task_id":"T-02","summary":"x","done":true}')
+        return agent_run(STOP)
+
+    agents.run_agent = polite
+    R._drive(cfg, R._initial(cfg))
+    check("human's edit to an off-limits file survives",
+          mine.exists() and "Parsa was editing" in mine.read_text())
+    check("human's untracked file is not deleted", stray.exists())
+    state = R._last_state()
+    led = state.get("ledger") or []
+    check("and the task is not failed for the human's edits",
+          led and led[-1]["verification"]["ok"],
+          str(led[-1]["verification"]["summary"]) if led else "no ledger")
+    mine.unlink(missing_ok=True)
+    stray.unlink(missing_ok=True)
+
     # ------------------------------------------------------ 3. gap-closure rule
     print("\ngap closure rule (spec edit AND a closed GAPS entry with a §ref)")
     (root / "design/GAPS.md").write_text(
@@ -164,6 +201,9 @@ def main() -> int:
 
     # --------------------------------------------- 5. quota stop, then resume
     print("\ntoken limit: stop cleanly, lose nothing, resume")
+    # Pin the policy: this section is about checkpoint/rescue/resume, and it
+    # must not change meaning because config.json switched to rotate.
+    prior_on_quota, cfg.on_quota = cfg.on_quota, "stop"
     subprocess.run(["git", "checkout", "-q", "main"], cwd=root)
     subprocess.run(["git", "branch", "-D", "-q", cfg.work_branch], cwd=root,
                    capture_output=True)
@@ -203,6 +243,78 @@ def main() -> int:
     agents.run_agent = recovered
     code = R._drive(cfg, None)
     check("resume finishes the phase", code == 0, str(code))
+    cfg.on_quota = prior_on_quota
+
+    # ------------------------------------------- 5b. gateway account rotation
+    print("\nusage limit behind the gateway: rotate, then wait, then stop")
+    from kadence_flow.errors import QuotaExhausted as QE
+    from kadence_flow.errors import TransientError
+
+    # run_agent's rotation loop: a limit re-issues the call so the gateway can
+    # serve it from the next account. Zero waits so the test does not sleep.
+    real_once = agents._run_once_with_backoff
+    agents.run_agent = REAL_RUN_AGENT
+    agents.configure_quota_rotation(3, [0, 0, 0])
+    n = {"i": 0}
+
+    def limited_twice(prompt, **kw):
+        n["i"] += 1
+        if n["i"] <= 2:
+            raise QE("Claude usage limit reached")
+        return agent_run('{"ok":true}', 0.0, 1)
+
+    agents._run_once_with_backoff = limited_twice
+    agents.run_agent("p")
+    check("rotates onto the next account after a limit", n["i"] == 3, str(n["i"]))
+
+    n["i"] = 0
+
+    def always_limited(prompt, **kw):
+        n["i"] += 1
+        raise QE("Claude usage limit reached")
+
+    agents._run_once_with_backoff = always_limited
+    try:
+        agents.run_agent("p")
+        check("dry pool still raises", False, "no exception")
+    except QE:
+        check("dry pool raises after every rotation", n["i"] == 4, str(n["i"]))
+
+    def boom(prompt, **kw):
+        raise TransientError("503 overloaded")
+
+    agents._run_once_with_backoff = boom
+    try:
+        agents.run_agent("p")
+        check("non-quota errors are not rotated", False, "no exception")
+    except TransientError:
+        check("non-quota errors are not rotated", True)
+
+    agents.configure_quota_rotation(0)
+    agents._run_once_with_backoff = real_once
+
+    # _drive under rotate: a dry pool waits for capacity instead of ending the
+    # run, but cannot sleep forever — max_quota_waits bounds it.
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=root)
+    subprocess.run(["git", "branch", "-D", "-q", cfg.work_branch], cwd=root,
+                   capture_output=True)
+    persist.DB.unlink(missing_ok=True)
+    prior = (cfg.on_quota, cfg.quota_blind_wait_s, cfg.max_quota_waits)
+    cfg.on_quota, cfg.quota_blind_wait_s, cfg.max_quota_waits = "rotate", 0, 2
+    waits = {"n": 0}
+
+    def dry(prompt, **kw):
+        waits["n"] += 1
+        if waits["n"] == 1:
+            return agent_run(MA2, 0.02, 2)
+        raise QE("Claude usage limit reached")
+
+    agents.run_agent = dry
+    code = R._drive(cfg, R._initial(cfg))
+    check("dry pool waits for capacity, then stops at 75", code == 75, str(code))
+    check("bounded by max_quota_waits, did not sleep forever",
+          waits["n"] <= 6, str(waits["n"]))
+    cfg.on_quota, cfg.quota_blind_wait_s, cfg.max_quota_waits = prior
 
     # ------------------------------------- 6. running out of turns is not a crash
     print("\nturn ceiling: salvage, do not crash")

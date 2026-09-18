@@ -1,3 +1,6 @@
 .DS_Store
 **/xcuserdata/
 *.xcuserstate
+
+# graphify scratch output, regenerated on demand — never part of a review
+graphify-out/

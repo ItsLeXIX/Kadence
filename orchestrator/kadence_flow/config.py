@@ -26,7 +26,22 @@ class Config:
     max_consecutive_failures: int = 3
     max_buffer_mb: int = 32            # per-JSON-message transport cap
     skip_build: bool = False           # true off-Mac / for dry runs
-    on_quota: str = "stop"             # "stop" | "wait"
+    on_quota: str = "stop"             # "stop" | "wait" | "rotate"
+    # "rotate" is for running behind a gateway (OmniRoute) that holds a pool of
+    # accounts: a usage limit re-issues the call so the gateway serves it from
+    # the next healthy account. Only once every rotation comes back limited is
+    # the pool really dry, and then rotate falls back to "wait" — sleep until
+    # the earliest reset and carry on, rather than ending the run.
+    quota_rotations: int = 4
+    quota_backoff: list[int] = field(default_factory=lambda: [30, 90, 180, 300])
+    # Where the gateway listens. Used to check the run is actually pointed at it
+    # before promising rotation; empty means "whatever ANTHROPIC_BASE_URL says".
+    gateway_url: str = ""
+    # Wait this long when the pool is dry but no reset time could be parsed.
+    quota_blind_wait_s: int = 900
+    # Give up after this many consecutive dry-pool waits that produced no work,
+    # so an overnight run cannot sleep forever against a permanently dead pool.
+    max_quota_waits: int = 8
     work_branch: str = ""              # default: auto/phase-<phase>
 
     @classmethod

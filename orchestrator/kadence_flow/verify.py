@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Optional
 
 from . import guards
 
@@ -128,10 +128,13 @@ def decisions_untouched(repo: Path, base_sha: str) -> dict[str, Any]:
 # ------------------------------------------------------------------ entrypoint
 
 def verify(repo: Path, agent: str, report: dict[str, Any], base_sha: str,
-           *, skip_build: bool = False) -> dict[str, Any]:
+           *, skip_build: bool = False,
+           pre_dirty: Optional[Iterable[str]] = None) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
-    violations = guards.scope_violations(repo, agent)
+    # pre_dirty: files already modified before the agent started, i.e. not its
+    # work. See guards.scope_violations.
+    violations = guards.scope_violations(repo, agent, exempt=pre_dirty)
     checks.append(_check("write scope", not violations, "; ".join(violations)))
     checks.append(decisions_untouched(repo, base_sha))
 

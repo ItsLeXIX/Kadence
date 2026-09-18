@@ -191,6 +191,7 @@ def build(cfg: Config):
         task = state.get("task", {})
         guards.ensure_branch(repo, cfg.work_branch)
         base = guards.head(repo)
+        pre_dirty = guards.changed_files(repo)
         model = cfg.designer_model if agent == "DA" else cfg.coder_model
         persist.log(f"  {agent} ({model}) working: {task.get('task_id')} — "
                     f"{task.get('title')}")
@@ -247,6 +248,7 @@ def build(cfg: Config):
         report["num_turns"] = run.num_turns
         report["raw_tail"] = run.text[-1500:]
         report["_base_sha"] = base
+        report["_pre_dirty"] = pre_dirty
         persist.log(f"  {agent} done={report.get('done')} "
                     f"turns={run.num_turns} cost=${run.cost_usd:.2f}")
         return _ret(state, {"report": report,
@@ -267,7 +269,8 @@ def build(cfg: Config):
         persist.log("  verifying (build, tests, scope, gap rule)…")
 
         v = verifier.verify(repo, agent, report, report.get("_base_sha", "HEAD"),
-                            skip_build=cfg.skip_build)
+                            skip_build=cfg.skip_build,
+                            pre_dirty=report.get("_pre_dirty"))
 
         if v["scope_violations"]:
             persist.log(f"  ! reverting out-of-scope writes: {v['scope_violations']}")

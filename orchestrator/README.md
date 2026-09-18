@@ -32,7 +32,7 @@ it is `subprocess` running your real build, so no agent can talk its way to gree
 cd ~/codes/Kadence/orchestrator
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python3 tests/test_failsafes.py     # 30 checks, no tokens spent
+python3 tests/test_failsafes.py     # 64 checks, no tokens spent
 ```
 
 Needs the `claude` CLI logged in (the SDK drives it, so this runs on your
@@ -49,7 +49,11 @@ python3 run.py reset         # drop checkpoints (your branch is untouched)
 ```
 
 Exit codes: `0` phase done · `10` blocked, needs you · `20` cycle/cost ceiling ·
-`75` token limit, resumable.
+`75` every account limited and not recovering, resumable.
+
+A blocked run (`10`) stays blocked until you answer MA. Write the answer to
+`state/UNBLOCK` — the next resume consumes it once, folds it into the goal MA
+re-reads each cycle, and carries on.
 
 Everything lands on `auto/phase-<n>`, one commit per task, never on `main`.
 Review the branch when it stops; merge what you like.
@@ -70,6 +74,32 @@ This is designed for, not patched around:
 
 Set `"on_quota": "wait"` in `config.json` (or `--on-quota wait`) and it sleeps until
 the reset time and carries on unattended instead of exiting.
+
+### Rolling onto the next account (`on_quota: "rotate"`, the default here)
+
+Agents reach Claude through whatever `ANTHROPIC_BASE_URL` says. Pointed at the
+OmniRoute gateway on `localhost:20128`, one usage limit is not the end of the
+sitting: the gateway holds a pool of accounts and providers and picks a healthy
+one per request, so *re-issuing the call* is what moving to the next account
+looks like from in here. The orchestrator never names an account itself.
+
+    usage limit  →  re-issue up to quota_rotations× (30s, 90s, 180s, 300s)
+                 →  still limited every time? the pool is dry, not one account
+                 →  sleep until the earliest reset (or quota_blind_wait_s when
+                    no reset time is quoted) and carry on
+                 →  after max_quota_waits sleeps with no recovery, exit 75
+
+The waits are longer than the transient `BACKOFF` on purpose. The gateway
+already retries inside a single request and only errors once its own retry
+budget is gone, so these exist to let its circuit breakers half-open and its
+per-model lockouts lapse — not to hammer a pool that just said no.
+
+Rotation is skipped automatically, with a warning in the log, when the run is
+pointed straight at Anthropic: there is nothing to roll onto, so `rotate`
+degrades to `wait`. Because the base URL is inherited from the launching shell,
+`supervise.sh` sources `~/.config/omniroute/env` (override with `$OMNIROUTE_ENV`)
+when it is not already set, and says which gateway it got. That file holds the
+credentials, lives outside the repo, and is never committed.
 
 Transient failures (5xx, overloaded, dropped connections) are retried three times
 with 10s/30s/90s backoff — those are separate from quota and never confused with it.
@@ -111,7 +141,8 @@ your plan's usage cap — when you hit it the run stops with exit 75 and resumes
 ## Tuning
 
 `config.json` — models per agent, turn limits, cycle and cost ceilings, quota
-behaviour. `kadence_flow/prompts/{manager,designer,coder}.md` — the three system
+behaviour (`on_quota`, `quota_rotations`, `quota_backoff`, `quota_blind_wait_s`,
+`max_quota_waits`, `gateway_url`). `kadence_flow/prompts/{manager,designer,coder}.md` — the three system
 prompts.
 
 **These prompts were reconstructed from `CONTEXT.md`, the two briefs and the
@@ -132,7 +163,7 @@ kadence_flow/
   errors.py                quota vs transient vs fatal
   persist.py               checkpoints, run log, RESUME.md
   prompts/                 MA / DA / CA system prompts
-tests/test_failsafes.py    30 checks, temp repo, stubbed agents
+tests/test_failsafes.py    64 checks, temp repo, stubbed agents
 state/                     checkpoints + logs (gitignored)
 ```
 
