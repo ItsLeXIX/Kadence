@@ -69,6 +69,53 @@ final class CalendarState {
     /// Driven by a timer at `motion.nowLineTick.interval`.
     var now: Date = Date()
 
+    // MARK: Conflicts (components.md §14, interactions.md §10.1's first
+    // sentence — entry point only; preview, apply and abandonment are a
+    // separate, later task, per this task's own brief)
+
+    /// Refreshed by `MainWindow` whenever the live `Event`/`RoutineBlock`
+    /// queries change (`MainWindow.sortedConflicts(events:routineBlocks:)`,
+    /// wired via `.onChange`). Kept here — not only computed inline in
+    /// `MainWindow`'s body — so the needs-attention row (`SidebarView`), the
+    /// `⌘⇧A` command (`KadenceCommands`) and the inspector's conflict-mode
+    /// panel all read the exact same list and can never disagree about
+    /// whether there is anything to select or what "first" means. Already
+    /// sorted by `ConflictOrdering`, so `.first` always is "the first
+    /// unresolved conflict" per that file's stable-order rule.
+    ///
+    /// "Unresolved" is every conflict `ConflictEngine.detect` currently
+    /// reports: this task builds no apply step, so nothing here has a way to
+    /// become resolved and drop out of the list on its own yet — that is the
+    /// follow-up task's job.
+    var conflicts: [Conflict] = []
+
+    /// Which conflict the inspector's conflict-mode panel is showing, if any.
+    /// `nil` means the inspector shows its ordinary event-details/day-summary
+    /// content. Set only by `activateNeedsAttention()` in this task — no ⎋
+    /// abandonment, no auto-clear when the underlying conflict disappears
+    /// (both are the follow-up task's job).
+    var selectedConflictID: String?
+
+    /// Which option row inside the active conflict is highlighted.
+    /// Selecting a row only highlights it (`color.interactive.selectedRowFill`)
+    /// in this task — no preview on the grid, no `↩` apply.
+    var selectedConflictOptionID: UUID?
+
+    /// components.md §14.1 / interactions.md §10.1's first sentence:
+    /// activating the needs-attention row (or `⌘⇧A`) selects the first
+    /// unresolved conflict and puts the inspector into conflict mode. A
+    /// no-op when there is nothing to select — the same guard that makes
+    /// §10.2's row "hidden entirely at zero" and the shortcut "global, when
+    /// the count is non-zero" both hold trivially at the call site.
+    func activateNeedsAttention() {
+        guard let first = conflicts.first else { return }
+        selectedConflictID = first.id
+        selectedConflictOptionID = nil
+        selectedEventID = nil
+        userSetInspectorVisibility = true
+        isInspectorVisible = true
+    }
+
     /// interactions.md §1 — the regions `⇥` cycles between, in spec order.
     ///
     /// `⇥` always *leaves* a region rather than moving inside it; the arrow keys

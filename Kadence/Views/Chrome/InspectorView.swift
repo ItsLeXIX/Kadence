@@ -16,11 +16,24 @@ struct InspectorView: View {
     let travel: TravelFixture?
     let now: Date
     let store: EventStore
+    /// components.md §14.1 — non-nil puts the inspector into "conflict
+    /// mode", which takes over from the ordinary event-details/day-summary
+    /// content below entirely. `nil` (the default) is every existing caller
+    /// and every existing test — Phase 1 behaviour is unchanged.
+    var conflict: Conflict? = nil
+    var selectedConflictOptionID: UUID? = nil
+    var onSelectConflictOption: (UUID) -> Void = { _ in }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Tokens.Spacing.xl) {
-                if let event {
+                if let conflict {
+                    ConflictPanelView(
+                        conflict: conflict,
+                        now: now,
+                        selectedOptionID: selectedConflictOptionID,
+                        onSelectOption: onSelectConflictOption)
+                } else if let event {
                     details(for: event)
                 } else {
                     daySummary

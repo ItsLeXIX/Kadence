@@ -34,7 +34,7 @@ struct MainWindow: View {
             let width = proxy.size.width
 
             NavigationSplitView(columnVisibility: sidebarVisibility) {
-                SidebarView(needsAttentionCount: 0)
+                SidebarView()
                     .focusable()
                     .focused($focusedRegion, equals: .sidebar)
                     .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
@@ -62,6 +62,13 @@ struct MainWindow: View {
                 // focused, so the shared state has to follow the real focus.
                 if let region { state.focusedRegion = region }
             }
+            // Keeps `state.conflicts` in sync with the live queries — see
+            // `sortedConflicts(events:routineBlocks:)`'s own doc comment and
+            // `CalendarState.conflicts`'s. Both queries can change
+            // independently (an event edited, a routine block added), so
+            // both are watched.
+            .onChange(of: events, initial: true) { _, _ in refreshConflicts() }
+            .onChange(of: routineBlocks, initial: true) { _, _ in refreshConflicts() }
         }
         .frame(
             minWidth: Tokens.Size.windowMinWidth,
@@ -78,6 +85,12 @@ struct MainWindow: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .kadenceNewEvent)) { _ in
             createAtCursor()
+        }
+        // components.md §14.1 / interactions.md §10.1's first sentence —
+        // `⌘⇧A`, posted by `KadenceCommands` (which has no query of its own
+        // onto live events/routine blocks).
+        .onReceive(NotificationCenter.default.publisher(for: .kadenceGoToFirstConflict)) { _ in
+            state.activateNeedsAttention()
         }
     }
 
@@ -181,7 +194,20 @@ struct MainWindow: View {
             day: state.anchor,
             travel: selectedEvent.flatMap { fixtures.travel(forEvent: $0.id) },
             now: state.now,
-            store: store)
+            store: store,
+            conflict: activeConflict,
+            selectedConflictOptionID: state.selectedConflictOptionID,
+            onSelectConflictOption: { state.selectedConflictOptionID = $0 })
+    }
+
+    /// The conflict `state.selectedConflictID` names, if it still exists in
+    /// the current `state.conflicts` — falls back to the ordinary inspector
+    /// (not a crash) if the underlying events changed out from under a
+    /// stale id, since neither is wired up to clear it yet (that is the
+    /// follow-up task that builds abandonment/resolution).
+    private var activeConflict: Conflict? {
+        guard let id = state.selectedConflictID else { return nil }
+        return state.conflicts.first { $0.id == id }
     }
 
     private var selectedEvent: Event? {
@@ -193,9 +219,11 @@ struct MainWindow: View {
         events.filter { Calendar.current.isDate($0.start, inSameDayAs: state.anchor) }
     }
 
-    // MARK: Conflicts (P2-T14 — wiring only; see ConflictEngine.swift's header
-    // for what is deliberately still not built: the "needs your attention"
-    // row, the conflict panel, preview-on-focus, and apply/undo).
+    // MARK: Conflicts (P2-T14 wired Presentation.conflicted; P2-T15 adds the
+    // "needs your attention" row and the static conflict panel — see
+    // `CalendarState.conflicts`/`activateNeedsAttention()`,
+    // `ConflictPanelView`. Still explicitly NOT built: preview-on-focus,
+    // `↩` apply, `⎋` abandonment — a separate, later task.)
 
     /// Recomputed from the live `events`/`routineBlocks` queries on every body
     /// evaluation — `ConflictEngine.detect` is O(n²) over one day's/week's
@@ -212,11 +240,33 @@ struct MainWindow: View {
     @MainActor
     static func conflictedEventIDs(events: [Event], routineBlocks: [RoutineBlock]) -> Set<UUID> {
         var ids: Set<UUID> = []
-        for conflict in ConflictEngine.detect(events: events, routineBlocks: routineBlocks) {
+        for conflict in sortedConflicts(events: events, routineBlocks: routineBlocks) {
             ids.insert(conflict.routineEvent.id)
             ids.insert(conflict.otherEvent.id)
         }
         return ids
+    }
+
+    /// `ConflictEngine.detect`'s result, in `ConflictOrdering`'s stable order
+    /// — the single source both `conflictedEventIDs` above and
+    /// `refreshConflicts()` below build from, so the id set fed to the grid
+    /// and the list fed to the sidebar/inspector can never disagree about
+    /// which pairs are conflicts. `static` and `@MainActor` for the same
+    /// reason as `conflictedEventIDs`: `KadenceTests` drives it directly.
+    @MainActor
+    static func sortedConflicts(events: [Event], routineBlocks: [RoutineBlock]) -> [Conflict] {
+        ConflictOrdering.sorted(ConflictEngine.detect(events: events, routineBlocks: routineBlocks))
+    }
+
+    /// Writes `Self.sortedConflicts(...)` into `state.conflicts`. Called from
+    /// `.onChange(of: events)` / `.onChange(of: routineBlocks)` rather than
+    /// computed straight in `body` and assigned there, because mutating an
+    /// `@Observable` the view itself reads during its own body evaluation is
+    /// exactly the "publishing changes from within view updates" trap —
+    /// `.onChange` runs after the view update that triggered it, which is
+    /// the supported place to feed a query result into stored state.
+    private func refreshConflicts() {
+        state.conflicts = Self.sortedConflicts(events: events, routineBlocks: routineBlocks)
     }
 
     // MARK: Sidebar visibility

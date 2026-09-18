@@ -73,6 +73,20 @@ struct KadenceCommands: Commands {
             .keyboardShortcut("i", modifiers: [.option, .command])
 
             Divider()
+
+            // components.md §14.1 / interactions.md's global shortcut table —
+            // "Go to the first unresolved conflict", "global, when the count
+            // is non-zero". Does exactly what activating the sidebar's
+            // needs-attention row does (`CalendarState.activateNeedsAttention()`),
+            // via the same cross-scene notification `⌘N` already uses for
+            // `.kadenceNewEvent`: `KadenceCommands` has no query of its own
+            // onto the live event/routine-block data, but `MainWindow` does,
+            // and keeps `calendar.conflicts` in sync with it.
+            Button("Go to First Conflict") {
+                NotificationCenter.default.post(name: .kadenceGoToFirstConflict, object: nil)
+            }
+            .keyboardShortcut("a", modifiers: [.command, .shift])
+            .disabled(calendar.conflicts.isEmpty)
         }
 
         // layouts.md §8 — "Opened with ⌘⌥R or Window ▸ Routines." Placed in
@@ -89,6 +103,7 @@ struct KadenceCommands: Commands {
 
 extension Notification.Name {
     static let kadenceNewEvent = Notification.Name("kadence.newEvent")
+    static let kadenceGoToFirstConflict = Notification.Name("kadence.goToFirstConflict")
 }
 
 struct SettingsPlaceholderView: View {

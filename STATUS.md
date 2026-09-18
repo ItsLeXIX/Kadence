@@ -205,6 +205,22 @@ explicitly not built, same as §12 left them: the "Needs your attention" row,
 the conflict panel, preview-on-focus, and an apply/undo command. See §13 for
 the full account.
 
+**Amended 2026-09-18 by task P2-T15 (needs-attention row + static conflict
+panel — entry point only).** New §14. The second of §12's deferred follow-ups:
+the sidebar's needs-attention row is now a real button (components.md §10.2,
+with its `tray.full` icon removed — **closes DEVIATIONS.md A21**), `⌘⇧A` does
+the same thing, and both select the first unresolved conflict — by a new
+stable ordering rule, `ConflictOrdering`, ascending by the earlier of the two
+colliding events' start times — and put the inspector into conflict mode,
+rendering components.md §14.2's collision header and §14.3's ranked option
+rows as static content. Selecting a row only highlights it. **Preview-on-focus,
+`↩` apply and `⎋` abandonment (the rest of interactions.md §10.1, and all of
+§10.2) are explicitly NOT built** — a separate, later task, per this task's own
+brief. See §14 for the full account, including the two formatting judgement
+calls this task made (the option-row prose, and the collision blocks'
+rendered height) — neither is an invented design token; both are documented
+as this task's own call, since `design/` leaves them open on purpose.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -1184,7 +1200,7 @@ mine to decide.
 1. ~~**`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**~~
    **Done** — `--check` is green, see §1.1. Not this task's doing; it was already
    regenerated when P2-T01 picked the tree up.
-2. **Phase 2 has a design and, as of tasks P2-T08–P2-T14, five slices of
+2. **Phase 2 has a design and, as of tasks P2-T08–P2-T15, six slices of
    code.** `design/components.md` §13–§17, `layouts.md` §8–§10,
    `interactions.md` §10–§12 and the 67 new tokens are complete and frozen.
    `RoutineTemplate`/`RoutineBlock` (models) and `RoutineEngine.materialize`
@@ -1192,13 +1208,15 @@ mine to decide.
    template's blocks (§8), that window's blocks can now be moved, resized,
    created and deleted, undoably (§9, §10), `ConflictEngine` now detects
    routine-vs-manual/imported overlaps and generates their ranked resolution
-   options, data layer only (§12), and those detected conflicts now render as
-   `.conflicted` on the live calendar canvas (§13) — everything else (the
-   Blocks/Windows mode control, the interactive flexibility control,
-   detached-instance tracking and re-sync, the "Needs your attention" row and
-   conflict panel, preview-on-focus, applying a resolution option, the menu
-   bar extra, snooze, and the `TimeWindow` model and editor) is still
-   unbuilt. The design pass also notes
+   options, data layer only (§12), those detected conflicts now render as
+   `.conflicted` on the live calendar canvas (§13), and the entry point into
+   conflict resolution — the needs-attention row, `⌘⇧A`, and a static
+   conflict panel (collision header + ranked option rows) in the inspector —
+   is now built (§14) — everything else (the Blocks/Windows mode control,
+   the interactive flexibility control, detached-instance tracking and
+   re-sync, preview-on-focus, `↩` apply, `⎋` abandonment, the menu bar
+   extra, snooze, and the `TimeWindow` model and editor) is still unbuilt.
+   The design pass also notes
    two deliberate
    reuses: the Routines window **is** the Week canvas with dates, now line,
    all-day row and travel bands removed (components.md §13.1 lists every
@@ -1249,8 +1267,9 @@ mine to decide.
   running app, including the preferred real-`Button` route; the label is
   discarded in every one that produces an element at all. Three next candidates,
   each trading something, are in DEVIATIONS.md. Unchanged this session.
-- **A21** — the sidebar's needs-attention row draws `tray.full`, which the
-  amended components.md §10.2 now forbids outright. New, and a one-line fix; see
+- ~~**A21**~~ — **Closed 2026-09-18, task P2-T15.** The sidebar's needs-attention
+  row drew `tray.full`, which the amended components.md §10.2 forbids outright;
+  the icon is removed and the row is now a real button. See §14 and
   DEVIATIONS.md.
 
 ### 5.2 Gaps
@@ -2380,5 +2399,190 @@ different chip component per components.md §9, not `GridBlockView`/
 attention" row + conflict panel (components.md §14, interactions.md §10),
 and an "apply an option" command on `EventStore`/`UndoStack` (one named undo
 step, per interactions.md §10.1). Neither is blocked by anything found here.
+
+**Blocked:** nothing.
+
+## 14. P2-T15 — needs-attention row + static conflict panel (entry point only, 2026-09-18)
+
+The second of §12's deferred follow-ups. Scope, per this task's own brief:
+build the entry point into conflict resolution and its static content only —
+**no preview-on-focus, no `↩` apply, no `⎋` abandonment.** Those are
+interactions.md §10.1's second half plus all of §10.2, and are explicitly a
+separate, later task.
+
+**What changed:**
+
+1. `Kadence/Views/Chrome/SidebarView.swift` — the needs-attention row is now
+   a real `Button` (components.md §14.1: "The needs-attention row (§10.2) is
+   a button"), calling `CalendarState.activateNeedsAttention()`. Its
+   `Image(systemName: "tray.full")` icon is **removed** — components.md
+   §10.2 forbids it outright ("The row takes no icon") — closing
+   **DEVIATIONS.md A21**, open since the §10.2 amendment landed. The row is
+   `if !state.conflicts.isEmpty` (hidden entirely at zero, no zero badge) and
+   its count badge is unchanged from Phase 1's build: `blockMeta` type,
+   `color.text.secondary` on `color.surface.canvasSunken`, radius
+   `radius.chip`, horizontal padding `spacing.sm` — every token §10.2 names
+   already existed, so nothing was invented and no gap was filed. The view no
+   longer takes a `needsAttentionCount` init parameter (its one caller passed
+   a hardcoded `0`); it reads `state.conflicts.count` directly from the
+   environment, the same way it already reads `state.hiddenSources`.
+2. `Kadence/Views/Chrome/KadenceCommands.swift` — a new `⌘⇧A` menu item,
+   "Go to First Conflict", in the View menu group, `.disabled(when
+   calendar.conflicts.isEmpty)` (interactions.md's shortcut table: "global,
+   when the count is non-zero"). `KadenceCommands` has no query of its own
+   onto the live `Event`/`RoutineBlock` data — same cross-scene problem
+   `⌘N`/`.kadenceNewEvent` already solved — so it posts a new
+   `.kadenceGoToFirstConflict` notification that `MainWindow` observes and
+   turns into the same `state.activateNeedsAttention()` call the sidebar row
+   makes, so the row and the shortcut are provably the same action, not two
+   copies that could drift.
+3. `Kadence/State/CalendarState.swift` — added `conflicts: [Conflict] = []`
+   (refreshed by `MainWindow`, read by the sidebar row, the menu command and
+   the inspector so all three can never disagree about what there is to
+   select), `selectedConflictID: String?` and `selectedConflictOptionID:
+   UUID?` (both nil outside conflict mode), and `activateNeedsAttention()` —
+   selects `conflicts.first`, clears any ordinary event selection, clears any
+   previously-highlighted option, and forces the inspector open. A no-op
+   when `conflicts` is empty, which is what makes the row's "hidden at zero"
+   and the shortcut's "disabled at zero" both trivially safe at the call
+   site.
+4. `Kadence/State/ConflictOrdering.swift` (new) — "the first unresolved
+   conflict" (components.md §14.1) needed a stable rule, since
+   `ConflictEngine.detect`'s result order is just pairwise iteration order
+   over whatever array it was handed, not a meaningful "first" a user would
+   recognise call to call. Neither components.md nor interactions.md
+   specifies one, so this is this task's own engineering call, not an
+   invented design token (it is a tie-break rule over application data, not
+   a colour/size/token value): ascending by the earlier of the two colliding
+   events' start times, tied broken by `Conflict.id` (the engine's own
+   stable string) for determinism. Pure, no SwiftUI, same shape as
+   `CalendarState.FocusRegion.next`.
+5. `Kadence/State/ConflictOptionFormatting.swift` (new) — the option-row
+   prose (title + disturbance line) that `ConflictEngine.swift`'s own header
+   comment explicitly left to "a later UI task": this is that task.
+   `title(for:conflict:)` and `delta(for:conflict:)` are pure functions over
+   `ConflictOption`/`Conflict`; `rows(for:)` maps a conflict's options (in
+   their existing least-disturbance-first order) into
+   `ConflictOptionRowContent` values carrying `id`/`title`/`delta`/
+   `isRecommended` — the exact array `ConflictPanelView` renders with no
+   further filtering, which is also this task's testing seam for "the panel
+   renders the right number of rows with the recommended one marked"
+   (AccessibilityTests.swift's header already established why hosting a
+   SwiftUI view and inspecting its accessibility tree from inside a unit
+   test is not reliable on this platform — the same reasoning applies here).
+   The literal wording is a documented judgement call, not a spec value:
+   components.md §14.3 gives two worked examples for illustration, not a
+   template, and no file under `design/` gives a literal format string.
+6. `Kadence/Views/Chrome/ConflictPanelView.swift` (new) — components.md
+   §14.2's collision header (the two colliding events rendered through the
+   real `GridBlockView`/`resolveBlockStyle` path, `presentation: [.conflicted]`
+   so the panel matches what the grid already shows for them per P2-T14's
+   wiring, at a fixed height of 22pt — the midpoint of §3.3's old "16–27"
+   band, which the current tier numbering's own "reading the old numbers"
+   table maps to `.titleOnly`; any height in that band resolves to the same
+   tier, so the specific figure is this task's call, not an invented token —
+   stacked `spacing.xs` apart with the word "overlaps" between them in
+   `inspectorLabel`/`color.text.secondary`, then the overlap window and
+   duration in `blockMeta`) and §14.3's option rows (via
+   `ConflictOptionFormatting.rows(for:)`: title in `conflictOptionTitle`,
+   disturbance line in `conflictOptionDelta`/`color.text.secondary`, a
+   `Recommended` chip — `blockMeta`/`color.text.secondary` on
+   `color.surface.canvasAlt`, radius `radius.chip`, padding `spacing.xs` —
+   on the recommended row only, `size.conflictOptionRowMinHeight` minimum
+   height, `size.conflictOptionGap` between rows, radius `radius.card`, fill
+   `color.surface.canvasSunken`, `color.interactive.selectedRowFill` when
+   selected). Tapping a row calls `onSelectOption`, which only updates
+   `selectedConflictOptionID` for the highlight — no preview, no apply.
+7. `Kadence/Views/Chrome/InspectorView.swift` — gained three new, all-defaulted
+   properties (`conflict: Conflict? = nil`, `selectedConflictOptionID: UUID? =
+   nil`, `onSelectConflictOption: (UUID) -> Void = { _ in }`), so every
+   existing caller and every existing test is unaffected. When `conflict` is
+   non-nil the body renders `ConflictPanelView` instead of the ordinary
+   event-details/day-summary content — "conflict mode" (components.md §14.1)
+   entirely replaces the rest of the inspector while active, per §14.1's "no
+   separate list view and no sheet."
+8. `Kadence/Views/MainWindow.swift` — `SidebarView()` no longer takes a
+   `needsAttentionCount` argument (removed with the property). Added
+   `sortedConflicts(events:routineBlocks:) -> [Conflict]` (`@MainActor`,
+   `static`, same shape as the existing `conflictedEventIDs(events:
+   routineBlocks:)`, which now calls it internally instead of running
+   `ConflictEngine.detect` a second time) and an instance method
+   `refreshConflicts()` that writes `Self.sortedConflicts(...)` into
+   `state.conflicts`, wired from two new `.onChange(of: events, initial:
+   true)` / `.onChange(of: routineBlocks, initial: true)` modifiers — not
+   computed directly in `body` and assigned there, which would be mutating
+   an `@Observable` the view tree reads from inside the same update pass;
+   `.onChange` runs after the triggering update, which is the supported
+   place for this. `inspectorBody` now passes `conflict: activeConflict`
+   (looks up `state.selectedConflictID` in the current `state.conflicts`,
+   falling back to `nil` — not a crash — if a stale id no longer resolves),
+   `selectedConflictOptionID: state.selectedConflictOptionID`, and
+   `onSelectConflictOption: { state.selectedConflictOptionID = $0 }`. A new
+   `.onReceive(.kadenceGoToFirstConflict)` calls `state.activateNeedsAttention()`.
+9. `Kadence/DesignSystem/TypeStyle.swift` — added `conflictOptionTitle` and
+   `conflictOptionDelta`, following the existing pattern (both token groups,
+   `Typography.ConflictOptionTitle`/`.ConflictOptionDelta`, already existed
+   in `Tokens.swift` from the Phase 2 token pass; nothing new was generated).
+
+**No token gap.** Every token components.md §10.2/§14.2/§14.3 names —
+`radius.chip`, `radius.card`, `spacing.xs`, `spacing.sm`,
+`color.text.secondary`, `color.surface.canvasSunken`, `color.surface.canvasAlt`,
+`color.interactive.selectedRowFill`, `size.conflictOptionRowMinHeight`,
+`size.conflictOptionGap`, `typography.conflictOptionTitle`,
+`typography.conflictOptionDelta`, `typography.inspectorLabel`,
+`typography.blockMeta` — already existed in `Tokens.swift` from the Phase 2
+token pass this task's brief anticipated might be missing. Checked by name
+against `Tokens.swift` before writing any view code; none needed a
+`// SPEC-GAP` placeholder, and `design/GAPS.md` gained no new entry from this
+task.
+
+**New test coverage:** `KadenceTests/ConflictEntryPointTests.swift` (new
+file), same in-memory `ModelContainer`/`ModelContext` pattern as
+`ConflictEngineTests.swift`/`ConflictPresentationWiringTests.swift`. Three
+suites, matching this task's own acceptance criteria:
+- `NeedsAttentionCountTests` — zero conflicts gives an empty list (row
+  hidden); two independent conflicts give a count of 2 (row shows "2");
+  assigning `MainWindow.sortedConflicts(...)` into a fresh
+  `CalendarState.conflicts` produces the same count the sidebar/shortcut
+  would read.
+- `ConflictActivationTests` — `ConflictOrdering` sorts strictly ascending by
+  earliest colliding start time even when handed events in the opposite
+  order (proving it re-sorts, not merely preserves input order); tied start
+  times sort deterministically by `Conflict.id` across repeated calls;
+  `activateNeedsAttention()` selects `conflicts.first`, clears an existing
+  ordinary selection, clears any stale option highlight, and forces the
+  inspector open; it is a no-op (touches nothing) when `conflicts` is empty.
+- `ConflictOptionRowContentTests` — `ConflictOptionFormatting.rows(for:)`
+  produces exactly as many rows as `conflict.options`, in the same order,
+  with exactly one `isRecommended`; a `.droppable` conflict's single-option
+  case still produces exactly one row, marked recommended, with non-empty
+  title/delta text (the panel never shows zero rows); a `.shiftLater`
+  option's title names the routine event and its minute figure, and its
+  delta line names the event's new start time.
+
+**Verified:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`, no new warnings.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **` — see this
+  task's own report for the exact count, re-run and re-verified
+  independently by the orchestrator.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.` (no new tokens needed).
+- Confirmed by inspection: no preview-on-focus, `↩` apply, or `⎋`
+  abandonment wiring was added anywhere — `ConflictPanelView`'s option row
+  only calls `onSelectOption` (a highlight), and no code path in this diff
+  touches `EventStore`, `UndoStack`, or the calendar canvas's block
+  presentation for anything preview-related.
+
+**Explicitly not built here**, same as §12/§13 left it, and not to be
+rediscovered by the next task: **preview-on-focus** (an option gaining
+focus previewing it on the real grid, `previewed` presentation, the
+canvas's `size.previewCanvasBorder` accent border — components.md §14.4),
+**`↩` apply** (writing a chosen option to the store as one named undo
+step — interactions.md §10.1), and **`⎋` abandonment** (unconditionally
+discarding a live preview — interactions.md §10.2, components.md §14.5's
+"resolved and empty" state also depends on an apply step existing at all).
+None of the three is blocked by anything found in this task.
 
 **Blocked:** nothing.

@@ -190,6 +190,21 @@ extension TypeStyle {
         weight: Tokens.Typography.InspectorValue.weight,
         textStyle: Tokens.Typography.InspectorValue.textStyle,
         lineLimit: Tokens.Typography.InspectorValue.lineLimit)
+
+    // components.md §14.3 — the conflict option row's title and disturbance
+    // line.
+    static let conflictOptionTitle = TypeStyle(
+        size: Tokens.Typography.ConflictOptionTitle.size,
+        weight: Tokens.Typography.ConflictOptionTitle.weight,
+        textStyle: Tokens.Typography.ConflictOptionTitle.textStyle,
+        lineLimit: Tokens.Typography.ConflictOptionTitle.lineLimit)
+
+    static let conflictOptionDelta = TypeStyle(
+        size: Tokens.Typography.ConflictOptionDelta.size,
+        weight: Tokens.Typography.ConflictOptionDelta.weight,
+        textStyle: Tokens.Typography.ConflictOptionDelta.textStyle,
+        lineLimit: Tokens.Typography.ConflictOptionDelta.lineLimit,
+        monospacedDigit: Tokens.Typography.ConflictOptionDelta.monospacedDigit)
 }
 
 // MARK: - Applying a style

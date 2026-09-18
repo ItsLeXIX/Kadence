@@ -93,6 +93,26 @@ Nothing about what was built is a deviation — the wiring needed no new value
 `BlockStyleResolver`'s handling of it already existed from Phase 1. See
 `STATUS.md` §13.
 
+**Corrected 2026-09-18, task P2-T15 — the previous entry's "Needs your
+attention row, the conflict panel" clause is now STALE.** Both now exist:
+the needs-attention row is a real button (§10.2, icon removed — **A21 above
+is now closed**), `⌘⇧A` does the same thing, and activating either selects
+the first unresolved conflict (a new stable ordering rule, `ConflictOrdering`
+— see below) and shows components.md §14.2's collision header and §14.3's
+ranked option rows in the inspector, as static content. Nothing about what
+was built is a deviation: every token §14.2/§14.3 name already existed in
+`Tokens.swift` from the Phase 2 pass, and the two things `design/` leaves
+unspecified — the option-row prose's literal wording, and the collision
+blocks' exact rendered height within the "16–27" density band — are
+documented as this task's own engineering call in `STATUS.md` §14, not
+invented values (neither is a colour/size/token; both are judgement calls
+`design/` explicitly leaves open: §14.3's examples are illustrative, not a
+template, and any height inside the 18–27 tier band resolves identically).
+Still absent, unchanged: preview-on-focus, `↩` apply, `⎋` abandonment
+(interactions.md §10.1's second half and all of §10.2), applying an option to
+the store, and protected-window conflicts (still no `TimeWindow` model). See
+`STATUS.md` §14.
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in
@@ -103,9 +123,12 @@ search against the working tree, not carried forward.
 Legend: **A** absent · **B** built differently · **C** value I invented (none
 remain) · **D** spec contradiction · ~~struck~~ = closed.
 
-**Counts: A ×18 · B ×6 · C ×0 · D ×0** — open items only, counted from this
-file rather than carried forward. (A ×7 and B ×7 more are closed and struck
+**Counts: A ×17 · B ×6 · C ×0 · D ×0** — open items only, counted from this
+file rather than carried forward. (A ×8 and B ×7 more are closed and struck
 below; the previous audit's "A ×14" did not match its own list.)
+
+*(Updated 2026-09-18 by task P2-T15: was "A ×18". A21 is now closed — see the
+amendment note below and the entry itself.)*
 
 *(Updated 2026-09-11 by task P2-T05: was "B ×7 · D ×1". D4 and B13 are now
 closed — see the amendment note below and the entries themselves.)*
@@ -412,10 +435,10 @@ in `Kadence/`.
   Transparency branch, so the app is correct in that mode and wrong in the default
   one. *Still open.*
 
-- **A21 — components.md §10.2. The needs-attention row draws an icon, and §10.2
-  now forbids one.** *(new 2026-09-10 — created by the spec amendment, not by a
-  code change)*
-  `SidebarView.swift:29` renders `Image(systemName: "tray.full")` on the
+- ~~**A21 — components.md §10.2. The needs-attention row draws an icon, and §10.2
+  now forbids one.**~~ **Closed 2026-09-18, task P2-T15.** *(was: new 2026-09-10 —
+  created by the spec amendment, not by a code change)*
+  `SidebarView.swift:29` rendered `Image(systemName: "tray.full")` on the
   needs-attention row. The amended §10.2 says, in as many words: **"The row takes
   no icon."** It is the only non-source row in that list; its text and count
   already separate it from the swatch-prefixed source rows, and §10.2 records that
@@ -423,10 +446,12 @@ in `Kadence/`.
   the Coursework source's `tray.2.fill` (§10.1) in the same list at the same size,
   two trays in one sidebar.
 
-  The build was correct against the previous text and is wrong against the current
-  one. The fix is to delete the `Image` — one line — and §10.2's follow-on rule
-  applies to anything added later: no chrome symbol without first checking §10.1
-  and the kind glyphs in §2.1, §3.2 and §5.
+  Fixed while building the needs-attention row's real behaviour (P2-T15, which
+  also had to touch this view to make the row a button): the `Image` is deleted,
+  and the row is `if !state.conflicts.isEmpty` per §10.2's "hidden entirely at
+  zero" rule. §10.2's follow-on rule still applies to anything added later: no
+  chrome symbol without first checking §10.1 and the kind glyphs in §2.1, §3.2
+  and §5.
 
 ### Interaction
 

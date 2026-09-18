@@ -8,26 +8,32 @@
 import SwiftUI
 
 struct SidebarView: View {
-    let needsAttentionCount: Int
-
     @Environment(CalendarState.self) private var state
 
     var body: some View {
         @Bindable var state = state
 
         List {
-            // Hidden entirely at zero — no empty-state counter, no zero badge.
-            // Phase 1 always supplies zero; Phase 2 supplies the data.
-            if needsAttentionCount > 0 {
-                Label {
+            // components.md §10.2 — hidden entirely at zero (no empty-state
+            // counter, no zero badge) and no icon: "its text and its count
+            // already separate it from the swatch-prefixed source rows
+            // below, and a bare label separates it better than any glyph
+            // would." §14.1 — "The needs-attention row (§10.2) is a button.
+            // Activating it selects the first unresolved conflict and puts
+            // the inspector into conflict mode."
+            if !state.conflicts.isEmpty {
+                Button {
+                    state.activateNeedsAttention()
+                } label: {
                     HStack {
-                        Text("Needs attention").typeStyle(.sidebarItem)
+                        Text("Needs attention")
+                            .typeStyle(.sidebarItem)
+                            .foregroundStyle(Tokens.Color.Text.primary)
                         Spacer()
-                        countBadge(needsAttentionCount)
+                        countBadge(state.conflicts.count)
                     }
-                } icon: {
-                    Image(systemName: "tray.full")
                 }
+                .buttonStyle(.plain)
                 .frame(height: 24)
             }
 
