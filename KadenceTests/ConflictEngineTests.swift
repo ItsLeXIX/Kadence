@@ -9,6 +9,10 @@
 //  recommended). Same in-memory ModelContainer/ModelContext pattern as
 //  RoutineEngineTests.swift.
 //
+//  `ConflictWindowDetectionTests` (bottom of this file, task P2-T19) covers
+//  the brief's other named clause — "any automatic placement that would
+//  land in a protected window" — via `ConflictEngine.detectWindowConflicts`.
+//
 
 import Testing
 import Foundation
@@ -311,5 +315,129 @@ struct ConflictRankingTests {
         #expect(disturbances == disturbances.sorted())
         #expect(conflict.options.first?.isRecommended == true)
         #expect(conflict.options.dropFirst().allSatisfy { $0.isRecommended == false })
+    }
+}
+
+// MARK: - Window conflicts (task P2-T19)
+
+/// Same two `TimeWindow`s `MockData.makeTimeWindows()` seeds — a protected
+/// Sleep window wrapping midnight (22:00–07:00, every day) and a lowEnergy
+/// window (13:00–14:30, Mon–Fri) — built directly here rather than via
+/// `MockData` so this suite has no dependency on the seed helper's own
+/// behavior, only on the `TimeWindow` shape itself.
+private func makeSleepWindow() -> TimeWindow {
+    TimeWindow(weekdays: Set(1...7), startMinutes: 22 * 60, endMinutes: 7 * 60, kind: .protected, label: "Sleep")
+}
+
+private func makeLowEnergyWindow() -> TimeWindow {
+    TimeWindow(weekdays: [2, 3, 4, 5, 6], startMinutes: 13 * 60, endMinutes: 14 * 60 + 30, kind: .lowEnergy, label: "Low energy")
+}
+
+@Suite("TimeWindow.spans — wrap-around semantics")
+struct TimeWindowSpansTests {
+
+    /// Mirrors `DensityAndGeometryTests.swift`'s existing
+    /// `TimeWindowFixture`-wrap test exactly, now for the persisted model.
+    @Test("A protected window that wraps midnight yields two spans on a day")
+    func wrapsMidnight() {
+        let window = makeSleepWindow()
+        let spans = window.spans(on: day, calendar: calendar)
+        #expect(spans.count == 2)
+        let minutes = spans.map { Int($0.start.timeIntervalSince(calendar.startOfDay(for: day)) / 60) }
+        #expect(minutes.sorted() == [0, 22 * 60])
+    }
+
+    @Test("A same-day window yields exactly one span")
+    func sameDay() {
+        let window = makeLowEnergyWindow()
+        // `day` (2026-09-18) is a Friday, weekday 6 — inside [2,3,4,5,6].
+        #expect(window.spans(on: day, calendar: calendar).count == 1)
+    }
+
+    @Test("A window not active on that weekday yields nothing")
+    func inactiveWeekday() {
+        let window = TimeWindow(weekdays: [1], startMinutes: 9 * 60, endMinutes: 10 * 60, kind: .protected, label: "Sunday only")
+        #expect(window.spans(on: day, calendar: calendar).isEmpty)
+    }
+}
+
+@Suite("ConflictEngine.detectWindowConflicts — protected-window placements")
+@MainActor
+struct ConflictWindowDetectionTests {
+
+    @Test("A routine event overlapping the protected Sleep window produces a conflict with ranked options")
+    func routineOverlappingProtectedWindowProducesConflict() throws {
+        let context = try makeContext()
+        let block = makeBlock(flexibility: .shiftable, shiftableMinutes: 180)
+        // 22:00 Sleep window starts today's evening span; a routine block
+        // 22:30–23:30 lands fully inside it.
+        let routine = makeRoutineEvent(block: block, start: time(22, 30), end: time(23, 30))
+        try insert(context, [block, routine])
+
+        let windows = [makeSleepWindow(), makeLowEnergyWindow()]
+        let conflicts = ConflictEngine.detectWindowConflicts(
+            events: [routine], routineBlocks: [block], timeWindows: windows, calendar: calendar)
+
+        #expect(conflicts.count == 1)
+        let conflict = try #require(conflicts.first)
+        #expect(conflict.routineEvent.id == routine.id)
+        #expect(conflict.window.kind == .protected)
+        #expect(conflict.overlapStart == time(22, 30))
+        #expect(conflict.overlapEnd == time(23, 30))
+
+        // Same ranking invariants as event-vs-event conflicts.
+        #expect(conflict.options.isEmpty == false)
+        let recommendedCount = conflict.options.filter(\.isRecommended).count
+        #expect(recommendedCount == 1)
+        let disturbances = conflict.options.map(\.disturbanceMinutes)
+        #expect(disturbances == disturbances.sorted())
+        #expect(conflict.options.first?.isRecommended == true)
+        #expect(conflict.options.contains { $0.kind == .skipToday })
+    }
+
+    @Test("A routine event overlapping only the lowEnergy window produces NO conflict")
+    func routineOverlappingLowEnergyWindowProducesNoConflict() throws {
+        let context = try makeContext()
+        let block = makeBlock(flexibility: .fixed)
+        // 13:00–14:00 Friday: inside the lowEnergy window, nowhere near the
+        // 22:00–07:00 protected window.
+        let routine = makeRoutineEvent(block: block, start: time(13), end: time(14))
+        try insert(context, [block, routine])
+
+        let windows = [makeSleepWindow(), makeLowEnergyWindow()]
+        let conflicts = ConflictEngine.detectWindowConflicts(
+            events: [routine], routineBlocks: [block], timeWindows: windows, calendar: calendar)
+
+        #expect(conflicts.isEmpty)
+    }
+
+    @Test("A .skipped routine event overlapping the protected window produces no conflict")
+    func skippedRoutineEventOverlappingProtectedWindowProducesNoConflict() throws {
+        let context = try makeContext()
+        let block = makeBlock(flexibility: .shiftable, shiftableMinutes: 180)
+        let routine = Event(
+            title: "Routine", start: time(22, 30), end: time(23, 30), origin: .routine,
+            flexibility: block.flexibility, sourceID: "template",
+            externalID: "\(block.id.uuidString)#2026-09-18", status: .skipped)
+        try insert(context, [block, routine])
+
+        let windows = [makeSleepWindow()]
+        let conflicts = ConflictEngine.detectWindowConflicts(
+            events: [routine], routineBlocks: [block], timeWindows: windows, calendar: calendar)
+
+        #expect(conflicts.isEmpty)
+    }
+
+    @Test("A manual (non-routine) event overlapping the protected window produces no conflict")
+    func manualEventOverlappingProtectedWindowProducesNoConflict() throws {
+        let context = try makeContext()
+        let manual = makeManualEvent(start: time(22, 30), end: time(23, 30))
+        try insert(context, [manual])
+
+        let windows = [makeSleepWindow()]
+        let conflicts = ConflictEngine.detectWindowConflicts(
+            events: [manual], routineBlocks: [], timeWindows: windows, calendar: calendar)
+
+        #expect(conflicts.isEmpty)
     }
 }

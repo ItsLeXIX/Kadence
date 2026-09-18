@@ -16,9 +16,10 @@
 //  this same kind of task): a stable `id: UUID`, enums stored as a raw
 //  `String` with a computed accessor, a memberwise `init`. Field shapes match
 //  `TimeWindowFixture` exactly, so both representations describe the same
-//  data. This file adds no UI, no editor, and does not change how
-//  `GridLayers.swift`, `RoutineEngine.swift` or `ConflictEngine.swift` render
-//  or reason about windows — that is future work.
+//  data. This file adds no UI, no editor. As of task P2-T19,
+//  `ConflictEngine.swift` does reason about `.protected`-kind windows via
+//  `spans(on:calendar:)` below; `GridLayers.swift`/`RoutineEngine.swift`
+//  still do not — that remains future work.
 //
 
 import Foundation
@@ -27,9 +28,9 @@ import SwiftData
 /// A persisted time window — "Sleep", "Low energy", etc. — describing a
 /// recurring span of the week with a `TimeWindowKind` treatment.
 ///
-/// `TimeWindowFixture.spans(on:)` is deliberately not ported onto this model
-/// yet: nothing reads a persisted `TimeWindow` today, so that logic belongs to
-/// whichever future task actually renders or schedules against one.
+/// `TimeWindowFixture.spans(on:)` is ported onto this model as `spans(on:calendar:)`
+/// below (task P2-T19) — the future task this file's own original comment
+/// deferred to: `ConflictEngine` now schedules against protected windows using it.
 @Model
 final class TimeWindow {
     /// Stable local identity.
@@ -69,5 +70,41 @@ final class TimeWindow {
         self.endMinutes = endMinutes
         self.kindRaw = kind.rawValue
         self.label = label
+    }
+
+    /// Returns the window's span on a given day, split if it wraps midnight.
+    /// A 22:00–07:00 protected window is two spans on consecutive days.
+    ///
+    /// Mirrors `TimeWindowFixture.spans(on:)` (`DisplayFixtures.swift`
+    /// ~line 78) exactly — same weekday/wrap semantics — now that a real
+    /// `TimeWindow` has a consumer (`ConflictEngine`, task P2-T19) instead of
+    /// only the display-only fixture. Kept as a plain method here rather than
+    /// factored into shared code, matching this codebase's existing tolerance
+    /// for the persisted model and its display-only fixture duplicating small
+    /// pure functions (see this file's own header comment on the two types
+    /// describing the same data).
+    func spans(on day: Date, calendar: Calendar = .current) -> [(start: Date, end: Date)] {
+        let startOfDay = calendar.startOfDay(for: day)
+        let weekday = calendar.component(.weekday, from: startOfDay)
+        var result: [(Date, Date)] = []
+
+        func add(_ fromMinutes: Int, _ toMinutes: Int) {
+            guard toMinutes > fromMinutes else { return }
+            result.append((
+                startOfDay.addingTimeInterval(TimeInterval(fromMinutes * 60)),
+                startOfDay.addingTimeInterval(TimeInterval(toMinutes * 60))
+            ))
+        }
+
+        if endMinutes > startMinutes {
+            if weekdays.contains(weekday) { add(startMinutes, endMinutes) }
+        } else {
+            // Wraps midnight: the evening part belongs to today's weekday, the
+            // morning part to yesterday's.
+            if weekdays.contains(weekday) { add(startMinutes, 24 * 60) }
+            let previous = (weekday - 2 + 7) % 7 + 1
+            if weekdays.contains(previous) { add(0, endMinutes) }
+        }
+        return result
     }
 }

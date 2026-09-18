@@ -17,8 +17,15 @@
 //    `CalendarState.applyFocusedConflictOption` / `EventStore.swift` (task
 //    P2-T17), not here; this file only decides what "still unresolved"
 //    means for `detect`'s own next pass (see `.skipped` filter below).
-//  - Detect a protected-window conflict — no `TimeWindow` model exists yet
-//    (the brief's own next item after this one).
+//  Task P2-T19 adds the brief's other named conflict clause — "any automatic
+//  placement that would land in a protected window" — as
+//  `detectWindowConflicts` below, now that `TimeWindow` (Kadence/Models/
+//  TimeWindow.swift, task P2-T18) exists. It is a separate function returning
+//  a separate `WindowConflict` type rather than folding into `detect`/
+//  `Conflict`; see `detectWindowConflicts`'s own doc comment for why, and see
+//  its doc comment for the deliberate forward-reference this leaves for
+//  whichever task next wires a window conflict into `ConflictPanelView` (out
+//  of scope here, per that task's own brief item 4).
 //
 //  A conflict is exactly "an overlap between a routine block and an
 //  imported/manual event" (BRIEF-PRODUCT.md's own wording) — one event with
@@ -71,6 +78,32 @@ struct Conflict: Identifiable {
     /// 2–3 options in the common case (see `ConflictEngine.makeOptions`'s own
     /// doc comment for the one documented exception), ordered by ascending
     /// disturbance, with exactly one `isRecommended == true`.
+    let options: [ConflictOption]
+}
+
+/// One overlap between a `.routine` event and a `.protected`-kind
+/// `TimeWindow`'s span — BRIEF-PRODUCT.md Phase 2's "any automatic placement
+/// that would land in a protected window" clause, distinct from `Conflict`
+/// above (which is the brief's other, routine-vs-manual/imported clause).
+///
+/// Deliberately a sibling type to `Conflict`, not a variant of it — see
+/// `ConflictEngine.detectWindowConflicts`'s own doc comment for why.
+struct WindowConflict: Identifiable {
+    /// Deterministic per (event, window, span) triple, same reasoning as
+    /// `Conflict.id`.
+    let id: String
+
+    /// The `.routine`-origin event landing in the window.
+    let routineEvent: Event
+    /// The `.protected` window it lands in.
+    let window: TimeWindow
+
+    /// The overlap window itself, same meaning as `Conflict.overlapStart`/
+    /// `overlapEnd`.
+    let overlapStart: Date
+    let overlapEnd: Date
+
+    /// Same option shape, same ranking, as `Conflict.options`.
     let options: [ConflictOption]
 }
 
@@ -174,7 +207,9 @@ enum ConflictEngine {
                 let overlapStart = Swift.max(pair.routine.start, pair.other.start)
                 let overlapEnd = Swift.min(pair.routine.end, pair.other.end)
                 let options = makeOptions(
-                    routineEvent: pair.routine, otherEvent: pair.other, routineBlocks: routineBlocks)
+                    routineEvent: pair.routine,
+                    otherInterval: Interval(start: pair.other.start, end: pair.other.end),
+                    routineBlocks: routineBlocks)
 
                 conflicts.append(Conflict(
                     id: "\(pair.routine.id.uuidString)#\(pair.other.id.uuidString)",
@@ -183,6 +218,80 @@ enum ConflictEngine {
                     overlapStart: overlapStart,
                     overlapEnd: overlapEnd,
                     options: options))
+            }
+        }
+        return conflicts
+    }
+
+    /// The brief's other named conflict clause: "any automatic placement
+    /// that would land in a protected window" (BRIEF-PRODUCT.md Phase 2),
+    /// now buildable since `TimeWindow` (task P2-T18) exists. Only
+    /// `.protected`-kind windows count — `.lowEnergy`/`.peakFocus` are not
+    /// named by that clause, so a routine event landing only in one of those
+    /// produces no conflict here, unlike `detect` above which has no such
+    /// kind filter to begin with.
+    ///
+    /// Reuses `makeOptions`/`finalize` — same option kinds
+    /// (shiftLater/shorten/skipToday), same disturbance-minutes scale, same
+    /// "exactly one `isRecommended`, ascending order" ranking as `detect`'s
+    /// event-vs-event conflicts. `shiftLaterOption`/`shortenOption` were
+    /// generalized to take a plain `Interval` (start/end) rather than a full
+    /// `Event` so they could serve both this function and `detect` above
+    /// without a protected window having to masquerade as an `Event`.
+    ///
+    /// Surfaced as `WindowConflict`, a sibling type to `Conflict`, rather
+    /// than a variant of `Conflict` itself: `Conflict.otherEvent` is a live
+    /// `Event` that this file's own header comment says a future task will
+    /// call `EventStore.move`/`resize`/`skip` on; a `TimeWindow` supports none
+    /// of those operations, so folding it into the same field would mean
+    /// either weakening `otherEvent`'s non-optional guarantee for every
+    /// existing call site or inventing a lossy stand-in `Event` for a window
+    /// — neither is warranted just to avoid a second, tiny result type. How
+    /// (or whether) `WindowConflict` surfaces next to `Conflict` in
+    /// `ConflictPanelView` — e.g. what the collision header shows when the
+    /// "other side" is a window, not a block (components.md §14.2) — is left
+    /// as a forward reference for that follow-up task; this file does not
+    /// touch `ConflictPanelView.swift`, per this task's own brief. Nothing
+    /// about `components.md` §14 answers that question today, but nothing in
+    /// this function's own scope needs it answered either, so no
+    /// `design/GAPS.md` entry is filed for it (contrast `detect`'s G-015,
+    /// which *did* need an answer to keep working).
+    ///
+    /// Pure: reads `events`/`routineBlocks`/`timeWindows`, mutates nothing.
+    /// `calendar` defaults to `.current`, same as `TimeWindow.spans(on:)`
+    /// itself; a caller with a fixed test calendar can still pass one in.
+    static func detectWindowConflicts(
+        events: [Event], routineBlocks: [RoutineBlock], timeWindows: [TimeWindow], calendar: Calendar = .current
+    ) -> [WindowConflict] {
+        let protectedWindows = timeWindows.filter { $0.kind == .protected }
+        guard !protectedWindows.isEmpty else { return [] }
+
+        var conflicts: [WindowConflict] = []
+        for event in events {
+            // Same `.skipped` filter, same reasoning, as `detect`'s own
+            // inline comment / G-015: a skipped occurrence is not "landing"
+            // anywhere any more.
+            guard event.origin == .routine, event.status != .skipped else { continue }
+
+            for window in protectedWindows {
+                for span in window.spans(on: event.start, calendar: calendar) {
+                    guard event.start < span.end && span.start < event.end else { continue }
+
+                    let overlapStart = Swift.max(event.start, span.start)
+                    let overlapEnd = Swift.min(event.end, span.end)
+                    let options = makeOptions(
+                        routineEvent: event,
+                        otherInterval: Interval(start: span.start, end: span.end),
+                        routineBlocks: routineBlocks)
+
+                    conflicts.append(WindowConflict(
+                        id: "\(event.id.uuidString)#\(window.id.uuidString)#\(Int(span.start.timeIntervalSinceReferenceDate))",
+                        routineEvent: event,
+                        window: window,
+                        overlapStart: overlapStart,
+                        overlapEnd: overlapEnd,
+                        options: options))
+                }
             }
         }
         return conflicts
@@ -233,13 +342,13 @@ enum ConflictEngine {
     /// "do not let the option list go to zero" (item 3's own, firmer
     /// requirement) always holds.
     private static func makeOptions(
-        routineEvent: Event, otherEvent: Event, routineBlocks: [RoutineBlock]
+        routineEvent: Event, otherInterval: Interval, routineBlocks: [RoutineBlock]
     ) -> [ConflictOption] {
         var raw: [RawOption] = []
 
         switch routineEvent.flexibility {
         case .shiftable:
-            if let shift = shiftLaterOption(routineEvent: routineEvent, otherEvent: otherEvent, routineBlocks: routineBlocks) {
+            if let shift = shiftLaterOption(routineEvent: routineEvent, otherInterval: otherInterval, routineBlocks: routineBlocks) {
                 raw.append(shift)
             }
             raw.append(skipOption(for: routineEvent))
@@ -248,7 +357,7 @@ enum ConflictEngine {
             raw.append(skipOption(for: routineEvent))
 
         case .fixed:
-            if let shorten = shortenOption(routineEvent: routineEvent, otherEvent: otherEvent) {
+            if let shorten = shortenOption(routineEvent: routineEvent, otherInterval: otherInterval) {
                 raw.append(shorten)
             }
             raw.append(skipOption(for: routineEvent))
@@ -258,17 +367,25 @@ enum ConflictEngine {
     }
 
     /// Minimal 15-minute-incremented later shift that clears the overlap
-    /// (new start at or after `otherEvent.end`), clamped to the routine
+    /// (new start at or after `otherInterval.end`), clamped to the routine
     /// block's own `shiftableMinutes`. `nil` when no matching `RoutineBlock`
     /// is found, it has no `shiftableMinutes`, or the needed shift exceeds it.
+    ///
+    /// Takes a plain `Interval` rather than a full `Event` — generalized in
+    /// task P2-T19 so this same function serves both `detect` (the other
+    /// side is a real `Event`) and `detectWindowConflicts` (the other side is
+    /// a `TimeWindow` span, which is not an `Event`). Behavior for existing
+    /// `detect` call sites is unchanged: they pass `Interval(start:
+    /// otherEvent.start, end: otherEvent.end)`, identical to reading
+    /// `otherEvent.start`/`.end` directly as this function did before.
     private static func shiftLaterOption(
-        routineEvent: Event, otherEvent: Event, routineBlocks: [RoutineBlock]
+        routineEvent: Event, otherInterval: Interval, routineBlocks: [RoutineBlock]
     ) -> RawOption? {
         guard let block = routineBlock(for: routineEvent, in: routineBlocks),
               let range = block.shiftableMinutes, range > 0
         else { return nil }
 
-        let neededSeconds = otherEvent.end.timeIntervalSince(routineEvent.start)
+        let neededSeconds = otherInterval.end.timeIntervalSince(routineEvent.start)
         guard neededSeconds > 0 else { return nil }
 
         let neededMinutes = Int((neededSeconds / 60).rounded(.up))
@@ -284,24 +401,27 @@ enum ConflictEngine {
             disturbanceMinutes: shiftMinutes)
     }
 
-    /// Trims `routineEvent` to end where `otherEvent` starts, or to start
-    /// where `otherEvent` ends — whichever leaves more of the original
+    /// Trims `routineEvent` to end where `otherInterval` starts, or to start
+    /// where `otherInterval` ends — whichever leaves more of the original
     /// duration (ties favour trimming from the end, i.e. keeping the
     /// original start). `nil` when the longer of the two candidates would
     /// still fall below the 15-minute floor.
-    private static func shortenOption(routineEvent: Event, otherEvent: Event) -> RawOption? {
-        let keepFront = Swift.max(0, otherEvent.start.timeIntervalSince(routineEvent.start))
-        let keepBack = Swift.max(0, routineEvent.end.timeIntervalSince(otherEvent.end))
+    ///
+    /// Same generalization as `shiftLaterOption` above, same "no behavior
+    /// change for `detect`'s existing call sites" guarantee.
+    private static func shortenOption(routineEvent: Event, otherInterval: Interval) -> RawOption? {
+        let keepFront = Swift.max(0, otherInterval.start.timeIntervalSince(routineEvent.start))
+        let keepBack = Swift.max(0, routineEvent.end.timeIntervalSince(otherInterval.end))
 
         let newStart: Date
         let newEnd: Date
         let keptDuration: TimeInterval
         if keepFront >= keepBack {
             newStart = routineEvent.start
-            newEnd = otherEvent.start
+            newEnd = otherInterval.start
             keptDuration = keepFront
         } else {
-            newStart = otherEvent.end
+            newStart = otherInterval.end
             newEnd = routineEvent.end
             keptDuration = keepBack
         }
@@ -362,6 +482,16 @@ enum ConflictEngine {
         let remainder = minutes % step
         return remainder == 0 ? minutes : minutes + (step - remainder)
     }
+}
+
+/// A plain start/end span — what `shiftLaterOption`/`shortenOption`/
+/// `makeOptions` compare the routine event against, whether "the other side"
+/// is a real `Event` (`detect`) or a `TimeWindow` span (`detectWindowConflicts`).
+/// Exists solely so those functions don't need a full `Event` just to read
+/// two `Date`s off it.
+private struct Interval {
+    let start: Date
+    let end: Date
 }
 
 /// Pre-ranking working value for one candidate option — no `id`, no
