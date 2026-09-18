@@ -257,10 +257,20 @@ was touched. `check-accessibility.sh`'s failure branch now runs a direct
 `swift -e` query of `CGSessionScreenIsLocked` (falling back to the existing
 Finder-based control check if that is inconclusive) so a future occurrence
 gets diagnosed immediately instead of re-investigated from scratch a third
-time. **This task could not obtain an actual `PASS (elements present)` run**
-— the screen has been locked continuously since before the task started and
-unlocking it needs this machine's password, which is outside this task's
-authority to obtain or bypass. See STATUS.md §15 for full evidence.
+time. ~~**This task could not obtain an actual `PASS (elements present)`
+run** — the screen has been locked continuously since before the task
+started and unlocking it needs this machine's password, which is outside
+this task's authority to obtain or bypass.~~ **Superseded, 2026-09-18 (P2-T15
+gate closure).** The screen was confirmed unlocked first-hand
+(`CGSSessionScreenIsLocked` absent from the session dict, i.e. unlocked;
+`kCGSSessionOnConsoleKey = 1`) and `check-accessibility.sh` was run twice
+against a fresh build, both `PASS (elements present)`, 20 block-shaped
+elements each time. No app-code defect was found in the P2-T15 conflict
+entry point (`ConflictPanelView.swift`, the needs-attention row wiring, the
+`⌘⇧A` shortcut, `ConflictOrdering.swift`, `ConflictOptionFormatting.swift`)
+— the `PASS` closes out verification without further changes. See
+STATUS.md §15 for the original diagnosis (kept, since it was correct for
+its moment) and §16 for the real result.
 
 ### What this re-audit changed
 

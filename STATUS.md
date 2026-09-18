@@ -2702,13 +2702,136 @@ exercises exactly that boundary and was unaffected.
   blocker, not a code defect — per the CA brief's own instruction to say so
   rather than report a failure.
 
-**What is next:** once the screen is unlocked, re-run
-`Scripts/check-accessibility.sh` (now with a much more direct diagnostic if
-it fails again) to get the actual element-count confirmation this task
-could not obtain. Nothing about §14's conflict entry-point feature is
-believed to be at risk — the evidence above is about the verification
-environment, not the code.
+**What is next:** ~~once the screen is unlocked, re-run
+`Scripts/check-accessibility.sh`~~ — **superseded, see §16: the screen was
+confirmed unlocked on 2026-09-18 and the gate was run for real, twice, both
+`PASS (elements present)`.** Nothing about §14's conflict entry-point
+feature was ever at risk — the evidence above was always about the
+verification environment, not the code — and §16 now closes that out with
+an actual result instead of a deferral.
 
-**Blocked:** getting an actual PASS out of `check-accessibility.sh` this
-session — the screen is locked and this task cannot unlock it. Not blocked:
-build, unit tests, and the token check, all independently green above.
+**Blocked:** ~~getting an actual PASS out of `check-accessibility.sh` this
+session — the screen is locked and this task cannot unlock it.~~ **No longer
+blocked — see §16.** Not blocked at the time either: build, unit tests, and
+the token check, all independently green above.
+
+## 16. P2-T15 gate closure — screen confirmed unlocked, real `PASS` obtained
+(2026-09-18)
+
+Parsa ruled (2026-09-18 14:32, ledger) that the screen is unlocked for this
+run. §15 could only ever diagnose the lock itself; the actual
+`check-accessibility.sh` gate had never been exercised against a live
+P2-T15 build. This task's only job was to get a real result out of the gate
+and act on it — not to re-litigate §15's diagnosis, and not to start any
+new feature work.
+
+**Lock state checked first-hand before anything else**, with the exact
+probe `check-accessibility.sh` itself uses (`CGSessionCopyCurrentDictionary`
+via `swift -e`), not taken on Parsa's word alone:
+
+```
+CGSSessionScreenIsLocked= -999   (key absent from the session dict — the
+                                   script's own `?? 0` fallback reads this
+                                   as unlocked, matching Parsa's ruling)
+kCGSSessionOnConsoleKey= 1        (on console, matching Parsa's ruling)
+```
+
+The full dictionary was printed and inspected; `CGSSessionScreenIsLocked` is
+simply not a key in it right now (it only appears when the screen actually
+is locked — see §15's dump, which had it present and `= 1`). Confirmed
+unlocked, first-hand.
+
+**`Scripts/check-accessibility.sh` run twice, end to end, against a fresh
+build:**
+
+Run 1 (default, app quit at the end):
+```
+building…
+querying pid 71620
+block-shaped elements in the tree: 20
+carrying the §11 label:            0
+  AXHelp=Breakfast · 07:15–07:45 · Daily routine · routine block, ...
+  AXHelp=Morning review · 08:00–09:00 · Daily routine · routine block, ...
+  AXHelp=Datenmodellierung · 09:00–10:30 · University timetable · lecture, ...
+
+WARN: blocks are in the tree, but 0 carry the §11 label.
+      Known open defect A20b — VoiceOver reads the hover-help string
+      instead of 'title, time, kind, source, status'.
+PASS (elements present)
+```
+
+Run 2 (`--keep`, so the live app could be inspected further — see below):
+identical result, `block-shaped elements in the tree: 20`, `PASS (elements
+present)`.
+
+Both are genuine `PASS`, taken at face value per this task's own
+instruction. The `WARN` about the §11 label is **pre-existing, already-open
+defect A20b** (DEVIATIONS.md, unrelated to P2-T15 — it is about the
+day-grid block elements' label content, not the conflict entry point), not
+a new regression; it does not change the gate's `PASS` outcome, and this
+task did not touch it (out of this task's scope, and not asked for).
+
+**Supplementary manual verification of the P2-T15 entry point specifically**
+(the gate itself only asserts on generic day-grid block elements, not on
+the conflict panel by name, so this was done by hand against the kept-alive
+instance from run 2, via the same System Events mechanism the script uses):
+- The live app's actual data store currently has no overlapping
+  events/routine blocks, so `state.conflicts` is empty and — correctly, per
+  components.md §10.2's "hidden entirely at zero, no zero badge" and this
+  task's own §14 implementation — the needs-attention row does not appear
+  in the sidebar's button list. This is the spec'd behaviour, not a defect.
+- The View menu's **"Go to First Conflict"** (`⌘⇧A`) item is present,
+  confirmed via `System Events` (`menu item "Go to First Conflict" of menu 1
+  of menu bar item "View"`), with `enabled = false` and `AXMenuItemCmdChar =
+  "A"` — exactly matching interactions.md's "disabled when the count is
+  non-zero" rule while there are zero conflicts, and confirming the
+  shortcut is wired into a real, queryable menu item rather than only a
+  notification handler nobody outside the app can see.
+- The app launched and rendered its window cleanly with `MainWindow`'s
+  `.onChange(of: events, initial: true)` / `.onChange(of: routineBlocks,
+  initial: true)` — which run `ConflictEngine.detect` and
+  `ConflictOrdering.sorted` on every launch, unconditionally, per §14's own
+  wiring — having already executed twice (once per script run) without
+  crashing, hanging, or producing a windowless launch. That is the
+  strongest evidence available from this machine's actual data that §14's
+  conflict-computation-at-launch path is not fragile.
+- Exercising `ConflictPanelView`'s rendered content itself (an actual
+  `.conflicted` pair) was not attempted: doing so would require creating
+  synthetic overlapping events/routine blocks in the live, persisted
+  SwiftData store this session is running against, which is out of this
+  task's scope (out-of-scope list explicitly excludes "conflict-panel
+  preview/apply... work") and would leave the store in a state a later task
+  did not choose. `ConflictPanelView`'s own rendering is already covered by
+  `ConflictOptionRowContentTests`/`ConflictActivationTests` (§14) at the
+  pure-function layer, which is the seam this codebase already uses for
+  content SwiftUI-hosted unit tests cannot reliably assert on (see §14's
+  own note on why).
+
+**No app-code defect found. No fix was needed, no regression test was
+added — there was nothing to regress against.** Per this task's own
+branching instructions, a `PASS` closes out verification without
+re-litigation.
+
+**Full verification suite, re-run after the gate:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 263 `passed`,
+  0 `failed`.
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/
+  Tokens.swift is up to date.`
+- `Scripts/check-accessibility.sh` — `PASS (elements present)`, twice, as
+  above.
+
+**This closes P2-T15's verification.** The "blocked by locked screen"
+language in §15 (and the matching entry in DEVIATIONS.md) is stale as of
+this task and has been struck through/corrected in place rather than
+deleted, so the record of what actually happened during the lock is not
+lost.
+
+**What is next:** the out-of-scope items §14 already named and this task
+was explicitly told not to start — conflict-panel preview-on-focus, `↩`
+apply, `⎋` abandonment, the TimeWindow editor, `MenuBarExtra`, snooze.
+None of them is blocked by anything found in this task.
+
+**Blocked:** nothing.
