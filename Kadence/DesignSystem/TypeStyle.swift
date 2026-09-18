@@ -125,6 +125,13 @@ extension TypeStyle {
         textStyle: Tokens.Typography.WindowLabel.textStyle,
         lineLimit: Tokens.Typography.WindowLabel.lineLimit)
 
+    // components.md §13.3 — the Routines window's Blocks/Windows mode control.
+    static let editorModeLabel = TypeStyle(
+        size: Tokens.Typography.EditorModeLabel.size,
+        weight: Tokens.Typography.EditorModeLabel.weight,
+        textStyle: Tokens.Typography.EditorModeLabel.textStyle,
+        lineLimit: Tokens.Typography.EditorModeLabel.lineLimit)
+
     static let dayHeaderWeekday = TypeStyle(
         size: Tokens.Typography.DayHeaderWeekday.size,
         weight: Tokens.Typography.DayHeaderWeekday.weight,

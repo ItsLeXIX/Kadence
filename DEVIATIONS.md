@@ -61,6 +61,26 @@ opening a new one. Still absent, unchanged: the `[Blocks | Windows]` mode
 control, the flexibility control's interactive stepper, detached-instance
 tracking/Re-sync, the background windows layer. See `STATUS.md` §10.)*
 
+**Corrected 2026-09-19, task P2-T20 — "the `[Blocks | Windows]` mode control"
+and "the background windows layer" are no longer on this list.** Both render
+now: a segmented control in the toolbar (`size.editorModeBarHeight`,
+`editorModeLabel` type) plus `⌘[`/`⌘]` switch `RoutinesWindow`'s `editorMode`
+between `.blocks` and `.windows`, clearing the block selection on either path
+(interactions.md §11.1). Every weekday column now draws all three `TimeWindow`
+kinds through `BackgroundWindowsLayer`/`WindowLabelsLayer`
+(`Kadence/Views/Canvas/GridLayers.swift`), generalized over a new
+`TimeWindowRenderable` protocol so they can render either the display-only
+`TimeWindowFixture` (main grid, unchanged) or the persisted `TimeWindow`
+(Routines window). Blocks mode draws protected/low-energy only, non-hit-
+testable — the main grid's own treatment; windows mode adds peak-focus (§7's
+"Editor exception": 1pt dashed outline, dash `[4, 4]`,
+`color.window.peakFocusEdge`, no fill) and drops the block/draft layer to
+`opacity.editorInactiveLayer`, also non-hit-testable (§13.3's table). Still
+absent, unchanged: dragging/resizing/creating/deleting a `TimeWindow` and the
+inspector's kind picker for one — §13.3 calls windows "editable" in windows
+mode, but this task only renders them; the flexibility control's interactive
+stepper; detached-instance tracking/Re-sync. See `STATUS.md` §21.)*
+
 *(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
 (`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/
 imported overlap and builds each one's ranked resolution options
@@ -906,8 +926,13 @@ Still open, all re-checked against the current spec text this session:
   now exists (data layer only — `Kadence/Models/TimeWindow.swift`), but the
   `[Blocks | Windows]` mode control §13.3 needs still does not, so there is
   still nothing to draw this outline in. Still not a deviation, still the
-  same narrower reason as above.)* The calendar canvas rule is unchanged and
-  the build still honours it.
+  same narrower reason as above.)* **(Updated 2026-09-19, task P2-T20: the
+  mode control now exists, and the Routines window's windows mode now draws
+  this exact outline — `BackgroundWindowsLayer`'s new `showsPeakFocus`
+  parameter, true only there. This line is no longer describing an unbuilt
+  exception; it is describing what the build does.)** The calendar canvas
+  rule is unchanged and the build still honours it — peak-focus still renders
+  nothing on the main Day/Week grid, in either mode.
 
 ---
 

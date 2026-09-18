@@ -153,3 +153,93 @@ struct TimeWindowTests {
         #expect(window.spans(on: wednesday, calendar: calendar).isEmpty)
     }
 }
+
+// MARK: - Window span resolution (task P2-T20)
+
+/// `WindowSpanResolver` (`Kadence/Layout/WindowSpanResolver.swift`) is the
+/// pure function `BackgroundWindowsLayer`/`WindowLabelsLayer` delegate to —
+/// pulled out of a SwiftUI view specifically so this is testable without
+/// going through SwiftUI. Exercises both conforming types
+/// (`TimeWindowFixture` and the persisted `TimeWindow`) so the generic
+/// `TimeWindowRenderable` bridge is actually covered, not just compiled.
+@Suite("Window span resolver")
+struct WindowSpanResolverTests {
+
+    private let calendar = Calendar(identifier: .gregorian)
+    private let wednesday = Calendar(identifier: .gregorian).date(
+        from: DateComponents(year: 2026, month: 9, day: 9))!
+
+    private func minutes(_ date: Date, from day: Date) -> Int {
+        Int(date.timeIntervalSince(calendar.startOfDay(for: day)) / 60)
+    }
+
+    @Test("Peak focus is withheld unless showsPeakFocus is true — components.md §7's canvas rule")
+    func peakFocusGatedByDefault() {
+        let windows = [
+            TimeWindowFixture(weekdays: [4], startMinutes: 15 * 60, endMinutes: 17 * 60,
+                               kind: .peakFocus, label: "Deep work"),
+        ]
+        let hidden = WindowSpanResolver.spans(
+            for: .peakFocus, in: windows, on: wednesday, calendar: calendar, showsPeakFocus: false)
+        #expect(hidden.isEmpty)
+
+        let shown = WindowSpanResolver.spans(
+            for: .peakFocus, in: windows, on: wednesday, calendar: calendar, showsPeakFocus: true)
+        #expect(shown.count == 1)
+        #expect(shown.first?.label == "Deep work")
+        #expect(minutes(shown.first!.start, from: wednesday) == 15 * 60)
+        #expect(minutes(shown.first!.end, from: wednesday) == 17 * 60)
+    }
+
+    @Test("Peak focus resolves identically through the persisted TimeWindow model")
+    func peakFocusThroughPersistedModel() {
+        let windows = [
+            TimeWindow(weekdays: [4], startMinutes: 15 * 60, endMinutes: 17 * 60,
+                       kind: .peakFocus, label: "Deep work"),
+        ]
+        let shown = WindowSpanResolver.spans(
+            for: .peakFocus, in: windows, on: wednesday, calendar: calendar, showsPeakFocus: true)
+        #expect(shown.count == 1)
+        #expect(shown.first?.label == "Deep work")
+    }
+
+    @Test("Protected wins: a low-energy span is split around an overlapping protected span")
+    func protectedWinsOverLowEnergy() {
+        let windows = [
+            TimeWindowFixture(weekdays: [4], startMinutes: 12 * 60, endMinutes: 15 * 60,
+                               kind: .lowEnergy, label: "Low energy"),
+            TimeWindowFixture(weekdays: [4], startMinutes: 13 * 60, endMinutes: 14 * 60,
+                               kind: .protected, label: "Focus block"),
+        ]
+        let spans = WindowSpanResolver.spans(
+            for: .lowEnergy, in: windows, on: wednesday, calendar: calendar, showsPeakFocus: false)
+        let ranges = spans.map { (minutes($0.start, from: wednesday), minutes($0.end, from: wednesday)) }
+        #expect(ranges.count == 2)
+        #expect(Set(ranges.map(\.0)) == [12 * 60, 14 * 60])
+        #expect(Set(ranges.map(\.1)) == [13 * 60, 15 * 60])
+
+        // Protected itself is never touched by the subtraction.
+        let protectedSpans = WindowSpanResolver.spans(
+            for: .protected, in: windows, on: wednesday, calendar: calendar, showsPeakFocus: false)
+        #expect(protectedSpans.count == 1)
+        #expect(minutes(protectedSpans[0].start, from: wednesday) == 13 * 60)
+        #expect(minutes(protectedSpans[0].end, from: wednesday) == 14 * 60)
+    }
+
+    @Test("Labels follow the same peak-focus gating as spans")
+    func labelsMirrorSpanGating() {
+        let windows = [
+            TimeWindowFixture(weekdays: [4], startMinutes: 22 * 60, endMinutes: 7 * 60,
+                               kind: .protected, label: "Sleep"),
+            TimeWindowFixture(weekdays: [4], startMinutes: 15 * 60, endMinutes: 17 * 60,
+                               kind: .peakFocus, label: "Deep work"),
+        ]
+        let withoutPeakFocus = WindowSpanResolver.labels(
+            in: windows, on: wednesday, calendar: calendar, showsPeakFocus: false)
+        #expect(withoutPeakFocus.map(\.text).sorted() == ["Sleep"])
+
+        let withPeakFocus = WindowSpanResolver.labels(
+            in: windows, on: wednesday, calendar: calendar, showsPeakFocus: true)
+        #expect(withPeakFocus.map(\.text).sorted() == ["Deep work", "Sleep"])
+    }
+}

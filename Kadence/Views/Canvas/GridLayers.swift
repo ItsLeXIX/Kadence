@@ -10,14 +10,26 @@
 import SwiftUI
 
 // MARK: - Background windows (components.md §7)
+//
+// `TimeWindowRenderable` and the actual span-resolution logic (protected-
+// wins-over-low-energy subtraction, peak-focus gating) live in
+// `Kadence/Layout/WindowSpanResolver.swift` — pulled out to a pure,
+// SwiftUI-free type (task P2-T20) so it can be unit-tested the same way
+// `DayLayoutEngine` is. The views below are thin drawing wrappers around it.
 
 /// Canvas, not content. Never uses hue; spans the full width *including the
 /// time gutter*; drawn below the hour lines and below every block, so its edges
 /// stay visible when the column is full — which is the only time it matters.
-struct BackgroundWindowsLayer: View {
-    let windows: [TimeWindowFixture]
+struct BackgroundWindowsLayer<Window: TimeWindowRenderable>: View {
+    let windows: [Window]
     let day: Date
     let geometry: TimeGeometry
+    /// components.md §7's "Editor exception" — peak-focus is drawn only
+    /// "inside the Routines window's windows mode (§13.3), never on the
+    /// calendar canvas." Defaults to `false` so every existing main-grid call
+    /// site (`DayColumnView`, `TimedCanvasView`) is unchanged; the Routines
+    /// window (task P2-T20) passes `true` only while in windows mode.
+    var showsPeakFocus: Bool = false
 
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -32,6 +44,9 @@ struct BackgroundWindowsLayer: View {
             ForEach(resolvedSpans(for: .lowEnergy), id: \.id) { span in
                 lowEnergySpan(span)
             }
+            ForEach(resolvedSpans(for: .peakFocus), id: \.id) { span in
+                peakFocusSpan(span)
+            }
         }
     }
 
@@ -43,38 +58,8 @@ struct BackgroundWindowsLayer: View {
     }
 
     private func resolvedSpans(for kind: TimeWindowKind) -> [Span] {
-        // Peak focus gets no treatment in Phase 1: it is the absence of the
-        // other two, and a third background would make the canvas a second
-        // information layer competing with the blocks.
-        guard kind != .peakFocus else { return [] }
-
-        let protectedSpans = windows
-            .filter { $0.kind == .protected }
-            .flatMap { window in window.spans(on: day).map { ($0.start, $0.end) } }
-
-        return windows
-            .filter { $0.kind == kind }
-            .flatMap { window in
-                window.spans(on: day).flatMap { span -> [Span] in
-                    guard kind == .lowEnergy else {
-                        return [Span(start: span.start, end: span.end, label: window.label)]
-                    }
-                    // §7: "Overlapping windows: protected wins. Never render both
-                    // treatments in the same region." Subtract every protected
-                    // span, which can split one low-energy span into two.
-                    var remaining = [(span.start, span.end)]
-                    for blocker in protectedSpans {
-                        remaining = remaining.flatMap { piece -> [(Date, Date)] in
-                            guard piece.0 < blocker.1 && blocker.0 < piece.1 else { return [piece] }
-                            var out: [(Date, Date)] = []
-                            if piece.0 < blocker.0 { out.append((piece.0, blocker.0)) }
-                            if blocker.1 < piece.1 { out.append((blocker.1, piece.1)) }
-                            return out
-                        }
-                    }
-                    return remaining.map { Span(start: $0.0, end: $0.1, label: window.label) }
-                }
-            }
+        WindowSpanResolver.spans(for: kind, in: windows, on: day, showsPeakFocus: showsPeakFocus)
+            .map { Span(start: $0.start, end: $0.end, label: $0.label) }
     }
 
     @ViewBuilder
@@ -112,6 +97,28 @@ struct BackgroundWindowsLayer: View {
             .offset(y: y)
             .allowsHitTesting(false)
     }
+
+    /// components.md §7 "Editor exception", verbatim: "a 1pt dashed outline in
+    /// `color.window.peakFocusEdge`, dash `[4, 4]`, with no fill
+    /// (`color.window.peakFocusFill` is transparent by definition), plus the
+    /// standard window label." Only ever drawn when `showsPeakFocus` is true —
+    /// the Routines window's windows mode.
+    @ViewBuilder
+    private func peakFocusSpan(_ span: Span) -> some View {
+        let y = geometry.y(for: span.start)
+        let height = geometry.height(from: span.start, to: span.end)
+        Rectangle()
+            .fill(Tokens.Color.Window.peakFocusFill)
+            .overlay(
+                Rectangle()
+                    .strokeBorder(
+                        Tokens.Color.Window.peakFocusEdge,
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            )
+            .frame(height: max(height, 0))
+            .offset(y: y)
+            .allowsHitTesting(false)
+    }
 }
 
 /// The window label, drawn once at each window's top edge.
@@ -121,10 +128,13 @@ struct BackgroundWindowsLayer: View {
 /// collisions that causes — a low-energy label overprinting `13:00` and a
 /// protected label overprinting `00:00`. The gutter now belongs to hour labels
 /// and the now time, and nothing else.
-struct WindowLabelsLayer: View {
-    let windows: [TimeWindowFixture]
+struct WindowLabelsLayer<Window: TimeWindowRenderable>: View {
+    let windows: [Window]
     let day: Date
     let geometry: TimeGeometry
+    /// See `BackgroundWindowsLayer.showsPeakFocus` — same default, same
+    /// reasoning: `false` leaves every main-grid call site unchanged.
+    var showsPeakFocus: Bool = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -144,11 +154,8 @@ struct WindowLabelsLayer: View {
     private struct Label: Identifiable { let id = UUID(); let text: String; let y: CGFloat }
 
     private var labels: [Label] {
-        windows
-            .filter { $0.kind != .peakFocus }
-            .flatMap { window in
-                window.spans(on: day).map { Label(text: window.label, y: geometry.y(for: $0.start)) }
-            }
+        WindowSpanResolver.labels(in: windows, on: day, showsPeakFocus: showsPeakFocus)
+            .map { Label(text: $0.text, y: geometry.y(for: $0.start)) }
     }
 }
 

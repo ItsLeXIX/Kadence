@@ -277,9 +277,24 @@ enum MockData {
     }
 
     /// The persisted counterpart of `timeWindows` above (`TimeWindowFixture`,
-    /// display-only): the same two windows — Sleep and Low energy — described
-    /// as a real `TimeWindow` model, so both representations agree on the
-    /// data even though nothing yet reads the persisted one.
+    /// display-only): the same Sleep/Low-energy pair, described as a real
+    /// `TimeWindow` model, so both representations agree on the data even
+    /// though `GridLayers.swift`'s main-grid call sites still read only the
+    /// display-only fixture list.
+    ///
+    /// A third entry — a weekday-afternoon peak-focus window, "Deep work" —
+    /// was added by task P2-T20. `TimeWindowFixture`'s own `timeWindows`
+    /// array above deliberately stays a two-window Sleep/Low-energy pair:
+    /// peak-focus never renders on the main grid (components.md §7 — "Peak-
+    /// focus windows get no treatment on the calendar canvas, in any
+    /// phase"), so adding it there would describe a fixture nothing ever
+    /// reads. This persisted list is the one the Routines window's windows
+    /// mode (task P2-T20) actually renders through, and components.md §17
+    /// item 2 requires "a protected, a low-energy AND a peak-focus window"
+    /// to exist for review — this is what supplies it. Weekday afternoon,
+    /// 15:00–17:00 Mon–Fri, chosen to sit clear of the 13:00–14:30
+    /// low-energy window rather than overlap it, so both are legible
+    /// side by side in a windows-mode screenshot.
     @MainActor
     static func makeTimeWindows() -> [TimeWindow] {
         [
@@ -295,6 +310,12 @@ enum MockData {
                 endMinutes: 14 * 60 + 30,
                 kind: .lowEnergy,
                 label: "Low energy"),
+            TimeWindow(
+                weekdays: [2, 3, 4, 5, 6],
+                startMinutes: 15 * 60,
+                endMinutes: 17 * 60,
+                kind: .peakFocus,
+                label: "Deep work"),
         ]
     }
 

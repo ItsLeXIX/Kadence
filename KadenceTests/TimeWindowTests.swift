@@ -76,10 +76,17 @@ struct TimeWindowModelTests {
 @MainActor
 struct TimeWindowSeedingTests {
 
-    @Test("makeTimeWindows describes the same two windows as the display-only TimeWindowFixture array")
+    // Task P2-T20 added a third, peak-focus entry to `makeTimeWindows()`
+    // (components.md §17 item 2: "a protected, a low-energy AND a peak-focus
+    // window" must exist for review). `MockData.timeWindows` — the separate,
+    // display-only fixture array the main grid actually renders — stays at
+    // two on purpose (peak-focus never renders there, §7), so the two lists
+    // are no longer the same length; this test no longer asserts they are.
+    @Test("makeTimeWindows describes the same Sleep/Low-energy pair as the display-only TimeWindowFixture array, plus a peak-focus window")
     func makeTimeWindowsMatchesFixtures() {
         let windows = MockData.makeTimeWindows()
-        #expect(windows.count == MockData.timeWindows.count)
+        #expect(windows.count == 3)
+        #expect(MockData.timeWindows.count == 2)
 
         let sleep = windows.first { $0.label == "Sleep" }
         let sleepFixture = MockData.timeWindows.first { $0.label == "Sleep" }
@@ -94,18 +101,33 @@ struct TimeWindowSeedingTests {
         #expect(lowEnergy?.startMinutes == lowEnergyFixture?.startMinutes)
         #expect(lowEnergy?.endMinutes == lowEnergyFixture?.endMinutes)
         #expect(lowEnergy?.kind == lowEnergyFixture?.kind)
+
+        // The new peak-focus fixture has no display-only counterpart to
+        // compare against (§7 — peak-focus never renders on the main grid),
+        // so it is checked against its own literal values instead.
+        let peakFocus = windows.first { $0.kind == .peakFocus }
+        #expect(peakFocus?.label == "Deep work")
+        #expect(peakFocus?.weekdays == [2, 3, 4, 5, 6])
+        #expect(peakFocus?.startMinutes == 15 * 60)
+        #expect(peakFocus?.endMinutes == 17 * 60)
+
+        // Chosen (per this task's own header comment) to sit clear of the
+        // low-energy window rather than overlap it — pin that down, since a
+        // future edit to either window's hours could silently reintroduce
+        // an overlap the "legible side by side" reasoning depends on.
+        #expect((lowEnergyFixture?.endMinutes ?? 0) <= (peakFocus?.startMinutes ?? 0))
     }
 
-    @Test("seedTimeWindowsIfNeeded is idempotent: calling it twice still leaves exactly 2 rows")
+    @Test("seedTimeWindowsIfNeeded is idempotent: calling it twice still leaves exactly 3 rows")
     func seedingIsIdempotent() throws {
         let context = try makeContext()
 
         MockData.seedTimeWindowsIfNeeded(context)
         let firstPass = try context.fetch(FetchDescriptor<TimeWindow>())
-        #expect(firstPass.count == 2)
+        #expect(firstPass.count == 3)
 
         MockData.seedTimeWindowsIfNeeded(context)
         let secondPass = try context.fetch(FetchDescriptor<TimeWindow>())
-        #expect(secondPass.count == 2)
+        #expect(secondPass.count == 3)
     }
 }

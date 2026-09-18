@@ -9,24 +9,45 @@
 //  Task P2-T10 built this window read-only. Task P2-T11 added interactions.md
 //  §11.1's move / resize / delete — "Creating, moving and resizing routine
 //  blocks uses §3 and §4 unchanged ... same handles, same drop preview. `⌫`
-//  deletes. `⌘Z` undoes, with names." Task P2-T12 (this pass) adds the other
-//  half §11.1 groups with move/resize but P2-T10/P2-T11 both carved out
-//  separately: creating new routine blocks. Double-click empty grid creates a
-//  60-minute block at the snapped slot under the pointer; drag creates a block
-//  of the dragged duration, minimum 15 minutes (interactions.md §3, applied
-//  unchanged per §11.1) — same inline `TextField`-in-place-of-title,
+//  deletes. `⌘Z` undoes, with names." Task P2-T12 added the other half §11.1
+//  groups with move/resize but P2-T10/P2-T11 both carved out separately:
+//  creating new routine blocks. Double-click empty grid creates a 60-minute
+//  block at the snapped slot under the pointer; drag creates a block of the
+//  dragged duration, minimum 15 minutes (interactions.md §3, applied unchanged
+//  per §11.1) — same inline `TextField`-in-place-of-title,
 //  `↩`-commits/`⎋`-cancels-and-removes, empty-title-never-persists shape as an
-//  ordinary event's draft. Still explicitly out of scope, left for follow-up
-//  tasks:
-//    - the Blocks/Windows mode control and Windows-mode editing
-//      (components.md §13.3) — there is no `TimeWindow` model yet;
+//  ordinary event's draft.
+//
+//  Task P2-T20 (this pass) closes the render/mode-switch half of what was
+//  still missing: the `[Blocks | Windows]` mode control (components.md
+//  §13.3) and the background windows layer, now that a persisted `TimeWindow`
+//  model exists (task P2-T18). A segmented control in the toolbar —
+//  `size.editorModeBarHeight`, `editorModeLabel` type — plus `⌘[`/`⌘]`
+//  (interactions.md §11.1) switch `editorMode` between `.blocks` and
+//  `.windows`; either path clears `selection` ("the current selection is
+//  dropped on mode change"). Every weekday column now renders all three
+//  `TimeWindow` kinds through the generalized `BackgroundWindowsLayer`/
+//  `WindowLabelsLayer` (`GridLayers.swift`, now generic over
+//  `TimeWindowRenderable` so they can draw either `TimeWindowFixture` or
+//  `TimeWindow`): in Blocks mode only protected/low-energy are drawn — the
+//  same treatment and z-order the main grid uses, non-hit-testable — matching
+//  §13.3's table ("windows drawn normally, not hit-testable"); in Windows
+//  mode all three are drawn, including peak-focus as the 1pt dashed outline
+//  components.md §7's "Editor exception" paragraph specifies, and the
+//  existing block/draft layer drops to `opacity.editorInactiveLayer` and
+//  `.allowsHitTesting(false)` (§13.3: "blocks drop to
+//  `opacity.editorInactiveLayer`, not hit-testable"). Still explicitly out of
+//  scope, left for follow-up tasks:
+//    - dragging, resizing, creating or deleting a `TimeWindow`, and the
+//      inspector's kind picker for a selected window (components.md §13.3's
+//      "protected / low-energy / peak-focus regions editable" — this task
+//      only renders them; windows are not yet selectable or hit-testable in
+//      either mode);
 //    - the flexibility control's interactive stepper (components.md §13.2) —
 //      the inspector still shows flexibility as read-only text;
 //    - detached-instance tracking and Re-sync (components.md §13.4,
 //      interactions.md §11.2) — always zero right now, so per the existing
-//      zero-state rule (§10.2) it is omitted entirely rather than stubbed;
-//    - the background windows layer (protected / low-energy shading), for the
-//      same reason P2-T10 left it out — no `TimeWindow` model to draw yet.
+//      zero-state rule (§10.2) it is omitted entirely rather than stubbed.
 //
 //  Move/resize/delete/create all go through `RoutineBlockStore`
 //  (`Kadence/State/RoutineEngine.swift`) — the Routines-window sibling of
@@ -75,8 +96,27 @@
 import SwiftUI
 import SwiftData
 
+/// components.md §13.3's mode control: "Blocks" / "Windows". `.blocks` is the
+/// default — the window opens the way P2-T10 through P2-T12 already left it.
+enum RoutinesEditorMode: String, CaseIterable, Identifiable {
+    case blocks
+    case windows
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .blocks: "Blocks"
+        case .windows: "Windows"
+        }
+    }
+}
+
 struct RoutinesWindow: View {
     @Query(sort: \RoutineTemplate.name) private var templates: [RoutineTemplate]
+    /// Task P2-T18 seeded this via `.task {}` below; nothing read it back
+    /// anywhere in this window until this task's windows-mode rendering.
+    @Query private var timeWindows: [TimeWindow]
     @Environment(\.modelContext) private var context
     /// KadenceApp.swift now injects the same instance MainWindow uses, so
     /// `⌘Z`/`⌘⇧Z` (wired once, app-wide, in `KadenceCommands`) undo/redo
@@ -85,6 +125,7 @@ struct RoutinesWindow: View {
 
     @State private var selectedTemplateID: UUID?
     @State private var selection: RoutineBlockSelection?
+    @State private var editorMode: RoutinesEditorMode = .blocks
     @State private var didSeed = false
     /// So `⌫` (below) has somewhere to land. Requested whenever a block is
     /// selected — including the very first tap — since nothing else in this
@@ -149,6 +190,19 @@ struct RoutinesWindow: View {
             .focusable()
             .focused($canvasFocused)
             .onKeyPress(keys: [.delete]) { _ in handleDelete() }
+            // interactions.md §11.1: "Switching between Blocks and Windows
+            // mode: ⌘[ / ⌘], or the mode control." Window-scoped, the same
+            // way `⌫` above is — not routed through `KadenceCommands`
+            // (app-wide menu commands would fire this even with the main
+            // calendar window key, where "editor mode" means nothing).
+            .onKeyPress(keys: ["[", "]"]) { keyPress in
+                guard keyPress.modifiers.contains(.command) else { return .ignored }
+                switch keyPress.key {
+                case "[": editorMode = .blocks; return .handled
+                case "]": editorMode = .windows; return .handled
+                default: return .ignored
+                }
+            }
         }
         .toolbar { toolbarContent }
         .frame(
@@ -166,6 +220,12 @@ struct RoutinesWindow: View {
         }
         .onChange(of: selection) { _, newValue in
             if newValue != nil { canvasFocused = true }
+        }
+        // interactions.md §11.1: "The current selection is dropped on mode
+        // change." One `onChange` covers both the mode control and the
+        // `⌘[`/`⌘]` shortcuts above, since both just assign `editorMode`.
+        .onChange(of: editorMode) { _, _ in
+            selection = nil
         }
     }
 
@@ -189,7 +249,9 @@ struct RoutinesWindow: View {
                 weekdays: orderedWeekdays,
                 template: selectedTemplate,
                 store: store,
-                selection: $selection)
+                selection: $selection,
+                editorMode: editorMode,
+                timeWindows: timeWindows)
         }
     }
 
@@ -204,9 +266,10 @@ struct RoutinesWindow: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            // The task's own scope note: "a Picker or menu is fine — do not
-            // build the [Blocks | Windows] segmented control or the + new-
-            // template action yet." Just the picker, nothing else.
+            // layouts.md §8's own diagram: "toolbar: template picker ·
+            // [Blocks | Windows] · +". The "+" new-template action is not
+            // part of this task's scope — still just the picker plus, now,
+            // the mode control.
             Picker("Template", selection: Binding(
                 get: { selectedTemplateID ?? templates.first?.id },
                 set: { selectedTemplateID = $0 })) {
@@ -216,6 +279,24 @@ struct RoutinesWindow: View {
                 }
                 .labelsHidden()
                 .disabled(templates.isEmpty)
+        }
+
+        // components.md §13.3: "A segmented control in the editor's mode
+        // bar, height `size.editorModeBarHeight`, `editorModeLabel` type."
+        // Same native `.pickerStyle(.segmented)` shape `MainWindow`'s own
+        // Month/Week/Day mode control already uses (`MainWindow.swift`) —
+        // no bespoke chrome invented, just this control's own height/type
+        // tokens applied on top.
+        ToolbarItem(placement: .primaryAction) {
+            Picker("Editor Mode", selection: $editorMode) {
+                ForEach(RoutinesEditorMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .typeStyle(.editorModeLabel)
+            .frame(height: Tokens.Size.editorModeBarHeight)
         }
     }
 }
@@ -267,6 +348,8 @@ private struct RoutinesCanvasView: View {
     let template: RoutineTemplate?
     let store: RoutineBlockStore
     @Binding var selection: RoutineBlockSelection?
+    let editorMode: RoutinesEditorMode
+    let timeWindows: [TimeWindow]
 
     private let hourHeight = Tokens.Size.hourHeightWeek
 
@@ -310,7 +393,17 @@ private struct RoutinesCanvasView: View {
                     template: template,
                     store: store,
                     hourHeight: hourHeight,
-                    selection: $selection)
+                    selection: $selection,
+                    editorMode: editorMode,
+                    timeWindows: timeWindows,
+                    // components.md §7: the window label is drawn "once, at
+                    // the window's top edge, in the leading day column" —
+                    // same rule `TimedCanvasView.windowsBackdrop`/
+                    // `DayColumnView.showsWindowLabels` already apply on the
+                    // main grid (`index == 0`), just keyed to this window's
+                    // own leading (first-ordered) weekday instead of a
+                    // column index.
+                    showsWindowLabels: weekday == weekdays.first)
                     .frame(width: columnWidth)
                     .overlay(alignment: .leading) {
                         Rectangle()
@@ -322,9 +415,9 @@ private struct RoutinesCanvasView: View {
     }
 }
 
-/// One weekday column: the hour grid plus whichever of the template's blocks
-/// land on this weekday. No now-line, no all-day row, no travel bands, no
-/// background windows (see this file's header).
+/// One weekday column: the hour grid, whichever of the template's blocks land
+/// on this weekday, and (task P2-T20) that weekday's `TimeWindow` spans. No
+/// now-line, no all-day row, no travel bands.
 ///
 /// Move/resize (task P2-T11) mirror `DayColumnView.blockGesture`'s shape —
 /// same handle-height mode classification, same snap, same drop preview — but
@@ -348,6 +441,9 @@ private struct RoutineDayColumnView: View {
     let store: RoutineBlockStore
     let hourHeight: CGFloat
     @Binding var selection: RoutineBlockSelection?
+    let editorMode: RoutinesEditorMode
+    let timeWindows: [TimeWindow]
+    let showsWindowLabels: Bool
 
     /// In-flight drag, kept local so the model is only written on drop — same
     /// rule as `DayColumnView.DragSession`.
@@ -402,32 +498,68 @@ private struct RoutineDayColumnView: View {
                 items: layoutItems, columnWidth: proxy.size.width, geometry: geometry)
 
             ZStack(alignment: .topLeading) {
+                // components.md §7 / §13.3 (task P2-T20): background windows,
+                // drawn below the hour lines and below every block, same as
+                // the main grid's z-order. Blocks mode draws protected/
+                // low-energy only, "not hit-testable" — the same treatment
+                // Phase 1's main grid already uses. Windows mode adds
+                // peak-focus too (§7's "Editor exception"); neither mode
+                // makes a window selectable or draggable yet (deferred, see
+                // this file's header).
+                BackgroundWindowsLayer(
+                    windows: timeWindows,
+                    day: referenceDayStart,
+                    geometry: geometry,
+                    showsPeakFocus: editorMode == .windows)
+                    .allowsHitTesting(false)
+
                 HourLinesLayer(geometry: geometry)
+
+                if showsWindowLabels {
+                    WindowLabelsLayer(
+                        windows: timeWindows,
+                        day: referenceDayStart,
+                        geometry: geometry,
+                        showsPeakFocus: editorMode == .windows)
+                }
 
                 // Empty-grid tap deselects, matching the main grid's
                 // "clicking empty grid deselects" (interactions.md §6).
                 // Double-click / drag create (task P2-T12, interactions.md
-                // §3 via §11.1).
+                // §3 via §11.1). Windows mode (task P2-T20) turns this off:
+                // §13.3 — in windows mode routine blocks are not the editable
+                // layer, so creating one from here would be editing the
+                // wrong layer.
                 createSurface(width: proxy.size.width, geometry: geometry)
+                    .allowsHitTesting(editorMode == .blocks)
 
-                ForEach(layout.blocks.sorted(by: { $0.zIndex < $1.zIndex })) { laidOut in
-                    if let block = blocks.first(where: { $0.id == laidOut.id }) {
-                        blockView(block: block, laidOut: laidOut, geometry: geometry)
-                    } else if let draft, draft.id == laidOut.id {
-                        draftBlock(laidOut: laidOut)
+                // components.md §13.3: "Windows mode: ... blocks drop to
+                // `opacity.editorInactiveLayer`, not hit-testable." Applied
+                // to the whole block/draft/overflow layer together so the
+                // dimming reads as one layer, not a block-by-block toggle.
+                Group {
+                    ForEach(layout.blocks.sorted(by: { $0.zIndex < $1.zIndex })) { laidOut in
+                        if let block = blocks.first(where: { $0.id == laidOut.id }) {
+                            blockView(block: block, laidOut: laidOut, geometry: geometry)
+                        } else if let draft, draft.id == laidOut.id {
+                            draftBlock(laidOut: laidOut)
+                        }
+                    }
+
+                    ForEach(layout.overflow) { chip in
+                        overflowChip(chip)
                     }
                 }
-
-                ForEach(layout.overflow) { chip in
-                    overflowChip(chip)
-                }
+                .opacity(editorMode == .windows ? Tokens.Opacity.editorInactiveLayer : 1)
+                .allowsHitTesting(editorMode == .blocks)
 
                 // interactions.md §4 — "same drop preview" as the main grid's
                 // move/resize (the outline only; the main grid itself has no
                 // time badge yet — DEVIATIONS.md A15 — so there is nothing
-                // extra to mirror here). No protected-window shading exists
-                // in this window yet (this file's header), so the outline
-                // never turns alert the way `DayColumnView.dropPreview` can.
+                // extra to mirror here). Drag/resize only ever runs in
+                // Blocks mode (createSurface/blockGesture are non-hit-
+                // testable in Windows mode above), so `drag` is always nil
+                // there and this never fires in Windows mode either.
                 if let previewRect = dropPreviewFrame(in: proxy.size.width, geometry: geometry) {
                     dropPreview(previewRect)
                 }
