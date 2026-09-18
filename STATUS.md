@@ -2586,3 +2586,129 @@ discarding a live preview — interactions.md §10.2, components.md §14.5's
 None of the three is blocked by anything found in this task.
 
 **Blocked:** nothing.
+
+## 15. P2-T15 follow-up — diagnose and fix `check-accessibility.sh`'s "no
+window" failure, again (2026-09-18)
+
+The task orchestrator recorded `check-accessibility.sh` as `FAIL: no Kadence
+process has a window` immediately after §14's commit and asked whether this
+was a genuine P2-T15 regression (⌘⇧A firing at launch, `ConflictOrdering`/
+`ConflictPanelView` evaluated against an uninitialized store, a SwiftData
+query erroring on first launch) or a re-flake of the restoration issue §11
+already fixed — explicitly not to assume either without evidence.
+
+**It is neither. Root cause: the screen on this Mac is locked
+(`CGSSessionScreenIsLocked=1`), which blocks accessibility window
+enumeration session-wide for every process — not a P2-T15 code path, and not
+§11's restoration flake.**
+
+**Evidence, not assumption:**
+- `python3`/PyObjC's `Quartz.CGSessionCopyCurrentDictionary()` read
+  `CGSSessionScreenIsLocked = 1` at the moment of failure (checked via a
+  `Quartz` install already present on this machine, from a Claude Code
+  extension's venv — see below for why the shipped script does not depend on
+  that path).
+- `Quartz.CGWindowListCopyWindowInfo` at the same moment showed a live
+  Kadence window, owner "Kadence", size **1470×882** at (158, 42) — a
+  plausible, correctly-sized main-window geometry, not a crashed or
+  zero-size stub. The app came up fine; the lock screen is what makes System
+  Events blind to it.
+- `ps -p <pid>` showed the process alive (state `S`) throughout, matching
+  the healthy-but-invisible signature, not a hang.
+- `~/Library/Logs/DiagnosticReports` has no Kadence entries; `log show
+  --predicate 'process == "Kadence"' --last 10m` returned nothing
+  fault/error/crash-shaped. No crash.
+- The build that produced the running binary (`xcodebuild ... build`) has
+  **zero** `warning:` lines — a clean build, no new warnings from P2-T15's
+  diff.
+- **Timing rules out P2-T15's diff specifically:** the screen-lock timestamp
+  (`CGSSessionScreenLockedTime`) decodes to **02:29:12**, and §14's own
+  commit (`e9158ef`) is timestamped **04:55:39** — over two hours *after*
+  the screen was already locked. The `check-accessibility.sh` failure this
+  task was asked to investigate was recorded against a commit made while the
+  session-wide AX blindness was *already in effect*; P2-T15's diff cannot be
+  the cause of a symptom that predates it.
+- Re-ran `xcodebuild ... build` (clean, `** BUILD SUCCEEDED **`, 0 warnings)
+  and `xcodebuild ... -only-testing:KadenceTests test` (all cases printed
+  `passed`, 0 `failed`) against the current `HEAD` with the screen still
+  locked — the rest of the toolchain is unaffected; only the AX-enumeration
+  step that needs System Events to see a window is blocked.
+
+This is the same class of carve-out the CA brief itself names ("if TextEdit
+also reports 0 windows, that is the machine, not your code") and the same
+class of machine condition §1.2/§1.2.1/§11 already hit twice before under a
+*different* mechanism (stale window-restoration state, not a lock screen) —
+but this is the first time the actual mechanism has been confirmed directly
+at the OS level rather than inferred from a same-symptom control app.
+
+**No app code was touched.** `Kadence/State/CalendarState.swift`,
+`ConflictOrdering.swift`, `ConflictOptionFormatting.swift`,
+`ConflictPanelView.swift`, `InspectorView.swift`, `KadenceCommands.swift`,
+`SidebarView.swift`, `MainWindow.swift`, `TypeStyle.swift` — every file
+§14 touched — are unchanged by this task. There is no regression in them to
+fix.
+
+**What was changed: `Scripts/check-accessibility.sh`'s failure branch**,
+continuing partial work already in the tree from an interrupted prior run of
+this same task (a Finder-based session-wide control check). That control
+check is kept as a fallback, but the primary diagnosis is now a **direct**
+OS query instead of an inference from a second app's symptom:
+- Added a `swift -e` one-liner (the project's own `swift` toolchain — no new
+  dependency; `generate-tokens.swift` already requires it) that calls
+  `CGSessionCopyCurrentDictionary()` and prints
+  `CGSSessionScreenIsLocked`. When it reads `1`, the script now fails with
+  an unambiguous "the screen is LOCKED... this is not a Kadence defect...
+  do not chase this as an app-code regression" message instead of the old
+  generic "the app did not come up."
+- Deliberately **not** implemented with `python3`: a `python3 -c "import
+  Quartz; ..."` version was prototyped first and worked, but only because a
+  Claude Code extension's private venv (`~/Library/Application
+  Support/Claude/Claude Extensions/.../.venv/bin/python3`), not a system
+  Python, happened to be first on `$PATH` and happened to have PyObjC
+  installed. That is not something this script should depend on to run
+  correctly on a different checkout or a differently-configured Mac; `swift`
+  is a real, already-declared project dependency, so the shipped fix uses
+  that instead.
+- If the direct check is inconclusive (no `swift` on `$PATH`, or the call
+  errors), the script falls through to the pre-existing Finder-based control
+  check from the interrupted prior run, unchanged.
+
+**Regression test:** none added. §14's diff has no defect to regress-test
+against — nothing crashed, nothing hung, and the failure this task was
+asked to investigate is proven (by the timestamp comparison above) to
+predate §14's own commit. `ConflictOptionRowContentTests` (§14, already
+covers the empty/zero-conflict and single-option cases the task brief
+flagged as suspects for "evaluated on an empty/uninitialized store") already
+exercises exactly that boundary and was unaffected.
+
+**Verified:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`, 0 warnings.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — all cases `passed`, 0 `failed`.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.`
+- `Scripts/check-accessibility.sh`, run repeatedly this session: every run
+  correctly and immediately reports `FAIL: no Kadence process has a window
+  — the screen is LOCKED (CGSSessionScreenIsLocked=1)...` — this is the
+  script now working *correctly* (accurate diagnosis of a real, persistent
+  machine condition), not the script passing. **The script's actual
+  "PASS (elements present)" gate — the thing acceptance asked for two
+  consecutive clean runs of — could not be exercised in this session: the
+  screen has been locked continuously (checked repeatedly, still locked at
+  the time this entry was written) since before this task started, and
+  unlocking it requires this machine's password, which this task does not
+  have and should not attempt to obtain or bypass.** This is a machine-state
+  blocker, not a code defect — per the CA brief's own instruction to say so
+  rather than report a failure.
+
+**What is next:** once the screen is unlocked, re-run
+`Scripts/check-accessibility.sh` (now with a much more direct diagnostic if
+it fails again) to get the actual element-count confirmation this task
+could not obtain. Nothing about §14's conflict entry-point feature is
+believed to be at risk — the evidence above is about the verification
+environment, not the code.
+
+**Blocked:** getting an actual PASS out of `check-accessibility.sh` this
+session — the screen is locked and this task cannot unlock it. Not blocked:
+build, unit tests, and the token check, all independently green above.

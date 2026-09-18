@@ -60,19 +60,50 @@ for ATTEMPT in $(seq 1 10); do
   sleep 2
 done
 if [[ -z "$TARGET" ]]; then
-  # Before blaming the app: query a control process that is always running
-  # (Finder) the exact same way. This machine has twice before (P2-T01,
-  # P2-T07) gone through stretches where the accessibility API vends 0
-  # windows for *every* process, Kadence included — most concretely, a
-  # locked screen session blocks AX window enumeration session-wide while
-  # WindowServer keeps the real window alive underneath it (confirmed via
-  # `CGSSessionCopyCurrentDictionary`'s `CGSSessionScreenIsLocked` and
-  # `CGWindowListCopyWindowInfo` showing a correctly-sized Kadence window
-  # during the P2-T15 follow-up investigation that added this check — see
-  # STATUS.md). Finder reporting 0 windows too is the same control the CA
-  # brief itself asks for ("if TextEdit also reports 0 windows, that is the
-  # machine, not your code"); this makes the script perform that control
-  # itself instead of leaving it to whoever reads the failure by hand.
+  # Before blaming the app: check the actual session lock state directly, not
+  # by inference. This machine has repeatedly (P2-T01, P2-T07, and again the
+  # P2-T15 follow-up that added this check) gone through stretches where the
+  # accessibility API vends 0 windows for *every* process while the real
+  # windows stay alive underneath, unharmed — confirmed, not guessed, via
+  # `CGSSessionCopyCurrentDictionary`'s `CGSSessionScreenIsLocked` reading 1
+  # at the same moment `CGWindowListCopyWindowInfo` showed a correctly-sized
+  # Kadence window still on screen. A locked screen makes AX window
+  # enumeration blind session-wide: System Events cannot see ANY process's
+  # windows, Kadence's included, until the screen is unlocked. This script
+  # asks the OS directly rather than just cross-checking Finder, because
+  # Finder-reports-0-too only proves "session-wide", not "why" — knowing
+  # "why" is what tells the next reader whether to touch app code at all.
+  # `swift -e`, not a Python one-liner: this repo already depends on the
+  # `swift` toolchain (generate-tokens.swift), so this works anywhere the
+  # rest of this script already needs to run. A one-off Python3 shortcut
+  # tried during this diagnosis only worked because a Claude Code
+  # extension's private venv (not a system Python) happened to be first on
+  # $PATH and happened to have pyobjc installed — not something to depend on.
+  LOCK_STATE=$(swift -e '
+    import CoreGraphics
+    import Foundation
+    if let cfDict = CGSessionCopyCurrentDictionary() {
+        let dict = cfDict as NSDictionary
+        print((dict["CGSSessionScreenIsLocked"] as? Int) ?? 0)
+    } else {
+        print(0)
+    }
+  ' 2>/dev/null)
+  if [[ "$LOCK_STATE" == "1" ]]; then
+    echo "FAIL: no Kadence process has a window — the screen is LOCKED"
+    echo "      (CGSSessionScreenIsLocked=1), which blocks accessibility window"
+    echo "      enumeration session-wide. This is not a Kadence defect: the app"
+    echo "      itself is very likely running fine (WindowServer keeps the real"
+    echo "      window alive under the lock screen; System Events just cannot"
+    echo "      see it). Unlock the screen and re-run — do not chase this as an"
+    echo "      app-code regression."
+    exit 1
+  fi
+  # Direct lock check was inconclusive (e.g. no Foundation/osascript support) —
+  # fall back to the Finder control the CA brief itself asks for ("if TextEdit
+  # also reports 0 windows, that is the machine, not your code"), so the
+  # script performs that control itself instead of leaving it to whoever reads
+  # the failure by hand.
   FINDER_WINDOWS=$(osascript -e 'tell application "System Events" to tell process "Finder" to count windows' 2>/dev/null)
   if [[ "${FINDER_WINDOWS:-0}" == "0" ]]; then
     echo "FAIL: no Kadence process has a window — but Finder reports 0 windows too."

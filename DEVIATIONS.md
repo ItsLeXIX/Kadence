@@ -237,6 +237,31 @@ session (a live third-party application intermittently holding OS-wide
 frontmost status on this machine, which can still make the two
 click/keystroke-driven scripts flake independently of this fix).
 
+**Re-diagnosis, 2026-09-18 (P2-T15 follow-up — `check-accessibility.sh`,
+different mechanism this time).** `FAIL: no Kadence process has a window`
+was reported again immediately after task P2-T15 (needs-attention row +
+static conflict panel), and this task was explicitly asked not to assume it
+was either a P2-T15 regression or a recurrence of the P2-T12 restoration
+flake above without evidence. Neither is the cause: the screen on this Mac
+is **locked** (`CGSSessionCopyCurrentDictionary()` → `CGSSessionScreenIsLocked
+= 1`), which blocks accessibility window enumeration session-wide for every
+process, not just Kadence. `CGWindowListCopyWindowInfo` at the same moment
+showed a live, correctly-sized (1470×882) Kadence window — the app is fine;
+System Events simply cannot see any window while the screen is locked. The
+screen-lock timestamp decodes to 02:29, more than two hours before P2-T15's
+own commit (04:55) — the symptom this task was asked to investigate predates
+the diff it was asked to investigate, which rules out a P2-T15 regression on
+timing grounds alone, independent of the code-level evidence (clean build, 0
+warnings; no crash log; process alive throughout). No file under `Kadence/`
+was touched. `check-accessibility.sh`'s failure branch now runs a direct
+`swift -e` query of `CGSessionScreenIsLocked` (falling back to the existing
+Finder-based control check if that is inconclusive) so a future occurrence
+gets diagnosed immediately instead of re-investigated from scratch a third
+time. **This task could not obtain an actual `PASS (elements present)` run**
+— the screen has been locked continuously since before the task started and
+unlocking it needs this machine's password, which is outside this task's
+authority to obtain or bypass. See STATUS.md §15 for full evidence.
+
 ### What this re-audit changed
 
 The Phase 1 section numbering in all three spec files is **unchanged** —
