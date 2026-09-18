@@ -14,14 +14,18 @@
 //    true of `conflict.options` — `ConflictEngine.finalize` sorts it),
 //    min height, gap, radius and fills all from tokens.
 //
-//  What this file explicitly does NOT do: apply an option with `↩`. Selecting
-//  a row (`onSelectOption`) still only highlights it here
-//  (`color.interactive.selectedRowFill`) — but as of P2-T16, changing
-//  `selectedConflictOptionID` (this view's `onSelectOption` callback target)
-//  ALSO drives a live canvas preview and its `⎋`/focus-loss abandonment; that
-//  wiring lives in `MainWindow.swift`/`DayColumnView.swift`/`CalendarState.swift`,
-//  not in this file, since this file has no access to the calendar canvas.
-//  See those files for §14.4's preview and interactions.md §10.1–§10.2.
+//  What this file still does NOT do: apply an option with `↩`, or anything
+//  else `EventStore`/`UndoStack`-shaped. Selecting a row (`onSelectOption`)
+//  still only highlights it here (`color.interactive.selectedRowFill`) — as
+//  of P2-T16, changing `selectedConflictOptionID` (this view's
+//  `onSelectOption` callback target) ALSO drives a live canvas preview and
+//  its `⎋`/focus-loss abandonment, and as of P2-T17, pressing `↩` while that
+//  same field is non-nil applies it — but all of that wiring (the preview,
+//  the abandonment, and now the apply) lives in
+//  `MainWindow.swift`/`DayColumnView.swift`/`CalendarState.swift`, not in
+//  this file, since this file has no access to the calendar canvas or the
+//  store. See those files for §14.4's preview, interactions.md §10.1–§10.2,
+//  and §14.5's "resolved and empty" state.
 //
 
 import SwiftUI

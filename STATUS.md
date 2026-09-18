@@ -221,6 +221,25 @@ calls this task made (the option-row prose, and the collision blocks'
 rendered height) — neither is an invented design token; both are documented
 as this task's own call, since `design/` leaves them open on purpose.
 
+**Amended 2026-09-18 by task P2-T16 (conflict panel preview-on-focus and
+unconditional abandonment).** New §17. `↑`/`↓` now preview an option live on
+the real grid (`.previewed` presentation, `size.previewCanvasBorder` on the
+canvas), and any of `⎋`/focus-loss/view-change/inspector-collapse reverts it
+unconditionally. `↩` apply remains explicitly NOT built.
+
+**Amended 2026-09-18 by task P2-T17 (conflict panel `↩` apply: single named
+undo step, advance/resolve).** New §18. The last piece interactions.md §10 /
+components.md §14 name for conflict resolution itself: `↩` now applies the
+focused option to `EventStore` as one named undo step ("Resolve Conflict"),
+drops the canvas preview border, and advances to the next unresolved conflict
+(previewing its first/recommended option) or returns the inspector to normal
+if that was the last one. One new data-layer decision, filed as
+`design/GAPS.md` G-015 rather than guessed: `ConflictEngine.detect` now
+excludes a pair whose routine side is `.skipped`, needed so the `.skipToday`
+option's apply (a status write, not a block move) can actually resolve the
+conflict it was applied to. §5.2's open-gap summary, which had gone stale
+(missing G-013/G-014), is corrected in the same pass.
+
 ---
 
 ## 1. Verification — run on this Mac, 2026-09-10
@@ -1200,7 +1219,7 @@ mine to decide.
 1. ~~**`Tokens.swift` is one design pass stale and `--check` is red at `HEAD`.**~~
    **Done** — `--check` is green, see §1.1. Not this task's doing; it was already
    regenerated when P2-T01 picked the tree up.
-2. **Phase 2 has a design and, as of tasks P2-T08–P2-T15, six slices of
+2. **Phase 2 has a design and, as of tasks P2-T08–P2-T17, eight slices of
    code.** `design/components.md` §13–§17, `layouts.md` §8–§10,
    `interactions.md` §10–§12 and the 67 new tokens are complete and frozen.
    `RoutineTemplate`/`RoutineBlock` (models) and `RoutineEngine.materialize`
@@ -1209,14 +1228,18 @@ mine to decide.
    created and deleted, undoably (§9, §10), `ConflictEngine` now detects
    routine-vs-manual/imported overlaps and generates their ranked resolution
    options, data layer only (§12), those detected conflicts now render as
-   `.conflicted` on the live calendar canvas (§13), and the entry point into
+   `.conflicted` on the live calendar canvas (§13), the entry point into
    conflict resolution — the needs-attention row, `⌘⇧A`, and a static
    conflict panel (collision header + ranked option rows) in the inspector —
-   is now built (§14) — everything else (the Blocks/Windows mode control,
-   the interactive flexibility control, detached-instance tracking and
-   re-sync, preview-on-focus, `↩` apply, `⎋` abandonment, the menu bar
-   extra, snooze, and the `TimeWindow` model and editor) is still unbuilt.
-   The design pass also notes
+   is built (§14), and the full ↑/↓-preview → `↩`-apply → advance loop is now
+   built end to end (§17, §18): `↑`/`↓` preview an option live on the real
+   grid, `⎋`/focus-loss/view-change abandon it unconditionally, and `↩`
+   applies it as one named undo step and advances to the next unresolved
+   conflict or returns the inspector to normal — everything else (the
+   Blocks/Windows mode control, the interactive flexibility control,
+   detached-instance tracking and re-sync, the menu bar extra, snooze, and
+   the `TimeWindow` model and editor) is still unbuilt. The design pass also
+   notes
    two deliberate
    reuses: the Routines window **is** the Week canvas with dates, now line,
    all-day row and travel bands removed (components.md §13.1 lists every
@@ -1283,9 +1306,17 @@ spec level by task P2-T04 on the same day as G-010/G-011, but this section
 kept listing it as open because the code side had not been built yet. It is
 fixed in code now too; the stale entry is corrected below.)*
 
-Two remain open, none blocking: **G-003** and **G-005**. Closed: G-004, G-006,
-G-007, G-008, G-009, G-010, G-011, G-012. **There are no invented design
-values in the codebase** and no `// SPEC-GAP` markers left in `Kadence/`.
+*(Corrected 2026-09-18 by task P2-T17 — this list had gone stale: G-013
+(P2-T09/P2-T10, `RoutineBlock` cross-midnight drag), G-014 (P2-T16, `.skipToday`
+preview treatment) and G-015 (this task, `.skipped` routine events and
+`ConflictEngine.detect`) were each filed in `design/GAPS.md` by their own
+tasks but never folded into this summary. Corrected below rather than left to
+compound.)*
+
+Five remain open, none blocking: **G-003**, **G-005**, **G-013**, **G-014**,
+**G-015**. Closed: G-004, G-006, G-007, G-008, G-009, G-010, G-011, G-012.
+**There are no invented design values in the codebase** and no `// SPEC-GAP`
+markers left in `Kadence/`.
 
 **G-010 — CLOSED** (ruled 2026-09-11, task P2-T04, design agent):
 interactions.md gains §6.1, stating frontmost-wins as "paint order is hit
@@ -3026,5 +3057,200 @@ same in-memory `ModelContainer`/`ModelContext` pattern as
 interactions.md §10.1's last paragraph, components.md §14.5's "resolved and
 empty" state also depends on it), the `TimeWindow` editor, `MenuBarExtra`,
 snooze. None of the four is blocked by anything found in this task.
+
+**Blocked:** nothing.
+
+*(Corrected 2026-09-18 by task P2-T17 — the "explicitly not built" line above
+is now STALE for its `↩` apply clause. See §18.)*
+
+## 18. P2-T17 — conflict panel `↩` apply: single named undo step, advance/resolve (2026-09-18)
+
+The piece §17 (P2-T16) explicitly left out: interactions.md §10.1's last
+paragraph ("`↩` applies...") and components.md §14.5 ("Resolved and empty").
+Preview-on-focus and abandonment are unchanged and already verified (§17); this
+task is the apply verb and everything downstream of pressing it.
+
+**What changed:**
+
+1. `Kadence/State/EventStore.swift` — new `markSkipped(_:)`. Sets `status` to
+   `.skipped` directly (idempotent no-op, no undo step pushed, if already
+   `.skipped`), deliberately **not** `toggleSkipped` reused: `toggleSkipped`
+   flips `.skipped`/`.scheduled`, and re-applying a `.skipToday` resolution
+   must still land on `.skipped`, never silently un-skip it. This is the
+   `.skipToday` conflict option's apply target — interactions.md §10.1's
+   general apply path is "write the previewed option's proposed frame(s) to
+   the committed store"; for an option with no destination frame
+   (`ConflictOption.newStart`/`newEnd == nil`) that write is this status
+   change, per the task brief's own item 5 and consistent with G-014's
+   existing treatment of the same option kind.
+2. `Kadence/State/ConflictEngine.swift` — `detect` gained one `guard
+   pair.routine.status != .skipped else { continue }` in the pairing loop. A
+   `.skipToday` apply never changes the routine event's `start`/`end` (by
+   design, G-014), so without this, `detect`'s own next pass would report the
+   *identical* conflict again immediately after "resolving" it, and
+   §10.1/§14.5's "advances to the next unresolved conflict, or returns to
+   normal" could never actually happen for that option kind. Filed as
+   `design/GAPS.md` **G-015** rather than built silently — neither this
+   file's pre-existing header comment nor components.md §14 says whether
+   status gates detection at all; this is a narrow, documented answer, not an
+   invented value. File header comment corrected to match (it previously said
+   "applying" was entirely a future task's problem; it now names where that
+   task landed, per this file's own established amendment convention).
+3. `Kadence/State/CalendarState.swift` — new
+   `applyFocusedConflictOption(store:recomputeConflicts:) -> Bool`:
+   - Resolves the focused conflict/option from `selectedConflictID`/
+     `selectedConflictOptionID` against `conflicts`; a no-op (`false`, no
+     mutation) if either is missing, matching this task's own read of "an
+     option the user cannot see the consequence of is an option they cannot
+     rank" — `↩` with the panel open but nothing previewed applies nothing.
+   - Writes the option inside one `store.transaction("Resolve Conflict")`:
+     `.shiftLater` → `store.move(routineEvent, toStart:)` (both endpoints
+     move by the same delta — `move`, not `resize`, which would clamp the
+     new start against the event's still-unmoved *other* endpoint and get it
+     wrong); `.shorten` → `store.resize(routineEvent, newStart:newEnd:)`
+     (exactly one endpoint changes, which is exactly what `resize`'s own
+     clamp logic expects); `.skipToday` → `store.markSkipped(routineEvent)`.
+     `UndoStack.perform`'s re-entrancy (its own doc comment's worked example)
+     is what makes the inner `move`/`resize`/`markSkipped` calls join the
+     outer group instead of pushing steps of their own, so the Edit menu
+     reads exactly "Undo Resolve Conflict" (interactions.md §10.1's own
+     words) and one ⌘Z reverts every block the option touched.
+   - Clears `selectedConflictOptionID` immediately — no new code needed to
+     drop the canvas's `size.previewCanvasBorder` border beyond this
+     assignment, since `MainWindow.isConflictPreviewActive` and
+     `DayColumnView.activeConflictPreview` were already gated on it being
+     non-nil by P2-T16. Likewise, `motion.blockMove` runs on the committed
+     frame with no new animation code: `DayColumnView.blockStack` already
+     keys `.animation(..., value: laidOut.frame)` on that spring
+     unconditionally (P2-T11), so a `start`/`end` written by `store` animates
+     into place the same way a drag or resize already does.
+   - Calls the caller-supplied `recomputeConflicts` closure (re-running
+     `ConflictEngine.detect` against the just-mutated data — `CalendarState`
+     holds no query of its own to do this itself), assigns the result to
+     `conflicts`, and either previews `ConflictOrdering.firstUnresolved`'s
+     first (== recommended, `ConflictEngine.finalize` already sorts ascending
+     by disturbance) option, or, if nothing is left, sets
+     `selectedConflictID = nil` — which is what takes the inspector out of
+     conflict mode (`MainWindow.activeConflict`'s existing guard) and what
+     the needs-attention row's own count (`state.conflicts`) reads to hide at
+     zero. Nothing new was built for components.md §14.5's "no 'all clear'
+     state" — there simply is no dedicated empty-state view to have built.
+4. `Kadence/Views/MainWindow.swift`:
+   - `handleKey` gained one case ahead of the pre-existing `.return` ladder:
+     `.return where state.focusedRegion == .inspector &&
+     state.selectedConflictID != nil && state.selectedConflictOptionID !=
+     nil`, calling a new private `applyFocusedConflictOption()` — placed
+     first for the same reason the ↑/↓ preview-navigation cases already are:
+     a focused conflict panel always wins. `↩` with the panel open but
+     nothing focused yet falls through to the plain `.return` case below
+     (which does nothing when nothing is selected) — correct, since there is
+     nothing to apply.
+   - `applyFocusedConflictOption()` (new private method) calls
+     `state.applyFocusedConflictOption(store:recomputeConflicts:)`, supplying
+     `Self.sortedConflicts(events: events, routineBlocks: routineBlocks)` as
+     the recompute closure. Safe to read `events`/`routineBlocks`
+     synchronously right after the transaction returns, with no need to wait
+     for SwiftUI's own `@Query` refresh cycle: `EventStore.edit`'s fetch
+     resolves to the exact same `@Model` instances already sitting in
+     `events` (one identity map per `ModelContext`), so their
+     `start`/`end`/`status` already carry the new values by the time the
+     closure runs.
+   - Doc comments in the "MARK: Conflicts" block and `ConflictPanelView.swift`'s
+     header corrected in place — both previously said `↩` apply was
+     out of scope; both now say where it landed, per this file's and that
+     file's own established correction convention.
+
+**Judgement calls, documented rather than guessed past** (all recorded in
+`DEVIATIONS.md`; one also filed as `design/GAPS.md` G-015):
+- **The `ConflictEngine.detect` `.skipped` filter** — see point 2 above and
+  G-015's full argument. The one place a future spec ruling could disagree
+  and need code to change.
+- **`EventStore.markSkipped` vs. reusing `toggleSkipped`** — see point 1
+  above; not filed as a gap since nothing in `design/` is silent about
+  it — this is ordinary engineering judgement about which existing verb an
+  idempotent write should be, not a UI value.
+- **Next-conflict auto-preview, not next-conflict-selected-but-unfocused** —
+  interactions.md §10.1 says apply "advances to the next unresolved
+  conflict"; components.md §14.1 already establishes that "activating" a
+  conflict (there, via the needs-attention row) selects it with no option
+  pre-highlighted (`activateNeedsAttention()`, P2-T15, unchanged). This task
+  reads "advances to the next... and preview its first/recommended option"
+  (the task brief's own item 4) as calling for the *option* to be
+  pre-highlighted too when advancing via apply specifically — different from
+  `activateNeedsAttention()` on purpose, since §10.1's very next sentence
+  after "moving focus onto an option previews it immediately" is the reason
+  an option a user "cannot see the consequence of is an option they cannot
+  rank", and advancing to a conflict with nothing to compare defeats that for
+  exactly the same reason a fresh `⌘⇧A` does not (there, no *conflict* is
+  auto-something yet — the row's first press is discovery, not a
+  continuation of a decision already in progress). Not filed as a gap: the
+  task's own brief states this explicitly ("preview its first/recommended
+  option"), so this is instruction, not silence.
+
+**New test coverage:** `KadenceTests/ConflictApplyTests.swift` (new file), same
+in-memory `ModelContainer`/`ModelContext` pattern as
+`ConflictPreviewTests.swift`/`ConflictEntryPointTests.swift`:
+- `ApplyShiftAndShortenTests` — `.shiftLater` commits the exact
+  `newStart`/`newEnd` the option proposed (reusing the same fixture numbers
+  `ConflictPreviewFramesTests.shiftLaterProducesProposedFrame` already pinned,
+  9:00–10:00 → 10:15–11:15) and `.shorten` commits the exact trimmed span
+  (reusing `shortenProducesProposedFrame`'s fixture, 9:00–11:00 → 9:00–10:45);
+  each as exactly one `undo.undoSteps` entry named `"Resolve Conflict"`
+  (`undoMenuTitle == "Undo Resolve Conflict"`), and one `undo.undo()` fully
+  reverts to the original `start`/`end` with `canUndo` false afterward — not
+  a partial revert.
+- `ApplyAdvanceTests` — two independent conflicts: applying the first's
+  focused option leaves `state.selectedConflictID` pointing at the second
+  (looked up in the POST-apply `state.conflicts`, since `ConflictOption.id`
+  is a fresh `UUID()` per `detect` pass — the pre-apply snapshot's option ids
+  are not the ones the refreshed list carries) with its first option
+  pre-selected, and `state.conflicts.count == 1` (the resolved one dropped
+  out); one conflict: applying its only option sets `selectedConflictID`/
+  `selectedConflictOptionID` both `nil` and `state.conflicts.isEmpty`
+  (§14.5's "resolved and empty", and what the needs-attention row's count
+  reads to hide at zero); a no-op case (no option focused) confirms no store
+  mutation, no undo step, and `selectedConflictID` untouched.
+- `ApplySkipTodayTests` — `.skipToday` sets `status == .skipped`, leaves
+  `start`/`end` untouched, as one reversible named undo step; and — pinning
+  G-015's fix specifically — applying it against a conflict's only option
+  actually empties `state.conflicts` and returns `selectedConflictID` to
+  `nil`, proving the new `ConflictEngine.detect` filter is what makes
+  "advances... or resolves to normal" true for this option kind.
+- `ConflictEngineSkippedFilterTests` — pins the `ConflictEngine.detect` fix
+  directly: a routine event built with `status: .skipped` and a manual event
+  whose intervals still literally overlap produces zero conflicts.
+
+**Verified:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 285 passed test
+  runs / 0 failed per `xcresulttool`'s summary (up from 277 at the end of
+  P2-T16). One test needed a fix after its first run — the "advance to next
+  conflict" case initially compared against the pre-apply snapshot's
+  `ConflictOption.id`, which does not survive a fresh `detect` pass; corrected
+  to look the next conflict back up in the post-apply `state.conflicts` — see
+  `ApplyAdvanceTests` above.
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/
+  Tokens.swift is up to date.` — no new tokens invented; this task added no
+  new UI (`"Resolve Conflict"` is a string, not a token, and is the exact
+  name `UndoStack.swift`'s and `EventStore.transaction`'s own pre-existing
+  worked examples already use).
+- `Scripts/check-accessibility.sh` — `PASS (elements present)`, 20
+  block-shaped elements in the tree (unchanged from P2-T16's own run); the
+  `0` carrying the §11 label is the pre-existing, already-open A20b defect,
+  untouched by this task. The screen was unlocked for this run (real block
+  content printed, not the lock-probe's empty-tree signature), so this is a
+  real `PASS`, not the documented environmental exemption.
+- `design/GAPS.md` §5.2 summary in this file was stale (missing G-013/G-014)
+  before this task touched it; corrected in place rather than left — see the
+  note above §5.2's open-gap count.
+
+**Explicitly not built here:** the `TimeWindow` editor, `MenuBarExtra`,
+snooze. None of the three is blocked by anything found in this task. This
+closes out every item interactions.md §10 / components.md §14 name for
+conflict resolution itself (protected-window conflicts still need the
+`TimeWindow` model, which is a separate, larger piece of Phase 2 scope, not a
+gap in what §10/§14 describe).
 
 **Blocked:** nothing.

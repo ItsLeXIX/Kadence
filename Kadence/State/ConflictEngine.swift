@@ -13,18 +13,22 @@
 //    `BlockStyleResolver` / `GridBlockView`.
 //  - Build the "Needs your attention" row or the conflict panel
 //    (components.md §14, interactions.md §10).
-//  - Apply an option to the store, or touch `UndoStack` — "applying" is the
-//    future UI task's job (interactions.md §10.1: one named undo step).
+//  - Apply an option to the store, or touch `UndoStack` — that lives in
+//    `CalendarState.applyFocusedConflictOption` / `EventStore.swift` (task
+//    P2-T17), not here; this file only decides what "still unresolved"
+//    means for `detect`'s own next pass (see `.skipped` filter below).
 //  - Detect a protected-window conflict — no `TimeWindow` model exists yet
 //    (the brief's own next item after this one).
 //
 //  A conflict is exactly "an overlap between a routine block and an
 //  imported/manual event" (BRIEF-PRODUCT.md's own wording) — one event with
-//  `origin == .routine`, the other with `origin == .manual` or `.imported`.
-//  Two `.routine` events overlapping each other, two `.manual` events
-//  overlapping each other, or a `.routine` event overlapping a `.planned`
-//  event, are all out of scope: the brief only ever names routine-vs-
-//  imported/manual, and nothing else asks for more.
+//  `origin == .routine`, the other with `origin == .manual` or `.imported`,
+//  and the routine side not already `.skipped` (P2-T17, `design/GAPS.md`
+//  G-015 — see `detect`'s own inline comment). Two `.routine` events
+//  overlapping each other, two `.manual` events overlapping each other, or a
+//  `.routine` event overlapping a `.planned` event, are all out of scope: the
+//  brief only ever names routine-vs-imported/manual, and nothing else asks
+//  for more.
 //
 //  `Conflict`/`ConflictOption` hold direct `Event` (and, for the option's
 //  resolution, the routine's own `RoutineBlock`) references rather than
@@ -147,6 +151,24 @@ enum ConflictEngine {
         for i in events.indices {
             for j in (i + 1)..<events.count {
                 guard let pair = routineOtherPair(events[i], events[j]) else { continue }
+                // A `.skipped` occurrence is not competing for its slot any
+                // more (`EventStore.toggleSkipped`'s own doc comment: "puts
+                // the item back in the pool to be re-offered"), so it is not
+                // "an overlap" in this engine's own sense of the word even
+                // though its start/end are untouched. Needed so applying a
+                // `.skipToday` conflict option (`CalendarState
+                // .applyFocusedConflictOption`) actually resolves the
+                // conflict it was applied to, rather than the very next
+                // `detect` pass reporting the identical pair again —
+                // components.md §14.5's "advance to the next unresolved
+                // conflict, or return to normal if that was the last one"
+                // only holds if applying an option can make a conflict stop
+                // being reported. Neither this file's own original doc
+                // comment nor components.md §14 says whether status should
+                // gate detection at all; this is a deliberate, narrow answer
+                // to that silence, not a guess left unrecorded — see
+                // `design/GAPS.md` G-015.
+                guard pair.routine.status != .skipped else { continue }
                 guard overlaps(pair.routine, pair.other) else { continue }
 
                 let overlapStart = Swift.max(pair.routine.start, pair.other.start)

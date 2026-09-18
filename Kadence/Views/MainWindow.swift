@@ -277,14 +277,14 @@ struct MainWindow: View {
     }
 
     // MARK: Conflicts (P2-T14 wired Presentation.conflicted; P2-T15 added the
-    // "needs your attention" row and the static conflict panel; P2-T16 (this
-    // task) wired preview-on-focus and unconditional abandonment — see
-    // `CalendarState.conflicts`/`activateNeedsAttention()`/
-    // `moveSelectedConflictOption(by:)`/`abandonConflictPreview()`,
-    // `ConflictPanelView`, `ConflictPreviewFrames`, `isConflictPreviewActive`
-    // above, and the `.onChange`/`handleKey` wiring above/below. Still
-    // explicitly NOT built: `↩` apply, any `EventStore`/`UndoStack` mutation
-    // from the panel — a separate, later task.)
+    // "needs your attention" row and the static conflict panel; P2-T16 wired
+    // preview-on-focus and unconditional abandonment; P2-T17 (this task)
+    // wired `↩` apply — see `CalendarState.conflicts`/
+    // `activateNeedsAttention()`/`moveSelectedConflictOption(by:)`/
+    // `abandonConflictPreview()`/`applyFocusedConflictOption(store:
+    // recomputeConflicts:)`, `ConflictPanelView`, `ConflictPreviewFrames`,
+    // `isConflictPreviewActive` above, and the `.onChange`/`handleKey` wiring
+    // above/below.)
 
     /// Recomputed from the live `events`/`routineBlocks` queries on every body
     /// evaluation — `ConflictEngine.detect` is O(n²) over one day's/week's
@@ -476,6 +476,19 @@ struct MainWindow: View {
         case .downArrow where state.focusedRegion == .inspector && state.selectedConflictID != nil:
             state.moveSelectedConflictOption(by: 1); return .handled
 
+        // interactions.md §10.1's last paragraph — "↩ applies" the focused/
+        // previewed option. Same guard shape as the ↑/↓ cases above, plus a
+        // focused option to actually apply; placed ahead of the ordinary
+        // `.return` cases below (toggle done/skip, open inspector) for the
+        // same reason those two are ahead of the rest of the ladder — a
+        // focused conflict panel always wins. `↩` with the panel open but
+        // nothing previewed yet falls through to `.ignored` via the plain
+        // `.return` case's own `selected == nil` branch below, which is
+        // correct: there is nothing to apply.
+        case .return where state.focusedRegion == .inspector
+            && state.selectedConflictID != nil && state.selectedConflictOptionID != nil:
+            applyFocusedConflictOption(); return .handled
+
         case .leftArrow where option:
             if let selected { store.move(selected, by: -86400); return .handled }
             return .ignored
@@ -583,5 +596,19 @@ struct MainWindow: View {
     private func deleteSelection(_ event: Event) {
         state.selectedEventID = nil
         store.delete(event)
+    }
+
+    /// interactions.md §10.1 — `↩` apply. `recomputeConflicts` re-runs
+    /// `Self.sortedConflicts` against the live `events`/`routineBlocks`
+    /// queries — safe to read synchronously right after `store`'s
+    /// transaction returns because `EventStore.edit`'s fetch resolves to the
+    /// SAME `@Model` instances already sitting in `events` (one identity map
+    /// per `ModelContext`), so their `start`/`end`/`status` already carry the
+    /// new values by the time this closure runs, with no need to wait for
+    /// SwiftUI's own `@Query` refresh cycle.
+    private func applyFocusedConflictOption() {
+        state.applyFocusedConflictOption(store: store) {
+            Self.sortedConflicts(events: events, routineBlocks: routineBlocks)
+        }
     }
 }

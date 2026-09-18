@@ -162,6 +162,58 @@ no access to. Left as-is: today, ↑/↓ preview navigation requires either
 clicking the panel or `⇥`-ing into it first, even right after `⌘⇧A`. See
 `STATUS.md` §15.
 
+**Corrected 2026-09-18, task P2-T17 — the previous entry's "`↩` apply and any
+`EventStore`/`UndoStack` mutation from the panel remain out of scope" clause
+is now STALE.** `↩`, pressed while the inspector has focus, a conflict is
+selected, and an option is focused/previewed, now applies it
+(`CalendarState.applyFocusedConflictOption`, wired from
+`MainWindow.handleKey`): `.shiftLater` calls `EventStore.move`, `.shorten`
+calls `EventStore.resize`, `.skipToday` calls the new `EventStore.markSkipped`
+— all three wrapped in one `store.transaction("Resolve Conflict")`, so the
+Edit menu reads "Undo Resolve Conflict" (interactions.md §10.1's own words)
+and one ⌘Z reverts every block the option touched, not one step per block.
+Clearing `selectedConflictOptionID` immediately after (no code change needed
+beyond the assignment — `isConflictPreviewActive`/`activeConflictPreview`
+were already gated on it by P2-T16) drops the canvas's
+`size.previewCanvasBorder` border in the same call; `DayColumnView.blockStack`
+already keys `motion.blockMove`'s spring on `laidOut.frame` unconditionally
+(P2-T11), so the committed move/resize animates the same way a drag already
+does, with no new animation code. The method then re-runs `ConflictEngine
+.detect` (via a caller-supplied closure — `CalendarState` holds no query of
+its own) and either previews the next unresolved conflict's first (==
+recommended) option, or, if none remain, sets `selectedConflictID = nil`,
+which is what returns the inspector to its ordinary state and what the
+needs-attention row's own count (`state.conflicts`) reads to hide at zero —
+components.md §14.5's "no 'all clear' state" is satisfied by there being
+nothing built beyond that, not by a dedicated empty-state view.
+
+One thing built beyond a literal reading of the brief, and filed as
+`design/GAPS.md` G-015 rather than guessed past silently:
+**`ConflictEngine.detect` now excludes a pair whose `.routine`-origin side has
+`status == .skipped`.** Without it, applying `.skipToday` — which by design
+(G-014) never touches the occurrence's `start`/`end` — could not make
+`detect`'s plain interval-overlap check stop reporting the very pair it was
+just applied to, so "advances to the next conflict, or resolves to normal"
+could never actually progress for that option kind. The fix is one `guard` in
+the pairing loop, reasoned from `EventStore.toggleSkipped`'s own pre-existing
+doc comment ("puts the item back in the pool to be re-offered... never a
+failure state"): an occurrence put back in the pool is not still occupying
+the slot it was skipped out of. See G-015 for the full argument and what
+would need to change if a future spec pass answers this differently.
+
+`EventStore.markSkipped` (new) is deliberately not `toggleSkipped` reused: the
+existing method flips between `.skipped`/`.scheduled`, and re-applying a
+`.skipToday` resolution (or applying it to an occurrence something else had
+already skipped) must still land on `.skipped`, never silently un-skip it. It
+is a one-directional, idempotent write — see its own doc comment.
+
+Nothing about any of this is an invented UI value: `"Resolve Conflict"` is the
+exact string `UndoStack.swift`'s and `EventStore.transaction`'s own worked
+examples already use, and every token/animation reused (`motion.blockMove`,
+`size.previewCanvasBorder`) was already in place from P2-T16. Still out of
+scope, unchanged: the `TimeWindow` editor, `MenuBarExtra`, snooze. See
+`STATUS.md` §16.
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in

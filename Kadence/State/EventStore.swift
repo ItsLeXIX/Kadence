@@ -221,6 +221,28 @@ struct EventStore {
                      redo: { edit(id) { $0.status = new } },
                      undo: { edit(id) { $0.status = old } })
     }
+
+    /// Conflict resolution's `.skipToday` option (`ConflictEngine.swift`,
+    /// `CalendarState.applyFocusedConflictOption`) — interactions.md §10.1's
+    /// apply step is "write the previewed option to the store"; for a
+    /// destination-less option (`ConflictOption.newStart`/`newEnd == nil`)
+    /// that write is a status change, not a block move. Deliberately NOT
+    /// `toggleSkipped`: that method flips between `.skipped` and
+    /// `.scheduled`, and applying the same option twice (or applying it to
+    /// an occurrence some other path had already skipped) must still land on
+    /// `.skipped`, not silently un-skip it. A no-op — no undo step pushed —
+    /// when the event is already `.skipped`, matching every other verb
+    /// here's "changed nothing" guard (`move`'s `offset != 0`, `resize`'s
+    /// `start != oldStart || end != oldEnd`, `retitle`'s `trimmed !=
+    /// event.title`).
+    func markSkipped(_ event: Event) {
+        let id = event.id
+        let old = event.status
+        guard old != .skipped else { return }
+        undo.perform("Skip",
+                     redo: { edit(id) { $0.status = .skipped } },
+                     undo: { edit(id) { $0.status = old } })
+    }
 }
 
 // MARK: - Snapshot

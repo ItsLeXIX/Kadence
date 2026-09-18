@@ -992,3 +992,60 @@ ghost vocabulary it borrows), and every acceptance criterion this task was
 built against is satisfied by it. Needed only to close: an explicit ruling in
 `components.md` §14.4 on what, if anything, a `.skipToday` (or any other
 destination-less) option should additionally show beyond the ghost dim.
+
+---
+
+## 2026-09-18 — G-015 — neither `ConflictEngine.swift` nor components.md §14 says whether a `.skipped` occurrence still counts as "an overlap"
+
+**Where it bit:** task P2-T17, wiring `↩` apply
+(`CalendarState.applyFocusedConflictOption`, interactions.md §10.1's last
+paragraph) and, specifically, its `.skipToday` path
+(`EventStore.markSkipped`).
+
+**What the spec says.** `ConflictEngine.swift`'s own header (pre-existing,
+P2-T13): "A conflict is exactly 'an overlap between a routine block and an
+imported/manual event.'" `interactions.md` §10.1: "`↩` applies... and
+advances to the next unresolved conflict." `components.md` §14.5: "When the
+last conflict is resolved the panel... returns to the ordinary inspector."
+None of the three says whether an occurrence's `EventStatus` is part of what
+makes it "an overlap" — `ConflictEngine.detect` (as P2-T13 built it) reads
+only `origin` and the two intervals, never `status`.
+
+**What is missing / the conflict this produces.** `.skipToday`
+(`ConflictOption.skipsOccurrence == true`) does not move the routine
+occurrence — its `start`/`end` are untouched by design (see G-014). Applying
+it therefore cannot change what `detect`'s interval-overlap check sees.
+Taken literally, "an overlap between a routine block and an
+imported/manual event" is still true of the pair the instant after
+`.skipToday` is applied — the two intervals still overlap — so an
+unmodified `detect` would report the *exact same conflict* again on its very
+next pass, and "advances to the next unresolved conflict, or returns to
+normal if that was the last one" (§10.1/§14.5) could never actually progress
+for a `.skipToday` resolution: applying the only option on the only conflict
+would leave the panel pointed at the conflict it was just told to resolve,
+which is not "resolved and empty," and is not any other state the spec
+describes either.
+
+**What was built instead of guessing.** `ConflictEngine.detect` now excludes
+a pair whose `.routine`-origin side has `status == .skipped` (one added
+`guard` in the pairing loop, `Kadence/State/ConflictEngine.swift`) — reasoning
+from `EventStore.toggleSkipped`'s own pre-existing doc comment ("Skipping
+puts the item back in the pool to be re-offered. It is never a failure
+state"): an occurrence that has been put back in the pool is not, in any
+useful sense, still occupying the slot it was skipped out of, so it should
+not still register as colliding with whatever else is in that slot. This is
+a narrow, deliberate answer to a real silence, not an invented UI value —
+recorded here, in `ConflictEngine.detect`'s own inline comment, and in
+`DEVIATIONS.md` (task P2-T17), rather than built quietly.
+
+**Not blocking.** Every acceptance criterion P2-T17 was built against
+(single-step apply, canvas border drop, advance/resolve-to-normal, the
+`.skipToday` status write) is satisfied by this reading, and it changes
+nothing about `.shiftLater`/`.shorten`, which already clear the overlap by
+moving the interval. Needed only to close: an explicit ruling on whether
+`ConflictEngine.detect` (or, if the design intends conflicts to be
+status-agnostic, some other, not-yet-built place — e.g. a "skipped
+routine occurrences are excluded from the needs-attention count" rule stated
+in `components.md` §14 itself) should treat a `.skipped` routine event as no
+longer conflicting. If a future spec pass answers this differently, only the
+one `guard` in `ConflictEngine.detect` needs to change.

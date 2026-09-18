@@ -69,10 +69,8 @@ final class CalendarState {
     /// Driven by a timer at `motion.nowLineTick.interval`.
     var now: Date = Date()
 
-    // MARK: Conflicts (components.md §14, interactions.md §10.1's first
-    // sentence and §10.2 — entry point, preview and abandonment. `↩` apply
-    // and any `EventStore`/`UndoStack` mutation from the panel remain a
-    // separate, later task, per this task's (P2-T16) own brief.)
+    // MARK: Conflicts (components.md §14, interactions.md §10.1/§10.2 — entry
+    // point, preview, abandonment, and (P2-T17) `↩` apply.)
 
     /// Refreshed by `MainWindow` whenever the live `Event`/`RoutineBlock`
     /// queries change (`MainWindow.sortedConflicts(events:routineBlocks:)`,
@@ -169,6 +167,104 @@ final class CalendarState {
     /// treatment, per this task's own instructions.
     func abandonConflictPreview() {
         selectedConflictOptionID = nil
+    }
+
+    /// interactions.md §10.1's last paragraph / components.md §14.5 — `↩`
+    /// applies the focused/previewed option.
+    ///
+    /// Writes the option to `store` as ONE named undo step
+    /// (`"Resolve Conflict"` — `UndoStack.undoMenuTitle` prepends "Undo ",
+    /// so the Edit menu reads exactly "Undo Resolve Conflict",
+    /// interactions.md §10.1's own words), same composition pattern
+    /// `EventStore.transaction`'s own doc comment documents: the primitive
+    /// verb calls inside (`move`/`resize`/`markSkipped`) each open their own
+    /// `UndoStack.perform`, but because the outer `"Resolve Conflict"` group
+    /// is already open they join it instead of pushing steps of their own,
+    /// so one ⌘Z reverts every block this option touched.
+    ///
+    /// Dropping the canvas's `size.previewCanvasBorder` border needs no code
+    /// here beyond clearing `selectedConflictOptionID`: `MainWindow.canvas`'s
+    /// `isConflictPreviewActive` (and `DayColumnView`'s matching
+    /// `activeConflictPreview`) are already gated on exactly that field being
+    /// non-nil, same as `abandonConflictPreview()` above. Likewise, running
+    /// `motion.blockMove` on the committed frames needs no new animation
+    /// here: `DayColumnView.blockStack` already keys `.animation(...,
+    /// value: laidOut.frame)` on that spring for every block unconditionally
+    /// (P2-T11), so a `start`/`end` written by `store` animates into place
+    /// the same way any drag or resize already does.
+    ///
+    /// `recomputeConflicts` is the caller's job, not this method's: only
+    /// `MainWindow` (or a test's own `ModelContext`) can re-run
+    /// `ConflictEngine.detect` against the just-mutated data, since this
+    /// class holds no query of its own. Called *after* `store`'s transaction
+    /// runs, so its result is "what is still unresolved now" — the input
+    /// `ConflictOrdering.firstUnresolved` needs to either preview the next
+    /// conflict's first (== recommended — `ConflictEngine.finalize` already
+    /// sorts ascending by disturbance and marks index 0 recommended) option,
+    /// or, if nothing is left, return the inspector to its ordinary,
+    /// non-conflict state: `selectedConflictID = nil` alongside
+    /// `selectedConflictOptionID = nil` — components.md §14.5, "the panel
+    /// does not congratulate... returns to the ordinary inspector... no 'all
+    /// clear' state."
+    ///
+    /// A no-op (returns `false`, touches nothing) when there is no selected
+    /// conflict, it no longer exists in `conflicts`, or no option is
+    /// currently focused — `↩` with the panel open but nothing previewed yet
+    /// (right after `activateNeedsAttention()`) applies nothing, the same
+    /// "an option the user cannot see the consequence of is an option they
+    /// cannot rank" reasoning §10.1 gives for preview-on-focus in the first
+    /// place: there is no consequence in view to apply.
+    @discardableResult
+    func applyFocusedConflictOption(
+        store: EventStore,
+        recomputeConflicts: () -> [Conflict]
+    ) -> Bool {
+        guard let conflictID = selectedConflictID,
+              let conflict = conflicts.first(where: { $0.id == conflictID }),
+              let optionID = selectedConflictOptionID,
+              let option = conflict.options.first(where: { $0.id == optionID })
+        else { return false }
+
+        store.transaction("Resolve Conflict") {
+            switch option.kind {
+            case .shiftLater:
+                // Both endpoints move by the same delta — `move`, not
+                // `resize`: `resize` clamps a new start/end against the
+                // event's OWN still-live other endpoint, which is correct
+                // for a single-boundary drag but wrong here, where both
+                // boundaries are moving together.
+                if let newStart = option.newStart {
+                    store.move(conflict.routineEvent, toStart: newStart)
+                }
+            case .shorten:
+                // Exactly one boundary changes (`ConflictEngine
+                // .shortenOption`'s own doc comment); the other is handed
+                // back unchanged, so `resize`'s own clamp-against-the-
+                // unmoved-boundary logic is exactly the tool this shape
+                // needs.
+                store.resize(conflict.routineEvent, newStart: option.newStart, newEnd: option.newEnd)
+            case .skipToday:
+                // §10.1's general apply path is "write the previewed
+                // option's proposed frame(s) to the committed store" — for
+                // an option with no destination frame
+                // (`ConflictOption.newStart`/`newEnd == nil`,
+                // `skipsOccurrence == true`) that write is the `.skipped`
+                // status itself, not a block move. See `markSkipped`'s own
+                // doc comment for why it is not `toggleSkipped`.
+                store.markSkipped(conflict.routineEvent)
+            }
+        }
+
+        selectedConflictOptionID = nil
+        let refreshed = recomputeConflicts()
+        conflicts = refreshed
+        if let next = ConflictOrdering.firstUnresolved(refreshed) {
+            selectedConflictID = next.id
+            selectedConflictOptionID = next.options.first?.id
+        } else {
+            selectedConflictID = nil
+        }
+        return true
     }
 
     /// interactions.md §1 — the regions `⇥` cycles between, in spec order.
