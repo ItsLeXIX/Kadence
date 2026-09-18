@@ -3350,3 +3350,121 @@ separate future tasks, exactly as the brief specified — none blocked by
 anything found here.
 
 **Blocked:** nothing.
+
+## 20. P2-T19 — ConflictEngine: detect routine placements landing in a
+protected `TimeWindow` (data layer only, 2026-09-19)
+
+The piece §19 itself named as still not built: BRIEF-PRODUCT.md Phase 2's
+other conflict clause — "any automatic placement that would land in a
+protected window" — now buildable since a persisted `TimeWindow` (task
+P2-T18) exists. `ConflictEngine.swift`'s own header comment said explicitly
+"no TimeWindow model exists yet"; this task removes that gap. Data layer
+only — no editor UI, no panel wiring, no change to what `RoutineEngine
+.materialize` actually creates.
+
+**What changed:**
+
+1. `Kadence/Models/TimeWindow.swift` — added `spans(on:calendar:) ->
+   [(start: Date, end: Date)]`, ported from `TimeWindowFixture.spans(on:)`
+   (`DisplayFixtures.swift` ~line 78) with identical semantics: same-day
+   windows yield one span if `weekdays` is active that day; windows where
+   `endMinutes <= startMinutes` wrap midnight and split into an evening span
+   (today, if active) and a morning span (attributed to *yesterday's*
+   weekday, per the fixture's own convention), each independently gated by
+   `weekdays`.
+2. `Kadence/State/ConflictEngine.swift`:
+   - Generalized `shiftLaterOption`/`shortenOption` to take a private plain
+     `Interval` (start/end) struct instead of a full `Event`. Existing
+     `detect` call sites now build `Interval(start: pair.other.start, end:
+     pair.other.end)` and pass that — behavior is unchanged, since those two
+     functions previously only ever read `.start`/`.end` off the `Event` they
+     were given; nothing about `ConflictEngineTests.swift`'s pre-existing
+     cases moved.
+   - Added `detectWindowConflicts(events:routineBlocks:timeWindows:
+     calendar:)`, a new pure static function: for every non-`.skipped`
+     `.routine`-origin event, for every `.protected`-kind `TimeWindow`, for
+     every span that window has on the event's own `start` date (via step 1),
+     if the event's interval strictly overlaps that span, build a
+     `WindowConflict` using the exact same `makeOptions`/`finalize` pipeline
+     `detect` uses — same option kinds (shiftLater/shorten/skipToday), same
+     disturbance-minutes scale, same ascending-order/exactly-one-recommended
+     ranking. `.lowEnergy` and `.peakFocus` windows are filtered out up front
+     (`timeWindows.filter { $0.kind == .protected }`) — the brief names only
+     protected windows for this clause.
+   - Added `WindowConflict`, a sibling `Identifiable` struct to `Conflict`
+     (not a variant of it) — see its own doc comment and `detectWindow
+     Conflicts`'s doc comment for the reasoning: `Conflict.otherEvent` is a
+     live `Event` a future task calls `EventStore.move`/`resize`/`skip` on; a
+     `TimeWindow` supports none of those, so folding the two into one type
+     would mean weakening `otherEvent`'s non-optional guarantee for every
+     existing call site, or inventing a lossy stand-in `Event` for a window —
+     neither is warranted. Same field shape as `Conflict` otherwise
+     (`routineEvent`, `window` in place of `otherEvent`, `overlapStart`/
+     `overlapEnd`, `options`), same deterministic `id` construction
+     convention (`"<event>#<window>#<span start>"`).
+   - Extended the file's own header comment to record task P2-T19's scope and
+     the deliberate forward-reference it leaves: how (or whether)
+     `WindowConflict` surfaces next to `Conflict` in `ConflictPanelView` —
+     e.g. what the collision header shows when the "other side" is a window,
+     not a block (components.md §14.2) — is left for whichever follow-up task
+     wires it in. Nothing in this task's own scope needed that question
+     answered, so no new `design/GAPS.md` entry was filed for it (unlike
+     `detect`'s own G-015, which did need an answer to keep working).
+
+**Explicitly out of scope, confirmed untouched:** `ConflictPanelView.swift`,
+the needs-attention row/count, `CalendarState.applyFocusedConflictOption`,
+`EventStore.swift`, any `TimeWindow` editor UI, `RoutineEngine.materialize`'s
+creation logic (still creates occurrences at their configured time
+unconditionally — this task only adds detection on top, per the brief's own
+item 4).
+
+**New test coverage:** `KadenceTests/ConflictEngineTests.swift` (extended,
+existing suites untouched) — three new `@Suite`s appended at the bottom of
+the file:
+- `TimeWindowSpansTests` — mirrors `DensityAndGeometryTests.swift`'s existing
+  `TimeWindowFixture` wrap test: the seeded 22:00–07:00 protected Sleep
+  window yields two spans on a day (minutes `[0, 1320]` from that day's
+  midnight); a same-day window (13:00–14:30 low energy, active on a Friday)
+  yields exactly one span; a window inactive on the given weekday yields
+  none.
+- `ConflictWindowDetectionTests` — a routine event fully inside the seeded
+  protected Sleep window (22:30–23:30) produces exactly one `WindowConflict`
+  with `window.kind == .protected`, correct `overlapStart`/`overlapEnd`,
+  options non-empty, exactly one `isRecommended`, ascending disturbance
+  order, and a `skipToday` option present; a routine event inside only the
+  seeded lowEnergy window (13:00–14:00 Friday) produces no conflict; a
+  `.skipped` routine event inside the protected window produces no conflict
+  (same G-015 reasoning as `detect`); a `.manual` (non-routine) event inside
+  the protected window produces no conflict (the clause only names automatic
+  placements).
+- One pre-existing test in this file needed a one-line fix unrelated to this
+  task's logic: an `Event(...)` call in the new `.skipped`-routine test case
+  had `status:` after `externalID:`, which does not match `Event.init`'s
+  actual parameter order (`status` precedes `flexibility`) and failed to
+  compile; reordered the call site's arguments, no behavior change.
+
+**Verified:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`; 299 test cases
+  passed, 0 failed (per `xcrun xcresulttool get test-results summary`),
+  including all new `TimeWindowSpansTests`/`ConflictWindowDetectionTests`
+  cases; every pre-existing suite named in the task's acceptance list
+  (`ConflictEngineTests`, `ConflictApplyTests`, `ConflictEntryPointTests`,
+  `ConflictPresentationWiringTests`, `ConflictPreviewTests`,
+  `RoutineEngineTests`, `TimeWindowTests`) passed unmodified.
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/
+  Tokens.swift is up to date.` — no UI touched, no new tokens.
+- `Scripts/check-accessibility.sh` — `PASS (elements present)`, 20
+  block-shaped elements in the tree, identical count to P2-T18's last passing
+  run; the `0` carrying the §11 label is the pre-existing, already-open A20b
+  defect, untouched by this task. Screen confirmed unlocked for this run
+  (frontmost-app query via `osascript` succeeded).
+
+**Explicitly not built here:** any UI surfacing of `WindowConflict`
+(`ConflictPanelView`, needs-attention row/count); `RoutineEngine.materialize`
+avoiding protected windows at creation time; a `design/GAPS.md` entry (none
+was needed — see the header-comment note above).
+
+**Blocked:** nothing.

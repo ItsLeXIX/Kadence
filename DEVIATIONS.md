@@ -233,6 +233,23 @@ exactly as before (untouched by this task — confirmed via `git diff`),
 windows, and `ConflictEngine` still does not detect protected-window
 conflicts. See `STATUS.md` §19.
 
+**Corrected 2026-09-19, task P2-T19 — the immediately preceding paragraph's
+closing clause, "`ConflictEngine` still does not detect protected-window
+conflicts," is now STALE.** `Kadence/State/ConflictEngine.swift` gained
+`detectWindowConflicts(events:routineBlocks:timeWindows:calendar:)`: a
+non-`.skipped` `.routine`-origin event whose interval overlaps a
+`.protected`-kind `TimeWindow`'s span (via the new `TimeWindow.spans(on:
+calendar:)`, ported from `TimeWindowFixture.spans(on:)`) now produces a
+`WindowConflict` with the same ranked shiftLater/shorten/skipToday options,
+same disturbance scale, same exactly-one-`isRecommended` ranking `detect`
+already used for event-vs-event conflicts. `.lowEnergy`/`.peakFocus` windows
+are excluded — the brief names only protected windows for this clause. This
+closes that half of the gap and no other: still data layer only, still no
+`WindowConflict` wired into `ConflictPanelView`/the needs-attention row/count,
+still no `TimeWindow` editor UI, still no `[Blocks | Windows]` mode control,
+`RoutineEngine.materialize` still creates occurrences at their configured time
+unconditionally regardless of any window. See `STATUS.md` §20.
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in

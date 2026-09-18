@@ -417,8 +417,8 @@ struct ConflictWindowDetectionTests {
         let block = makeBlock(flexibility: .shiftable, shiftableMinutes: 180)
         let routine = Event(
             title: "Routine", start: time(22, 30), end: time(23, 30), origin: .routine,
-            flexibility: block.flexibility, sourceID: "template",
-            externalID: "\(block.id.uuidString)#2026-09-18", status: .skipped)
+            status: .skipped, flexibility: block.flexibility, sourceID: "template",
+            externalID: "\(block.id.uuidString)#2026-09-18")
         try insert(context, [block, routine])
 
         let windows = [makeSleepWindow()]
