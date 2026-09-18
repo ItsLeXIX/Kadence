@@ -113,6 +113,55 @@ Still absent, unchanged: preview-on-focus, `↩` apply, `⎋` abandonment
 the store, and protected-window conflicts (still no `TimeWindow` model). See
 `STATUS.md` §14.
 
+**Corrected 2026-09-18, task P2-T16 — the previous entry's "preview-on-focus,
+`⎋` abandonment" clause is now STALE.** Both now exist (components.md §14.4,
+interactions.md §10.1–§10.2): changing `selectedConflictOptionID` (↑/↓ in
+`MainWindow.handleKey`, scoped to the inspector having focus) drives a live
+canvas preview — `.previewed` (new `Presentation` flag) on the option's
+proposed frame, the real block retained as a dimmed ghost at its committed
+frame, and the calendar canvas's `size.previewCanvasBorder` accent inset
+border — and any of `⎋`, focus leaving the inspector, a view/anchor change, or
+collapsing the inspector reverts it unconditionally, no confirmation. `↩`
+apply and any `EventStore`/`UndoStack` mutation from the panel remain
+out of scope, unchanged, for the next task. Two judgement calls this task's
+own brief explicitly asked to be recorded rather than guessed past, neither an
+invented value:
+
+1. **The `.skipToday` preview treatment.** §14.4's wording ("every block the
+   option would move") is written for shift/shorten and does not say what
+   previewing a skip looks like — `.skipToday`'s `newStart`/`newEnd` are `nil`,
+   so there is no destination frame to draw a dashed twin at. This engine's
+   answer: the real block just dims to `opacity.blockDragOrigin` (the ghost),
+   and no dashed twin is drawn at all — `ConflictPreviewFrames.resolve`
+   returns `proposed == nil` for this kind, and `DayColumnView` only draws the
+   `.previewed` twin when `proposed` is non-nil. Filed as `design/GAPS.md`
+   G-014 rather than invented.
+2. **`abandonConflictPreview()`'s scope.** interactions.md §10.2 says a
+   pending preview is abandoned "the moment focus leaves the conflict panel",
+   and lists ⎋/click-away/view-change/paging/inspector-collapse as triggers.
+   It does not say whether "the panel" itself (i.e. `selectedConflictID`, the
+   inspector's whole conflict-mode display) also exits on those same
+   triggers, only that the preview does. Read narrowly — §10.2's own subject
+   is "a pending preview", not "conflict mode" — so all of the wired triggers
+   clear `selectedConflictOptionID` only; `selectedConflictID` survives, and
+   the panel stays open (with nothing focused) until the user picks another
+   option, applies one (a later task), or the conflict is otherwise resolved
+   (§14.5). The alternative reading (clearing both) would mean `⇥` cycling
+   through the inspector and back out silently ejects the user from the
+   conflict they were looking at, which nothing in §14.5 describes as a way to
+   leave conflict mode. See the doc comment on
+   `CalendarState.abandonConflictPreview()` for the same argument in place.
+
+Also noted, not filed as a gap: interactions.md §10.1 says the conflict panel
+is "a focus region reached from the needs-attention row, from `⌘⇧A`, or by `⇥`
+into the inspector" — read as literally as possible this could mean activating
+either of the first two also moves real keyboard focus into the inspector, but
+`CalendarState.activateNeedsAttention()` (P2-T15, unchanged here) does not,
+and doing so needs `MainWindow`'s own `@FocusState`, which `CalendarState` has
+no access to. Left as-is: today, ↑/↓ preview navigation requires either
+clicking the panel or `⇥`-ing into it first, even right after `⌘⇧A`. See
+`STATUS.md` §15.
+
 Re-audited **2026-09-10** against the *current* text of `design/components.md`,
 `design/layouts.md` and `design/interactions.md`, re-read this session rather
 than trusted from the previous audit — those three files were all edited in

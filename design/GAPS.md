@@ -953,3 +953,42 @@ never approaches either edge, so this does not affect the acceptance criteria
 task P2-T11 was built against. Needed only to close: an explicit ruling in
 `interactions.md` §11.1 (or a new subsection) on cross-midnight drag behaviour
 for a `RoutineBlock` specifically.
+
+---
+
+## 2026-09-18 — G-014 — §14.4 does not say what previewing a `.skipToday` conflict option looks like
+
+**Where it bit:** task P2-T16, wiring `components.md` §14.4's "preview in
+place" mechanic (`ConflictPreviewFrames` in `Kadence/State/CalendarState.swift`,
+consumed by `Kadence/Views/Canvas/DayColumnView.swift`).
+
+**What components.md §14.4 says.** "Focusing an option previews it on the real
+grid. Every block the option would move takes the `previewed` presentation
+(§6): proposed frame at `opacity.blockPreviewed` inside a dashed accent
+outline, current frame retained as a ghost at `opacity.blockDragOrigin`."
+
+**What is missing.** That sentence is written for `.shiftLater`/`.shorten` —
+options that have somewhere to move a block *to*. `.skipToday`
+(`ConflictOption.newStart`/`newEnd == nil`, `ConflictEngine.swift`'s own doc
+comment) proposes marking one occurrence `.skipped`, not moving it anywhere.
+§14.4 never says what "preview" means for an option with no destination frame:
+whether the block should show some other treatment (e.g. the `.skipped`
+presentation itself, previewed), or nothing beyond the ghost dim every option
+already gets.
+
+**What was built instead of guessing.** The routine block dims to
+`opacity.blockDragOrigin` (the ghost) exactly as it would for any other
+focused option on the same conflict, and no dashed `.previewed` twin is drawn
+— there is no proposed frame to draw one at, and manufacturing one (e.g. at
+the block's own unchanged position) would draw a dashed outline directly on
+top of the ghost, which reads as a rendering bug, not a preview.
+`ConflictPreviewFrames.resolve` returns `proposed == nil` for `.skipToday`,
+and `DayColumnView` only draws the `.previewed` twin when `proposed` is
+non-nil. See `DEVIATIONS.md`, task P2-T16.
+
+**Not blocking.** The dim-only treatment is legible on its own (dimming a
+block already reads as "something about to happen to this" from the drag
+ghost vocabulary it borrows), and every acceptance criterion this task was
+built against is satisfied by it. Needed only to close: an explicit ruling in
+`components.md` §14.4 on what, if anything, a `.skipToday` (or any other
+destination-less) option should additionally show beyond the ghost dim.

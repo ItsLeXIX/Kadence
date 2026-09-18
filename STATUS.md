@@ -2835,3 +2835,196 @@ apply, `⎋` abandonment, the TimeWindow editor, `MenuBarExtra`, snooze.
 None of them is blocked by anything found in this task.
 
 **Blocked:** nothing.
+
+## 17. P2-T16 — conflict panel preview-on-focus and unconditional abandonment (2026-09-18)
+
+The task §14 (P2-T15) deferred: components.md §14.4 ("Preview in place") and
+interactions.md §10.1 ("Focus and preview") / §10.2 ("Abandonment is
+unconditional"). `↩` apply and any `EventStore`/`UndoStack` mutation from the
+panel are explicitly **out of scope** here — next task's job.
+
+**What changed:**
+
+1. `Kadence/Models/Enums.swift` — added `Presentation.previewed` (bit 5). Its
+   doc comment records that the *ghost* half of §14.4 (the block's committed
+   frame retained on screen) is deliberately NOT a second `Presentation` flag
+   — it is the same real block rendered a second time at its real frame with
+   plain reduced opacity, not a new visual treatment of it.
+2. `Kadence/DesignSystem/BlockStyleResolver.swift` — `.previewed` sets
+   `border = color.interactive.accent`, `borderWidth = size.borderSelected`,
+   `borderDash = [3, 3]`, applied **last**, after the `status` switch and the
+   `.conflicted`-at-`.glyphOnly` override — §6's own table says "applied
+   last, after every row above it", and a resolver test
+   (`previewedWinsOverConflicted`) pins that a conflicted-and-previewed block
+   shows the accent dashed border, not the alert one.
+3. `Kadence/Views/Blocks/GridBlockView.swift` — the existing
+   `.opacity(presentation.contains(.dragging) ? ... : 1)` modifier gained a
+   `.previewed` branch, same seam, same pattern: `opacity.blockPreviewed`.
+4. `Kadence/State/CalendarState.swift` — three additions:
+   - `ConflictPreviewFrames` (new top-level struct, pure, `Equatable`) —
+     `.resolve(conflict:option:)` returns the routine event's real span
+     (`ghost`, always present) and the option's proposed span (`proposed`,
+     `nil` for `.skipToday`). This is the pure, testable seam the task asked
+     for, same shape as `MainWindow.conflictedEventIDs`/`sortedConflicts`.
+   - `moveSelectedConflictOption(by:)` — ↑/↓'s logic: steps through
+     `conflict.options` (the conflict named by `selectedConflictID`) in array
+     order, clamping at both ends (not wrapping — no options list has a
+     sensible "one past the end"), landing on the first option when nothing
+     was focused yet. A no-op if there is no matching conflict or it has no
+     options.
+   - `abandonConflictPreview()` — clears `selectedConflictOptionID` only.
+     **Deliberately leaves `selectedConflictID` alone** — the scope decision
+     the task asked to be recorded: §10.2's subject is "a pending preview,"
+     not "conflict mode," so tabbing away and back (or a stray `⎋`) reverts
+     the hypothetical without also ejecting the user from the conflict panel
+     they were looking at. See the method's own doc comment and
+     `DEVIATIONS.md` for the full argument.
+5. `Kadence/Views/Canvas/DayColumnView.swift` (not in the manager's expected
+   file list, touched because the preview has to render *somewhere* on the
+   real grid, and this is where every other per-day overlay — the drag drop
+   preview, the time cursor — already lives):
+   - `activeConflictPreview` — `nil` unless `state.selectedConflictID` names
+     a live conflict AND `state.selectedConflictOptionID` names one of its
+     options; otherwise `(conflict, ConflictPreviewFrames.resolve(...))`.
+   - `blockStack`'s ghost: `isPreviewGhost` is true whenever this event is
+     `activeConflictPreview`'s `conflict.routineEvent` — folded into the
+     existing `isDragged` opacity branch (`opacity.blockDragOrigin` either
+     way), so the real, committed block dims for *every* focused option on
+     its own conflict, `.skipToday` included, independent of whether that
+     option has a `proposed` frame to also draw a twin at.
+   - A new overlay, `conflictPreviewBlock`, drawn only when `proposed !=
+     nil` and its `start` falls on this day: a second, full `GridBlockView`
+     (not an empty dashed rectangle like the drag-drop preview — §14.4 shows
+     the block itself moving) at the proposed frame, `presentation:
+     [.previewed]`, sized like the drag/create previews (full column width
+     minus `spacing.xxs`, not `DayLayoutEngine`'s cascade math — this is a
+     hypothetical overlay, not a laid-out sibling). `.allowsHitTesting(false)`
+     (a click always reaches whatever is really there, which is what lets
+     "click the grid" already abandon the preview via the ordinary
+     focus-change path) and `.accessibilityHidden(true)` (a transient,
+     uncommitted copy of a block that already has its own accessible element
+     at its real frame). Keyed with `.animation(..., value: proposed)` using
+     `motion.blockMove`'s spring — interactions.md §10.1's own words,
+     "blocks travel from the old proposal to the new one, never via their
+     committed position": since this is the *same* view slot across an
+     option change (not a remounted one, and not gated on the option's own
+     id), SwiftUI animates directly between the two proposed frames and the
+     real block's ghost dim never toggles off in between.
+6. `Kadence/Views/MainWindow.swift`:
+   - `canvas` gained `.overlay { if isConflictPreviewActive { ... } }` — a
+     `Rectangle().strokeBorder(color.interactive.accent, lineWidth:
+     size.previewCanvasBorder)`, on the canvas only (not the sidebar, not the
+     inspector — components.md §14.4's own words), gated on
+     `selectedConflictOptionID != nil && activeConflict != nil` (not merely
+     `selectedConflictID != nil` — the panel can be open with nothing
+     focused yet right after `activateNeedsAttention()`, and that is not
+     itself a preview).
+   - `inspector` gained `.onKeyPress(keys: [.upArrow, .downArrow, .escape],
+     action: handleKey)` — the inspector never routed any key through
+     `handleKey` before this task (only `.onKeyPress(keys: [.tab])`), and
+     this hook is deliberately the narrow, `keys:`-filtered variant rather
+     than the grid's unrestricted `.onKeyPress(action: handleKey)`, so `t`,
+     delete, return and the option-modified moves stay grid-only exactly as
+     before.
+   - `handleKey` gained two new cases ahead of the pre-existing
+     `.upArrow`/`.downArrow` ladder: `case .upArrow/.downArrow where
+     state.focusedRegion == .inspector && state.selectedConflictID != nil`,
+     calling `state.moveSelectedConflictOption(by: -1/1)`. Placed first so a
+     focused conflict panel always wins regardless of an incidental modifier
+     key (in practice the inspector's own restricted `onKeyPress` is the
+     only path that can reach these keys with that guard true anyway).
+   - `handleKey`'s existing `.escape` case gained a new branch, checked
+     first and returning early so the pre-existing
+     selection→cursor→unfocused ladder is untouched when the grid (not the
+     inspector) has focus: `if state.focusedRegion == .inspector &&
+     state.selectedConflictID != nil { state.abandonConflictPreview();
+     return .handled }`.
+   - Four new abandonment hooks, interactions.md §10.2's "at minimum" list:
+     `.onChange(of: state.focusedRegion)` (clears the preview whenever focus
+     is not `.inspector` — covers `⇥` cycling away and clicking the
+     grid/sidebar, both of which already write `state.focusedRegion`),
+     `.onChange(of: state.mode)`, `.onChange(of: state.anchor)` (view switch
+     and paging), and `.onChange(of: state.isInspectorVisible)` (collapsing
+     the inspector). Toolbar buttons that do not themselves change
+     mode/anchor/focus/visibility (`+`, plain sidebar toggle) are not
+     separately wired — see `DEVIATIONS.md` for why this is judged
+     sufficient rather than a gap.
+7. `Kadence/Views/Chrome/ConflictPanelView.swift` — header comment corrected
+   (it previously said preview/apply/abandonment were "a separate, later
+   task" in a way that read as still true of the whole feature; it is now
+   accurate that only `↩` apply remains, and that the preview/abandonment
+   wiring this task added lives in `MainWindow`/`DayColumnView`/
+   `CalendarState`, not in this file, since this file has no access to the
+   calendar canvas).
+
+**Judgement calls, documented rather than guessed past** (both recorded in
+`DEVIATIONS.md`, one also filed as `design/GAPS.md` G-014):
+- **`.skipToday`'s preview treatment** — §14.4's wording is written for
+  shift/shorten and does not say what previewing a skip looks like. Built:
+  the ghost dims exactly as any other option would, no dashed twin is drawn
+  (there is no destination frame to draw one at). `design/GAPS.md` G-014.
+- **`abandonConflictPreview()`'s scope** — clears the preview only, leaves
+  `selectedConflictID` (and therefore the open panel) alone. See point 4
+  above and `DEVIATIONS.md` for the full argument.
+- **Not a gap, just noted:** interactions.md §10.1 says the conflict panel is
+  "a focus region reached from ... `⌘⇧A` ..., or by `⇥` into the inspector",
+  which could be read as `⌘⇧A`/the needs-attention row also moving real
+  keyboard focus into the inspector. `activateNeedsAttention()` (P2-T15,
+  unchanged here) does not do that, and cannot from `CalendarState` alone
+  (real focus lives in `MainWindow`'s own `@FocusState`). Left as-is: today,
+  ↑/↓ preview navigation needs an explicit `⇥` (or click) into the inspector
+  first, even right after `⌘⇧A`. See `DEVIATIONS.md`.
+
+**New test coverage:** `KadenceTests/ConflictPreviewTests.swift` (new file),
+same in-memory `ModelContainer`/`ModelContext` pattern as
+`ConflictEngineTests.swift`/`ConflictEntryPointTests.swift`:
+- `ConflictPreviewFramesTests` — `.shiftLater` and `.shorten` each produce
+  the correct `proposed` interval against the spec's own worked numbers
+  (reusing `ConflictEngineTests.swift`'s fixture shapes), `ghost` always
+  equals the routine event's real span; `.skipToday` produces `proposed ==
+  nil` while `ghost` still resolves (the documented treatment, not silent
+  omission); and a dedicated test proves the "never exposes the committed
+  frame as an intermediate value" property at the pure-function layer — the
+  `ghost` returned is identical across every option of the same conflict
+  (the one invariant), so there is no computed state anywhere in the mapping
+  that could read as "reverted to committed" in between two `proposed`
+  values.
+- `MoveSelectedConflictOptionTests` — both directions land on the first
+  option when nothing was focused; `↓` steps forward through
+  `conflict.options` in array order; `↑` steps backward and clamps at the
+  first option rather than wrapping; `↓` clamps at the last option; a no-op
+  when there is no selected conflict.
+- `AbandonConflictPreviewTests` — clears `selectedConflictOptionID` but
+  leaves `selectedConflictID` exactly as found (pinning the scope decision
+  above); a no-op-shaped call when nothing was focused disturbs nothing.
+- `KadenceTests/BlockStyleResolverTests.swift` gained two cases:
+  `.previewed` draws the dashed accent outline at `size.borderSelected`, and
+  it wins over `.conflicted`'s alert border when both are present (§6:
+  "applied last").
+
+**Verified:**
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 277 passed, 0
+  failed (up from 263 at the end of P2-T15; 14 new tests, none removed).
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/
+  Tokens.swift is up to date.` — no new tokens invented; every token this
+  task used (`opacity.blockPreviewed`, `opacity.blockDragOrigin`,
+  `size.previewCanvasBorder`, `size.borderSelected`, `color.interactive.accent`,
+  `motion.blockMove`) already existed from the Phase 2 token pass.
+- `Scripts/check-accessibility.sh` — `PASS (elements present)`, 20
+  block-shaped elements in the tree (unchanged from P2-T15's own run); the
+  `0` carrying the §11 label is the pre-existing, already-open A20b defect,
+  untouched by this task.
+- Confirmed by inspection: `↩` is bound to nothing in `ConflictPanelView` or
+  `MainWindow.handleKey`'s conflict-related cases; no code path this task
+  added touches `EventStore` or `UndoStack`.
+
+**Explicitly not built here, and not to be rediscovered by the next task:**
+`↩` apply (writing a chosen option to the store as one named undo step —
+interactions.md §10.1's last paragraph, components.md §14.5's "resolved and
+empty" state also depends on it), the `TimeWindow` editor, `MenuBarExtra`,
+snooze. None of the four is blocked by anything found in this task.
+
+**Blocked:** nothing.

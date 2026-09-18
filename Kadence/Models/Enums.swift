@@ -110,6 +110,16 @@ struct Presentation: OptionSet, Sendable, Hashable {
     static let dragging   = Presentation(rawValue: 1 << 2)
     static let conflicted = Presentation(rawValue: 1 << 3)
     static let past       = Presentation(rawValue: 1 << 4)
+    /// components.md §6/§14.4 — the block is shown at a *proposed* frame
+    /// during conflict resolution, not a committed one: `opacity.blockPreviewed`
+    /// inside a dashed accent outline. "Applied last, after every row above
+    /// it" per §6's own table, so `BlockStyleResolver` applies it after the
+    /// `status` switch. The block's *current* frame is retained as a ghost
+    /// elsewhere (a plain reduced-opacity render at the call site, per §14.4
+    /// — see `DayColumnView`), which is deliberately NOT a `Presentation`
+    /// flag of its own: it is the same block rendered a second time at its
+    /// real frame, not a new visual treatment of this one.
+    static let previewed  = Presentation(rawValue: 1 << 5)
 
     static let none: Presentation = []
 }

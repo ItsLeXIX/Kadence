@@ -91,6 +91,19 @@ struct DayColumnView: View {
                     dropPreview(preview.rect, isProtected: preview.isProtected)
                 }
 
+                // 6b. Conflict preview (components.md §14.4, interactions.md
+                // §10.1) — the focused option's proposed frame, drawn as a
+                // second, full copy of the routine block (not an empty
+                // outline like the drag drop-preview above: §14.4 says the
+                // block itself moves, not a placeholder for it). The real
+                // block's ghost dim is applied in `presentation(for:laidOut:)`
+                // below, on whichever `blockStack` already renders that event.
+                if let preview = activeConflictPreview, let proposed = preview.frames.proposed,
+                   Calendar.current.isDate(proposed.start, inSameDayAs: day) {
+                    conflictPreviewBlock(conflict: preview.conflict, proposed: proposed, width: width)
+                        .zIndex(1500)
+                }
+
                 // 7. The keyboard time cursor.
                 if let cursor = state.timeCursor,
                    Calendar.current.isDate(cursor, inSameDayAs: day),
@@ -141,6 +154,22 @@ struct DayColumnView: View {
         return draft
     }
 
+    // MARK: Conflict preview (components.md §14.4, interactions.md §10.1)
+
+    /// `nil` unless a conflict is both selected AND has a focused option —
+    /// matching the canvas border's own gate in `MainWindow.canvas` so the
+    /// two "a preview is active" reads never disagree. Recomputed on every
+    /// body evaluation, same reasoning as `MainWindow.conflictedEventIDs`'s
+    /// own doc comment: cheap relative to a hand-rolled cache.
+    private var activeConflictPreview: (conflict: Conflict, frames: ConflictPreviewFrames)? {
+        guard let conflictID = state.selectedConflictID,
+              let conflict = state.conflicts.first(where: { $0.id == conflictID }),
+              let optionID = state.selectedConflictOptionID,
+              let option = conflict.options.first(where: { $0.id == optionID })
+        else { return nil }
+        return (conflict, ConflictPreviewFrames.resolve(conflict: conflict, option: option))
+    }
+
     // MARK: A block plus its attached travel band
 
     @ViewBuilder
@@ -180,6 +209,14 @@ struct DayColumnView: View {
         let insideStrip = band != nil && !bandFitsAbove
         let aboveHeight = bandFitsAbove ? trueBandHeight : 0
         let isDragged = drag?.eventID == event.id
+        // components.md §14.4 — the real, committed block stays on screen as
+        // a ghost at `opacity.blockDragOrigin` for as long as ITS OWN conflict
+        // has a focused option, whatever kind that option is (including
+        // `.skipToday`, whose treatment is "the block just dims, no dashed
+        // twin" — see `ConflictPreviewFrames`'s own doc comment and
+        // DEVIATIONS.md). This is independent of whether that option actually
+        // has a `proposed` frame to draw a twin at.
+        let isPreviewGhost = activeConflictPreview?.conflict.routineEvent.id == event.id
 
         VStack(spacing: 0) {
             if let band, bandFitsAbove {
@@ -228,7 +265,7 @@ struct DayColumnView: View {
         // and Scripts/check-block-hit-regions.sh.
         .contentShape(Rectangle().inset(by: laidOut.hitInset))
         .offset(x: laidOut.frame.minX, y: laidOut.frame.minY - aboveHeight)
-        .opacity(isDragged ? Tokens.Opacity.blockDragOrigin : 1)
+        .opacity(isDragged || isPreviewGhost ? Tokens.Opacity.blockDragOrigin : 1)
         // interactions.md §8 — a draggable block gets the open hand; one that
         // cannot move keeps the arrow rather than promising a drag.
         .cursor(event.isMovable ? .openHand : .arrow)
@@ -409,6 +446,52 @@ struct DayColumnView: View {
             .offset(x: rect.minX, y: rect.minY)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+    }
+
+    /// The focused conflict option's proposed frame, rendered as a full,
+    /// second `GridBlockView` — not an outline like `dropPreview` above,
+    /// because §14.4 previews the block itself moving, not a placeholder for
+    /// where it would land. Sized like the drag/create previews (full column
+    /// width minus `spacing.xxs`, not `DayLayoutEngine`'s cascade math) —
+    /// this is a hypothetical overlay, not a laid-out sibling of the real
+    /// blocks on this day.
+    ///
+    /// Read-only by construction: `.allowsHitTesting(false)` means a click
+    /// always reaches whatever real content is behind it, which is what lets
+    /// "click the grid" already abandon the preview (§10.2) via the ordinary
+    /// focus-change path — this view adds no gesture of its own to abandon.
+    /// Hidden from accessibility for the same reason — it is a transient,
+    /// uncommitted copy of a block that already has its own accessible
+    /// element at its real frame; exposing a second element with the same
+    /// title would be confusing, not helpful, and interactions.md §10.3
+    /// (previewed blocks are not independently interactive) is explicitly
+    /// out of this task's scope to build further than "cannot be hit-tested".
+    private func conflictPreviewBlock(conflict: Conflict, proposed: DateInterval, width: CGFloat) -> some View {
+        let inset = Tokens.Spacing.xxs
+        let height = max(geometry.height(from: proposed.start, to: proposed.end), Tokens.Size.blockMinRenderedHeight)
+        var model = GridBlockModel(event: conflict.routineEvent, now: now)
+        model.start = proposed.start
+        model.end = proposed.end
+
+        return GridBlockView(
+            model: model,
+            presentation: [.previewed],
+            renderedHeight: height)
+            .frame(width: width - 2 * inset, height: height, alignment: .topLeading)
+            .offset(x: inset, y: geometry.y(for: proposed.start))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            // interactions.md §10.1 — "blocks travel from the old proposal to
+            // the new one, never via their committed position": keyed on the
+            // proposed interval itself (not e.g. the option id), so a change
+            // that leaves the frame untouched never re-triggers the spring,
+            // and any change that does move it animates directly between the
+            // two proposed frames.
+            .animation(
+                reduceMotion ? nil : .spring(
+                    response: Tokens.Motion.BlockMove.Spring.response,
+                    dampingFraction: Tokens.Motion.BlockMove.Spring.dampingFraction),
+                value: proposed)
     }
 
     private func timeCursor(at date: Date) -> some View {

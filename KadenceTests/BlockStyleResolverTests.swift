@@ -150,6 +150,21 @@ struct StateTests {
         #expect(both.contentOpacity == Tokens.Opacity.blockPastContent)
         #expect(both.glyph == "checkmark.circle.fill")
     }
+
+    @Test("Previewed (components.md §6/§14.4) draws a dashed accent outline, replacing any variant border")
+    func previewedDrawsDashedAccentOutline() {
+        let previewed = style(.routineTimed, presentation: .previewed)
+        #expect(previewed.border == Tokens.Color.Interactive.accent)
+        #expect(previewed.borderWidth == Tokens.Size.borderSelected)
+        #expect(previewed.borderDash == [3, 3])
+    }
+
+    @Test("Previewed is applied last — it overrides even conflicted's alert border")
+    func previewedWinsOverConflicted() {
+        let both = style(.routineTimed, presentation: [.conflicted, .previewed])
+        #expect(both.border == Tokens.Color.Interactive.accent, "§6: previewed is applied last, after every row above it")
+        #expect(both.borderWidth == Tokens.Size.borderSelected)
+    }
 }
 
 @Suite("Geometry and contrast")

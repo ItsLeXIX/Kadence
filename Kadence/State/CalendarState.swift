@@ -70,8 +70,9 @@ final class CalendarState {
     var now: Date = Date()
 
     // MARK: Conflicts (components.md §14, interactions.md §10.1's first
-    // sentence — entry point only; preview, apply and abandonment are a
-    // separate, later task, per this task's own brief)
+    // sentence and §10.2 — entry point, preview and abandonment. `↩` apply
+    // and any `EventStore`/`UndoStack` mutation from the panel remain a
+    // separate, later task, per this task's (P2-T16) own brief.)
 
     /// Refreshed by `MainWindow` whenever the live `Event`/`RoutineBlock`
     /// queries change (`MainWindow.sortedConflicts(events:routineBlocks:)`,
@@ -91,14 +92,20 @@ final class CalendarState {
 
     /// Which conflict the inspector's conflict-mode panel is showing, if any.
     /// `nil` means the inspector shows its ordinary event-details/day-summary
-    /// content. Set only by `activateNeedsAttention()` in this task — no ⎋
-    /// abandonment, no auto-clear when the underlying conflict disappears
-    /// (both are the follow-up task's job).
+    /// content. Set by `activateNeedsAttention()`. Deliberately NOT cleared by
+    /// `abandonConflictPreview()` — see that method's own doc comment for the
+    /// scope decision — nor auto-cleared when the underlying conflict
+    /// disappears (still the follow-up task's job, same as `↩` apply itself).
     var selectedConflictID: String?
 
     /// Which option row inside the active conflict is highlighted.
-    /// Selecting a row only highlights it (`color.interactive.selectedRowFill`)
-    /// in this task — no preview on the grid, no `↩` apply.
+    ///
+    /// P2-T15 wired this to the row highlight only
+    /// (`color.interactive.selectedRowFill`). P2-T16 additionally drives a
+    /// live canvas preview from it (`DayColumnView`) — every other
+    /// consequence of "changing this id" (the proposed frame it previews,
+    /// what reverting it means) lives there and in
+    /// `moveSelectedConflictOption(by:)`/`abandonConflictPreview()` below.
     var selectedConflictOptionID: UUID?
 
     /// components.md §14.1 / interactions.md §10.1's first sentence:
@@ -114,6 +121,54 @@ final class CalendarState {
         selectedEventID = nil
         userSetInspectorVisibility = true
         isInspectorVisible = true
+    }
+
+    /// interactions.md §10.1 — "`↑`/`↓` move between options. Moving focus
+    /// onto an option previews it immediately." Clamps at either end rather
+    /// than wrapping: there is no "one past the last option" state worth
+    /// landing on, the same engineering default `FocusRegion.next` documents
+    /// its own (different: wrapping) choice against, and the one
+    /// `ConflictEngine`'s own doc comments reach for whenever the spec is
+    /// silent on a tie-break. A no-op when there is no active conflict or it
+    /// has no options (never true post-`detect`, but a stale
+    /// `selectedConflictID` — e.g. the underlying events changed out from
+    /// under it — must not crash).
+    func moveSelectedConflictOption(by direction: Int) {
+        guard let conflict = conflicts.first(where: { $0.id == selectedConflictID }),
+              !conflict.options.isEmpty
+        else { return }
+
+        let options = conflict.options
+        guard let currentIndex = selectedConflictOptionID.flatMap(
+            { id in options.firstIndex { $0.id == id } })
+        else {
+            // Nothing focused yet — either direction lands on the first
+            // option; there is nothing "before" it to move up from.
+            selectedConflictOptionID = options[0].id
+            return
+        }
+        let nextIndex = max(0, min(options.count - 1, currentIndex + direction))
+        selectedConflictOptionID = options[nextIndex].id
+    }
+
+    /// interactions.md §10.2 — abandonment is unconditional and needs no
+    /// confirmation. Clears only the pending preview
+    /// (`selectedConflictOptionID`); `selectedConflictID` is deliberately
+    /// left alone.
+    ///
+    /// **Scope decision, recorded per this task's own brief:** §10.2's
+    /// subject is "a pending preview", not "conflict mode" — the panel
+    /// itself is not named among the things that revert. Reading it any
+    /// wider (clearing `selectedConflictID` too) would mean `⇥` cycling
+    /// through the inspector and back, or a stray `⎋`, silently kicks the
+    /// user out of the conflict they were looking at with no way back except
+    /// re-activating the needs-attention row — worse than doing nothing,
+    /// since nothing in `components.md` §14.5 describes focus loss as a way
+    /// to leave conflict mode (only "the last conflict is resolved" is).
+    /// Documented in DEVIATIONS.md alongside the `.skipToday` preview
+    /// treatment, per this task's own instructions.
+    func abandonConflictPreview() {
+        selectedConflictOptionID = nil
     }
 
     /// interactions.md §1 — the regions `⇥` cycles between, in spec order.
@@ -340,5 +395,50 @@ final class CalendarState {
             let sameMonth = calendar.isDate(first, equalTo: last, toGranularity: .month)
             return "\(sameMonth ? day.string(from: first) : dayMonth.string(from: first)) – \(full.string(from: last))"
         }
+    }
+}
+
+// MARK: - Conflict preview geometry (components.md §14.4, interactions.md §10.1)
+
+/// The ghost/proposed date-interval pair a focused `ConflictOption` implies —
+/// pure geometry, free of SwiftUI and the system clock, so `KadenceTests` can
+/// assert on it directly. The same seam `MainWindow.conflictedEventIDs`/
+/// `sortedConflicts` already established for the identical reason: a SwiftUI
+/// view hosted in a unit test cannot be inspected reliably on this platform
+/// (see `AccessibilityTests.swift`'s header), so the decision that would
+/// otherwise live inline in `DayColumnView` is pulled out as a `static`
+/// function over value types instead.
+struct ConflictPreviewFrames: Equatable {
+    /// The routine event's real, committed span. Always present — every
+    /// option kind dims the real block to `opacity.blockDragOrigin` while a
+    /// preview is active (components.md §14.4's own ghost rule), regardless
+    /// of whether that option has anywhere to move it.
+    let ghost: DateInterval
+
+    /// The option's proposed span, or `nil` for `.skipToday` —
+    /// `ConflictOption.newStart`/`newEnd` are `nil` for that kind because
+    /// there is nothing to move. §14.4's own wording ("every block the
+    /// option would move") is written for shift/shorten and does not say
+    /// what previewing a skip looks like; this engine's documented answer
+    /// (recorded in DEVIATIONS.md) is "the ghost dims, and there is no
+    /// dashed twin, because there is no destination frame to draw one at" —
+    /// `proposed == nil` is that answer, not an omission.
+    let proposed: DateInterval?
+
+    /// Pure mapping, not a stored transition: calling this again with a
+    /// different `option` for the same `conflict` returns `ghost` unchanged
+    /// and a fresh `proposed` — there is no intermediate state threaded
+    /// through, which is what makes "moving to another option previews the
+    /// new one directly, never via the committed frame" (interactions.md
+    /// §10.1) true at this layer. The SwiftUI-level guarantee (an
+    /// `.animation` keyed on this value, not a remount) is `DayColumnView`'s
+    /// job; this function only has to keep returning the one invariant
+    /// (`ghost`) and the one thing that actually changes (`proposed`).
+    static func resolve(conflict: Conflict, option: ConflictOption) -> ConflictPreviewFrames {
+        let ghost = DateInterval(start: conflict.routineEvent.start, end: conflict.routineEvent.end)
+        guard let newStart = option.newStart, let newEnd = option.newEnd else {
+            return ConflictPreviewFrames(ghost: ghost, proposed: nil)
+        }
+        return ConflictPreviewFrames(ghost: ghost, proposed: DateInterval(start: newStart, end: newEnd))
     }
 }

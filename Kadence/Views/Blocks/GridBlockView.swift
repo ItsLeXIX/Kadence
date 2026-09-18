@@ -160,7 +160,14 @@ struct GridBlockView: View {
         // selection ring (outside by design) and the elevation shadow.
         .frame(height: renderedHeight, alignment: .top)
         .clipShape(shape)
-        .opacity(presentation.contains(.dragging) ? Tokens.Opacity.blockDragging : 1)
+        // §6: `.dragging` and `.previewed` (components.md §14.4) are each a
+        // block shown somewhere other than its committed frame, and each
+        // dims for the same reason — a "not-quite-real" copy has to read as
+        // visually lighter than the real one, or the two are indistinguishable.
+        .opacity(
+            presentation.contains(.dragging) ? Tokens.Opacity.blockDragging
+            : presentation.contains(.previewed) ? Tokens.Opacity.blockPreviewed
+            : 1)
         .elevation(style.elevation)
         // Selection ring is drawn OUTSIDE the bounds with a 1pt gap (§6).
         .overlay {

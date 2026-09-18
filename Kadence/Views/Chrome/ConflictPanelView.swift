@@ -14,12 +14,14 @@
 //    true of `conflict.options` — `ConflictEngine.finalize` sorts it),
 //    min height, gap, radius and fills all from tokens.
 //
-//  What this file explicitly does NOT do (interactions.md §10.1's own scope,
-//  and this task's brief): preview an option on the real grid when it gains
-//  focus, apply an option with `↩`, or abandon the preview with `⎋`.
-//  Selecting a row (`onSelectOption`) only highlights it
-//  (`color.interactive.selectedRowFill`) — a separate, later task builds the
-//  rest of §14.4.
+//  What this file explicitly does NOT do: apply an option with `↩`. Selecting
+//  a row (`onSelectOption`) still only highlights it here
+//  (`color.interactive.selectedRowFill`) — but as of P2-T16, changing
+//  `selectedConflictOptionID` (this view's `onSelectOption` callback target)
+//  ALSO drives a live canvas preview and its `⎋`/focus-loss abandonment; that
+//  wiring lives in `MainWindow.swift`/`DayColumnView.swift`/`CalendarState.swift`,
+//  not in this file, since this file has no access to the calendar canvas.
+//  See those files for §14.4's preview and interactions.md §10.1–§10.2.
 //
 
 import SwiftUI

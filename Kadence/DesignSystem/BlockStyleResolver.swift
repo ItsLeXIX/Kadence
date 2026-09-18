@@ -218,6 +218,16 @@ func resolveBlockStyle(
         style.badge = nil
     }
 
+    // §6 `previewed` — "applied last, after every row above it". Replaces
+    // whatever border the variant/conflicted/skipped rows above left in
+    // place, same as `.conflicted`'s own border override; opacity is the
+    // view's job (`GridBlockView`, same seam as `.dragging`'s opacity).
+    if presentation.contains(.previewed) {
+        style.border = Tokens.Color.Interactive.accent
+        style.borderWidth = Tokens.Size.borderSelected
+        style.borderDash = [3, 3]
+    }
+
     return style
 }
 

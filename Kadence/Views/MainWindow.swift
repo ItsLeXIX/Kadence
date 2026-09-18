@@ -62,6 +62,28 @@ struct MainWindow: View {
                 // focused, so the shared state has to follow the real focus.
                 if let region { state.focusedRegion = region }
             }
+            // interactions.md §10.2 — "leaving the conflict panel" abandons
+            // any pending preview unconditionally. `state.focusedRegion`
+            // moving away from `.inspector` covers ⇥ cycling away and
+            // clicking the grid or sidebar (both write `state.focusedRegion`
+            // via `focused($focusedRegion, equals:)` above / `cycleFocus`) —
+            // §10.2's own list, minus the toolbar (see STATUS.md: the toolbar
+            // is not a tracked focus region, and the toolbar actions that
+            // actually change state — paging, view switch, closing the
+            // inspector — are each covered by their own `onChange` below).
+            .onChange(of: state.focusedRegion) { _, region in
+                if region != .inspector { state.selectedConflictOptionID = nil }
+            }
+            // interactions.md §10.2 — changing view mode or paging also
+            // abandons a pending preview; a hypothetical about a block on the
+            // day you just left stops meaning anything.
+            .onChange(of: state.mode) { _, _ in state.selectedConflictOptionID = nil }
+            .onChange(of: state.anchor) { _, _ in state.selectedConflictOptionID = nil }
+            // interactions.md §10.2 — collapsing the inspector hides the
+            // panel the preview belongs to.
+            .onChange(of: state.isInspectorVisible) { _, visible in
+                if !visible { state.selectedConflictOptionID = nil }
+            }
             // Keeps `state.conflicts` in sync with the live queries — see
             // `sortedConflicts(events:routineBlocks:)`'s own doc comment and
             // `CalendarState.conflicts`'s. Both queries can change
@@ -178,6 +200,31 @@ struct MainWindow: View {
         // container", so the ring is deliberately NOT disabled here.
         .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
         .onKeyPress(action: handleKey)
+        // components.md §14.4 — "while any preview is active the calendar
+        // canvas — not the sidebar, not the inspector — carries a
+        // `size.previewCanvasBorder` inset border". Gated on
+        // `selectedConflictOptionID`, not `selectedConflictID`: the panel can
+        // be open with nothing focused yet (right after
+        // `activateNeedsAttention()`), and that is not itself a preview.
+        .overlay {
+            if isConflictPreviewActive {
+                // `.strokeBorder` draws fully inside the shape's own bounds
+                // (inset by half the line width), which is what "inset
+                // border" means here — same drawing idiom `GridBlockView`
+                // already uses for its hover ring.
+                Rectangle()
+                    .strokeBorder(Tokens.Color.Interactive.accent, lineWidth: Tokens.Size.previewCanvasBorder)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    /// Backs the canvas border above and gates `DayColumnView`'s own preview
+    /// rendering identically (`activeConflict` is the same lookup both use),
+    /// so "a preview is active" never disagrees between the two.
+    private var isConflictPreviewActive: Bool {
+        state.selectedConflictOptionID != nil && activeConflict != nil
     }
 
     private var inspector: some View {
@@ -185,6 +232,16 @@ struct MainWindow: View {
             .focusable()
             .focused($focusedRegion, equals: .inspector)
             .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
+            // interactions.md §10.1/§10.2 — ↑/↓ move+preview between conflict
+            // options and ⎋ abandons, both scoped inside `handleKey` itself
+            // (`state.focusedRegion == .inspector && state.selectedConflictID
+            // != nil`). Deliberately a `keys:`-filtered hook, not the grid's
+            // unrestricted `.onKeyPress(action: handleKey)` — the inspector
+            // has never routed any other key through `handleKey` (`t`,
+            // delete, return, the option-modified moves are all grid-only,
+            // and stay that way), so only the three keys this task actually
+            // needs are forwarded.
+            .onKeyPress(keys: [.upArrow, .downArrow, .escape], action: handleKey)
     }
 
     private var inspectorBody: some View {
@@ -219,11 +276,15 @@ struct MainWindow: View {
         events.filter { Calendar.current.isDate($0.start, inSameDayAs: state.anchor) }
     }
 
-    // MARK: Conflicts (P2-T14 wired Presentation.conflicted; P2-T15 adds the
-    // "needs your attention" row and the static conflict panel — see
-    // `CalendarState.conflicts`/`activateNeedsAttention()`,
-    // `ConflictPanelView`. Still explicitly NOT built: preview-on-focus,
-    // `↩` apply, `⎋` abandonment — a separate, later task.)
+    // MARK: Conflicts (P2-T14 wired Presentation.conflicted; P2-T15 added the
+    // "needs your attention" row and the static conflict panel; P2-T16 (this
+    // task) wired preview-on-focus and unconditional abandonment — see
+    // `CalendarState.conflicts`/`activateNeedsAttention()`/
+    // `moveSelectedConflictOption(by:)`/`abandonConflictPreview()`,
+    // `ConflictPanelView`, `ConflictPreviewFrames`, `isConflictPreviewActive`
+    // above, and the `.onChange`/`handleKey` wiring above/below. Still
+    // explicitly NOT built: `↩` apply, any `EventStore`/`UndoStack` mutation
+    // from the panel — a separate, later task.)
 
     /// Recomputed from the live `events`/`routineBlocks` queries on every body
     /// evaluation — `ConflictEngine.detect` is O(n²) over one day's/week's
@@ -402,6 +463,19 @@ struct MainWindow: View {
         case KeyEquivalent("t") where press.modifiers.isEmpty:
             state.goToToday(); return .handled
 
+        // interactions.md §10.1 — "moving focus onto an option previews it
+        // immediately". Guarded on both the inspector having focus AND a
+        // conflict actually being selected, and placed ahead of every other
+        // `.upArrow`/`.downArrow` case below so a focused conflict panel
+        // always wins regardless of an incidental modifier key; this is the
+        // only path these two keys can reach here anyway, since the
+        // inspector's own `.onKeyPress` only forwards `.upArrow`/`.downArrow`/
+        // `.escape` (see `inspector`'s doc comment).
+        case .upArrow where state.focusedRegion == .inspector && state.selectedConflictID != nil:
+            state.moveSelectedConflictOption(by: -1); return .handled
+        case .downArrow where state.focusedRegion == .inspector && state.selectedConflictID != nil:
+            state.moveSelectedConflictOption(by: 1); return .handled
+
         case .leftArrow where option:
             if let selected { store.move(selected, by: -86400); return .handled }
             return .ignored
@@ -454,6 +528,15 @@ struct MainWindow: View {
             return .ignored
 
         case .escape:
+            // interactions.md §10.2 — "leaving the conflict panel" via ⎋,
+            // unconditional, no confirmation. Checked first and returns
+            // early so it cannot fall through into the selection/cursor
+            // ladder below, which is unrelated state and must keep working
+            // exactly as before when the grid (not the inspector) has focus.
+            if state.focusedRegion == .inspector && state.selectedConflictID != nil {
+                state.abandonConflictPreview()
+                return .handled
+            }
             // Selection mode → cursor mode → unfocused grid.
             if state.selectedEventID != nil {
                 state.selectedEventID = nil
