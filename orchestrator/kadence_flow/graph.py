@@ -136,7 +136,10 @@ def build(cfg: Config):
                     "with the specific question for Parsa in `blocker`.",
                     system_prompt=cfg.prompt("manager"), cwd=repo,
                     allowed_tools=[], permission_mode="dontAsk",
-                    max_turns=2, model=cfg.manager_model)
+                    # 2 was too tight: MA needs room to think and then emit the
+                    # JSON, and hitting this ceiling turned a recoverable
+                    # over-run into a BLOCKED run on 2026-09-24.
+                    max_turns=8, model=cfg.manager_model)
                 data = run.json
             except (MaxTurnsReached, ContractError) as e2:
                 return _ret(state, {

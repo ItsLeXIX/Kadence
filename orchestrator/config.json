@@ -5,7 +5,7 @@
   "manager_model": "sonnet",
   "designer_model": "opus",
   "coder_model": "sonnet",
-  "manager_max_turns": 40,
+  "manager_max_turns": 60,
   "worker_max_turns": 100,
   "max_cycles": 40,
   "max_cost_usd": 0,
