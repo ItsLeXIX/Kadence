@@ -1073,6 +1073,43 @@ in `Kadence/`.
   click target that reads *not selected* at baseline, and asserting on the
   transition. *Still open.*
 
+### Routines
+
+- **A25 — components.md §13.4. Detached instances (tracking, Re-sync, the
+  inspector's "Edited — differs" line) are entirely unbuilt.** *(new
+  2026-09-24, task P2-T28, giving this a proper A-list home; first surfaced by
+  task P2-T27 while attempting to capture `screenshots/2/` batch 1's items 4–5
+  and logged only in that task's `screenshots/2/INDEX.md` and in the scattered
+  task-preamble notes above — see "detached-instance" in this file's earlier
+  blocks, most recently P2-T21's note at `STATUS.md` §21 and P2-T25's at
+  `STATUS.md` §25.)* §13.4 specifies three things together, none of which
+  exist: per-occurrence detachment tracking when a routine-materialized event
+  is hand-edited on the main grid, a Re-sync button (with a confirmation
+  popover) to restore a detached occurrence to its template, and a main-grid
+  inspector line reading "Edited — differs" for a detached occurrence.
+
+  P2-T27 confirmed this by search rather than assumption —
+  `grep -rn "isDetached\|Detached\|Re-sync\|resync\|differs from\|instances
+  edited\|Revert to routine"` across `Kadence/` returns nothing but the
+  `resyncPopoverWidth` token itself (unused by any view) and
+  `RoutinesWindow.swift`'s own comments recording the gap. Concretely:
+  `RoutineEngine.materialize` only guards against re-creating an event that
+  already exists for a given `(sourceID, externalID)` pair — it has no concept
+  of "this occurrence was hand-edited," so it cannot distinguish an edited
+  instance from an untouched one; `EventStore.move`/`resize` have no special
+  case for a `.routine`-origin event at all, so editing one on the main grid
+  is indistinguishable from editing any other event; and
+  `RoutinesWindow.swift`'s `RoutineInspectorView.templateSummary` carries a
+  comment explaining exactly this — the edited-instance count is always zero,
+  so the row is omitted, not stubbed. Full grep evidence, the exact commands,
+  and the three images that could not be produced because of this
+  (`routine-detached-instances.png`, `routine-resync-popover.png`,
+  `routine-detached-instance-selected.png`) are in
+  `screenshots/2/INDEX.md`'s "What could not be captured" section — not
+  reproduced here to avoid duplication. *Still open* — building it is a
+  separate, much larger `RoutineEngine`-level task, out of scope for both
+  P2-T27 and P2-T28. See `STATUS.md` §28.
+
 ---
 
 ## B — built, but not the way the spec describes

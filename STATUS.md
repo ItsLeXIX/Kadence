@@ -4423,3 +4423,55 @@ animation state shared across the popover's `MenuBarExtra` scene and
 interactions.md §12 keyboard rows (`↑`/`↓`/`↩`/`⌘↩`/`⎋`) and its
 click-vs-keyboard focus rule; components.md §16's cross-scene block-move
 coordination with `MainWindow`.
+
+## 28. P2-T27 — Capture screenshots/2/ batch 1: Routines window (components.md §17 items 1-3, 2026-09-24)
+
+Capture-only task (commit `e899c23`); no `Kadence/`, `KadenceTests/` or
+`Scripts/` file was changed. Captured four PNGs plus `screenshots/2/INDEX.md`
+covering components.md §17 items 1–3 against the fixed mock dataset, dark
+appearance, the seeded "Daily routine" template and the three seeded
+`TimeWindow`s: `routine-template-flexibility.png` (item 1 — the three
+flexibility-rail styles, inset/solid/dotted, pixel-verified at 4–6× zoom
+against §2.3/§13.2), `routine-windows-all-three-kinds.png` (item 2 — protected
++ low-energy + peak-focus together, the one place all three kinds render at
+once), and `routine-blocks-mode-inactive-windows.png` /
+`routine-windows-mode-inactive-blocks.png` (item 3 — the inactive-layer
+dimming in each mode direction, pixel-checked with a histogram comparison and
+a composite-opacity solve landing on `Tokens.Opacity.editorInactiveLayer =
+0.4`, not just eyeballed). Full capture method (fixed window bounds read back
+via a `CGWindowListCopyWindowInfo` helper, real HID scroll/keystroke events,
+per-image pixel evidence) is in `screenshots/2/INDEX.md` — not reproduced
+here.
+
+**Items 4 and 5 were not captured, and could not be.** They require
+components.md §13.4 (detached-instance tracking, the Re-sync button and its
+confirmation popover, and the main-grid inspector's "Edited — differs" line),
+which has no implementation anywhere in `Kadence/` — confirmed by grep, not
+assumed (see `screenshots/2/INDEX.md`'s "What could not be captured" section
+for the exact commands and code-level citations, and `DEVIATIONS.md`'s new
+A25 entry for the permanent record). P2-T27 correctly declined to fake this
+by hand-writing detachment state into the data layer or adding throwaway UI;
+it reported the gap instead, consistent with every prior task's account of
+§13.4 back through P2-T10.
+
+This task (P2-T28) closes out P2-T27's own bookkeeping, which P2-T27 ran out
+of turns before doing: this STATUS.md section and `DEVIATIONS.md`'s A25 entry
+are new here; no screenshots, code, or `screenshots/2/INDEX.md` itself were
+touched or recaptured.
+
+**Verified (this task; no code changed):**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.`
+
+**Blocked:** components.md §13.4 in full (detached instances, Re-sync,
+"Edited — differs") — a separate, much larger `RoutineEngine`-level task if
+scheduled; out of scope for both P2-T27 and P2-T28. Next up otherwise
+unchanged from §27: the flexibility control's interactive stepper (§13.2);
+§17 items 6–12 (conflict panel states, needs-attention counts, preview-active
+state, menu bar extra states, snooze result row), deliberately deferred by
+P2-T27's own brief.
