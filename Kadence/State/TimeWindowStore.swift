@@ -34,6 +34,23 @@
 //  be answering a question this type was never asked, since the model that
 //  motivated G-013 (a bounded single-day field) does not apply here.
 //
+//  Task P2-T22 adds `resize`, the piece both P2-T20 (render-only) and P2-T21
+//  (select/move/delete) explicitly deferred: dragging a top or bottom edge,
+//  using "the same size.blockResizeHandleHeight handles blocks use"
+//  (components.md §13.3, verbatim). Same non-carryover as `move` above, for
+//  the same reason: `RoutineBlockStore.resize`'s clamp
+//  (`min(max(newStart,0), oldEnd-minimum)` / `max(min(newEnd,1440),
+//  start+minimum)`) answers a bounded-single-day question this type was
+//  never asked, so it is not reused. What *is* enforced, unchanged from that
+//  model, is the 15-minute minimum duration — RoutineBlock's own floor
+//  (interactions.md §4) — just computed on the wrapped/modular timeline the
+//  same way `move` above already does its wraparound arithmetic: a candidate
+//  edge is wrapped mod 1440 (never clamped into [0, 1440]), and if that
+//  candidate would leave less than 15 minutes measured forward from the
+//  *other*, fixed edge — wrapping past midnight exactly the way `spans(on:)`
+//  itself measures a window's own span — the edge is pulled back to exactly
+//  15 minutes instead of being allowed to collapse the window or invert it.
+//
 
 import Foundation
 import SwiftData
@@ -79,6 +96,71 @@ struct TimeWindowStore {
                      undo: { edit(id) { $0.startMinutes = oldStart; $0.endMinutes = oldEnd } })
     }
 
+    // MARK: Resize
+
+    /// Wraps a raw minute value into `[0, 1440)` — the same normalisation
+    /// `move` above applies to each end after adding its delta.
+    private func wrapMinutes(_ minutes: Int) -> Int {
+        ((minutes % 1440) + 1440) % 1440
+    }
+
+    /// Minutes from `start` forward to `end`, wrapping past midnight if
+    /// necessary — mirrors `spans(on:calendar:)`'s own branching exactly:
+    /// `end > start` is the plain same-day case; otherwise the span wraps,
+    /// and an *equal* `start`/`end` means a full 24-hour window (`spans(on:)`'s
+    /// `else` branch adds the whole day, split across two pieces), never a
+    /// zero-length one. Used only to decide whether a candidate edge would
+    /// leave at least the 15-minute minimum against the other, fixed edge.
+    private func modularDuration(from start: Int, to end: Int) -> Int {
+        end > start ? end - start : (1440 - start) + end
+    }
+
+    /// Drag a top or bottom edge (components.md §13.3: "the same
+    /// size.blockResizeHandleHeight handles blocks use"). Only one of
+    /// `newStartMinutes`/`newEndMinutes` is ever supplied by a real drag (one
+    /// handle moves one edge), but both are accepted independently, same
+    /// shape as `RoutineBlockStore.resize`.
+    ///
+    /// Each candidate edge is wrapped mod 1440 rather than clamped into
+    /// `[0, 1440]` — see this file's header for why `RoutineBlock`'s
+    /// day-bounded clamp (G-013) does not transfer to a type that already
+    /// supports wrapping past midnight. The only floor enforced is the same
+    /// 15-minute minimum `RoutineBlockStore.resize` and `EventStore.resize`
+    /// both use, computed with `modularDuration` above (forward, wrapping)
+    /// rather than a plain subtraction, so a resize that would collapse or
+    /// invert the window is pulled back to exactly 15 minutes instead —
+    /// never clamped to a boundary this type does not have, and never left
+    /// to invert into a near-24-hour window by accident.
+    func resize(_ window: TimeWindow, newStartMinutes: Int? = nil, newEndMinutes: Int? = nil) {
+        let minimum = 15
+        let id = window.id
+        let oldStart = window.startMinutes
+        let oldEnd = window.endMinutes
+
+        var start = oldStart
+        var end = oldEnd
+
+        if let newStartMinutes {
+            let candidate = wrapMinutes(newStartMinutes)
+            start = modularDuration(from: candidate, to: end) < minimum
+                ? wrapMinutes(end - minimum)
+                : candidate
+        }
+        if let newEndMinutes {
+            let candidate = wrapMinutes(newEndMinutes)
+            end = modularDuration(from: start, to: candidate) < minimum
+                ? wrapMinutes(start + minimum)
+                : candidate
+        }
+        guard start != oldStart || end != oldEnd else { return }
+
+        let finalStart = start
+        let finalEnd = end
+        undo.perform("Resize Time Window",
+                     redo: { edit(id) { $0.startMinutes = finalStart; $0.endMinutes = finalEnd } },
+                     undo: { edit(id) { $0.startMinutes = oldStart; $0.endMinutes = oldEnd } })
+    }
+
     // MARK: Delete
 
     /// Simpler than `RoutineBlockStore.delete`: a `TimeWindow` has no parent
@@ -105,8 +187,9 @@ struct TimeWindowStore {
         try? context.save()
     }
 
-    // Resize and create are deliberately NOT here — out of scope for this
-    // task, per its own brief. Next task's job.
+    // `create` (drag-to-create on empty windows-mode canvas) is still
+    // deliberately NOT here — out of scope for task P2-T22 too, per its own
+    // brief. Next task's job.
 }
 
 // MARK: - Snapshot (delete/undo)

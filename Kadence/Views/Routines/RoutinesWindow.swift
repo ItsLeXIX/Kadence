@@ -36,13 +36,21 @@
 //  components.md §7's "Editor exception" paragraph specifies, and the
 //  existing block/draft layer drops to `opacity.editorInactiveLayer` and
 //  `.allowsHitTesting(false)` (§13.3: "blocks drop to
-//  `opacity.editorInactiveLayer`, not hit-testable"). Still explicitly out of
+//  `opacity.editorInactiveLayer`, not hit-testable"). Task P2-T21 then made an
+//  EXISTING `TimeWindow` selectable, whole-span draggable and deletable in
+//  Windows mode — its own comments named resizing an edge and creating a new
+//  window as "next task's job". Task P2-T22 (this pass) is that next task for
+//  resizing: dragging within `Tokens.Size.blockResizeHandleHeight` of a
+//  selected span's top or bottom edge — "the same ... handles blocks use"
+//  (components.md §13.3, verbatim) — now resizes that edge through the new
+//  `TimeWindowStore.resize` instead of moving the whole span; a body drag
+//  still moves it, unchanged. Still explicitly out of
 //  scope, left for follow-up tasks:
-//    - dragging, resizing, creating or deleting a `TimeWindow`, and the
-//      inspector's kind picker for a selected window (components.md §13.3's
-//      "protected / low-energy / peak-focus regions editable" — this task
-//      only renders them; windows are not yet selectable or hit-testable in
-//      either mode);
+//    - creating a new `TimeWindow` (drag-to-create on empty windows-mode
+//      canvas), and the inspector's kind picker / weekday-set editing for a
+//      selected window (components.md §13.3's "protected / low-energy /
+//      peak-focus regions editable" — select/move/resize/delete now cover the
+//      rest of that sentence);
 //    - the flexibility control's interactive stepper (components.md §13.2) —
 //      the inspector still shows flexibility as read-only text;
 //    - detached-instance tracking and Re-sync (components.md §13.4,
@@ -492,12 +500,12 @@ private struct RoutineDayColumnView: View {
     /// weekday column, exactly the way `drag` above is — nothing persists
     /// until `commitDraft()` calls into `RoutineBlockStore.create`.
     @State private var draft: EventDraft?
-    /// In-flight whole-span `TimeWindow` drag (task P2-T21) — same
-    /// nothing-written-until-drop rule as `drag` above, but this one only
-    /// ever carries a live pixel offset for the ring/hit-region to follow
-    /// visually; the actual minute delta is computed once, at `.onEnded`,
-    /// exactly the way `blockGesture` computes its snapped result at drop
-    /// rather than on every frame.
+    /// In-flight `TimeWindow` drag (task P2-T21 move; task P2-T22 adds
+    /// resize) — same nothing-written-until-drop rule as `drag` above, but
+    /// this one only ever carries a live pixel translation for the
+    /// ring/hit-region to follow visually; the actual minute delta is
+    /// computed once, at `.onEnded`, exactly the way `blockGesture` computes
+    /// its snapped result at drop rather than on every frame.
     @State private var windowDrag: TimeWindowDragSession?
 
     struct RoutineDragSession: Equatable {
@@ -511,7 +519,14 @@ private struct RoutineDayColumnView: View {
     }
 
     struct TimeWindowDragSession: Equatable {
+        /// Analogous to `RoutineDragSession.Mode` above, minus `.create` — a
+        /// `TimeWindow` is never created from this drag (task P2-T22).
+        /// Classified once, from the drag's `startLocation` against the
+        /// dragged span's own top/bottom `Tokens.Size.blockResizeHandleHeight`
+        /// band, the same way `blockGesture` classifies `RoutineDragSession.Mode`.
+        enum Mode: Equatable { case move, resizeTop, resizeBottom }
         var windowID: UUID
+        var mode: Mode
         var translationHeight: CGFloat
     }
 
@@ -752,12 +767,13 @@ private struct RoutineDayColumnView: View {
         Int(date.timeIntervalSince(referenceDayStart) / 60)
     }
 
-    // MARK: TimeWindow select / move (task P2-T21)
+    // MARK: TimeWindow select / move / resize (tasks P2-T21, P2-T22)
     //
     // components.md §13.3: "protected / low-energy / peak-focus regions
-    // editable" in Windows mode — select, whole-span move, `⌫` delete for an
-    // EXISTING row. No resize handles, no drag-to-create, no kind picker —
-    // explicitly out of scope for this task, next task's job.
+    // editable" in Windows mode — select, whole-span move, top/bottom-edge
+    // resize, `⌫` delete for an EXISTING row. No drag-to-create, no kind
+    // picker, no weekday-set editing — still explicitly out of scope, next
+    // task's job.
 
     /// One hit-testable, selectable, draggable region per `(window, span)` —
     /// a window can produce more than one span on a given day when it wraps
@@ -781,13 +797,20 @@ private struct RoutineDayColumnView: View {
         // Live visual feedback only — nothing is written to the store until
         // `.onEnded`. Only the region belonging to the window actually being
         // dragged follows the pointer; every other window (and every other
-        // span of the *same* wrapping window) stays put.
-        let liveOffset: CGFloat = windowDrag.flatMap { $0.windowID == window.id ? $0.translationHeight : nil } ?? 0
+        // span of the *same* wrapping window) stays put. A `.move` drag
+        // translates the whole region; `.resizeTop`/`.resizeBottom` (task
+        // P2-T22) instead grow/shrink it from the edge being dragged, so the
+        // opposite edge visibly stays put while the pointer moves — the same
+        // "handle moves one edge, body moves the whole span" split
+        // `blockGesture`'s own drop preview already gives routine blocks.
+        let feedback = liveWindowFeedback(for: window)
+        let liveHeight = max(height + feedback.heightDelta, 0)
+        let liveY = y + feedback.offset
 
         return Rectangle()
             .fill(.clear)
             .contentShape(Rectangle())
-            .frame(height: height)
+            .frame(height: liveHeight)
             .frame(maxWidth: .infinity)
             // Selection ring — the app's one existing generic selection
             // vocabulary (`Tokens.Color.Interactive.focusRing` /
@@ -807,36 +830,88 @@ private struct RoutineDayColumnView: View {
                         .allowsHitTesting(false)
                 }
             }
-            .offset(y: y + liveOffset)
+            .offset(y: liveY)
             .accessibilityHidden(true)
             .onTapGesture { windowSelection = window.id }
-            .gesture(windowGesture(window: window, geometry: geometry))
+            .gesture(windowGesture(window: window, span: span, geometry: geometry))
     }
 
-    /// Whole-span move only — every drag on a window's body is `.move`, no
-    /// resize-handle branch (that is next task's job). Mirrors
-    /// `blockGesture`'s snap shape: the raw pixel delta becomes a time delta,
-    /// snapped via `TimeGeometry.snap` (15-minute, 5-minute with `⌃`), and
-    /// only written to `TimeWindowStore` on `.onEnded` — `windowDrag` above
-    /// exists purely so the hit region can follow the pointer live.
-    private func windowGesture(window: TimeWindow, geometry: TimeGeometry) -> some Gesture {
+    /// The live pixel translation/height-delta `windowHitRegion` applies for
+    /// `window`, or all-zero when no drag is in flight for it (task P2-T22).
+    private func liveWindowFeedback(for window: TimeWindow) -> (offset: CGFloat, heightDelta: CGFloat) {
+        guard let windowDrag, windowDrag.windowID == window.id else { return (0, 0) }
+        switch windowDrag.mode {
+        case .move:
+            return (windowDrag.translationHeight, 0)
+        case .resizeTop:
+            // The top edge follows the pointer; the bottom edge (`y + height`)
+            // must stay fixed, so the region's height shrinks by exactly the
+            // same amount its top moves down.
+            return (windowDrag.translationHeight, -windowDrag.translationHeight)
+        case .resizeBottom:
+            // The bottom edge follows the pointer; the top stays fixed, so
+            // only the height changes.
+            return (0, windowDrag.translationHeight)
+        }
+    }
+
+    /// Whole-span move, or a top/bottom-edge resize (task P2-T22) — mode is
+    /// classified once from the drag's `startLocation` against `span`'s own
+    /// top/bottom `Tokens.Size.blockResizeHandleHeight` band, exactly the way
+    /// `blockGesture` classifies `RoutineDragSession.Mode`. Snap (15-minute,
+    /// 5-minute with `⌃`) via `TimeGeometry.snap`, same rule every other drag
+    /// in this window already uses, and only written to `TimeWindowStore` on
+    /// `.onEnded` — `windowDrag` exists purely so the hit region can follow
+    /// the pointer live in between.
+    ///
+    /// `span` is whichever single rendered span of `window` the pointer went
+    /// down on — a wrapping window can render two (`spans(on:)`'s own doc
+    /// comment). Per this task's own brief, that is not special-cased further:
+    /// a top-edge drag always resizes `window.startMinutes`, a bottom-edge
+    /// drag always resizes `window.endMinutes`, measured from `span.start`/
+    /// `span.end` respectively — correct for the common (non-wrapping)
+    /// case, and `TimeWindowStore.resize`'s own modular arithmetic is what
+    /// makes the render layer recompute both spans from the result either way.
+    private func windowGesture(window: TimeWindow, span: (start: Date, end: Date), geometry: TimeGeometry) -> some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { value in
-                windowDrag = TimeWindowDragSession(windowID: window.id, translationHeight: value.translation.height)
+                let handle = Tokens.Size.blockResizeHandleHeight
+                let spanY = geometry.y(for: span.start)
+                let spanHeight = max(geometry.height(from: span.start, to: span.end), 0)
+                let localY = value.startLocation.y - spanY
+                let mode: TimeWindowDragSession.Mode =
+                    localY <= handle ? .resizeTop
+                    : localY >= spanHeight - handle ? .resizeBottom
+                    : .move
+                windowDrag = TimeWindowDragSession(windowID: window.id, mode: mode, translationHeight: value.translation.height)
             }
             .onEnded { value in
                 defer { windowDrag = nil }
+                guard let mode = windowDrag?.mode else { return }
                 let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
                 let deltaTime = TimeInterval(value.translation.height / hourHeight) * 3600
-                // `referenceDayStart` is just a stable anchor here — snapping
-                // and then differencing against the same anchor yields the
-                // correct elapsed minute delta regardless of which calendar
-                // day `TimeGeometry.snap` resolves internally, the same
-                // reasoning `blockGesture`/`minutes(for:)` already rely on.
-                let snapped = TimeGeometry.snap(referenceDayStart.addingTimeInterval(deltaTime), toMinutes: snap)
-                let deltaMinutes = Int(snapped.timeIntervalSince(referenceDayStart) / 60)
                 windowSelection = window.id
-                timeWindowStore.move(window, byDeltaMinutes: deltaMinutes)
+
+                switch mode {
+                case .move:
+                    // `referenceDayStart` is just a stable anchor here —
+                    // snapping and then differencing against the same anchor
+                    // yields the correct elapsed minute delta regardless of
+                    // which calendar day `TimeGeometry.snap` resolves
+                    // internally, the same reasoning `blockGesture`/
+                    // `minutes(for:)` already rely on.
+                    let snapped = TimeGeometry.snap(referenceDayStart.addingTimeInterval(deltaTime), toMinutes: snap)
+                    let deltaMinutes = Int(snapped.timeIntervalSince(referenceDayStart) / 60)
+                    timeWindowStore.move(window, byDeltaMinutes: deltaMinutes)
+                case .resizeTop:
+                    let snapped = TimeGeometry.snap(span.start.addingTimeInterval(deltaTime), toMinutes: snap)
+                    let deltaMinutes = Int(snapped.timeIntervalSince(span.start) / 60)
+                    timeWindowStore.resize(window, newStartMinutes: window.startMinutes + deltaMinutes)
+                case .resizeBottom:
+                    let snapped = TimeGeometry.snap(span.end.addingTimeInterval(deltaTime), toMinutes: snap)
+                    let deltaMinutes = Int(snapped.timeIntervalSince(span.end) / 60)
+                    timeWindowStore.resize(window, newEndMinutes: window.endMinutes + deltaMinutes)
+                }
             }
     }
 

@@ -113,10 +113,44 @@ visible, and where two windows' regions do overlap, frontmost-in-`ForEach`-
 order wins the tap, same "today's build keeps frontmost-wins, nothing
 invented" precedent this file's own G-010/A24 already establish for
 overlapping blocks. **Still absent, unchanged, still explicitly out of
-scope:** creating a new `TimeWindow` (drag-to-create), resizing one (a
-top/bottom edge drag), the inspector's kind picker, weekday-set editing,
-`RoutineEngine.materialize` honouring windows, `MenuBarExtra`, snooze — next
-task's job. See `STATUS.md` §22.)*
+scope (at the time):** creating a new `TimeWindow` (drag-to-create), resizing
+one (a top/bottom edge drag), the inspector's kind picker, weekday-set
+editing, `RoutineEngine.materialize` honouring windows, `MenuBarExtra`,
+snooze — next task's job. See `STATUS.md` §22.)*
+
+**Corrected 2026-09-24, task P2-T22 — the immediately preceding paragraph's
+"resizing one (a top/bottom edge drag)" clause is now STALE.**
+`Kadence/State/TimeWindowStore.swift` gained `resize(_:newStartMinutes:newEndMinutes:)`,
+mirroring `RoutineBlockStore.resize`'s shape (P2-T11) but, like `move` above,
+**not** its day-bounded clamp (G-013): a candidate edge wraps mod 1440
+(`wrapMinutes`) rather than clamping into `[0, 1440]`, and the only floor is
+the same 15-minute minimum `RoutineBlockStore.resize`/`EventStore.resize`
+both use — computed with a new `modularDuration(from:to:)` helper that
+measures forward and wraps past midnight exactly the way
+`spans(on:calendar:)` itself measures a window's span (equal start/end reads
+as a full 24-hour window, never zero — matching `spans(on:)`'s own `else`
+branch), not a plain subtraction. If a candidate edge would leave less than
+15 minutes against the other, fixed edge, it is pulled back to exactly 15
+minutes rather than collapsing or inverting the window. Named undo step
+`"Resize Time Window"`, matching this file's existing `"Move Time
+Window"`/`"Delete Time Window"` naming. `RoutinesWindow.swift`'s
+`TimeWindowDragSession` gained a `Mode` (`.move`/`.resizeTop`/`.resizeBottom`,
+analogous to `RoutineDragSession.Mode`), classified from the drag's
+`startLocation` against the dragged span's own top/bottom
+`Tokens.Size.blockResizeHandleHeight` band — the exact classification shape
+`blockGesture` already uses for routine blocks, per components.md §13.3's own
+"the same size.blockResizeHandleHeight handles blocks use." One narrow
+judgement call, not a spec gap: a wrapping window can render two spans on a
+given day (`spans(on:calendar:)`'s own doc comment); per this task's own
+brief, that is not special-cased in the gesture — whichever single span the
+pointer went down on supplies the reference date, and a top-edge drag always
+resizes `window.startMinutes` while a bottom-edge drag always resizes
+`window.endMinutes`, regardless of which span. Correct for the common
+(non-wrapping) case; the render layer already recomputes both spans from the
+resulting fields either way. **Still absent, unchanged, still explicitly out
+of scope:** creating a new `TimeWindow` (drag-to-create), the inspector's
+kind picker, weekday-set editing, `RoutineEngine.materialize` honouring
+windows, `MenuBarExtra`, snooze — next task's job. See `STATUS.md` §23.)*
 
 *(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
 (`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/

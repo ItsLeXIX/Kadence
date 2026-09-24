@@ -3729,3 +3729,118 @@ for overlapping blocks, not a new gap.
 edge) and drag-to-create, the inspector's kind picker and weekday-set editing
 for a selected window, `RoutineEngine.materialize` honouring protected
 windows, `MenuBarExtra`, snooze.
+
+## 23. P2-T22 — TimeWindow editor: resize existing windows by dragging top/bottom edge (Windows mode, 2026-09-24)
+
+The piece §21/§22's own text named as "next task's job": resizing an
+**existing** `TimeWindow` by dragging its top or bottom edge, using
+"the same `size.blockResizeHandleHeight` handles blocks use" (components.md
+§13.3, verbatim). Select/move/delete (P2-T21) are unchanged; this task only
+adds the resize half.
+
+**What was built:**
+
+- `Kadence/State/TimeWindowStore.swift` — new `resize(_:newStartMinutes:newEndMinutes:)`,
+  mirroring `RoutineBlockStore.resize`'s shape (accepts either or both ends
+  independently, one named `UndoStack` step) but **not** its clamp. Per this
+  file's own header (already explaining why `move` doesn't reuse G-013's
+  day-bounded clamp), `resize` doesn't either: a candidate edge is wrapped
+  mod 1440 (`wrapMinutes`, the same normalisation `move` already applies)
+  rather than clamped into `[0, 1440]`. The only floor is the same 15-minute
+  minimum `RoutineBlockStore.resize`/`EventStore.resize` both use
+  (interactions.md §4), computed with a new `modularDuration(from:to:)`
+  helper that measures forward and wraps past midnight exactly the way
+  `spans(on:calendar:)` itself measures a window's span (an *equal*
+  start/end reads as a full 24-hour window, never zero, matching
+  `spans(on:)`'s own `else` branch) — not a plain subtraction, which would
+  give the wrong answer once either end can wrap. If a candidate edge would
+  leave less than 15 minutes measured that way against the other, fixed
+  edge, it is pulled back to exactly 15 minutes instead of being allowed to
+  collapse the window or invert it. Named undo step `"Resize Time Window"`,
+  matching the file's existing `"Move Time Window"`/`"Delete Time Window"`
+  naming. A candidate that changes neither end is a no-op and pushes no step.
+- `Kadence/Views/Routines/RoutinesWindow.swift`:
+  - `TimeWindowDragSession` gained a `Mode` enum (`.move` / `.resizeTop` /
+    `.resizeBottom`, analogous to `RoutineDragSession.Mode` minus `.create` —
+    a window is never created from this drag) alongside its existing
+    `translationHeight`.
+  - `windowGesture(window:span:geometry:)` now classifies the drag's mode
+    once, from `value.startLocation` against `span`'s own top/bottom
+    `Tokens.Size.blockResizeHandleHeight` band — the identical classification
+    shape `blockGesture` already uses for routine blocks (`localY <= handle`
+    → `.resizeTop`, `localY >= height - handle` → `.resizeBottom`, else
+    `.move`). `.onEnded` now switches on that mode: `.move` calls the
+    existing `TimeWindowStore.move` unchanged; `.resizeTop`/`.resizeBottom`
+    call the new `TimeWindowStore.resize`, snapping the dragged edge's new
+    date via `TimeGeometry.snap` (15-minute, 5-minute with `⌃`, same rule
+    every other drag in this window already uses) before differencing it
+    against the span's own start/end to get the minute delta applied to
+    `window.startMinutes`/`endMinutes`.
+  - `windowHitRegion` gained `liveWindowFeedback(for:)`, replacing the old
+    single `liveOffset` computation: `.move` translates the whole region
+    (unchanged from P2-T21); `.resizeTop` translates the top edge *and*
+    shrinks the height by the same amount, so the bottom edge visibly stays
+    put while dragging; `.resizeBottom` only grows/shrinks the height, so the
+    top edge stays put. This is live visual feedback only — nothing is
+    written to `TimeWindowStore` until `.onEnded`, same rule P2-T21 already
+    established for the move case.
+  - A window that wraps past midnight can render two spans on a given day
+    (`spans(on:calendar:)`'s own doc comment); per this task's own brief,
+    that is **not** special-cased in the gesture — whichever single span the
+    pointer went down on supplies the reference date for that edge, and a
+    top-edge drag always resizes `window.startMinutes` while a bottom-edge
+    drag always resizes `window.endMinutes`, regardless of which span. This
+    is correct for the common (non-wrapping) case; the render layer already
+    recomputes both spans from the resulting fields either way, per the
+    task's own instruction not to special-case the wrap here.
+- `KadenceTests/TimeWindowStoreTests.swift` — new `TimeWindowStoreResizeTests`
+  suite, eight cases: top-edge resize changes only `startMinutes` and names
+  the step; bottom-edge resize changes only `endMinutes`; a bottom-edge drag
+  past 24:00 wraps into the small hours instead of clamping at 1440; a
+  top-edge drag before 00:00 wraps into the previous day's tail instead of
+  clamping at 0; a top-edge drag that would leave less than 15 minutes before
+  the fixed bottom edge is pulled back to exactly 15 (not collapsed or
+  inverted); the symmetric bottom-edge case; a no-op candidate pushes no undo
+  step; undo restores the exact original `startMinutes`/`endMinutes` and redo
+  reapplies both changed ends. All eight pass individually
+  (`-only-testing:KadenceTests/TimeWindowStoreResizeTests`) and as part of the
+  full suite.
+
+**Verified:**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`; 290 unique test
+  names (counted from the raw log's `Test case '...' passed` lines,
+  deduplicated — up from §22's reported count by the 8 new
+  `TimeWindowStoreResizeTests` cases), 321 `passed` lines (the surplus is
+  parameterized cases logged per argument, same wobble this file has noted
+  since §1.4), 0 failed.
+- `-only-testing:KadenceTests/TimeWindowStoreResizeTests` alone —
+  `** TEST SUCCEEDED **`, all eight new cases passed individually.
+- `-only-testing:KadenceTests/RoutineBlockStoreResizeTests` alone —
+  `** TEST SUCCEEDED **`, all five pre-existing cases (`resizeTop`,
+  `resizeBottom`, `clampsToMinimumDuration`, `noOpDoesNotPush`, `undoRedo`)
+  still pass unchanged — confirms Blocks-mode routine-block resize is
+  unaffected by this task's changes.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.` — no new tokens needed;
+  `Tokens.Size.blockResizeHandleHeight` already existed (used already by
+  `blockGesture`/`GridBlockView`'s hover handles).
+- Lock probe run first per Parsa's 2026-09-18 ruling: `swift -e
+  'CGSessionCopyCurrentDictionary()'` → the dictionary has no
+  `CGSSessionScreenIsLocked` key at all (i.e. unlocked),
+  `kCGSSessionOnConsoleKey = 1`. `Scripts/check-accessibility.sh` taken at
+  face value per that same ruling: `PASS (elements present)`, 20
+  block-shaped elements, `0` carrying the §11 label — the pre-existing,
+  already-open A20b defect (VoiceOver hover-help string), unrelated to this
+  task and untouched by it.
+- All Kadence processes killed (`pkill -9`) after verification, confirmed
+  zero matches.
+
+**Blocked:** nothing. Next up, per this task's own scope note and
+`DEVIATIONS.md`'s updated P2-T21 paragraph: creating a new `TimeWindow`
+(drag-to-create), the inspector's kind picker, weekday-set editing,
+`RoutineEngine.materialize` honouring protected windows, `MenuBarExtra`,
+snooze.

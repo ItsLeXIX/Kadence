@@ -9,9 +9,11 @@
 //  `RoutineWeekLayoutTests.swift`'s own `RoutineBlockStore` suites (task
 //  P2-T11) — `TimeWindowStore` is this task's sibling of that store.
 //
-//  What is deliberately NOT tested here, because it does not exist yet:
-//  resize (a top/bottom edge drag) and create (drag-to-create on empty
-//  windows-mode canvas) — next task's job, per this task's own brief.
+//  Task P2-T22 adds `TimeWindowStoreResizeTests` below, covering the other
+//  half this file's own header used to say did not exist yet: resize (a
+//  top/bottom edge drag). What is still deliberately NOT tested here, because
+//  it does not exist yet: create (drag-to-create on empty windows-mode
+//  canvas) — next task's job, per that task's own brief.
 //
 
 import Testing
@@ -211,5 +213,153 @@ struct TimeWindowStoreDeleteTests {
         let restored = try #require(fetchTimeWindow(id, in: context))
         #expect(restored.kind == .lowEnergy)
         #expect(restored.weekdays == [1, 7])
+    }
+}
+
+/// Task P2-T22 — components.md §13.3's "the same size.blockResizeHandleHeight
+/// handles blocks use", the piece both P2-T20 and P2-T21 explicitly deferred.
+/// Same modular-not-clamping reasoning as `TimeWindowStoreMoveTests` above:
+/// a candidate edge wraps mod 1440 rather than clamping into `[0, 1440]`, and
+/// the only floor is the same 15-minute minimum `RoutineBlockStore.resize`
+/// uses, computed forward-and-wrapping the way `spans(on:)`/`move` already do.
+@Suite("TimeWindowStore.resize")
+@MainActor
+struct TimeWindowStoreResizeTests {
+
+    /// A plain daytime window, 09:00–10:00, with no midnight involved — the
+    /// baseline every "normal" case below starts from.
+    @MainActor
+    private func makeDaytimeWindow(in context: ModelContext) -> TimeWindow {
+        let window = TimeWindow(
+            weekdays: [2, 4, 6], startMinutes: 9 * 60, endMinutes: 10 * 60,
+            kind: .lowEnergy, label: "Focus block")
+        context.insert(window)
+        try? context.save()
+        return window
+    }
+
+    @Test("Dragging the top edge changes only startMinutes, and names the undo step")
+    func resizesTopEdge() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeDaytimeWindow(in: context)
+
+        store.resize(window, newStartMinutes: 9 * 60 + 15)
+
+        #expect(window.startMinutes == 9 * 60 + 15)
+        #expect(window.endMinutes == 10 * 60)
+        #expect(undo.undoActionName == "Resize Time Window")
+        #expect(undo.undoMenuTitle == "Undo Resize Time Window")
+    }
+
+    @Test("Dragging the bottom edge changes only endMinutes, and names the undo step")
+    func resizesBottomEdge() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeDaytimeWindow(in: context)
+
+        store.resize(window, newEndMinutes: 10 * 60 + 30)
+
+        #expect(window.startMinutes == 9 * 60)
+        #expect(window.endMinutes == 10 * 60 + 30)
+        #expect(undo.undoActionName == "Resize Time Window")
+    }
+
+    @Test("Dragging the bottom edge past 24:00 wraps it into the small hours instead of clamping at 1440")
+    func resizeBottomEdgeWrapsForward() throws {
+        let (store, context, _) = try makeTimeWindowStore()
+        // 23:20-23:50, so a modest drag of the bottom edge crosses midnight.
+        let window = TimeWindow(
+            weekdays: [2], startMinutes: 23 * 60 + 20, endMinutes: 23 * 60 + 50,
+            kind: .protected, label: "Late block")
+        context.insert(window)
+        try? context.save()
+
+        // 23:50 + 20 minutes = 00:10 the next day, i.e. minute 1450 unwrapped.
+        store.resize(window, newEndMinutes: 23 * 60 + 50 + 20)
+
+        #expect(window.startMinutes == 23 * 60 + 20)
+        #expect(window.endMinutes == 10)
+    }
+
+    @Test("Dragging the top edge before 00:00 wraps it into the previous day's tail instead of clamping at 0")
+    func resizeTopEdgeWrapsBackward() throws {
+        let (store, context, _) = try makeTimeWindowStore()
+        // 00:10-10:00, so dragging the top edge 30 minutes earlier crosses midnight.
+        let window = TimeWindow(
+            weekdays: [2], startMinutes: 10, endMinutes: 10 * 60,
+            kind: .protected, label: "Early block")
+        context.insert(window)
+        try? context.save()
+
+        store.resize(window, newStartMinutes: 10 - 30)
+
+        #expect(window.startMinutes == 24 * 60 - 20)
+        #expect(window.endMinutes == 10 * 60)
+    }
+
+    @Test("A top-edge drag that would leave less than 15 minutes before the fixed bottom edge is pulled back to exactly 15, not collapsed or inverted")
+    func minimumDurationEnforcedFromTop() throws {
+        let (store, context, _) = try makeTimeWindowStore()
+        // 09:00-09:30 — only 30 minutes wide.
+        let window = TimeWindow(
+            weekdays: [2], startMinutes: 9 * 60, endMinutes: 9 * 60 + 30,
+            kind: .lowEnergy, label: "Short block")
+        context.insert(window)
+        try? context.save()
+
+        // Dragging the top edge to 09:20 would leave only 10 minutes.
+        store.resize(window, newStartMinutes: 9 * 60 + 20)
+
+        #expect(window.endMinutes == 9 * 60 + 30)
+        #expect(window.startMinutes == 9 * 60 + 15) // end - 15, not 09:20.
+    }
+
+    @Test("A bottom-edge drag that would leave less than 15 minutes after the fixed top edge is pulled back to exactly 15, not collapsed or inverted")
+    func minimumDurationEnforcedFromBottom() throws {
+        let (store, context, _) = try makeTimeWindowStore()
+        // 09:00-09:30 — only 30 minutes wide.
+        let window = TimeWindow(
+            weekdays: [2], startMinutes: 9 * 60, endMinutes: 9 * 60 + 30,
+            kind: .lowEnergy, label: "Short block")
+        context.insert(window)
+        try? context.save()
+
+        // Dragging the bottom edge back to 09:05 would leave only 5 minutes.
+        store.resize(window, newEndMinutes: 9 * 60 + 5)
+
+        #expect(window.startMinutes == 9 * 60)
+        #expect(window.endMinutes == 9 * 60 + 15) // start + 15, not 09:05.
+    }
+
+    @Test("A resize that changes neither end (a no-op candidate) pushes no undo step")
+    func noOpDoesNotPush() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeDaytimeWindow(in: context)
+
+        store.resize(window, newStartMinutes: 9 * 60)
+
+        #expect(undo.canUndo == false)
+    }
+
+    @Test("Undo restores the exact original startMinutes/endMinutes; redo reapplies the resize")
+    func undoRedo() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeDaytimeWindow(in: context)
+        let id = window.id
+        let originalStart = window.startMinutes
+        let originalEnd = window.endMinutes
+
+        store.resize(window, newStartMinutes: 9 * 60 + 15, newEndMinutes: 10 * 60 + 30)
+        #expect(undo.canRedo == false)
+
+        undo.undo()
+        let afterUndo = try #require(fetchTimeWindow(id, in: context))
+        #expect(afterUndo.startMinutes == originalStart)
+        #expect(afterUndo.endMinutes == originalEnd)
+        #expect(undo.canRedo)
+
+        undo.redo()
+        let afterRedo = try #require(fetchTimeWindow(id, in: context))
+        #expect(afterRedo.startMinutes == 9 * 60 + 15)
+        #expect(afterRedo.endMinutes == 10 * 60 + 30)
     }
 }
