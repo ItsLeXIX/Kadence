@@ -4129,3 +4129,207 @@ themselves (all untouched).
 paragraph: `RoutineEngine.materialize` honouring protected windows,
 `MenuBarExtra`, snooze, the block inspector's own flexibility stepper
 (components.md §13.2), detached-instance tracking and Re-sync (§13.4).
+
+## 26. P2-T25 — MenuBarExtra: status item + popover, wired to real data (2026-09-24)
+
+Closes the `MenuBarExtra` half of the list every recent Routines-window task's
+"still absent" paragraph has been carrying forward: components.md §15 (the
+menu bar extra) and interactions.md §12's non-keyboard parts, implementing
+DECISIONS.md 2026-09-10 "Menu bar requirement split between status item and
+popover."
+
+**Built:**
+
+- `Kadence/State/NextUpProvider.swift` — new, `@MainActor enum`, the pure
+  derivation behind both surfaces (same shape as `DayLayoutEngine`/
+  `ConflictEngine`: value types plus an injected `now`, free of SwiftUI and
+  the system clock). `evaluate(events:now:calendar:)` takes the live
+  `@Query(sort: \Event.start) private var events: [Event]` `MainWindow.swift`
+  already fetches with, and does the "today, not all-day, not done, not
+  skipped" filtering and ordering itself, returning the earliest such event
+  as `next`, `isLate` (`next.start <= now`), and every remaining one, in
+  order, as `restOfToday`. `restDisplay(_:cap:)` is the separate
+  `popoverMaxRestRows` cap/`+N more` computation components.md §15.2 asks
+  for, split out so the boundary itself (exactly at the cap vs. one over) is
+  directly testable without a view.
+- `Kadence/DesignSystem/TypeStyle.swift` — five new statics, `statusItem`,
+  `popoverSectionLabel`, `popoverNextTitle`, `popoverNextMeta`, `popoverRow`,
+  each following the file's own established pattern (`inspectorTitle` etc.)
+  and backed only by `Tokens.Typography.*` entries the Phase 2 tokens pass
+  already generated — no hand-edit to `Tokens.swift`, confirmed by
+  `generate-tokens --check` below.
+- `Kadence/Views/MenuBar/MenuBarFormatting.swift` — new, small shared string
+  functions (`time`, `timeRange`, `elapsed(since:now:)`, `nextMeta(for:now:isLate:)`)
+  so the status item and the popover compute identical strings from
+  identical inputs. `time`/`timeRange` reuse `BlockFormatters.time`
+  (`BlockModels.swift`) rather than a second 24-hour `DateFormatter`.
+  `nextMeta` reuses `GridBlockModel.metaLine` (§3.4's "Source · Location, or
+  just Source when there is no location" rule) as the popover meta line's
+  trailing qualifier — `design/` does not write a popover-specific version of
+  that composition rule, so this is a documented reuse, not an invented one;
+  see the judgement-call note below and `DEVIATIONS.md`.
+- `Kadence/Views/MenuBar/MenuBarStatusItemView.swift` — new, the status
+  item's `label:` view. Renders §15.1's three states from a table: Normal
+  (`17:30 · Training`, `color.text.primary`, no icon); Late
+  (`clock.badge.exclamationmark` at `Tokens.Size.statusItemGlyphSize` +
+  `12m ago · Training`, `color.semantic.now`, elapsed phrasing only — never
+  `overdue`/`late by`/`missed`); Empty (`Nothing left today`,
+  `color.text.secondary`). The "time never truncates" rule is built
+  structurally, not just usually true: the primary text (the clock time
+  normally, the elapsed phrase once late) is wrapped in `.fixedSize()`, which
+  stops SwiftUI compressing it regardless of how little of
+  `Tokens.Size.statusItemMaxWidth` (180) is left; the title is the only
+  `Text` given `.lineLimit(1)`/`.truncationMode(.tail)`, so it is the only
+  piece that can shrink or disappear — "degrades to time alone" falls out of
+  that split rather than being special-cased. `now` is refreshed by a
+  `Timer.publish(every: Tokens.Motion.NowLineTick.interval, ...)` (see the
+  `DEVIATIONS.md` note on reusing this interval) wrapped in
+  `.transaction { $0.animation = nil }`, per interactions.md §12.1's "any
+  animation in a menu bar reads as a glitch."
+- `Kadence/Views/MenuBar/MenuBarPopoverView.swift` — new, the popover
+  content. `Tokens.Size.popoverWidth` (300) wide. NEXT: `popoverSectionLabel`
+  header, a block at least `Tokens.Size.popoverNextBlockMinHeight` tall with
+  a `Tokens.Size.blockRailWidth`-wide leading rail in `next.sourceKey.rail`
+  (reusing `RailView`/`SourceColor` — the exact "existing machinery" the
+  task named, not a new colour path), `popoverNextTitle`/`popoverNextMeta`
+  text, then the action row. REST OF TODAY: `Tokens.Size.popoverRestRowHeight`
+  rows inside a `Grid` (see the judgement-call note below), capped at
+  `Tokens.Size.popoverMaxRestRows` then a `+N more` line, omitted entirely
+  (header and all) when there is nothing left after NEXT — matching §15.2's
+  table ("list, or omitted entirely when empty"). All three §15.2 states:
+  Normal; Late (meta becomes `Started 12m ago · Gym` in `color.semantic.now`,
+  action row gains a leading `Re-offer`); Empty (`Nothing left today`,
+  `popoverNextTitle`/`color.text.secondary`, no actions, rest section
+  omitted). `Done` calls `EventStore.toggleDone(_:)`; the Late state's
+  `Re-offer` calls `EventStore.markSkipped(_:)` (its own doc comment: puts
+  the item back in the pool to be re-offered). Neither closes the popover —
+  both just let the next `NextUpProvider.evaluate` pass (driven by
+  SwiftData's own change notification through `@Query`) recompute NEXT/REST
+  OF TODAY, so the resolved item drops out, per this task's own scope note
+  (not the in-place result-row swap components.md §16 specifies for Snooze).
+  `Snooze` and `Open` render in the action row, `.disabled(true)`, inert —
+  explicitly not wired, per scope.
+- `Kadence/KadenceApp.swift` — new `MenuBarExtra(content:label:)` scene,
+  `.modelContainer(container)` (needed by both closures' `@Query`, confirmed
+  live below — not just by compiling), `.menuBarExtraStyle(.window)` (the
+  popover is arbitrary SwiftUI layout, not a menu-item list), and
+  `.environment(undoStack)` on the popover content specifically (the same
+  instance `MainWindow`/`RoutinesWindow` already share, so `⌘Z` after a menu
+  bar `Done`/`Re-offer` means the same thing everywhere — verified live
+  below).
+- `KadenceTests/NextUpProviderTests.swift` — new, twelve cases across three
+  suites, all against fixed fixture events and an injected `now` (no menu bar
+  UI launched): `NextUpProviderStateTests` (normal — next item's start still
+  in the future; late — start already passed and not done, plus an explicit
+  "exactly at now counts as late" boundary case; empty — nothing scheduled
+  today at all, and separately, everything today already done/skipped;
+  all-day events never become `next`); `NextUpProviderRestOrderingTests`
+  (rest-of-today is sorted by start regardless of insertion order; a
+  done/skipped event never appears in it either); `NextUpProviderRestDisplayTests`
+  (the `popoverMaxRestRows` boundary — exactly at the cap shows every row and
+  no `+N more`, one over shows the cap's worth plus `+1 more`, well under the
+  cap shows no `+N more`, and the real `Tokens.Size.popoverMaxRestRows`
+  default is exercised, not only an injected cap).
+
+**Explicitly out of scope, per this task's own brief (see the acceptance
+list) — not built:** the `Snooze` button's action and its confirmation
+result row (components.md §16 — next task); the `Open` button's action
+(bringing the main window forward / navigating to the item — next task); all
+of interactions.md §12's keyboard table (`↑`/`↓`/`↩`/`⌘↩`/`⌥⌘↩`/`⎋` and the
+click-vs-keyboard focus rule); any change to `RoutineEngine`, `ConflictEngine`
+or `TimeWindow` code.
+
+**Judgement calls made (documented here, not `design/GAPS.md` — none is a
+colour/size/token invention; each is a data-composition or layout-technique
+choice `design/` leaves open, same category as P2-T15's option-row prose and
+P2-T24's segment labels):**
+
+1. **The popover meta line's trailing qualifier** (`17:30 – 18:15 · Gym` /
+   `Started 12m ago · Gym`) reuses `GridBlockModel.metaLine` — §3.4's
+   existing "Source · Location, or just Source when there is no location"
+   rule — rather than inventing a second composition rule for the popover.
+   §15.2's diagram is illustrative shorthand and does not itself define what
+   composes that trailing field.
+2. **The REST OF TODAY time column** is a SwiftUI `Grid`, not a fixed-pixel
+   `.frame(width:)`. §15.2 requires "a fixed column so the list scans
+   vertically" but names no width token, and inventing a literal number
+   would have been exactly the thing this task is not allowed to do.
+   `Grid` sizes the column to its own widest cell instead — every time in
+   this list is 5 monospaced-digit characters (`HH:mm`), so the column is
+   already uniform with no number to invent, get wrong, or defend later.
+3. **The "NEXT" section label still renders above the Empty state's
+   `Nothing left today` message.** §15.2's table describes the Empty state's
+   *content* but not whether the section header stays; keeping it matches
+   Normal/Late's structure (a section, then its content) rather than special
+   -casing Empty to drop the header.
+
+**Verified:**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`. 350 `passed`
+  lines / 320 unique test names / 0 `failed` lines in the full run captured
+  to `/tmp/full_test.log`, including all twelve new
+  `NextUpProviderTests.swift` cases (`NextUpProviderStateTests` ×6,
+  `NextUpProviderRestOrderingTests` ×2, `NextUpProviderRestDisplayTests` ×4).
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.` — no new tokens
+  registered; every `Tokens.Typography.*`/`Tokens.Size.*`/`Tokens.Color.*`
+  value the five new `TypeStyle` statics and the two new views read already
+  existed from the Phase 2 tokens pass.
+- Lock probe run first per Parsa's 2026-09-18 ruling: `swift`-driven
+  `CGSessionCopyCurrentDictionary()` read → no `CGSSessionScreenIsLocked` key
+  (unlocked). `Scripts/check-accessibility.sh` taken at face value, run
+  twice (once before, once after the live runtime check below): both
+  `PASS (elements present)`, 20 block-shaped elements each time, `0`
+  carrying the §11 label — the same pre-existing, already-open A20b defect
+  every prior run has reported, unrelated to this task and untouched by it.
+- **Beyond the required scripts, this task also drove the real, built app
+  through `System Events` end to end** — not just relying on a successful
+  compile for the two-closure `MenuBarExtra` scene, since Apple's own
+  `@Query`/environment propagation into a `label:` closure was the one
+  genuinely untested assumption here:
+  - The live status item's `AXTitle` read exactly `"Nothing left today"` at
+    launch — correct, since the seeded mock events sit at fixed
+    hours-of-the-real-current-day and this session's wall-clock time was
+    past all of them (see `MockData`'s "reference day is today" seeding,
+    unrelated to this task).
+  - Clicking the status item opened a genuine `AXWindow` sized
+    `300 × <height>` (`Tokens.Size.popoverWidth`), confirming `.window` style
+    and the width token both took effect.
+  - Its `entire contents` (accessibility dump) showed, live: `NEXT` /
+    `Breakfast` / `"Started 839m ago · Daily routine"` (correctly detected
+    Late, correct elapsed phrasing, correct `metaLine` fallback to the
+    source name since "Breakfast" has no location) / four buttons, enabled
+    states `true, true, false, false` (`Re-offer`, `Done` wired; `Snooze`,
+    `Open` inert, matching the scope note) / `REST OF TODAY` / six
+    `HH:mm`+title row pairs / `"+6 more"` — the `popoverMaxRestRows` cap
+    firing exactly as specified against the real seeded dataset (13 items
+    left after NEXT).
+  - Clicking `Done` live: `AXTitle`/content updated with no relaunch to
+    `NEXT` = `Morning review`, `"Started 794m ago · Daily routine"`,
+    `REST OF TODAY` shrinking by one and its `+N more` count dropping to 5 —
+    confirming `EventStore.toggleDone` fired and `NextUpProvider.evaluate`
+    recomputed through the live `@Query`, with the popover staying open
+    throughout (interactions.md §12: "do not close the popover").
+  - `⌘Z` sent to the app (global Edit-menu shortcut, `UndoStack` is the one
+    app-wide instance) restored the exact original state — `Breakfast` back
+    as NEXT, `"Started 839m ago"`, the original `+6 more` — confirming the
+    popover's `Done` action shares the same named undo step
+    (`"Mark Done"`) every other `EventStore.toggleDone` caller uses, and
+    that `.environment(undoStack)` on the `MenuBarExtra` content closure
+    really does resolve to the shared instance at runtime.
+  - The mock store was restored to its original seeded state by the `⌘Z`
+    above before this task ended (same discipline as P2-T02's own
+    click-to-select verification) — confirmed by the second
+    `check-accessibility.sh` run's block count and `AXHelp` text matching
+    the first, byte-for-byte.
+  - All Kadence processes killed (`pkill -9`) after verification, confirmed
+    zero matches.
+
+**Blocked:** nothing. Next up, per this task's own scope note: `Snooze`'s
+action and its confirmation result row (components.md §16), `Open`'s action
+(bring the main window forward / navigate to the item), and interactions.md
+§12's keyboard table (`↑`/`↓`/`↩`/`⌘↩`/`⌥⌘↩`/`⎋`, and the click-vs-keyboard
+focus rule).

@@ -212,6 +212,42 @@ extension TypeStyle {
         textStyle: Tokens.Typography.ConflictOptionDelta.textStyle,
         lineLimit: Tokens.Typography.ConflictOptionDelta.lineLimit,
         monospacedDigit: Tokens.Typography.ConflictOptionDelta.monospacedDigit)
+
+    // components.md §15 — the menu bar extra's status item and popover.
+    static let statusItem = TypeStyle(
+        size: Tokens.Typography.StatusItem.size,
+        weight: Tokens.Typography.StatusItem.weight,
+        textStyle: Tokens.Typography.StatusItem.textStyle,
+        lineLimit: Tokens.Typography.StatusItem.lineLimit,
+        monospacedDigit: Tokens.Typography.StatusItem.monospacedDigit)
+
+    static let popoverSectionLabel = TypeStyle(
+        size: Tokens.Typography.PopoverSectionLabel.size,
+        weight: Tokens.Typography.PopoverSectionLabel.weight,
+        textStyle: Tokens.Typography.PopoverSectionLabel.textStyle,
+        lineLimit: Tokens.Typography.PopoverSectionLabel.lineLimit,
+        tracking: Tokens.Typography.PopoverSectionLabel.tracking,
+        textCase: Tokens.Typography.PopoverSectionLabel.textCase)
+
+    static let popoverNextTitle = TypeStyle(
+        size: Tokens.Typography.PopoverNextTitle.size,
+        weight: Tokens.Typography.PopoverNextTitle.weight,
+        textStyle: Tokens.Typography.PopoverNextTitle.textStyle,
+        lineLimit: Tokens.Typography.PopoverNextTitle.lineLimit)
+
+    static let popoverNextMeta = TypeStyle(
+        size: Tokens.Typography.PopoverNextMeta.size,
+        weight: Tokens.Typography.PopoverNextMeta.weight,
+        textStyle: Tokens.Typography.PopoverNextMeta.textStyle,
+        lineLimit: Tokens.Typography.PopoverNextMeta.lineLimit,
+        monospacedDigit: Tokens.Typography.PopoverNextMeta.monospacedDigit)
+
+    static let popoverRow = TypeStyle(
+        size: Tokens.Typography.PopoverRow.size,
+        weight: Tokens.Typography.PopoverRow.weight,
+        textStyle: Tokens.Typography.PopoverRow.textStyle,
+        lineLimit: Tokens.Typography.PopoverRow.lineLimit,
+        monospacedDigit: Tokens.Typography.PopoverRow.monospacedDigit)
 }
 
 // MARK: - Applying a style

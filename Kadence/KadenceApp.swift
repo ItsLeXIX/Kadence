@@ -75,6 +75,23 @@ struct KadenceApp: App {
         Settings {
             SettingsPlaceholderView()
         }
+
+        // components.md §15 / DECISIONS.md 2026-09-10 "Menu bar requirement
+        // split between status item and popover." `.window` (not the default
+        // `.menu` style) because the popover is an arbitrary SwiftUI layout —
+        // a NEXT block with a source-hued rail, a REST OF TODAY list — not a
+        // list of menu items. `.environment(undoStack)` is needed because the
+        // popover's `Done`/`Re-offer` actions go through the same
+        // `EventStore`/`UndoStack` every other mutation in the app does, so
+        // ⌘Z in the main window also undoes something done from the menu bar.
+        MenuBarExtra {
+            MenuBarPopoverView()
+                .environment(undoStack)
+        } label: {
+            MenuBarStatusItemView()
+        }
+        .modelContainer(container)
+        .menuBarExtraStyle(.window)
     }
 }
 

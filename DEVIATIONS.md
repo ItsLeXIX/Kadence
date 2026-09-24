@@ -240,6 +240,56 @@ snooze, the block inspector's own still-read-only flexibility field (§13.2's
 interactive stepper — pre-existing, separate gap, untouched by this task),
 detached-instance tracking and Re-sync (§13.4). See `STATUS.md` §25.
 
+**Corrected 2026-09-24, task P2-T25 — every entry above's bare "`MenuBarExtra`"
+clause (P2-T21/T22/T23/T24) is now STALE for the status item and popover
+shell specifically.** `components.md` §15 / `interactions.md` §12's
+non-keyboard parts are built: a `MenuBarExtra` scene in `KadenceApp.swift`
+(`.modelContainer(container)`, `.menuBarExtraStyle(.window)`) with a status
+item (`Kadence/Views/MenuBar/MenuBarStatusItemView.swift`, §15.1's three
+states — Normal/Late/Empty, time-never-truncates built structurally via
+`.fixedSize()` on the primary text rather than left to usually hold) and a
+popover (`Kadence/Views/MenuBar/MenuBarPopoverView.swift`, §15.2's
+NEXT/REST OF TODAY, all three states, the `popoverMaxRestRows`/`+N more`
+cap). `Done` and the Late state's `Re-offer` are wired to
+`EventStore.toggleDone`/`EventStore.markSkipped`; both confirmed live against
+the running app (`STATUS.md` §26), including that `⌘Z` undoes a menu-bar
+`Done` through the same shared `UndoStack` the rest of the app uses.
+**Nothing about what was built is a deviation** — every value it needed
+(`Tokens.Size.popoverWidth`/`popoverNextBlockMinHeight`/`popoverRestRowHeight`/
+`popoverMaxRestRows`/`statusItemMaxWidth`/`statusItemGlyphSize`,
+`Tokens.Color.Semantic.now`/`Text.primary`/`Text.secondary`, the five new
+`TypeStyle` statics backed by already-generated `Tokens.Typography.*`
+entries) was already specified; the leading rail on the NEXT block reuses
+`RailView`/`SourceKey.rail`, the exact existing colour machinery the task
+named rather than a new path. Two composition/layout choices `design/`
+leaves open are documented as this task's own judgement call, not invented
+values — see `STATUS.md` §26: the popover meta line's trailing qualifier
+reuses `GridBlockModel.metaLine` rather than a second Source/Location rule,
+and the REST OF TODAY time column is a SwiftUI `Grid` (sized to its own
+widest cell) rather than a literal pixel width `design/` never names.
+
+**One deliberate interval reuse, per this task's own brief, not a deviation
+from a spec value (the spec names none):** both the status item and the
+popover refresh `now` on `Timer.publish(every: Tokens.Motion.NowLineTick.interval, ...)`
+— the same 60-second cadence `MainWindow.swift` already uses for the
+calendar canvas's now-line — rather than a dedicated menu-bar-specific
+timer. `interactions.md` §15/§12 name no menu-bar refresh interval of their
+own, and `NowLineTick` is the one existing "how often does the clock-driven
+UI recompute" token in this codebase; introducing a second, unspecified
+number for the same kind of tick would have been the invented value this
+task is not allowed to add.
+
+**Still absent, explicitly out of scope for this task (see its own brief):**
+the `Snooze` button's action and its confirmation result row (components.md
+§16 — next task); the `Open` button's action (bring the main window forward /
+navigate to the item — next task; both buttons render, `.disabled(true)`,
+matching §15.2's action-row shape without being wired); all of
+`interactions.md` §12's keyboard table (`↑`/`↓`/`↩`/`⌘↩`/`⌥⌘↩`/`⎋`, and the
+click-vs-keyboard focus rule); any change to `RoutineEngine`,
+`ConflictEngine` or `TimeWindow` code. `RoutineEngine.materialize` honouring
+protected windows and detached-instance tracking/Re-sync (§13.4) remain
+untouched, unchanged from every paragraph above. See `STATUS.md` §26.
+
 *(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
 (`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/
 imported overlap and builds each one's ranked resolution options
