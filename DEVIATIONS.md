@@ -79,7 +79,44 @@ testable — the main grid's own treatment; windows mode adds peak-focus (§7's
 absent, unchanged: dragging/resizing/creating/deleting a `TimeWindow` and the
 inspector's kind picker for one — §13.3 calls windows "editable" in windows
 mode, but this task only renders them; the flexibility control's interactive
-stepper; detached-instance tracking/Re-sync. See `STATUS.md` §21.)*
+stepper; detached-instance tracking/Re-sync. See `STATUS.md` §21.
+
+**Corrected 2026-09-24, task P2-T21 — "dragging ... deleting a `TimeWindow`"
+above is now STALE for select/move/delete of an EXISTING row specifically.**
+`Kadence/State/TimeWindowStore.swift` (new file, `RoutineBlockStore`'s
+sibling) now provides `move(_:byDeltaMinutes:)` — a pure modular translation,
+`startMinutes`/`endMinutes` each wrap independently mod 1440 with no
+clamping, since (unlike `RoutineBlock`/G-013) a `TimeWindow` already supports
+spanning midnight — and `delete(_:)`, both named/undoable ("Move Time
+Window"/"Delete Time Window"). `RoutinesWindow.swift` wires both in: a new
+`windowSelection: UUID?` (window-scoped, simpler than
+`RoutineBlockSelection` — a `TimeWindow` needs no weekday disambiguation),
+hit-testable only in Windows mode (the exact inverse of the existing blocks-
+mode `.allowsHitTesting` pattern, so Blocks mode leaves windows exactly as
+non-interactive as before), a whole-span `DragGesture(minimumDistance: 3)`
+written to the store only on `.onEnded` (15-minute snap, 5-minute with `⌃`,
+via `TimeGeometry.snap` — same rule every other drag in this window already
+uses), and `⌫` extended to delete the selected window when one is selected.
+Selection is dropped on template switch and mode change, generalizing the
+existing block-selection rule to the new kind. The selection ring reuses §6's
+existing generic vocabulary (`Tokens.Color.Interactive.focusRing`/
+`Tokens.Size.borderSelected`) applied to this new selectable object — judged
+as reuse, not an invented value, so no `design/GAPS.md` entry; drawn as a
+plain `Rectangle` (no corner radius), matching every other window treatment
+already on this canvas rather than inventing a rounded variant. A second,
+narrower judgement call: each window's hit region is its raw
+`TimeWindow.spans(on:)` span, not the protected-wins-over-low-energy-
+*subtracted* span the render layer actually paints where two windows
+overlap — selecting/dragging the real underlying object reads as more
+correct for an editor than hit-testing whatever fraction of it is still
+visible, and where two windows' regions do overlap, frontmost-in-`ForEach`-
+order wins the tap, same "today's build keeps frontmost-wins, nothing
+invented" precedent this file's own G-010/A24 already establish for
+overlapping blocks. **Still absent, unchanged, still explicitly out of
+scope:** creating a new `TimeWindow` (drag-to-create), resizing one (a
+top/bottom edge drag), the inspector's kind picker, weekday-set editing,
+`RoutineEngine.materialize` honouring windows, `MenuBarExtra`, snooze — next
+task's job. See `STATUS.md` §22.)*
 
 *(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
 (`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/

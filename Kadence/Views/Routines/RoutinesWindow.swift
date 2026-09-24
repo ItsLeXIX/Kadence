@@ -125,6 +125,12 @@ struct RoutinesWindow: View {
 
     @State private var selectedTemplateID: UUID?
     @State private var selection: RoutineBlockSelection?
+    /// Task P2-T21: which existing `TimeWindow` (by `id`) is selected in
+    /// Windows mode. Simpler than `RoutineBlockSelection` — a `TimeWindow` is
+    /// one object regardless of how many weekday columns it renders into (its
+    /// `weekdays` set draws it into every one of them at once), so there is no
+    /// weekday-disambiguation to carry the way a `RoutineBlock` needs.
+    @State private var windowSelection: UUID?
     @State private var editorMode: RoutinesEditorMode = .blocks
     @State private var didSeed = false
     /// So `⌫` (below) has somewhere to land. Requested whenever a block is
@@ -134,6 +140,13 @@ struct RoutinesWindow: View {
 
     private var store: RoutineBlockStore {
         RoutineBlockStore(context: context, undo: undoStack)
+    }
+
+    /// Task P2-T21's sibling to `store` above — same one-`UndoStack`-per-app
+    /// wiring, so `⌘Z` for a window move/delete names correctly no matter
+    /// which window is key.
+    private var timeWindowStore: TimeWindowStore {
+        TimeWindowStore(context: context, undo: undoStack)
     }
 
     private var selectedTemplate: RoutineTemplate? {
@@ -217,6 +230,7 @@ struct RoutinesWindow: View {
         }
         .onChange(of: selectedTemplateID) { _, _ in
             selection = nil
+            windowSelection = nil
         }
         .onChange(of: selection) { _, newValue in
             if newValue != nil { canvasFocused = true }
@@ -224,14 +238,29 @@ struct RoutinesWindow: View {
         // interactions.md §11.1: "The current selection is dropped on mode
         // change." One `onChange` covers both the mode control and the
         // `⌘[`/`⌘]` shortcuts above, since both just assign `editorMode`.
+        // Task P2-T21 generalizes this to the new `windowSelection` kind too
+        // — interactions.md §11.1's rule is "the current selection", not
+        // specifically the block one.
         .onChange(of: editorMode) { _, _ in
             selection = nil
+            windowSelection = nil
         }
     }
 
     /// `⌫` — no confirmation, matching interactions.md §5's rule for events
     /// ("`⌫` deletes immediately. No confirmation sheet."). `⌘Z` restores it.
+    ///
+    /// Task P2-T21: branches on `windowSelection` first. A `TimeWindow` and a
+    /// `RoutineBlockSelection` can never both be non-nil at once — selecting
+    /// one kind always clears the other (see the window/block tap handlers
+    /// below) — but the window branch is checked first regardless, since it
+    /// is the more specific of the two selection kinds this window now has.
     private func handleDelete() -> KeyPress.Result {
+        if let windowSelection, let window = timeWindows.first(where: { $0.id == windowSelection }) {
+            self.windowSelection = nil
+            timeWindowStore.delete(window)
+            return .handled
+        }
         guard let selection, let template = selectedTemplate,
               let block = template.blocks.first(where: { $0.id == selection.blockID })
         else { return .ignored }
@@ -251,7 +280,9 @@ struct RoutinesWindow: View {
                 store: store,
                 selection: $selection,
                 editorMode: editorMode,
-                timeWindows: timeWindows)
+                timeWindows: timeWindows,
+                timeWindowStore: timeWindowStore,
+                windowSelection: $windowSelection)
         }
     }
 
@@ -350,6 +381,9 @@ private struct RoutinesCanvasView: View {
     @Binding var selection: RoutineBlockSelection?
     let editorMode: RoutinesEditorMode
     let timeWindows: [TimeWindow]
+    /// Task P2-T21.
+    let timeWindowStore: TimeWindowStore
+    @Binding var windowSelection: UUID?
 
     private let hourHeight = Tokens.Size.hourHeightWeek
 
@@ -396,6 +430,8 @@ private struct RoutinesCanvasView: View {
                     selection: $selection,
                     editorMode: editorMode,
                     timeWindows: timeWindows,
+                    timeWindowStore: timeWindowStore,
+                    windowSelection: $windowSelection,
                     // components.md §7: the window label is drawn "once, at
                     // the window's top edge, in the leading day column" —
                     // same rule `TimedCanvasView.windowsBackdrop`/
@@ -443,6 +479,9 @@ private struct RoutineDayColumnView: View {
     @Binding var selection: RoutineBlockSelection?
     let editorMode: RoutinesEditorMode
     let timeWindows: [TimeWindow]
+    /// Task P2-T21.
+    let timeWindowStore: TimeWindowStore
+    @Binding var windowSelection: UUID?
     let showsWindowLabels: Bool
 
     /// In-flight drag, kept local so the model is only written on drop — same
@@ -453,6 +492,13 @@ private struct RoutineDayColumnView: View {
     /// weekday column, exactly the way `drag` above is — nothing persists
     /// until `commitDraft()` calls into `RoutineBlockStore.create`.
     @State private var draft: EventDraft?
+    /// In-flight whole-span `TimeWindow` drag (task P2-T21) — same
+    /// nothing-written-until-drop rule as `drag` above, but this one only
+    /// ever carries a live pixel offset for the ring/hit-region to follow
+    /// visually; the actual minute delta is computed once, at `.onEnded`,
+    /// exactly the way `blockGesture` computes its snapped result at drop
+    /// rather than on every frame.
+    @State private var windowDrag: TimeWindowDragSession?
 
     struct RoutineDragSession: Equatable {
         enum Mode: Equatable { case move, resizeTop, resizeBottom, create }
@@ -462,6 +508,11 @@ private struct RoutineDayColumnView: View {
         var blockID: UUID?
         var origin: Date
         var current: Date
+    }
+
+    struct TimeWindowDragSession: Equatable {
+        var windowID: UUID
+        var translationHeight: CGFloat
     }
 
     private var referenceDayStart: Date {
@@ -563,6 +614,29 @@ private struct RoutineDayColumnView: View {
                 if let previewRect = dropPreviewFrame(in: proxy.size.width, geometry: geometry) {
                     dropPreview(previewRect)
                 }
+
+                // components.md §13.3 / task P2-T21: in Windows mode, an
+                // existing protected/low-energy/peak-focus `TimeWindow` is
+                // now selectable and whole-span draggable. Tapping empty
+                // windows-mode canvas deselects — same "clicking empty grid
+                // deselects" rule `createSurface`'s own tap already applies
+                // to blocks mode, mirrored here rather than reusing
+                // `createSurface` itself (which stays exclusively the
+                // create-a-block surface, disabled in Windows mode above).
+                // Drawn BELOW the per-window hit regions so a tap that lands
+                // inside an actual window span hits that window first — same
+                // z-order reasoning `createSurface`/the block `Group` already
+                // use for the analogous blocks-mode case.
+                Rectangle()
+                    .fill(.clear)
+                    .contentShape(Rectangle())
+                    .frame(height: geometry.totalHeight)
+                    .accessibilityHidden(true)
+                    .onTapGesture { windowSelection = nil }
+                    .allowsHitTesting(editorMode == .windows)
+
+                windowInteractionLayer(geometry: geometry)
+                    .allowsHitTesting(editorMode == .windows)
             }
             .frame(height: geometry.totalHeight, alignment: .top)
         }
@@ -676,6 +750,94 @@ private struct RoutineDayColumnView: View {
 
     private func minutes(for date: Date) -> Int {
         Int(date.timeIntervalSince(referenceDayStart) / 60)
+    }
+
+    // MARK: TimeWindow select / move (task P2-T21)
+    //
+    // components.md §13.3: "protected / low-energy / peak-focus regions
+    // editable" in Windows mode — select, whole-span move, `⌫` delete for an
+    // EXISTING row. No resize handles, no drag-to-create, no kind picker —
+    // explicitly out of scope for this task, next task's job.
+
+    /// One hit-testable, selectable, draggable region per `(window, span)` —
+    /// a window can produce more than one span on a given day when it wraps
+    /// past midnight (`TimeWindow.spans(on:calendar:)`'s own doc comment),
+    /// and each rendered span gets its own independent hit region and ring,
+    /// same as `BackgroundWindowsLayer` already draws each span independently.
+    @ViewBuilder
+    private func windowInteractionLayer(geometry: TimeGeometry) -> some View {
+        ForEach(timeWindows, id: \.id) { window in
+            let spans = window.spans(on: referenceDayStart)
+            ForEach(Array(spans.enumerated()), id: \.offset) { _, span in
+                windowHitRegion(window: window, span: span, geometry: geometry)
+            }
+        }
+    }
+
+    private func windowHitRegion(window: TimeWindow, span: (start: Date, end: Date), geometry: TimeGeometry) -> some View {
+        let y = geometry.y(for: span.start)
+        let height = max(geometry.height(from: span.start, to: span.end), 0)
+        let isSelected = windowSelection == window.id
+        // Live visual feedback only — nothing is written to the store until
+        // `.onEnded`. Only the region belonging to the window actually being
+        // dragged follows the pointer; every other window (and every other
+        // span of the *same* wrapping window) stays put.
+        let liveOffset: CGFloat = windowDrag.flatMap { $0.windowID == window.id ? $0.translationHeight : nil } ?? 0
+
+        return Rectangle()
+            .fill(.clear)
+            .contentShape(Rectangle())
+            .frame(height: height)
+            .frame(maxWidth: .infinity)
+            // Selection ring — the app's one existing generic selection
+            // vocabulary (`Tokens.Color.Interactive.focusRing` /
+            // `Tokens.Size.borderSelected`), drawn outside the bounds with a
+            // 1pt gap exactly as `GridBlockView.swift`'s own `.selected`
+            // overlay does. `Rectangle`, not `RoundedRectangle`, because every
+            // window treatment already on this canvas (`BackgroundWindowsLayer`'s
+            // `protectedSpan`/`lowEnergySpan`/`peakFocusSpan`) draws a plain
+            // rectangle with no corner radius — there is no window-specific
+            // radius token to reuse instead, and inventing one only for the
+            // ring would contradict the very regions it rings.
+            .overlay {
+                if isSelected {
+                    Rectangle()
+                        .strokeBorder(Tokens.Color.Interactive.focusRing, lineWidth: Tokens.Size.borderSelected)
+                        .padding(-(Tokens.Size.borderSelected + 1))
+                        .allowsHitTesting(false)
+                }
+            }
+            .offset(y: y + liveOffset)
+            .accessibilityHidden(true)
+            .onTapGesture { windowSelection = window.id }
+            .gesture(windowGesture(window: window, geometry: geometry))
+    }
+
+    /// Whole-span move only — every drag on a window's body is `.move`, no
+    /// resize-handle branch (that is next task's job). Mirrors
+    /// `blockGesture`'s snap shape: the raw pixel delta becomes a time delta,
+    /// snapped via `TimeGeometry.snap` (15-minute, 5-minute with `⌃`), and
+    /// only written to `TimeWindowStore` on `.onEnded` — `windowDrag` above
+    /// exists purely so the hit region can follow the pointer live.
+    private func windowGesture(window: TimeWindow, geometry: TimeGeometry) -> some Gesture {
+        DragGesture(minimumDistance: 3)
+            .onChanged { value in
+                windowDrag = TimeWindowDragSession(windowID: window.id, translationHeight: value.translation.height)
+            }
+            .onEnded { value in
+                defer { windowDrag = nil }
+                let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
+                let deltaTime = TimeInterval(value.translation.height / hourHeight) * 3600
+                // `referenceDayStart` is just a stable anchor here — snapping
+                // and then differencing against the same anchor yields the
+                // correct elapsed minute delta regardless of which calendar
+                // day `TimeGeometry.snap` resolves internally, the same
+                // reasoning `blockGesture`/`minutes(for:)` already rely on.
+                let snapped = TimeGeometry.snap(referenceDayStart.addingTimeInterval(deltaTime), toMinutes: snap)
+                let deltaMinutes = Int(snapped.timeIntervalSince(referenceDayStart) / 60)
+                windowSelection = window.id
+                timeWindowStore.move(window, byDeltaMinutes: deltaMinutes)
+            }
     }
 
     // MARK: Create (task P2-T12, mirrors DayColumnView.createSurface)

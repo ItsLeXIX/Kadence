@@ -3580,3 +3580,152 @@ run):**
 and the inspector's kind picker, `RoutineEngine.materialize` honouring
 protected windows, `MenuBarExtra`, snooze — all explicitly out of scope for
 both the original P2-T20 pass and this close-out.
+
+## 22. P2-T21 — TimeWindow editor: select, move (drag), delete existing windows in Windows mode (2026-09-24)
+
+components.md §13.3 calls protected/low-energy/peak-focus `TimeWindow`s
+"editable" in the Routines window's Windows mode — creating, dragging,
+resizing. P2-T20 (§21) built only the render-only layer: windows drew, but
+were not selectable or draggable in either mode. This task adds the first
+slice of the editable half, for an **existing** `TimeWindow` row only: select,
+whole-span move-by-drag, and `⌫` delete. Explicitly, and deliberately, still
+absent: drag-to-create a new `TimeWindow`, resize handles (top/bottom edge),
+the inspector's kind picker, weekday-set editing, `RoutineEngine.materialize`
+honouring windows, `MenuBarExtra`, snooze — next task's job (or later), per
+this task's own brief.
+
+**What was built:**
+
+- `Kadence/State/TimeWindowStore.swift` (new file) — `RoutineBlockStore`'s
+  sibling for `TimeWindow`: a `@MainActor struct` holding `context:
+  ModelContext` and `undo: UndoStack`, resolving everything by `id` through
+  the context (never a captured `@Model` reference), one named `UndoStack`
+  step per mutation, same shape `RoutineEngine.swift`'s own `RoutineBlockStore`
+  already established (tasks P2-T11/T12).
+  - `move(_:byDeltaMinutes:)` — unlike `RoutineBlockStore.move` (clamped to a
+    single day, per G-013, because `RoutineBlock` cannot wrap), a `TimeWindow`
+    already supports spanning midnight (its own doc comment,
+    `spans(on:calendar:)`), so this is a pure modular translation:
+    `startMinutes`/`endMinutes` each wrap independently
+    (`((x + delta) % 1440 + 1440) % 1440`), no clamping, duration preserved
+    implicitly because both ends move by the same delta. Named undo step
+    `"Move Time Window"`. A zero delta is a no-op and pushes no step.
+  - `delete(_:)` — simpler than `RoutineBlockStore.delete`: a `TimeWindow` has
+    no parent array membership to maintain, so this just inserts/deletes the
+    row itself. Every field (id, weekdays, startMinutes, endMinutes, kind,
+    label) is snapshotted (`TimeWindowRestoreSnapshot`) so `"Delete Time
+    Window"`'s undo reconstructs the row exactly, including a non-default
+    `kind` (tested with `.lowEnergy`, not just `.protected`'s default).
+  - `resize`/`create` deliberately not added — next task's job.
+- `Kadence/Views/Routines/RoutinesWindow.swift`:
+  - New `@State private var windowSelection: UUID?` on `RoutinesWindow`,
+    threaded down through `RoutinesCanvasView` into `RoutineDayColumnView`
+    alongside a new `timeWindowStore: TimeWindowStore` (same one-`UndoStack`
+    wiring `store` already has, so `⌘Z` for a window move/delete names
+    correctly regardless of which window is key).
+  - `RoutineDayColumnView.windowInteractionLayer(geometry:)` — one
+    hit-testable region per `(window, span)` (a wrapping window can produce
+    two spans on one day, each gets its own region), drawn above the existing
+    background/block layers and gated
+    `.allowsHitTesting(editorMode == .windows)` — the exact inverse of the
+    existing `.allowsHitTesting(editorMode == .blocks)` pattern the
+    block/draft layer already uses, so Blocks mode leaves windows exactly as
+    non-interactive as before. Tapping a region sets `windowSelection`;
+    tapping empty windows-mode canvas (a new full-height clear rectangle,
+    drawn *below* the per-window regions so a tap landing inside an actual
+    span still hits that window first) clears it — mirroring
+    `createSurface`'s existing "clicking empty grid deselects" tap for blocks.
+  - Selection ring: `Tokens.Color.Interactive.focusRing` /
+    `Tokens.Size.borderSelected`, drawn outside the bounds with a 1pt gap,
+    exactly the shape `GridBlockView.swift`'s `.selected` overlay already
+    uses (§6's existing selection vocabulary, reused rather than reinvented —
+    see the note below on the one judgement call this needed). Drawn with a
+    plain `Rectangle`, not `RoundedRectangle`, matching every other window
+    treatment already on this canvas (`BackgroundWindowsLayer`'s
+    `protectedSpan`/`lowEnergySpan`/`peakFocusSpan` all draw plain rectangles,
+    no corner radius).
+  - `windowGesture(window:geometry:)` — `DragGesture(minimumDistance: 3)`,
+    mirroring `blockGesture`'s snap shape but simpler: no resize-handle
+    branch, every drag on a window's body is a whole-span move. The live pixel
+    delta only moves the hit region/ring on screen during the drag (via a new
+    `windowDrag: TimeWindowDragSession?` local state, `nil` until a drag
+    starts); the actual minute delta is computed once at `.onEnded` — pixel
+    delta → seconds → `TimeGeometry.snap` (15-minute, 5-minute with `⌃`,
+    same as every other drag in this window) → minutes — and only then is
+    `TimeWindowStore.move` called. Nothing is written to the store mid-drag.
+  - `handleDelete()` now branches: if `windowSelection` is set, resolves the
+    live `TimeWindow` from the `@Query` array and calls
+    `TimeWindowStore.delete`; otherwise falls through to the pre-existing
+    block-delete path, unchanged.
+  - `onChange(of: selectedTemplateID)` and `onChange(of: editorMode)` both now
+    clear `windowSelection` too (previously only `selection`), generalizing
+    interactions.md §11.1's "the current selection is dropped on mode change"
+    to the new selection kind, matching the same rule already applied to
+    block selection.
+- `KadenceTests/TimeWindowStoreTests.swift` (new file) — same in-memory
+  `ModelContainer`/`ModelContext` pattern and undo/redo rigor as
+  `RoutineWeekLayoutTests.swift`'s `RoutineBlockStore` suites. Ten cases:
+  `TimeWindowStoreMoveTests` (plain within-day move and naming; forward wrap
+  past 24:00; backward wrap past 00:00; moving an already-wrapping
+  22:00–07:00 window and confirming the wrap and 9-hour duration survive;
+  zero-delta no-op pushes nothing; undo/redo round-trip) and
+  `TimeWindowStoreDeleteTests` (deletes immediately and names the step; undo
+  restores every field including `kind`/`weekdays`; redo-after-undo deletes
+  again; a non-default `.lowEnergy` kind survives the round trip too, not
+  just `.protected`'s default).
+
+**One judgement call, recorded per this task's own instruction (same
+convention as prior P2 tasks' narrow calls — see `design/GAPS.md`'s existing
+entries for the shape of this kind of note):** the selection ring reuses
+§6's existing generic vocabulary (`Tokens.Color.Interactive.focusRing` /
+`Tokens.Size.borderSelected`) applied to a new selectable object — this is
+reuse, not an invented value, so no `design/GAPS.md` entry was filed. See
+`DEVIATIONS.md`'s P2-T20 paragraph, appended by this task, for the full note.
+
+**One additional narrow judgement call, not previously flagged:** the hit
+region for each window is the *raw* `TimeWindow.spans(on:)` span, not the
+protected-wins-over-low-energy-*subtracted* span `WindowSpanResolver`/
+`BackgroundWindowsLayer` actually paint when two windows overlap. Selecting
+and dragging the underlying model object (its full, real span) rather than
+whatever fraction of it happens to still be visible under an overlapping
+protected window reads as more correct for an editor, and avoids a second,
+resolver-shaped hit-testing pass this task's brief did not ask for. Where two
+windows' hit regions overlap, whichever is frontmost in `ForEach(timeWindows)`
+order wins the tap — same "today's build keeps frontmost-wins behaviour, and
+no value was invented" precedent DEVIATIONS.md's G-010/A24 already establish
+for overlapping blocks, not a new gap.
+
+**Verified:**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`; 313 test cases
+  passed, 0 failed (per `xcrun xcresulttool get test-results summary`'s
+  per-device count, which includes every parameterized run — the same
+  convention §21 used), including all ten new `TimeWindowStoreTests.swift`
+  cases; no regressions in any pre-existing suite (283 distinct test names
+  per the same tool's top-level dedup count, consistent with +10 over §21's
+  303/(implied ~273 unique)).
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/
+  Tokens.swift is up to date.` — no new tokens needed; every token this task
+  used (`Tokens.Color.Interactive.focusRing`, `Tokens.Size.borderSelected`)
+  already existed.
+- Lock probe run first per Parsa's 2026-09-18 ruling: `swift -e
+  'CGSessionCopyCurrentDictionary()'` → `CGSSessionScreenIsLocked` absent
+  (unlocked), `kCGSSessionOnConsoleKey = 1`. `Scripts/check-accessibility.sh`
+  taken at face value per that same ruling: `PASS (elements present)`, 20
+  block-shaped elements, `0` carrying the §11 label — the pre-existing,
+  already-open A20b defect (VoiceOver hover-help string, unrelated to this
+  task, untouched by it).
+- Grep confirmation of scope: no `resize`/`create` method on
+  `TimeWindowStore`; no kind-picker/weekday-editing code added to
+  `RoutinesWindow.swift`'s window-selection additions — see the grep output
+  this task ran, which found only this task's own comments naming those as
+  out of scope, nothing implementing them.
+
+**Blocked:** nothing. Next up, per this task's own scope note and
+`DEVIATIONS.md`'s P2-T20 paragraph (appended by this task): `TimeWindow` resize (drag a top/bottom
+edge) and drag-to-create, the inspector's kind picker and weekday-set editing
+for a selected window, `RoutineEngine.materialize` honouring protected
+windows, `MenuBarExtra`, snooze.
