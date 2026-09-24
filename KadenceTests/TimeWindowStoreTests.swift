@@ -9,11 +9,15 @@
 //  `RoutineWeekLayoutTests.swift`'s own `RoutineBlockStore` suites (task
 //  P2-T11) — `TimeWindowStore` is this task's sibling of that store.
 //
-//  Task P2-T22 adds `TimeWindowStoreResizeTests` below, covering the other
-//  half this file's own header used to say did not exist yet: resize (a
-//  top/bottom edge drag). What is still deliberately NOT tested here, because
-//  it does not exist yet: create (drag-to-create on empty windows-mode
-//  canvas) — next task's job, per that task's own brief.
+//  Task P2-T22 added `TimeWindowStoreResizeTests` below, covering resize (a
+//  top/bottom edge drag).
+//
+//  Task P2-T23 adds `TimeWindowStoreCreateTests` below, covering the other
+//  half this file's own header used to say did not exist yet: create
+//  (drag-to-create on empty windows-mode canvas). What is still deliberately
+//  NOT tested here, because it does not exist yet: the inspector's kind
+//  picker, weekday-set editing beyond a caller-supplied set, and label
+//  editing — next task's job, per that task's own brief.
 //
 
 import Testing
@@ -361,5 +365,111 @@ struct TimeWindowStoreResizeTests {
         let afterRedo = try #require(fetchTimeWindow(id, in: context))
         #expect(afterRedo.startMinutes == 9 * 60 + 15)
         #expect(afterRedo.endMinutes == 10 * 60 + 30)
+    }
+}
+
+/// Task P2-T23 — components.md §13.3's "Creating one: drag on empty canvas,
+/// then pick the kind from the inspector," the piece P2-T20/T21/T22 all
+/// deferred by name. Only the drag half is tested here: `create` always
+/// takes its `weekdays`/`startMinutes`/`endMinutes` from the caller (in the
+/// real UI, a single-element weekday set and a 15-minute-floored drag) and
+/// leaves `kind`/`label` at `TimeWindow.swift`'s own model defaults unless
+/// the caller overrides them.
+@Suite("TimeWindowStore.create")
+@MainActor
+struct TimeWindowStoreCreateTests {
+
+    @Test("Create inserts a row with the exact given weekday set, .protected kind by default, and the given start/end minutes, and names the undo step")
+    func createsWithDefaults() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+
+        let created = store.create(weekdays: [3], startMinutes: 9 * 60, endMinutes: 9 * 60 + 30)
+
+        let window = try #require(created)
+        #expect(window.weekdays == [3])
+        #expect(window.startMinutes == 9 * 60)
+        #expect(window.endMinutes == 9 * 60 + 30)
+        #expect(window.kind == .protected)
+        #expect(window.label == "")
+        #expect(fetchTimeWindow(window.id, in: context) != nil)
+        #expect(undo.undoActionName == "Create Time Window")
+        #expect(undo.undoMenuTitle == "Undo Create Time Window")
+    }
+
+    @Test("A non-default kind and label are honoured when the caller supplies them")
+    func createsWithExplicitKindAndLabel() throws {
+        let (store, _, _) = try makeTimeWindowStore()
+
+        let created = store.create(
+            weekdays: [5], startMinutes: 13 * 60, endMinutes: 14 * 60,
+            kind: .lowEnergy, label: "Post-lunch dip")
+
+        let window = try #require(created)
+        #expect(window.kind == .lowEnergy)
+        #expect(window.label == "Post-lunch dip")
+    }
+
+    @Test("Exactly one named undo step is pushed per create")
+    func pushesExactlyOneUndoStep() throws {
+        let (store, _, undo) = try makeTimeWindowStore()
+
+        store.create(weekdays: [2], startMinutes: 8 * 60, endMinutes: 8 * 60 + 45)
+
+        #expect(undo.canUndo)
+        undo.undo()
+        #expect(undo.canUndo == false)
+        #expect(undo.canRedo)
+    }
+
+    @Test("A drag shorter than 15 minutes is floored to exactly 15, not collapsed or left short")
+    func fifteenMinuteFloorEnforced() throws {
+        // `create` enforces the 15-minute minimum itself, defensively, the
+        // same belt-and-braces shape `RoutineBlockStore.create` already uses
+        // for its own floor — even though `RoutinesWindow.swift`'s
+        // create-drag already floors before calling in. A 5-minute span
+        // (10:00-10:05) must come back as exactly 15 minutes (10:00-10:15),
+        // start held fixed, same as `resize`'s own minimum-duration rule.
+        let (store, _, _) = try makeTimeWindowStore()
+
+        let created = store.create(weekdays: [4], startMinutes: 10 * 60, endMinutes: 10 * 60 + 5)
+
+        let window = try #require(created)
+        #expect(window.startMinutes == 10 * 60)
+        #expect(window.endMinutes == 10 * 60 + 15)
+    }
+
+    @Test("An empty weekday set creates nothing and pushes no undo step")
+    func emptyWeekdaysCreatesNothing() throws {
+        let (store, _, undo) = try makeTimeWindowStore()
+
+        let created = store.create(weekdays: [], startMinutes: 9 * 60, endMinutes: 9 * 60 + 30)
+
+        #expect(created == nil)
+        #expect(undo.canUndo == false)
+    }
+
+    @Test("Undo removes the created window (fetch by id returns nil); redo restores it with the same id and fields")
+    func undoRemovesRedoRestores() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+
+        let created = try #require(store.create(
+            weekdays: [6], startMinutes: 7 * 60, endMinutes: 7 * 60 + 15,
+            kind: .peakFocus, label: "Deep work"))
+        let id = created.id
+
+        #expect(fetchTimeWindow(id, in: context) != nil)
+
+        undo.undo()
+        #expect(fetchTimeWindow(id, in: context) == nil)
+        #expect(undo.canRedo)
+
+        undo.redo()
+        let restored = try #require(fetchTimeWindow(id, in: context))
+        #expect(restored.id == id)
+        #expect(restored.weekdays == [6])
+        #expect(restored.startMinutes == 7 * 60)
+        #expect(restored.endMinutes == 7 * 60 + 15)
+        #expect(restored.kind == .peakFocus)
+        #expect(restored.label == "Deep work")
     }
 }

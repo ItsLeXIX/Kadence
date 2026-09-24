@@ -51,6 +51,18 @@
 //  itself measures a window's own span — the edge is pulled back to exactly
 //  15 minutes instead of being allowed to collapse the window or invert it.
 //
+//  Task P2-T23 adds `create`, the half components.md §13.3 states in as many
+//  words and that P2-T20/T21/T22 all deferred by name: "Creating one: drag on
+//  empty canvas, then pick the kind from the inspector." This task builds
+//  only the drag half — `create` below always inserts a `.protected`-kind,
+//  empty-label row over exactly the weekday set its caller supplies (in
+//  practice, `RoutinesWindow.swift`'s create-drag always passes the single
+//  weekday of the column it ran in). The inspector's kind picker, weekday-set
+//  editing, and label editing — the "then pick the kind from the inspector"
+//  half of that same sentence — are still explicitly NOT here; a future
+//  task's job, same deferral shape T20/T21/T22 each used for their own
+//  remainder.
+//
 
 import Foundation
 import SwiftData
@@ -187,9 +199,70 @@ struct TimeWindowStore {
         try? context.save()
     }
 
-    // `create` (drag-to-create on empty windows-mode canvas) is still
-    // deliberately NOT here — out of scope for task P2-T22 too, per its own
-    // brief. Next task's job.
+    // MARK: Create
+
+    /// Drag-to-create on empty windows-mode canvas (components.md §13.3:
+    /// "Creating one: drag on empty canvas, then pick the kind from the
+    /// inspector."). This method is only the drag half of that sentence — the
+    /// caller decides `weekdays`/`startMinutes`/`endMinutes` (in practice,
+    /// `RoutinesWindow.swift`'s create-drag always passes a single-element
+    /// `weekdays` set, the column the drag ran in) and leaves `kind`/`label`
+    /// at this method's own defaults, which are `TimeWindow.swift`'s own
+    /// model defaults (`.protected`, `""`) — "pick the kind from the
+    /// inspector" is next task's job, not this one's.
+    ///
+    /// The 15-minute minimum duration is enforced here too, defensively —
+    /// `RoutinesWindow.swift`'s create-drag already floors it before calling
+    /// in (the same `max(upper.timeIntervalSince(lower), 15*60)` shape
+    /// `commitDraft` uses for a routine block), but this method does not
+    /// trust that and floors again itself, the same belt-and-braces shape
+    /// `RoutineBlockStore.create` already uses for its own 15-minute floor.
+    /// Computed with `wrapMinutes`/`modularDuration` above — the same
+    /// wrap-aware (never clamped into `[0, 1440]`) floor `resize` already
+    /// applies, for the same reason given in this file's header: a
+    /// `TimeWindow` already supports a span past midnight, so a candidate
+    /// `endMinutes` that is less than 15 minutes forward of `startMinutes`
+    /// (wrapping, exactly as `spans(on:)` measures) is pushed forward to
+    /// exactly `startMinutes + 15`, wrapped, rather than collapsed or left to
+    /// invert.
+    ///
+    /// Reversed shape of `delete`'s own undo, reusing the same
+    /// `TimeWindowRestoreSnapshot`/`insertWindow`/`removeWindow` plumbing:
+    /// `redo` inserts the new window, `undo` removes it by `id` — mirrors
+    /// `RoutineBlockStore.create`'s own reversed-`delete` shape exactly
+    /// (`Kadence/State/RoutineEngine.swift`).
+    ///
+    /// Returns the created window (or `nil` on failure) so the caller can
+    /// select it immediately, matching `RoutineBlockStore.create`'s optional-
+    /// return convention that `RoutinesWindow.commitDraft()` already relies on
+    /// for `RoutineBlock`. The only failure case here is an empty `weekdays`
+    /// set — unlike `RoutineBlockStore.create`, there is no title to be blank,
+    /// since an empty label is this task's own explicit default, not a reason
+    /// to refuse the create.
+    @discardableResult
+    func create(
+        weekdays: Set<Int>, startMinutes: Int, endMinutes: Int,
+        kind: TimeWindowKind = .protected, label: String = ""
+    ) -> TimeWindow? {
+        guard !weekdays.isEmpty else { return nil }
+
+        let minimum = 15
+        let start = wrapMinutes(startMinutes)
+        let candidateEnd = wrapMinutes(endMinutes)
+        let end = modularDuration(from: start, to: candidateEnd) < minimum
+            ? wrapMinutes(start + minimum)
+            : candidateEnd
+
+        let id = UUID()
+        let snapshot = TimeWindowRestoreSnapshot(
+            id: id, weekdays: weekdays, startMinutes: start, endMinutes: end,
+            kind: kind, label: label)
+
+        undo.perform("Create Time Window",
+                     redo: { insertWindow(snapshot) },
+                     undo: { removeWindow(id) })
+        return window(id)
+    }
 }
 
 // MARK: - Snapshot (delete/undo)
@@ -198,6 +271,13 @@ struct TimeWindowStore {
 /// and same reason as `RoutineBlockRestoreSnapshot`: a `@Model` instance
 /// cannot be re-inserted once deleted, so undo recreates one carrying the
 /// same `id` and every other field, including `kind`, `label` and `weekdays`.
+///
+/// Also (task P2-T23) what `create`'s own `redo` inserts: a brand-new window
+/// has never had a `@Model` instance to snapshot *from*, but it needs the
+/// same "values in, `insertWindow` builds the `@Model`" shape `delete`'s undo
+/// already established — the plain memberwise `init` below supplies it
+/// directly, mirroring `RoutineBlockRestoreSnapshot`'s own two-initializer
+/// shape (`Kadence/State/RoutineEngine.swift`) exactly.
 struct TimeWindowRestoreSnapshot: Sendable {
     var id: UUID
     var weekdays: Set<Int>
@@ -205,6 +285,22 @@ struct TimeWindowRestoreSnapshot: Sendable {
     var endMinutes: Int
     var kind: TimeWindowKind
     var label: String
+
+    init(
+        id: UUID,
+        weekdays: Set<Int>,
+        startMinutes: Int,
+        endMinutes: Int,
+        kind: TimeWindowKind = .protected,
+        label: String = ""
+    ) {
+        self.id = id
+        self.weekdays = weekdays
+        self.startMinutes = startMinutes
+        self.endMinutes = endMinutes
+        self.kind = kind
+        self.label = label
+    }
 
     @MainActor
     init(_ window: TimeWindow) {

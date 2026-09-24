@@ -39,23 +39,35 @@
 //  `opacity.editorInactiveLayer`, not hit-testable"). Task P2-T21 then made an
 //  EXISTING `TimeWindow` selectable, whole-span draggable and deletable in
 //  Windows mode — its own comments named resizing an edge and creating a new
-//  window as "next task's job". Task P2-T22 (this pass) is that next task for
+//  window as "next task's job". Task P2-T22 was that next task for
 //  resizing: dragging within `Tokens.Size.blockResizeHandleHeight` of a
 //  selected span's top or bottom edge — "the same ... handles blocks use"
 //  (components.md §13.3, verbatim) — now resizes that edge through the new
 //  `TimeWindowStore.resize` instead of moving the whole span; a body drag
-//  still moves it, unchanged. Still explicitly out of
+//  still moves it, unchanged. Task P2-T23 (this pass) is components.md
+//  §13.3's other named half — "Creating one: drag on empty canvas, then pick
+//  the kind from the inspector" — but only the drag half of that sentence:
+//  dragging on the windows-mode empty-canvas Rectangle (the same one whose
+//  tap already deselects) now creates a new TimeWindow scoped to the single
+//  weekday column the drag ran in, defaulting to kind .protected and an
+//  empty label (TimeWindow.swift's own model defaults), 15-minute minimum
+//  duration, selected on success — its own small TimeWindowCreateDragSession
+//  state and dashed drop preview, mirroring createSurface's own create-drag
+//  shape rather than overloading TimeWindowDragSession (move/resize-only,
+//  for an EXISTING window). Still explicitly out of
 //  scope, left for follow-up tasks:
-//    - creating a new `TimeWindow` (drag-to-create on empty windows-mode
-//      canvas), and the inspector's kind picker / weekday-set editing for a
-//      selected window (components.md §13.3's "protected / low-energy /
-//      peak-focus regions editable" — select/move/resize/delete now cover the
-//      rest of that sentence);
+//    - "then pick the kind from the inspector" — the inspector's kind picker
+//      / weekday-set editing beyond this task's single-weekday default, and
+//      label editing (components.md §13.3's "protected / low-energy /
+//      peak-focus regions editable" — select/move/resize/delete/create now
+//      cover the rest of that sentence);
 //    - the flexibility control's interactive stepper (components.md §13.2) —
 //      the inspector still shows flexibility as read-only text;
 //    - detached-instance tracking and Re-sync (components.md §13.4,
 //      interactions.md §11.2) — always zero right now, so per the existing
-//      zero-state rule (§10.2) it is omitted entirely rather than stubbed.
+//      zero-state rule (§10.2) it is omitted entirely rather than stubbed;
+//    - RoutineEngine.materialize honouring protected windows, MenuBarExtra,
+//      snooze — separate, later tasks, unrelated to this window.
 //
 //  Move/resize/delete/create all go through `RoutineBlockStore`
 //  (`Kadence/State/RoutineEngine.swift`) — the Routines-window sibling of
@@ -507,6 +519,12 @@ private struct RoutineDayColumnView: View {
     /// computed once, at `.onEnded`, exactly the way `blockGesture` computes
     /// its snapped result at drop rather than on every frame.
     @State private var windowDrag: TimeWindowDragSession?
+    /// In-flight drag-to-create on empty windows-mode canvas (task P2-T23) —
+    /// its own small session, deliberately NOT folded into `TimeWindowDragSession`
+    /// above, which is move/resize-only for an EXISTING window and is keyed by
+    /// `windowID`; there is no id yet for a window that does not exist until
+    /// `.onEnded`. Same nothing-written-until-drop rule as `drag`/`windowDrag`.
+    @State private var windowCreateDrag: TimeWindowCreateDragSession?
 
     struct RoutineDragSession: Equatable {
         enum Mode: Equatable { case move, resizeTop, resizeBottom, create }
@@ -528,6 +546,17 @@ private struct RoutineDayColumnView: View {
         var windowID: UUID
         var mode: Mode
         var translationHeight: CGFloat
+    }
+
+    /// Task P2-T23 — drag-to-create on empty windows-mode canvas. Mirrors
+    /// `RoutineDragSession`'s own `.create` case shape (`origin`/`current`
+    /// snapped `Date`s, nothing written until `.onEnded`), kept as its own
+    /// type rather than a third case bolted onto `TimeWindowDragSession`
+    /// above, which addresses an EXISTING window by `windowID` — a window
+    /// being created has none yet.
+    struct TimeWindowCreateDragSession: Equatable {
+        var origin: Date
+        var current: Date
     }
 
     private var referenceDayStart: Date {
@@ -648,7 +677,22 @@ private struct RoutineDayColumnView: View {
                     .frame(height: geometry.totalHeight)
                     .accessibilityHidden(true)
                     .onTapGesture { windowSelection = nil }
+                    // components.md §13.3 / task P2-T23: "Creating one: drag
+                    // on empty canvas..." — a sibling to `createSurface`'s own
+                    // create-drag below, on the same Rectangle whose tap
+                    // already deselects, active only in Windows mode via the
+                    // `.allowsHitTesting` this Rectangle already carried.
+                    .gesture(windowCreateGesture(geometry: geometry))
                     .allowsHitTesting(editorMode == .windows)
+
+                // Live dashed preview for the drag-to-create above — mirrors
+                // `dropPreview`/`dropPreviewFrame`'s own mechanism for
+                // blocks-mode create, keyed off `windowCreateDrag` instead of
+                // `drag` so the two never interfere (one only ever runs in
+                // Blocks mode, the other only in Windows mode).
+                if let previewRect = windowCreatePreviewFrame(in: proxy.size.width, geometry: geometry) {
+                    dropPreview(previewRect)
+                }
 
                 windowInteractionLayer(geometry: geometry)
                     .allowsHitTesting(editorMode == .windows)
@@ -771,9 +815,11 @@ private struct RoutineDayColumnView: View {
     //
     // components.md §13.3: "protected / low-energy / peak-focus regions
     // editable" in Windows mode — select, whole-span move, top/bottom-edge
-    // resize, `⌫` delete for an EXISTING row. No drag-to-create, no kind
-    // picker, no weekday-set editing — still explicitly out of scope, next
-    // task's job.
+    // resize, `⌫` delete for an EXISTING row. Drag-to-create a NEW row is
+    // task P2-T23's job, below (see `windowCreateGesture`/`createSurface`'s
+    // own note at its call site). No kind picker, no weekday-set editing
+    // beyond a single default, no label editing — still explicitly out of
+    // scope, next task's job.
 
     /// One hit-testable, selectable, draggable region per `(window, span)` —
     /// a window can produce more than one span on a given day when it wraps
@@ -913,6 +959,71 @@ private struct RoutineDayColumnView: View {
                     timeWindowStore.resize(window, newEndMinutes: window.endMinutes + deltaMinutes)
                 }
             }
+    }
+
+    // MARK: TimeWindow create (task P2-T23)
+    //
+    // components.md §13.3: "Creating one: drag on empty canvas, then pick the
+    // kind from the inspector." Only the drag half — this always creates a
+    // `.protected`-kind, empty-label `TimeWindow` scoped to exactly this
+    // column's own `weekday`, never propagated to any other day. Mirrors
+    // `createSurface`'s own drag-to-create `DragGesture` below (same snap,
+    // same 15-minute floor via `max(upper.timeIntervalSince(lower), 15*60)`,
+    // same "commit at `.onEnded`, nothing written mid-drag" shape) rather than
+    // `windowGesture` above, which addresses an EXISTING window.
+
+    /// Snaps `value.startLocation`/`value.location` the same 15-minute (or
+    /// 5-minute with `⌃`) way `createSurface`/`windowGesture` both already do,
+    /// via `TimeGeometry.snap`; on drop, floors the dragged duration to 15
+    /// minutes (`commitDraft`'s own pattern) and creates a new `TimeWindow`
+    /// over this column's single `weekday`, selecting it on success.
+    private func windowCreateGesture(geometry: TimeGeometry) -> some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { value in
+                let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
+                let from = TimeGeometry.snap(geometry.date(forY: value.startLocation.y), toMinutes: snap)
+                let to = TimeGeometry.snap(geometry.date(forY: value.location.y), toMinutes: snap)
+                windowCreateDrag = TimeWindowCreateDragSession(origin: from, current: to)
+            }
+            .onEnded { _ in
+                defer { windowCreateDrag = nil }
+                guard let session = windowCreateDrag else { return }
+                let lower = min(session.origin, session.current)
+                let upper = max(session.origin, session.current)
+                let duration = max(upper.timeIntervalSince(lower), 15 * 60)
+                let startMinutes = minutes(for: lower)
+                // Wrapped mod 1440 rather than left to run past it, for the
+                // same reason `TimeWindowStore`'s own `wrapMinutes` wraps
+                // rather than clamps (this file's header, and
+                // `TimeWindowStore.swift`'s own): a `TimeWindow` already
+                // supports a span past midnight via `endMinutes < startMinutes`,
+                // so a drag that starts within the last 15 minutes of the day
+                // (the only way the floored `duration` can push the raw sum
+                // past 1440) wraps into the small hours instead of producing
+                // an out-of-range `endMinutes` the model was never meant to
+                // hold.
+                let rawEnd = startMinutes + Int(duration / 60)
+                let endMinutes = ((rawEnd % 1440) + 1440) % 1440
+                if let created = timeWindowStore.create(
+                    weekdays: [weekday], startMinutes: startMinutes, endMinutes: endMinutes) {
+                    windowSelection = created.id
+                }
+            }
+    }
+
+    /// Live dashed preview for `windowCreateGesture` above — same geometry
+    /// math as `dropPreviewFrame`'s own `.create` case, just keyed off
+    /// `windowCreateDrag` instead of `drag` (blocks-mode create's own session
+    /// type), rendered through the same `dropPreview(_:)` view.
+    private func windowCreatePreviewFrame(in width: CGFloat, geometry: TimeGeometry) -> CGRect? {
+        guard let session = windowCreateDrag else { return nil }
+        let lower = min(session.origin, session.current)
+        let upper = max(session.origin, session.current)
+        let inset = Tokens.Spacing.xxs
+        return CGRect(
+            x: inset, y: geometry.y(for: lower),
+            width: width - 2 * inset,
+            height: max(geometry.height(from: lower, to: upper), Tokens.Size.blockMinRenderedHeight))
     }
 
     // MARK: Create (task P2-T12, mirrors DayColumnView.createSurface)

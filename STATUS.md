@@ -3844,3 +3844,125 @@ adds the resize half.
 (drag-to-create), the inspector's kind picker, weekday-set editing,
 `RoutineEngine.materialize` honouring protected windows, `MenuBarExtra`,
 snooze.
+
+## 24. P2-T23 — TimeWindow editor: drag-to-create a new window on empty canvas (Windows mode, 2026-09-24)
+
+The piece §20/§21/§22's own headers all named as "next task's job", and the
+one components.md §13.3 states in as many words: "Creating one: drag on empty
+canvas, then pick the kind from the inspector." This task builds only the
+drag half of that sentence — the inspector's kind picker, weekday-set
+editing, and label editing are still out of scope, same deferral shape T20/
+T21/T22 each used for their own remainder. A created window defaults to kind
+`.protected` (`TimeWindow.swift`'s own model default), an empty label, and
+exactly the one weekday of the column it was dragged on.
+
+**What was built:**
+
+- `Kadence/State/TimeWindowStore.swift` — new
+  `create(weekdays:startMinutes:endMinutes:kind:label:) -> TimeWindow?`,
+  mirroring `RoutineBlockStore.create`'s shape (`Kadence/State/RoutineEngine.swift`):
+  one named `UndoStack` step (`"Create Time Window"`), `redo` inserts via the
+  existing `TimeWindowRestoreSnapshot`/`insertWindow` plumbing `delete`'s undo
+  already established, `undo` removes by `id` via the existing `removeWindow`.
+  `TimeWindowRestoreSnapshot` gained a plain memberwise `init` (id, weekdays,
+  startMinutes, endMinutes, kind, label) alongside its existing `@MainActor
+  init(_ window:)`, mirroring `RoutineBlockRestoreSnapshot`'s own
+  two-initializer shape exactly — a brand-new window has no `@Model` instance
+  to snapshot *from*, so `create`'s `redo` needs the plain values-in
+  initializer the same way `RoutineBlockStore.create`'s own snapshot needs
+  one. Returns the created window (or `nil`) so the caller can select it,
+  matching `RoutineEngine.create`'s optional-return convention
+  `RoutinesWindow.commitDraft()` already relies on for `RoutineBlock`; the
+  only failure case is an empty `weekdays` set (there is no title to be
+  blank, since an empty label is this task's own explicit default, not a
+  reason to refuse the create). The 15-minute minimum duration is enforced
+  inside `create` itself, defensively — belt-and-braces, the same shape
+  `RoutineBlockStore.create` already uses for its own floor — computed with
+  the file's existing `wrapMinutes`/`modularDuration` helpers (the same
+  wrap-aware floor `resize` already applies): a candidate `endMinutes` less
+  than 15 minutes forward of `startMinutes` (measured wrapping, exactly as
+  `spans(on:)` measures) is pushed forward to `startMinutes + 15`, wrapped,
+  rather than collapsed or left to invert.
+- `Kadence/Views/Routines/RoutinesWindow.swift`:
+  - New `TimeWindowCreateDragSession` (`origin`/`current` snapped `Date`s),
+    deliberately its own small type rather than a third case on
+    `TimeWindowDragSession` — that type addresses an EXISTING window by
+    `windowID`, and a window being created has none yet. New
+    `@State private var windowCreateDrag: TimeWindowCreateDragSession?` on
+    `RoutineDayColumnView`, alongside the existing `windowDrag`.
+  - The windows-mode empty-canvas `Rectangle` (whose tap already deselects,
+    hit-testable only when `editorMode == .windows`) gained a sibling
+    `.gesture(windowCreateGesture(geometry:))`: `.onChanged` snaps
+    `value.startLocation`/`value.location` via `TimeGeometry.snap` (15-minute,
+    5-minute with `⌃` — the identical rule `createSurface`/`windowGesture`
+    both already use); `.onEnded` computes `lower`/`upper`, floors the
+    duration to 15 minutes (`max(upper.timeIntervalSince(lower), 15*60)`, the
+    same pattern `commitDraft` uses for a routine block), wraps the resulting
+    `startMinutes`/`endMinutes` mod 1440 (so a drag starting within the last
+    15 minutes of the day produces a correctly-wrapping window instead of an
+    out-of-range `endMinutes`), and calls
+    `timeWindowStore.create(weekdays: [weekday], startMinutes:, endMinutes:)`
+    with the column's own single `weekday` — never propagated to any other
+    day. On success, `windowSelection = created.id`.
+  - A live dashed preview during the drag: `windowCreatePreviewFrame(in:geometry:)`
+    mirrors `dropPreviewFrame`'s own `.create`-case geometry math, keyed off
+    `windowCreateDrag` instead of `drag`, rendered through the same existing
+    `dropPreview(_:)` view (dashed accent-coloured `RoundedRectangle`) —
+    reused, not reinvented, since the two drags never run in the same mode
+    (`drag`/blocks-mode create is hit-testable only in `.blocks`;
+    `windowCreateDrag`/this task's create is hit-testable only in `.windows`).
+- Header comments in both files updated in place, T20–T22's own convention:
+  `TimeWindowStore.swift`'s file header records `create` now exists and what
+  is still deferred; `RoutinesWindow.swift`'s file header and the "MARK:
+  TimeWindow select / move / resize" section comment both point at this
+  task's drag-to-create instead of listing it as still-missing.
+
+**Verified:**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, run three times
+  during this task (twice mid-task, once as the final re-verification pass);
+  326 `passed` lines every time, 0 failed every time. The deduplicated unique
+  test-name count itself wobbled by exactly one between runs (296 vs 297) —
+  `LayoutItemsTests/activeWeekdayProducesItems()` was present in every run's
+  raw log but missing from one run's captured `tail`-truncated intermediate
+  file, not an actual missing/flaky test; the `passed`/`failed` line counts
+  (the numbers that actually matter) were identical across all three runs.
+  Either way, up from §23's reported 290 unique by the 6 new
+  `TimeWindowStoreCreateTests` cases (the surplus of `passed` over unique
+  names is parameterized cases logged per argument, same wobble this file has
+  noted since §1.4).
+- New `TimeWindowStoreCreateTests` suite, six cases, all passed as part of the
+  full run above: `createsWithDefaults` (exact given weekday set, `.protected`
+  kind by default, exact given start/end minutes, named undo step
+  `"Create Time Window"`); `createsWithExplicitKindAndLabel` (a caller-supplied
+  non-default kind/label round-trip); `pushesExactlyOneUndoStep`;
+  `fifteenMinuteFloorEnforced` (a 5-minute span comes back as exactly 15,
+  start held fixed); `emptyWeekdaysCreatesNothing` (returns `nil`, pushes no
+  undo step); `undoRemovesRedoRestores` (undo removes the created window —
+  fetch by id returns `nil` — redo restores it with the same id and every
+  field).
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.` — no new tokens needed;
+  every token this task's preview reuses (`Tokens.Spacing.xxs`,
+  `Tokens.Size.blockMinRenderedHeight`, `Tokens.Radius.block`,
+  `Tokens.Color.Interactive.accent`) already existed, read through the
+  existing `dropPreview(_:)`/`dropPreviewFrame` mechanism.
+- Lock probe run first per Parsa's 2026-09-18 ruling: `swift -e
+  'CGSessionCopyCurrentDictionary()'` → the dictionary has no
+  `CGSSessionScreenIsLocked` key at all (i.e. unlocked),
+  `kCGSSessionOnConsoleKey = 1`. `Scripts/check-accessibility.sh` taken at
+  face value per that same ruling: `PASS (elements present)`, 20
+  block-shaped elements, `0` carrying the §11 label — the pre-existing,
+  already-open A20b defect (VoiceOver hover-help string), unrelated to this
+  task and untouched by it.
+- All Kadence processes killed (`pkill -9`) after verification, confirmed
+  zero matches.
+
+**Blocked:** nothing. Next up, per this task's own scope note and
+`DEVIATIONS.md`'s updated P2-T23 paragraph: the inspector's kind picker,
+weekday-set editing beyond this task's single-weekday default, label editing,
+`RoutineEngine.materialize` honouring protected windows, `MenuBarExtra`,
+snooze.

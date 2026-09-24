@@ -148,9 +148,38 @@ resizes `window.startMinutes` while a bottom-edge drag always resizes
 `window.endMinutes`, regardless of which span. Correct for the common
 (non-wrapping) case; the render layer already recomputes both spans from the
 resulting fields either way. **Still absent, unchanged, still explicitly out
-of scope:** creating a new `TimeWindow` (drag-to-create), the inspector's
-kind picker, weekday-set editing, `RoutineEngine.materialize` honouring
-windows, `MenuBarExtra`, snooze — next task's job. See `STATUS.md` §23.)*
+of scope (at the time):** creating a new `TimeWindow` (drag-to-create), the
+inspector's kind picker, weekday-set editing, `RoutineEngine.materialize`
+honouring windows, `MenuBarExtra`, snooze — next task's job. See `STATUS.md`
+§23.)*
+
+**Corrected 2026-09-24, task P2-T23 — the immediately preceding paragraph's
+"creating a new `TimeWindow` (drag-to-create)" clause is now STALE.**
+`Kadence/State/TimeWindowStore.swift` gained
+`create(weekdays:startMinutes:endMinutes:kind:label:) -> TimeWindow?`,
+mirroring `RoutineBlockStore.create`'s reversed-`delete` shape (one named
+undo step, `"Create Time Window"`, via the existing
+`TimeWindowRestoreSnapshot`/`insertWindow`/`removeWindow` plumbing) and, like
+`resize` above, its own defensive 15-minute floor computed with the file's
+existing wrap-aware `wrapMinutes`/`modularDuration` helpers rather than a
+plain clamp. `RoutinesWindow.swift`'s windows-mode empty-canvas `Rectangle`
+(the one whose tap already deselects) gained a sibling `DragGesture`,
+mirroring `createSurface`'s own create-drag shape (same `TimeGeometry.snap`
+rule, same `max(upper.timeIntervalSince(lower), 15*60)` floor pattern
+`commitDraft` uses) but writing through `TimeWindowStore.create` with the
+dragged column's own single `weekday` — never propagated to any other day —
+instead of a title-bearing draft. A new small `TimeWindowCreateDragSession`
+(`origin`/`current`), deliberately not folded into `TimeWindowDragSession`
+(move/resize-only, keyed by an EXISTING window's `id`), drives a live dashed
+preview reusing the existing `dropPreview(_:)` view. The created window is
+selected (`windowSelection`) on success. This closes only the drag half of
+components.md §13.3's "Creating one: drag on empty canvas, then pick the kind
+from the inspector" — every created window still defaults to kind
+`.protected`, an empty label, and exactly the single dragged weekday.
+**Still absent, unchanged, still explicitly out of scope:** the inspector's
+kind picker, weekday-set editing beyond this task's single-weekday default,
+label editing, `RoutineEngine.materialize` honouring windows, `MenuBarExtra`,
+snooze — next task's job. See `STATUS.md` §24.)*
 
 *(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
 (`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/
