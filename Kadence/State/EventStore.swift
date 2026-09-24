@@ -140,6 +140,39 @@ struct EventStore {
         move(event, by: newStart.timeIntervalSince(event.start))
     }
 
+    /// components.md §16's snooze confirmation needs *some* destination time
+    /// to show, but `DECISIONS.md` 2026-09-10 bars real snooze scheduling
+    /// logic until Phase 4 ("the design exemption covers surfaces, not the
+    /// services behind them"). `snoozeOffset` is a deliberate, narrow
+    /// placeholder — a single fixed, well-commented constant, not an invented
+    /// design token — in the same spirit as `markSkipped`'s `.skipToday`
+    /// exclusion (see `design/GAPS.md`'s most recent entry at the time this
+    /// was written, G-015, for the pattern this follows). **15 minutes**:
+    /// the smallest common "snooze" increment (the same unit most calendar
+    /// and reminder apps default a snooze to), and it reads cleanly against
+    /// any `HH:mm` clock with no rounding. Phase 4 replaces this outright
+    /// with real scheduling — see `design/GAPS.md`'s new entry for this task.
+    static let snoozeOffset: TimeInterval = 15 * 60
+
+    /// Named separately from `move` (its own step, "Snooze") so the Edit menu
+    /// and the popover's result row both read correctly, even though the
+    /// mechanics are the same shift-by-offset. Returns the new start so the
+    /// caller (the menu bar popover) can compose "Moved to HH:mm" without a
+    /// second read of the `@Model` after the fact.
+    @discardableResult
+    func snooze(_ event: Event) -> Date {
+        guard event.isMovable else { return event.start }
+        let id = event.id
+        let oldStart = event.start
+        let oldEnd = event.end
+        let newStart = oldStart.addingTimeInterval(Self.snoozeOffset)
+        let newEnd = oldEnd.addingTimeInterval(Self.snoozeOffset)
+        undo.perform("Snooze",
+                     redo: { edit(id) { $0.start = newStart; $0.end = newEnd } },
+                     undo: { edit(id) { $0.start = oldStart; $0.end = oldEnd } })
+        return newStart
+    }
+
     /// The drag clamps rather than inverting; minimum resulting duration is 15 min.
     func resize(_ event: Event, newStart: Date? = nil, newEnd: Date? = nil) {
         guard event.isMovable else { return }

@@ -1049,3 +1049,52 @@ routine occurrences are excluded from the needs-attention count" rule stated
 in `components.md` §14 itself) should treat a `.skipped` routine event as no
 longer conflicting. If a future spec pass answers this differently, only the
 one `guard` in `ConflictEngine.detect` needs to change.
+
+---
+
+## 2026-09-24 — G-016 — components.md §16 needs a destination time for Snooze, but Phase 2 is barred from real scheduling logic
+
+**Where it bit:** task P2-T26, wiring the menu bar popover's `Snooze` button
+and its `⌥⌘↩` binding (interactions.md §12) to the components.md §16
+confirmation ("`Moved to 19:15` + `Undo`", or "`Moved to tomorrow 09:00`"
+across a day boundary).
+
+**What the spec says.** components.md §16 is explicit that it specifies the
+*surface*, not the mechanism: "Ruling this implements: `DECISIONS.md`
+2026-09-10 'Snooze confirmation is designed in Phase 2, not Phase 4.' The
+surface is specified now; no scheduling logic exists until Phase 4." It
+requires the result row to "show where the block landed" — an actual new
+start time — but names no rule for what that new time *is*. `DECISIONS.md`
+2026-09-10 reinforces the boundary from the other side: "the design exemption
+covers surfaces, not the services behind them."
+
+**What is missing.** A confirmation row that says "Moved to HH:mm" has to
+have moved the event *somewhere real* first — there is no such thing as
+rendering the result of a move without first deciding the move. Nothing in
+`design/` gives Phase 2 a rule for what a snoozed event's new start should
+be (the obvious real answers — "next free slot," "N minutes from now,"
+"round to the next :00/:15" — are all scheduling logic, exactly what
+`DECISIONS.md` 2026-09-10 bars this phase from building).
+
+**What was built instead of guessing at real scheduling.** `EventStore.snooze(_:)`
+(`Kadence/State/EventStore.swift`) shifts the event's start *and* end by one
+fixed, well-commented constant, `EventStore.snoozeOffset` — **15 minutes**.
+Chosen because it is the smallest common "snooze" increment (the unit most
+calendar and reminder apps default a snooze to) and reads cleanly against any
+`HH:mm` clock with no rounding needed. It is arithmetic, not a design value —
+no colour, size or motion token was invented, and no attempt is made to find
+a "better" slot the way real scheduling would. This is the same category of
+narrow, documented judgment call as G-015's `.skipToday` conflict exclusion:
+a real silence in the spec, answered narrowly, in one place, with the answer
+recorded rather than guessed quietly.
+
+**Not blocking.** Every acceptance criterion P2-T26 was built against (the
+result row's same-day/next-day text, the same-height in-place swap, the
+`motion.snoozeConfirmHold` hold with hover-pause, undo restoring the exact
+original start/end) is satisfied by this placeholder, because none of them
+depend on *which* 15 minutes — only on the row correctly describing whatever
+shift `EventStore.snooze` actually made. Needed only to close: Phase 4's real
+snooze-scheduling rule (design/PRD text for what "snooze" should actually
+compute), at which point `EventStore.snooze` is replaced outright and
+`Kadence/Views/MenuBar/MenuBarPopoverView.swift`/`MenuBarFormatting.snoozeResult`
+need no change at all — they only ever read the resulting `start`.

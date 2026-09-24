@@ -44,4 +44,15 @@ enum MenuBarFormatting {
         let lead = isLate ? "Started \(elapsed(since: event.start, now: now))" : timeRange(event.start, event.end)
         return "\(lead) · \(qualifier)"
     }
+
+    /// components.md §16 — the snooze confirmation's result row: `Moved to
+    /// 19:15` normally, or `Moved to tomorrow 09:00` once the new start lands
+    /// on a different calendar day than the original ("Across a day boundary
+    /// it names the day").
+    static func snoozeResult(oldStart: Date, newStart: Date, calendar: Calendar = .current) -> String {
+        if calendar.isDate(newStart, inSameDayAs: oldStart) {
+            return "Moved to \(time(newStart))"
+        }
+        return "Moved to tomorrow \(time(newStart))"
+    }
 }
