@@ -290,6 +290,48 @@ click-vs-keyboard focus rule); any change to `RoutineEngine`,
 protected windows and detached-instance tracking/Re-sync (§13.4) remain
 untouched, unchanged from every paragraph above. See `STATUS.md` §26.
 
+**Corrected 2026-09-24, task P2-T26 — the previous entry's "`Snooze`'s
+action" and "all of `interactions.md` §12's keyboard table" clauses are now
+STALE for the `⌥⌘↩` row specifically.** `Kadence/Views/MenuBar/MenuBarPopoverView.swift`
+wires `Snooze` (button click or `⌥⌘↩` while the popover holds key focus) to
+the new `EventStore.snooze(_:)`, with the components.md §16 in-place result
+row (`Moved to HH:mm` + `Undo`) cross-fading in and holding for
+`motion.snoozeConfirmHold`, pausing on hover, exactly as specced (see
+`STATUS.md` §27). **One deviation this wiring required, not a value
+invention:** making `⌥⌘↩` reachable at all needs the popover to actually
+hold key focus, and nothing before this task ever granted it any.
+`interactions.md` §12 specifies that focus should move to the popover
+"only when opened by keyboard, not by click" — a click-vs-open-method
+distinction this task does not attempt to detect. Instead,
+`MenuBarPopoverView.swift` claims key focus **unconditionally on every
+open**, regardless of how the popover was opened:
+
+```swift
+.focusable()
+.focused($isKeyFocused)
+.onAppear { isKeyFocused = true }
+```
+
+Confirmed live: without this pair, `AXFocused` on every element in the
+popover reads `false` even with the popover's window key, and
+`.onKeyPress` never ran — `.focusable()` alone makes the view *eligible*
+for focus, it does not *grant* it. Claiming focus on every open (not just
+keyboard-triggered opens) is a narrower, blunter rule than §12's, chosen
+because the finer click-vs-keyboard distinction was already out of scope
+for the whole §12 keyboard table per P2-T25's own scope note and remains
+so here — this task's brief covers only the `Snooze` row of that table.
+Practical effect: a mouse click on the status item also leaves the popover
+holding key focus, which §12 does not call for and which a future task
+implementing the rest of §12's keyboard table (`↑`/`↓`/`↩`/`⌘↩`/`⎋`) will
+need to narrow. See the file's own header comment and the
+`.focused($isKeyFocused)`/`.onAppear` block's doc comment, both already
+pointing here. Still absent, unchanged from the entry above: `Open`'s
+action; the remaining keyboard rows (`↑`/`↓`/`↩`/`⌘↩`/`⎋`); components.md
+§16's third bullet (coordinating the block-move transition with
+`MainWindow` when it is open on the destination day — a separate concern
+needing animation state shared across two SwiftUI scenes). See `STATUS.md`
+§27.
+
 *(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
 (`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/
 imported overlap and builds each one's ranked resolution options

@@ -4333,3 +4333,93 @@ action and its confirmation result row (components.md §16), `Open`'s action
 (bring the main window forward / navigate to the item), and interactions.md
 §12's keyboard table (`↑`/`↓`/`↩`/`⌘↩`/`⌥⌘↩`/`⎋`, and the click-vs-keyboard
 focus rule).
+
+## 27. P2-T26 — MenuBarExtra: wire Snooze action + in-place confirmation result row (2026-09-24)
+
+Closes the `Snooze` half of P2-T25's own "still absent" list: components.md
+§16 (the popover's snooze confirmation result row) and the `⌥⌘↩` row of
+interactions.md §12's keyboard table, per DECISIONS.md 2026-09-10's
+placeholder-scheduling allowance. This entry re-verifies commit `96f5a38`
+(already landed) and supplies the STATUS.md/DEVIATIONS.md entries its own
+scope required; no code changed in this task.
+
+**Built (already committed, re-verified here):**
+
+- `Kadence/State/EventStore.swift` — `snoozeOffset` (a fixed 15-minute
+  `TimeInterval` constant, its own doc comment names it a deliberate,
+  narrow placeholder pending Phase 4's real scheduling — see
+  `design/GAPS.md` G-016, not touched by this task) and `snooze(_:)`,
+  which shifts an event's start/end by that offset through the same
+  `undo.perform("Snooze", redo:undo:)` shape every other `EventStore`
+  verb uses (guarded by `event.isMovable`, a no-op on a locked/imported
+  event, returning the unchanged start so the caller can detect the
+  no-op and skip showing a result row).
+- `Kadence/Views/MenuBar/MenuBarFormatting.swift` — `snoozeResult(oldStart:newStart:)`,
+  composing the result row's `Moved to HH:mm` (or a same-day/next-day
+  qualified form at the midnight boundary) text from `EventStore.snooze`'s
+  return value.
+- `Kadence/Views/MenuBar/MenuBarPopoverView.swift` — `Snooze` now calls
+  `EventStore.snooze(_:)` on NEXT, either via the button or via `⌥⌘↩`
+  while the popover holds key focus (`.onKeyPress(keys: [.return])`,
+  gated on both `.command` and `.option` modifiers so `↩`/`⌘↩` alone stay
+  unhandled and pass through). On a real shift, the action row is
+  replaced in place by a same-height result row per components.md §16
+  (`Moved to HH:mm` + `Undo`, `popoverRow` type), cross-fading over
+  `Tokens.Motion.Selection.duration` (Reduce Motion collapses this to an
+  instant swap, same `reduceMotion ? nil : .easeInOut` shape
+  `MainWindow.swift` already uses) and holding for
+  `Tokens.Motion.SnoozeConfirmHold.duration` before reverting to the
+  normal action row, pausing the hold while the pointer is inside the
+  popover (`.onHover`) per interactions.md §12.1. `Undo` in that row and
+  the global `⌘Z` both undo through the same named `"Snooze"` step;
+  either one un-matches `SnoozeConfirmation`'s `expectedStart` against
+  the reverted event, so the result row reverts to the normal action row
+  automatically with no separate bookkeeping. The popover now claims key
+  focus unconditionally on every open (`.focusable()` + `.focused($isKeyFocused)`
+  + `.onAppear { isKeyFocused = true }`) so `⌥⌘↩` is reachable at all —
+  see `DEVIATIONS.md` for what this does and does not implement of
+  interactions.md §12's finer click-vs-keyboard focus rule.
+- `KadenceTests/MenuBarSnoozeTests.swift` — new, two suites, no menu bar
+  UI launched: `SnoozeResultFormattingTests` (same-day formatting,
+  next-day formatting, and the exact-midnight boundary between them) and
+  `EventStoreSnoozeTests` (shifts by the fixed offset; a locked event is
+  unaffected — no-op; registers a named undo step; undo restores the
+  exact original start/end; redo reapplies the same shift).
+
+**Explicitly out of scope, per this task's own scope note (see the file
+header comment in `MenuBarPopoverView.swift`) — not built:** the `Open`
+button's action; the rest of interactions.md §12's keyboard table
+(`↑`/`↓`/`↩`/`⌘↩`/`⎋` — only `⌥⌘↩` is wired); interactions.md §12's
+click-vs-keyboard focus distinction (see `DEVIATIONS.md`); components.md
+§16's third bullet — coordinating the block-move transition with the main
+window when it is open and showing the destination day, which needs
+animation state shared across the popover's `MenuBarExtra` scene and
+`MainWindow`'s separate `WindowGroup` scene; any change to `RoutineEngine`,
+`ConflictEngine` or `TimeWindow` code.
+
+**Verified (this task; no code changed):**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`. 359 `passed`
+  lines / 0 `failed` lines, including `MenuBarSnoozeTests.swift`'s
+  `SnoozeResultFormattingTests` (3 cases: `sameDayFormatting`,
+  `nextDayFormatting`, `exactMidnightBoundary`) and `EventStoreSnoozeTests`
+  (5 cases: `shiftsByFixedOffset`, `lockedEventUnaffected`,
+  `registersNamedStep`, `undoRestoresExactly`, `redoReappliesShift`).
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.`
+- Lock probe run first per Parsa's 2026-09-18 ruling: `swift`-driven
+  `CGSessionCopyCurrentDictionary()` read → no `CGSSessionScreenIsLocked`
+  key (unlocked), so `Scripts/check-accessibility.sh`'s result is taken
+  at face value: `PASS (elements present)`, 20 block-shaped elements, `0`
+  carrying the §11 label — the same pre-existing, already-open A20b
+  defect every prior run has reported (VoiceOver reads the hover-help
+  string instead of the §11 label order), unrelated to this task.
+- All Kadence processes confirmed killed (`pkill -9`) after verification.
+
+**Blocked:** nothing. Next up: `Open`'s action; the remaining
+interactions.md §12 keyboard rows (`↑`/`↓`/`↩`/`⌘↩`/`⎋`) and its
+click-vs-keyboard focus rule; components.md §16's cross-scene block-move
+coordination with `MainWindow`.
