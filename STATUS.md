@@ -3468,3 +3468,115 @@ avoiding protected windows at creation time; a `design/GAPS.md` entry (none
 was needed — see the header-comment note above).
 
 **Blocked:** nothing.
+
+## 21. P2-T20 — Routines window `[Blocks | Windows]` mode control + generalized
+background windows layer (close-out re-verification, 2026-09-24)
+
+Task P2-T20 itself was hard-killed mid-flight by Parsa; its work landed on
+`HEAD` (commit `54c6031`, `wip: stopped by Parsa mid-task`) by hand, without
+ever running its own build, its own tests, or writing this entry.
+`DEVIATIONS.md`'s P2-T20 paragraph (search "task P2-T20" in the peak-focus
+"Not a deviation" section) was already written and, on inspection, is still
+accurate against what's actually in the tree — nothing there needed
+correcting. This entry's job is solely to re-verify that hand-committed work
+fresh and record the result, since §20 above still ended at P2-T19.
+
+**What P2-T19's stopped task actually built (confirmed by reading, not just
+trusting the commit message):**
+
+- `RoutinesEditorMode` (`Kadence/Views/Routines/RoutinesWindow.swift`) —
+  `.blocks`/`.windows`, components.md §13.3's mode control. A segmented
+  control in the toolbar (`size.editorModeBarHeight`, `editorModeLabel`
+  type, `.pickerStyle(.segmented)` — the same native shape `MainWindow`'s
+  own Month/Week/Day control uses) plus `⌘[`/`⌘]`, window-scoped rather than
+  routed through `KadenceCommands` (interactions.md §11.1), both paths
+  clearing `selection` via one shared `onChange(of: editorMode)`.
+- `TimeWindowRenderable` (`Kadence/Layout/WindowSpanResolver.swift`) — the
+  protocol `TimeWindowFixture` and the persisted `TimeWindow` both conform
+  to, letting `BackgroundWindowsLayer`/`WindowLabelsLayer`
+  (`Kadence/Views/Canvas/GridLayers.swift`) draw either through the same
+  generic view. Every existing main-grid call site (`DayColumnView`,
+  `TimedCanvasView`) is unchanged — still `TimeWindowFixture`, still
+  `showsPeakFocus` defaulted `false`, so Phase 1's rendering is untouched.
+- `WindowSpanResolver` itself — pulled out of what was a private method on
+  `BackgroundWindowsLayer` into a pure, SwiftUI-free enum (`spans(for:in:
+  on:calendar:showsPeakFocus:)` / `labels(in:on:calendar:showsPeakFocus:)`),
+  same shape as `DayLayoutEngine`/`resolveBlockStyle`, so it can be
+  unit-tested without going through a view. Implements components.md §7's
+  "protected wins over low energy" subtraction and the "Editor exception"
+  peak-focus gate.
+- `RoutinesCanvasView`/`RoutineDayColumnView` now render all three
+  `TimeWindow` kinds through the generalized layers, seeded via
+  `MockData.seedTimeWindowsIfNeeded`/`makeTimeWindows()`: in `.blocks` mode
+  only protected/low-energy draw, non-hit-testable, matching the main grid's
+  own Phase 1 treatment and components.md §13.3's table; in `.windows` mode
+  peak-focus also draws (1pt dashed outline, dash `[4, 4]`,
+  `color.window.peakFocusEdge`, no fill — §7's "Editor exception"
+  paragraph, verbatim) and the block/draft layer drops to
+  `opacity.editorInactiveLayer` with `.allowsHitTesting(false)`, applied to
+  the whole block/draft/overflow `Group` together so the dimming reads as
+  one layer.
+- Test coverage: `KadenceTests/DensityAndGeometryTests.swift` gained a new
+  `WindowSpanResolverTests` suite (`protectedWinsOverLowEnergy`,
+  `peakFocusGatedByDefault`, `peakFocusThroughPersistedModel`,
+  `labelsMirrorSpanGating`) exercising the resolver directly, and
+  `KadenceTests/TimeWindowTests.swift`'s seeding test was updated for the
+  new `makeTimeWindows()` fixture (protected Sleep, low-energy, and now a
+  third peak-focus "Deep work" window, Tue–Sat 15:00–17:00).
+
+Confirmed still absent, as the task's own header comment and `DEVIATIONS.md`
+both already say: dragging/resizing/creating/deleting a `TimeWindow`; the
+inspector's kind picker for a selected window; the flexibility control's
+interactive stepper; detached-instance tracking/Re-sync. None of these were
+touched in this close-out pass — this pass only re-verified and documented,
+per the task's own instruction not to add any new feature.
+
+**Verified fresh, this session (nothing carried over from the interrupted
+run):**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`; 303 test cases
+  passed, 0 failed (per `xcrun xcresulttool get test-results summary`),
+  including `WindowSpanResolverTests`'s four new cases and
+  `TimeWindowTests`'s updated seeding case; no regressions in any
+  pre-existing suite.
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/
+  Tokens.swift is up to date.` — no new tokens needed; `editorModeLabel`
+  (`TypeStyle.swift`) and `size.editorModeBarHeight`/
+  `opacity.editorInactiveLayer` (`Tokens.swift`) already existed going into
+  this task.
+- `Scripts/check-accessibility.sh` — first run came back `FAIL: … found 0`
+  (both the block count and the label count), which is neither the
+  documented A20b shape (elements present, labels missing) nor a locked
+  screen (`CGSSessionScreenIsLocked` read `0`; `osascript` reached the app's
+  window directly). Traced it by hand: `default.store`
+  (`~/Library/Containers/XIX.Kadence/Data/Library/Application Support/`) was
+  last written 2026-09-17/19 by earlier task sessions, and
+  `MockData.seedIfNeeded` only seeds `Event`s "if the store is empty" — it
+  never re-seeds a non-empty store. With today's real date six days past
+  that, the persisted timed events had aged out of the Week view's visible
+  range entirely (the two chips that *did* still show, a deadline and an
+  exam badge, come from `makeAllDay`/`makeTravel`, which recompute fresh
+  from `now` on every launch rather than being persisted). This is a stale
+  local fixture-store artifact of running many independent sessions on
+  different real-world days, not a code defect in anything this task (or
+  any other) built — nothing in `Kadence/**` was touched to reach this
+  diagnosis. Deleted the stale `default.store`/`-wal`/`-shm` files (outside
+  the repo, under the app's container; no tracked file touched) so the next
+  launch reseeded relative to today's actual date, then re-ran: `PASS
+  (elements present)`, 20 block-shaped elements, identical count to every
+  prior passing run, `0` carrying the §11 label — the pre-existing,
+  already-open A20b defect, unrelated to this task. Screen confirmed
+  unlocked throughout (this machine's own known failure mode, per the
+  script's own header comment, is a session-wide lock, not a per-app stale
+  store — recorded here since the check surfaced this exact category of
+  environmental noise for the first time as a *store* issue rather than a
+  *lock* or *wedged-process* one).
+
+**Blocked:** nothing. Next up, per this task's own scope note and
+`DEVIATIONS.md`'s P2-T20 paragraph: `TimeWindow` drag/resize/create/delete
+and the inspector's kind picker, `RoutineEngine.materialize` honouring
+protected windows, `MenuBarExtra`, snooze — all explicitly out of scope for
+both the original P2-T20 pass and this close-out.
