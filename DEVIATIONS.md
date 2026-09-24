@@ -181,6 +181,65 @@ kind picker, weekday-set editing beyond this task's single-weekday default,
 label editing, `RoutineEngine.materialize` honouring windows, `MenuBarExtra`,
 snooze — next task's job. See `STATUS.md` §24.)*
 
+**Corrected 2026-09-24, task P2-T24 — the immediately preceding paragraph's
+"the inspector's kind picker, weekday-set editing beyond this task's
+single-weekday default, label editing" clause is now STALE.** Selecting a
+`TimeWindow` in Windows mode now shows a dedicated inspector
+(`TimeWindowInspectorView`, new, `RoutinesWindow.swift`) instead of always
+falling through to the block/template summary — `RoutinesWindow.inspector`
+now branches on `windowSelection` first (mirroring `handleDelete()`'s own
+"check the more specific selection kind first" ordering). Three new
+`TimeWindowStore` methods, same `edit(id) { }` + one named `UndoStack` step
+shape as `move`/`resize`/`create`, each guarded against no-op edits:
+`setKind(_:to:)` ("Set Time Window Kind"), `setWeekdays(_:to:)` ("Set Time
+Window Weekdays", refuses an empty set the same way `create` refuses an empty
+`weekdays` parameter), `setLabel(_:to:)` ("Set Time Window Label"). All three
+fire immediately on change — no "Save" button, matching every other inspector
+control in this app. This finally closes components.md §13.3's full sentence
+("Creating one: drag on empty canvas, then pick the kind from the
+inspector") — P2-T23 built the drag half, this builds the "pick the kind"
+half plus the weekday-set/label editing §7 also names.
+
+Three narrow judgement calls, none a spec gap (§13.3/§7 do not specify exact
+segment label text, a toggle glyph/style, or a text-field commit granularity
+— documented here per this task's own brief, the same way P2-T15 documented
+its option-row prose as a judgement call rather than filing a `GAPS.md`
+entry):
+  - **Kind segment labels** are the plain English names §13.3/§7's own prose
+    already uses for these three kinds — "Protected" / "Low Energy" /
+    "Peak Focus" — in a plain native `Picker(.segmented)`, analogous in
+    weight to §13.2's "Fixed / Shiftable / Droppable" labelled segmented
+    control (the closest existing precedent, though that control's own
+    interactive version does not exist yet — `blockDetails` above still
+    reads flexibility as text — so there was nothing to copy verbatim, only
+    to match in kind).
+  - **Weekday toggles** are seven native `Toggle`s in `.toggleStyle(.button)`
+    with `.tint(Tokens.Color.Interactive.accent)` — the one existing generic
+    "selected" tint this app already uses (the focus ring, the drop preview)
+    — rather than inventing a bespoke selected-day swatch/color pair. Labels
+    reuse `dayHeaderWeekday` type and the same Mon-first
+    `RoutineWeekLayout.orderedWeekdays(firstWeekday:)` ordering
+    `RoutineWeekdayHeaderRow` already uses, so the toggle row lines up
+    conceptually with the seven weekday columns.
+  - **The label field commits on `Return` or on losing focus, not per
+    keystroke.** There is no existing precedent in this codebase for editing
+    an ALREADY-persisted text field with per-keystroke-vs-per-commit undo
+    granularity to match — the one existing inline `TextField`
+    (`DraftBlockView`'s title) only ever edits an in-flight, not-yet-persisted
+    draft, and discards (rather than commits) on blur. `TimeWindowInspectorView`
+    holds the in-flight text in local `@State`, seeded from `window.label`
+    (fresh on each selection change via the parent's `.id(selectedWindow.id)`,
+    which tears down and rebuilds the view rather than reusing it in place),
+    and calls `TimeWindowStore.setLabel` once, on `onSubmit` or on
+    `@FocusState` losing focus — one undo step per edit, never one per
+    character, matching this task's own explicit instruction on granularity.
+
+**Still absent, unchanged, still explicitly out of scope:**
+`RoutineEngine.materialize` honouring protected windows, `MenuBarExtra`,
+snooze, the block inspector's own still-read-only flexibility field (§13.2's
+interactive stepper — pre-existing, separate gap, untouched by this task),
+detached-instance tracking and Re-sync (§13.4). See `STATUS.md` §25.
+
 *(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
 (`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/
 imported overlap and builds each one's ranked resolution options

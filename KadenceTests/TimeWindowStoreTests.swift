@@ -14,10 +14,14 @@
 //
 //  Task P2-T23 adds `TimeWindowStoreCreateTests` below, covering the other
 //  half this file's own header used to say did not exist yet: create
-//  (drag-to-create on empty windows-mode canvas). What is still deliberately
-//  NOT tested here, because it does not exist yet: the inspector's kind
-//  picker, weekday-set editing beyond a caller-supplied set, and label
-//  editing — next task's job, per that task's own brief.
+//  (drag-to-create on empty windows-mode canvas).
+//
+//  Task P2-T24 adds `TimeWindowStoreInspectorFieldTests` below, covering the
+//  three new inspector-driven mutations: `setKind`, `setWeekdays`, `setLabel`
+//  — components.md §13.3's "then pick the kind from the inspector," plus the
+//  weekday-set and label editing §7 also promises. Same rigor as every suite
+//  above: exact field values, exact undo-step name, no-op guards push nothing,
+//  undo/redo round-trips.
 //
 
 import Testing
@@ -471,5 +475,190 @@ struct TimeWindowStoreCreateTests {
         #expect(restored.endMinutes == 7 * 60 + 15)
         #expect(restored.kind == .peakFocus)
         #expect(restored.label == "Deep work")
+    }
+}
+
+/// Task P2-T24 — components.md §13.3's "then pick the kind from the
+/// inspector," the remaining half of the sentence P2-T23 above's own header
+/// names as its create-drag's counterpart. `setKind`/`setWeekdays`/`setLabel`
+/// are the inspector's three field edits, wired to fire immediately on
+/// change (no "Save" button) — each one is exactly one named undo step, same
+/// as every method in the suites above.
+@Suite("TimeWindowStore.inspector field edits")
+@MainActor
+struct TimeWindowStoreInspectorFieldTests {
+
+    @MainActor
+    private func makeFocusWindow(in context: ModelContext) -> TimeWindow {
+        let window = TimeWindow(
+            weekdays: [2, 4, 6], startMinutes: 9 * 60, endMinutes: 11 * 60,
+            kind: .peakFocus, label: "Deep work")
+        context.insert(window)
+        try? context.save()
+        return window
+    }
+
+    // MARK: setKind
+
+    @Test("setKind changes the kind and names its own undo step")
+    func setKindChangesKindAndNames() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setKind(window, to: .lowEnergy)
+
+        #expect(window.kind == .lowEnergy)
+        #expect(undo.undoActionName == "Set Time Window Kind")
+        #expect(undo.undoMenuTitle == "Undo Set Time Window Kind")
+    }
+
+    @Test("Setting the same kind again is a no-op and pushes no undo step")
+    func setKindSameValueIsNoOp() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setKind(window, to: .peakFocus)
+
+        #expect(undo.canUndo == false)
+    }
+
+    @Test("Undo restores the original kind; redo reapplies the new one")
+    func setKindUndoRedo() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+        let id = window.id
+
+        store.setKind(window, to: .protected)
+        #expect(undo.canRedo == false)
+
+        undo.undo()
+        let afterUndo = try #require(fetchTimeWindow(id, in: context))
+        #expect(afterUndo.kind == .peakFocus)
+        #expect(undo.canRedo)
+
+        undo.redo()
+        let afterRedo = try #require(fetchTimeWindow(id, in: context))
+        #expect(afterRedo.kind == .protected)
+    }
+
+    // MARK: setWeekdays
+
+    @Test("setWeekdays adds a weekday to the set and names its own undo step")
+    func setWeekdaysAdds() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setWeekdays(window, to: [2, 4, 6, 3])
+
+        #expect(window.weekdays == [2, 3, 4, 6])
+        #expect(undo.undoActionName == "Set Time Window Weekdays")
+        #expect(undo.undoMenuTitle == "Undo Set Time Window Weekdays")
+    }
+
+    @Test("setWeekdays removes a weekday from the set")
+    func setWeekdaysRemoves() throws {
+        let (store, context, _) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setWeekdays(window, to: [2, 4])
+
+        #expect(window.weekdays == [2, 4])
+    }
+
+    @Test("An empty weekday set is refused: the field, and the row, stay unchanged, and no undo step is pushed")
+    func setWeekdaysRefusesEmpty() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setWeekdays(window, to: [])
+
+        #expect(window.weekdays == [2, 4, 6])
+        #expect(undo.canUndo == false)
+    }
+
+    @Test("Setting the identical weekday set again is a no-op and pushes no undo step")
+    func setWeekdaysSameValueIsNoOp() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setWeekdays(window, to: [2, 4, 6])
+
+        #expect(undo.canUndo == false)
+    }
+
+    @Test("Undo restores the original weekday set; redo reapplies the new one")
+    func setWeekdaysUndoRedo() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+        let id = window.id
+
+        store.setWeekdays(window, to: [1, 2, 4, 6])
+        #expect(undo.canRedo == false)
+
+        undo.undo()
+        let afterUndo = try #require(fetchTimeWindow(id, in: context))
+        #expect(afterUndo.weekdays == [2, 4, 6])
+        #expect(undo.canRedo)
+
+        undo.redo()
+        let afterRedo = try #require(fetchTimeWindow(id, in: context))
+        #expect(afterRedo.weekdays == [1, 2, 4, 6])
+    }
+
+    // MARK: setLabel
+
+    @Test("setLabel commits the new text and names its own undo step")
+    func setLabelCommits() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setLabel(window, to: "Deep Work Block")
+
+        #expect(window.label == "Deep Work Block")
+        #expect(undo.undoActionName == "Set Time Window Label")
+        #expect(undo.undoMenuTitle == "Undo Set Time Window Label")
+    }
+
+    @Test("Committing the identical label again is a no-op and pushes no undo step")
+    func setLabelSameValueIsNoOp() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setLabel(window, to: "Deep work")
+
+        #expect(undo.canUndo == false)
+    }
+
+    @Test("Undo restores the original label; redo reapplies the new one")
+    func setLabelUndoRedo() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+        let id = window.id
+
+        store.setLabel(window, to: "Renamed")
+        #expect(undo.canRedo == false)
+
+        undo.undo()
+        let afterUndo = try #require(fetchTimeWindow(id, in: context))
+        #expect(afterUndo.label == "Deep work")
+        #expect(undo.canRedo)
+
+        undo.redo()
+        let afterRedo = try #require(fetchTimeWindow(id, in: context))
+        #expect(afterRedo.label == "Renamed")
+    }
+
+    @Test("Each field edit is exactly one named undo step: three separate calls push three separate steps")
+    func eachFieldEditIsExactlyOneStep() throws {
+        let (store, context, undo) = try makeTimeWindowStore()
+        let window = makeFocusWindow(in: context)
+
+        store.setKind(window, to: .protected)
+        store.setWeekdays(window, to: [2, 4, 6, 1])
+        store.setLabel(window, to: "Sleep")
+
+        #expect(undo.undoSteps.map(\.name) == [
+            "Set Time Window Kind", "Set Time Window Weekdays", "Set Time Window Label",
+        ])
     }
 }

@@ -54,13 +54,17 @@
 //  duration, selected on success — its own small TimeWindowCreateDragSession
 //  state and dashed drop preview, mirroring createSurface's own create-drag
 //  shape rather than overloading TimeWindowDragSession (move/resize-only,
-//  for an EXISTING window). Still explicitly out of
-//  scope, left for follow-up tasks:
-//    - "then pick the kind from the inspector" — the inspector's kind picker
-//      / weekday-set editing beyond this task's single-weekday default, and
-//      label editing (components.md §13.3's "protected / low-energy /
-//      peak-focus regions editable" — select/move/resize/delete/create now
-//      cover the rest of that sentence);
+//  for an EXISTING window). Task P2-T24 (this pass) closes the remaining
+//  half of that same §13.3 sentence — "then pick the kind from the
+//  inspector" — plus the weekday-set editing and label editing components.md
+//  §7's "protected / low-energy / peak-focus regions ... editable" also
+//  promises: the `inspector` computed property below now branches on
+//  `windowSelection` first, rendering the new `TimeWindowInspectorView`
+//  (kind segmented-Picker, a Mon-first weekday toggle row, a label
+//  TextField, all wired straight to the new `TimeWindowStore.setKind` /
+//  `.setWeekdays` / `.setLabel`) instead of always falling through to
+//  `RoutineInspectorView`. Still explicitly out of scope, left for
+//  follow-up tasks:
 //    - the flexibility control's interactive stepper (components.md §13.2) —
 //      the inspector still shows flexibility as read-only text;
 //    - detached-instance tracking and Re-sync (components.md §13.4,
@@ -181,6 +185,20 @@ struct RoutinesWindow: View {
               let block = template.blocks.first(where: { $0.id == selection.blockID })
         else { return nil }
         return block.snapshot
+    }
+
+    /// Task P2-T24: the actual live `TimeWindow` `@Model` instance
+    /// `windowSelection` names, if it still exists (deleted-out-from-under
+    /// selection resolves to `nil`, same guard `handleDelete()` above already
+    /// applies before acting on it). Passed to the inspector directly, unlike
+    /// `selectedBlockSnapshot`'s plain-value snapshot — `TimeWindowStore`'s
+    /// own mutation methods take a `TimeWindow` model, not an id, matching
+    /// `move`/`resize`/`delete`'s existing call shape, and the inspector's
+    /// Picker/Toggle/TextField bindings read `window.kind`/`.weekdays`/`.label`
+    /// live off that same instance.
+    private var selectedWindow: TimeWindow? {
+        guard let windowSelection else { return nil }
+        return timeWindows.first(where: { $0.id == windowSelection })
     }
 
     private var orderedWeekdays: [Int] {
@@ -308,8 +326,25 @@ struct RoutinesWindow: View {
 
     // MARK: Inspector (layouts.md §8.1)
 
+    /// Task P2-T24: a selected `TimeWindow` (Windows mode) now takes priority
+    /// over the block/template summary, mirroring `handleDelete()`'s own
+    /// "check the more specific selection kind first" ordering — the two
+    /// selections can never both be non-nil (every place that sets one clears
+    /// the other), so this is a straightforward either/or rather than a
+    /// priority tie-break. `.id(selectedWindow.id)` forces SwiftUI to tear
+    /// down and rebuild `TimeWindowInspectorView` (and its local `@State`
+    /// label-editing buffer) whenever the selected window's identity changes,
+    /// rather than reusing the old view in place and leaving stale text
+    /// behind — the same reason a fresh `EventDraft` always gets a fresh
+    /// `DraftBlockView` rather than one being mutated across drafts.
+    @ViewBuilder
     private var inspector: some View {
-        RoutineInspectorView(template: selectedTemplate, selectedBlock: selectedBlockSnapshot)
+        if let selectedWindow {
+            TimeWindowInspectorView(window: selectedWindow, store: timeWindowStore)
+                .id(selectedWindow.id)
+        } else {
+            RoutineInspectorView(template: selectedTemplate, selectedBlock: selectedBlockSnapshot)
+        }
     }
 
     // MARK: Toolbar
@@ -1300,5 +1335,192 @@ private struct RoutineInspectorView: View {
     private func totalHours(_ template: RoutineTemplate) -> Double {
         let perOccurrence = template.blocks.reduce(0) { $0 + $1.duration } / 3600
         return perOccurrence * Double(template.activeWeekdays.count)
+    }
+}
+
+// MARK: - Inspector: selected TimeWindow (task P2-T24, components.md §13.3)
+
+/// Task P2-T24 closes components.md §13.3's own sentence: "Creating one: drag
+/// on empty canvas, then pick the kind from the inspector." Tasks P2-T21/22/23
+/// built select/move/resize/create for an EXISTING `TimeWindow`; this is the
+/// still-missing "pick the kind" half, plus the weekday-set editing and label
+/// editing §7's "protected / low-energy / peak-focus regions ... editable"
+/// also promises and no prior task closed.
+///
+/// Takes the live `TimeWindow` `@Model` instance directly (not a snapshot,
+/// unlike `RoutineInspectorView.selectedBlock`) — every control here writes
+/// straight back through `TimeWindowStore`, and `TimeWindowStore`'s own
+/// mutation methods already take a `TimeWindow` model, matching `move`/
+/// `resize`/`delete`'s existing call shape (`RoutinesWindow.swift`'s own
+/// `windowGesture`/`handleDelete` above).
+///
+/// §13.3/§7 do not specify exact segment label text, a toggle glyph, or a
+/// text-editing commit granularity, so all three are the narrowest reasonable
+/// judgement calls (documented in DEVIATIONS.md, not GAPS.md — same rule
+/// P2-T15 used for its own option-row prose):
+///   - kind segment labels are the plain English names §13.3/§7's own prose
+///     already uses for these three kinds ("Protected" / "Low Energy" /
+///     "Peak Focus"), analogous in weight to §13.2's "Fixed / Shiftable /
+///     Droppable" labelled segmented control — the closest existing
+///     precedent, though that control's own interactive version does not
+///     exist yet (still read-only text in `blockDetails` above) so there is
+///     nothing to copy verbatim;
+///   - the weekday toggle row reuses `dayHeaderWeekday` type and
+///     `Tokens.Color.Interactive.accent` (the one existing generic
+///     "selected" tint this app already uses for the focus ring/drop
+///     preview) via the system `.toggleStyle(.button)` chrome, rather than
+///     inventing a bespoke selected-day swatch;
+///   - the label field commits on `Return` or on losing focus, not per
+///     keystroke — there is no existing precedent in this codebase for
+///     editing an ALREADY-persisted text field (`DraftBlockView`'s own
+///     `TextField` only ever edits an in-flight, not-yet-persisted draft), so
+///     this mirrors that field's `↩`-commits shape as the closest analogue
+///     rather than inventing an unrelated one.
+private struct TimeWindowInspectorView: View {
+    let window: TimeWindow
+    let store: TimeWindowStore
+
+    /// In-flight label text, seeded from `window.label` when this view
+    /// appears (and, via the parent's `.id(selectedWindow.id)`, freshly
+    /// re-seeded whenever the selected window's identity changes — this view
+    /// is torn down and rebuilt rather than reused in place). Nothing is
+    /// written back to `store` until `commitLabel()` runs, the same
+    /// "nothing persists until commit" shape `RoutineDayColumnView`'s own
+    /// `EventDraft` title field already uses for an in-flight draft.
+    @State private var labelText: String = ""
+    @FocusState private var labelFieldFocused: Bool
+
+    private var orderedWeekdays: [Int] {
+        RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tokens.Spacing.xl) {
+                Text(window.label.isEmpty ? "Time Window" : window.label)
+                    .typeStyle(.inspectorTitle)
+                    .foregroundStyle(Tokens.Color.Text.primary)
+
+                kindField
+                weekdaysField
+                labelField
+                field("Start", timeOfDay(window.startMinutes))
+                field("End", timeOfDay(window.endMinutes))
+            }
+            .padding(Tokens.Spacing.xl)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Tokens.Color.Surface.inspector)
+        .onAppear { labelText = window.label }
+        .onChange(of: labelFieldFocused) { _, focused in
+            if !focused { commitLabel() }
+        }
+    }
+
+    // MARK: Kind (components.md §13.3: "pick the kind from the inspector")
+
+    private var kindField: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+            label("Kind")
+            Picker("Kind", selection: Binding(
+                get: { window.kind },
+                set: { store.setKind(window, to: $0) })) {
+                    ForEach(TimeWindowKind.allCases, id: \.self) { kind in
+                        Text(kindLabel(kind)).tag(kind)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .accessibilityLabel("Kind")
+        }
+    }
+
+    private func kindLabel(_ kind: TimeWindowKind) -> String {
+        switch kind {
+        case .protected: "Protected"
+        case .lowEnergy: "Low Energy"
+        case .peakFocus: "Peak Focus"
+        }
+    }
+
+    // MARK: Weekdays
+
+    private var weekdaysField: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+            label("Weekdays")
+            HStack(spacing: Tokens.Spacing.xs) {
+                ForEach(orderedWeekdays, id: \.self) { weekday in
+                    weekdayToggle(weekday)
+                }
+            }
+        }
+    }
+
+    private func weekdayToggle(_ weekday: Int) -> some View {
+        let isOn = window.weekdays.contains(weekday)
+        return Toggle(isOn: Binding(
+            get: { isOn },
+            set: { newValue in
+                var newWeekdays = window.weekdays
+                if newValue { newWeekdays.insert(weekday) } else { newWeekdays.remove(weekday) }
+                store.setWeekdays(window, to: newWeekdays)
+            })) {
+                Text(weekdaySymbol(weekday))
+                    .typeStyle(.dayHeaderWeekday)
+            }
+            .toggleStyle(.button)
+            .tint(Tokens.Color.Interactive.accent)
+            .accessibilityLabel(weekdayFullName(weekday))
+    }
+
+    private func weekdaySymbol(_ weekday: Int) -> String {
+        Calendar.current.shortWeekdaySymbols[weekday - 1]
+    }
+
+    private func weekdayFullName(_ weekday: Int) -> String {
+        Calendar.current.weekdaySymbols[weekday - 1]
+    }
+
+    // MARK: Label
+
+    private var labelField: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+            label("Label")
+            TextField("Label", text: $labelText)
+                .textFieldStyle(.plain)
+                .typeStyle(.inspectorValue)
+                .foregroundStyle(Tokens.Color.Text.primary)
+                .focused($labelFieldFocused)
+                .onSubmit { commitLabel() }
+                .accessibilityLabel("Label")
+        }
+    }
+
+    private func commitLabel() {
+        guard labelText != window.label else { return }
+        store.setLabel(window, to: labelText)
+    }
+
+    // MARK: Building blocks (mirrors RoutineInspectorView's own)
+
+    private func field(_ name: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+            label(name)
+            Text(value)
+                .typeStyle(.inspectorValue)
+                .foregroundStyle(Tokens.Color.Text.primary)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func label(_ text: String) -> some View {
+        Text(text)
+            .typeStyle(.inspectorLabel)
+            .foregroundStyle(Tokens.Color.Text.secondary)
+            .frame(width: 84, alignment: .leading)
+    }
+
+    private func timeOfDay(_ minutes: Int) -> String {
+        String(format: "%02d:%02d", minutes / 60, minutes % 60)
     }
 }

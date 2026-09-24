@@ -63,6 +63,19 @@
 //  task's job, same deferral shape T20/T21/T22 each used for their own
 //  remainder.
 //
+//  Task P2-T24 is that future task: `setKind`, `setWeekdays`, `setLabel`
+//  below close the sentence out. Same shape as every method above — resolve
+//  by `id` through `edit(id) { }`, one named `UndoStack` step per call,
+//  guarded against no-op edits so an unchanged Picker selection or an
+//  unedited text field never leaves an empty step on the stack.
+//  `setWeekdays` additionally refuses (silently, like `create`'s own
+//  empty-`weekdays` guard) to commit an empty set — a `TimeWindow` with no
+//  weekdays would never render or match on any day, which is not what
+//  toggling off the last checked box should mean. `setLabel` is committed
+//  once per edit (on `Return` or focus loss), not once per keystroke — see
+//  `RoutinesWindow.swift`'s `TimeWindowInspectorView` for the field itself,
+//  and DEVIATIONS.md for why this granularity was chosen.
+//
 
 import Foundation
 import SwiftData
@@ -262,6 +275,58 @@ struct TimeWindowStore {
                      redo: { insertWindow(snapshot) },
                      undo: { removeWindow(id) })
         return window(id)
+    }
+
+    // MARK: Inspector field edits (kind / weekdays / label)
+
+    /// components.md §13.3: "... then pick the kind from the inspector." A
+    /// Picker selection change is one atomic edit, so it is one undo step,
+    /// fired the instant the selection changes — no separate "Save" button,
+    /// same as every other inspector control in this app.
+    func setKind(_ window: TimeWindow, to newKind: TimeWindowKind) {
+        let id = window.id
+        let oldKind = window.kind
+        guard newKind != oldKind else { return }
+        undo.perform("Set Time Window Kind",
+                     redo: { edit(id) { $0.kind = newKind } },
+                     undo: { edit(id) { $0.kind = oldKind } })
+    }
+
+    /// Replaces the whole weekday set. The inspector's toggle row computes the
+    /// new set itself (the existing set plus or minus the one weekday just
+    /// toggled) and passes it in whole — this method just commits it, the
+    /// same "caller decides, store just commits" split `create`'s own
+    /// `weekdays` parameter already uses. Refuses to commit an empty set, for
+    /// the same reason `create` refuses an empty `weekdays` set: a window
+    /// matching no day would never render or affect scheduling, which is not
+    /// what unchecking the last box should silently do.
+    func setWeekdays(_ window: TimeWindow, to newWeekdays: Set<Int>) {
+        guard !newWeekdays.isEmpty else { return }
+        let id = window.id
+        let oldWeekdays = window.weekdays
+        guard newWeekdays != oldWeekdays else { return }
+        undo.perform("Set Time Window Weekdays",
+                     redo: { edit(id) { $0.weekdays = newWeekdays } },
+                     undo: { edit(id) { $0.weekdays = oldWeekdays } })
+    }
+
+    /// Commits an edited label. The caller holds the in-flight text in its
+    /// own local `@State` (the same "nothing written until commit" shape this
+    /// window's `EventDraft` title field already uses) and calls this once,
+    /// on `Return` or on the field losing focus — never once per keystroke,
+    /// which would flood the undo stack with a step per character. See
+    /// DEVIATIONS.md for why this commit point was chosen: there is no
+    /// existing precedent in this codebase for editing an ALREADY-persisted
+    /// text field (the one existing inline `TextField`, `DraftBlockView`'s
+    /// title, only ever edits an in-flight, not-yet-persisted draft), so this
+    /// is a fresh judgement call, not a reuse of one.
+    func setLabel(_ window: TimeWindow, to newLabel: String) {
+        let id = window.id
+        let oldLabel = window.label
+        guard newLabel != oldLabel else { return }
+        undo.perform("Set Time Window Label",
+                     redo: { edit(id) { $0.label = newLabel } },
+                     undo: { edit(id) { $0.label = oldLabel } })
     }
 }
 

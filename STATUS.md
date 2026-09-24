@@ -3966,3 +3966,166 @@ exactly the one weekday of the column it was dragged on.
 weekday-set editing beyond this task's single-weekday default, label editing,
 `RoutineEngine.materialize` honouring protected windows, `MenuBarExtra`,
 snooze.
+
+## 25. P2-T24 — TimeWindow editor: inspector fields — kind picker, weekday-set editing, label (Windows mode, 2026-09-24)
+
+Closes components.md §13.3's own sentence in full: "Creating one: drag on
+empty canvas, then pick the kind from the inspector." §21/§22/§23 built
+select/move/resize/create for an EXISTING `TimeWindow`; this task is the
+"pick the kind" half those three all deferred by name, plus the weekday-set
+and label editing §7's "protected / low-energy / peak-focus regions ...
+editable" also promises and no prior task closed.
+
+**Built:**
+
+- `Kadence/State/TimeWindowStore.swift` — three new methods, same shape as
+  `move`/`resize`/`create` (resolve by `id` through the existing `edit(id) { }`
+  helper, one named `UndoStack` step per call), each guarded so a no-op edit
+  (unchanged Picker selection, identical weekday set, unedited label text)
+  pushes nothing:
+  - `setKind(_ window: TimeWindow, to newKind: TimeWindowKind)` — named
+    `"Set Time Window Kind"`.
+  - `setWeekdays(_ window: TimeWindow, to newWeekdays: Set<Int>)` — named
+    `"Set Time Window Weekdays"`. Refuses (silently, no undo step) to commit
+    an empty set, the same guard `create` already applies to its own
+    `weekdays` parameter and for the same reason: a window matching no day
+    would never render or affect scheduling.
+  - `setLabel(_ window: TimeWindow, to newLabel: String)` — named
+    `"Set Time Window Label"`. Committed once per edit by the caller (see
+    below), not once per keystroke.
+- `Kadence/Views/Routines/RoutinesWindow.swift`:
+  - New `selectedWindow: TimeWindow?` computed property on `RoutinesWindow`,
+    resolving `windowSelection` against the live `@Query private var
+    timeWindows: [TimeWindow]` (the same query the canvas already reads),
+    mirroring `selectedBlockSnapshot`'s existing shape but returning the live
+    `@Model` instance rather than a plain-value snapshot — every
+    `TimeWindowStore` mutation method already takes a `TimeWindow` model, not
+    an id, matching `move`/`resize`/`delete`'s existing call shape.
+  - `inspector` (the computed property the window shell reads, previously
+    always `RoutineInspectorView(template:selectedBlock:)`) is now
+    `@ViewBuilder` and branches on `selectedWindow` first: non-nil renders the
+    new `TimeWindowInspectorView(window:store:)` (`.id(selectedWindow.id)`,
+    so switching the selected window tears down and rebuilds the view rather
+    than reusing stale local `@State`); nil falls through to the existing
+    `RoutineInspectorView` unchanged. Mirrors `handleDelete()`'s own "check
+    the more specific selection kind first" ordering — `windowSelection` and
+    `selection` (the block one) can never both be non-nil, since every place
+    that sets one already clears the other.
+  - New private `TimeWindowInspectorView`, appended after the existing
+    `RoutineInspectorView`:
+    - **Kind** — a labelled row (`label("Kind")`, matching
+      `RoutineInspectorView`'s own `field`/`label` helpers, duplicated here
+      rather than shared — this codebase's existing tolerance for small
+      duplicated pure/view helpers, per `TimeWindow.swift`'s own header)
+      plus a plain native `Picker(selection:) { ... }.pickerStyle(.segmented)`
+      over `TimeWindowKind.allCases`, `.labelsHidden()` (the leading `label`
+      text stands in for the native label) with an explicit
+      `.accessibilityLabel("Kind")` to compensate. The binding's `set` calls
+      `store.setKind(window, to:)` directly — fires immediately, no "Save"
+      button, matching every other inspector control in this app.
+    - **Weekdays** — a row of seven native `Toggle`s, one per
+      `RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)`
+      entry (the same Mon-first-in-practice ordering
+      `RoutineWeekdayHeaderRow` already uses for the seven columns, so the
+      toggle row lines up with them conceptually), each labelled with
+      `Calendar.current.shortWeekdaySymbols` and `dayHeaderWeekday` type
+      (echoing the header row visually too), `.toggleStyle(.button)` +
+      `.tint(Tokens.Color.Interactive.accent)` for the on/off chrome (the one
+      existing generic "selected" tint this app already uses — the focus
+      ring, the drop preview — reused rather than inventing a bespoke
+      selected-day swatch), and an explicit
+      `.accessibilityLabel(weekdayFullName(weekday))` (the full
+      `Calendar.current.weekdaySymbols` name, not the abbreviation, for
+      VoiceOver). Each toggle's binding computes the whole new set (existing
+      set plus or minus the one weekday just toggled) and calls
+      `store.setWeekdays(window, to:)` — the toggle fires the store
+      immediately; the store itself is what refuses an empty result.
+    - **Label** — a `TextField` bound to a local `@State private var
+      labelText`, seeded from `window.label` in `.onAppear` (and freshly
+      re-seeded on every selection change via the parent's
+      `.id(selectedWindow.id)`, which rebuilds this view rather than reusing
+      it in place). Nothing is written to the store until `commitLabel()`
+      runs, on `onSubmit` (`↩`) or on the field's `@FocusState` losing focus
+      — mirroring `DraftBlockView`'s own `TextField`-in-place-of-title shape
+      (focus tracked, `↩` triggers a caller callback) as the closest existing
+      precedent, adapted from "discard on blur" (that field edits an
+      in-flight, never-yet-persisted draft) to "commit on blur" (this field
+      edits an ALREADY-persisted row, so losing focus should not throw the
+      edit away). `commitLabel()` itself guards `labelText != window.label`
+      before calling `store.setLabel`, so tabbing through the field without
+      typing anything pushes no undo step.
+    - Also shows the window's `Start`/`End` (read-only, `timeOfDay`, same
+      format `RoutineInspectorView`'s own block-details section uses) via the
+      duplicated `field`/`label` helpers, and a title line reading the
+      window's own label (or the literal `"Time Window"` when the label is
+      still empty).
+  - File header comment updated in place (P2-T20–T23's own convention):
+    records that this task closes the "then pick the kind from the
+    inspector" sentence in full and lists what the new inspector view does.
+- `Kadence/State/TimeWindowStore.swift`'s own file header updated the same
+  way: records `setKind`/`setWeekdays`/`setLabel` now exist and why each is
+  shaped the way it is.
+
+**Judgement calls made (documented in `DEVIATIONS.md`, not `design/GAPS.md`
+— §13.3/§7 do not specify exact segment label text, a toggle glyph/style, or
+a text-field commit granularity, so per this task's own instruction these are
+narrow calls, not spec gaps):** the three kind-segment labels ("Protected" /
+"Low Energy" / "Peak Focus" — the plain English names §13.3/§7's own prose
+already uses); the weekday toggle's native `.toggleStyle(.button)` +
+`Tokens.Color.Interactive.accent` tint (reusing this app's one existing
+generic "selected" colour rather than inventing a new one); and the label
+field's commit-on-`Return`-or-blur granularity (there is no existing
+precedent in this codebase for editing an already-persisted text field with a
+granularity question to match, so this mirrors `DraftBlockView`'s own
+focus-tracked `TextField` shape as the closest analogue, adapted from
+discard-on-blur to commit-on-blur).
+
+**Explicitly out of scope, unchanged by this task:** the block inspector's
+own still-read-only flexibility field (components.md §13.2's interactive
+stepper — pre-existing, separate gap); `RoutineEngine.materialize` honouring
+windows; `MenuBarExtra`; snooze; any change to move/resize/create/delete
+themselves (all untouched).
+
+**Verified:**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`. 339 `passed`
+  lines, 0 `failed` lines, in the final full run captured to
+  `/tmp/test_out.log`.
+- New `TimeWindowStoreInspectorFieldTests` suite
+  (`KadenceTests/TimeWindowStoreTests.swift`), eleven cases, all passed as
+  part of the run above: `setKindChangesKindAndNames` / `setKindSameValueIsNoOp`
+  / `setKindUndoRedo`; `setWeekdaysAdds` / `setWeekdaysRemoves` /
+  `setWeekdaysRefusesEmpty` / `setWeekdaysSameValueIsNoOp` /
+  `setWeekdaysUndoRedo`; `setLabelCommits` / `setLabelSameValueIsNoOp` /
+  `setLabelUndoRedo`; plus `eachFieldEditIsExactlyOneStep`, asserting all
+  three calls in sequence push exactly three separate named undo steps in
+  order (`"Set Time Window Kind"`, `"Set Time Window Weekdays"`,
+  `"Set Time Window Label"`) — the acceptance criterion "each field edit is
+  exactly one named ⌘Z-undoable step" verified by test, not by inspection
+  alone.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.` — no new tokens
+  registered; every token this task's inspector reuses (`Tokens.Spacing.*`,
+  `Tokens.Color.Interactive.accent`, `Tokens.Color.Text.primary/secondary`,
+  the existing `dayHeaderWeekday`/`inspectorTitle`/`inspectorLabel`/
+  `inspectorValue` type styles) already existed.
+- Lock probe run first: `swift /tmp/lockcheck.swift` (a one-off script
+  reading `CGSessionCopyCurrentDictionary()`'s `CGSSessionScreenIsLocked`
+  key) → `locked=false`. `Scripts/check-accessibility.sh` taken at face
+  value per that result: `PASS (elements present)`, 20 block-shaped elements,
+  `0` carrying the §11 label — the same pre-existing, already-open A20b
+  defect (VoiceOver hover-help string) every prior run has reported,
+  unrelated to this task and untouched by it. This task's own new inspector
+  controls (Picker/Toggle/TextField) are native SwiftUI controls, inherently
+  AX-tree-visible; not separately re-probed by this script, which targets
+  calendar blocks specifically.
+- All Kadence processes killed (`pkill -9`) after verification, confirmed
+  zero matches.
+
+**Blocked:** nothing. Next up, per `DEVIATIONS.md`'s updated P2-T24
+paragraph: `RoutineEngine.materialize` honouring protected windows,
+`MenuBarExtra`, snooze, the block inspector's own flexibility stepper
+(components.md §13.2), detached-instance tracking and Re-sync (§13.4).
