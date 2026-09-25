@@ -4475,3 +4475,41 @@ unchanged from §27: the flexibility control's interactive stepper (§13.2);
 §17 items 6–12 (conflict panel states, needs-attention counts, preview-active
 state, menu bar extra states, snooze result row), deliberately deferred by
 P2-T27's own brief.
+
+## 30. P2-T30 — Diagnose the KadenceTests timeout following P2-T29 (report only, 2026-09-25)
+
+Report-only task; no `Kadence/`, `KadenceTests/` or `Scripts/` file changed
+(the tree is clean at HEAD `2f0c370`). Investigated the 40-minute
+`xcodebuild` hang reported after P2-T29. Screen was locked at investigation
+time (`CGSSessionScreenIsLocked=1`, locked since 00:09:58, well before any
+run here). Two bounded full-suite runs (`xcodebuild -scheme Kadence
+-destination 'platform=macOS' -only-testing:KadenceTests test`, tool-level
+10-minute bound): the first, at HEAD with P2-T29's fixtures present,
+finished clean in ~5 minutes (`** TEST SUCCEEDED **`, 359 passed/0 failed,
+actual test execution only 7.3s of that). The second, run minutes later with
+P2-T29's two `MockData.swift` fixtures temporarily removed (`Edit`, not `git
+stash` — history-modifying git commands are reserved for the orchestrator;
+restored byte-for-byte before finishing, confirmed via `git diff`), **did
+reproduce a hang**: `xcodebuild` sat idle (0:04 CPU across 10+ minutes
+elapsed, state `S`) after its own log showed "Testing started completed" at
+7.3s — i.e. every test had already finished before the hang began. A
+`sample` of the stuck process (`/tmp/p2t30_sample_xcodebuild.txt`) shows the
+blocked thread entirely inside Xcode's own harness, not Kadence code:
+`XCTHRuntimeProfileGenerationCoordinator._download` →
+`-[DVTDevice downloadRuntimeProfilesFromDirectories:...]` →
+`NSFileManager contentsOfDirectoryAtURL:` → blocked in `open()`. This
+inverts the suspected cause: the run *with* P2-T29's fixtures passed, the
+run *without* them hung, so the fixtures are cleared as a trigger. The
+hang is an intermittent Xcode/`IDEFoundation` runtime-profile-download stall
+that happens after test execution proper, unrelated to `ConflictEngine` or
+any test file. One stray process was found and left untouched per
+instructions: `Kadence.app` PID 18266, started 02:48:34 (before this task's
+own runs began), launched with `-ApplePersistenceIgnoreState YES` — the
+exact flag pattern `Scripts/check-accessibility.sh` uses — consistent with
+being P2-T29's leftover from an interrupted screenshot-capture attempt. (My
+own diagnostic `xcodebuild` process, PID 19569, was killed after its stack
+was sampled — not a "found stray," a process I started for this
+reproduction.) No bisection by test class was needed since the hang is
+provably post-test-execution, not inside any test. **Not a deviation** —
+this is an infra/toolchain finding, not a spec-vs-build mismatch; no
+`DEVIATIONS.md` or `GAPS.md` entry filed.
