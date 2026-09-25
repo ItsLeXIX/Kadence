@@ -215,6 +215,35 @@ enum MockData {
             start: at(20), end: at(21),
             origin: .routine, flexibility: .fixed, sourceKey: .green))
 
+        // 18. Task P2-T32 addition (components.md §17 item 9 — the sidebar
+        //     needs-attention row at a count of 12). Item 17 above already
+        //     gives exactly one `Conflict` (today's "Client call"/"Focus
+        //     review" pair). Eleven more are added here, one pair per day
+        //     from `plusDays: 2` through `plusDays: 12` — days nothing above
+        //     ever places a timed event on (items 1–17 only ever use
+        //     `plusDays: 0` or `plusDays: 1`), so this cannot change the
+        //     layout of any existing capture or test that reads today's or
+        //     tomorrow's grid. Each pair reuses item 17's own shape verbatim
+        //     (a `.manual` event 19:50–20:20 overlapping a `.fixed`
+        //     `.routine` event 20:00–21:00 — a 20-minute overlap,
+        //     `ConflictEngine.detect`'s `.shorten` branch, same reasoning as
+        //     item 17's own comment for why no `RoutineTemplate`/
+        //     `RoutineBlock` wiring is needed) so `ConflictEngine.detect`
+        //     yields exactly one additional `Conflict` per day added. Total:
+        //     1 (item 17) + 11 (here) = 12, `state.conflicts.count == 12`,
+        //     which is what this task needed to review the badge at that
+        //     count. See STATUS.md/DEVIATIONS.md for the task this served.
+        for dayOffset in 2...12 {
+            events.append(Event(
+                title: "Fixture call \(dayOffset)",
+                start: at(19, 50, plusDays: dayOffset), end: at(20, 20, plusDays: dayOffset),
+                origin: .manual, sourceKey: .amber))
+            events.append(Event(
+                title: "Fixture review \(dayOffset)",
+                start: at(20, plusDays: dayOffset), end: at(21, plusDays: dayOffset),
+                origin: .routine, flexibility: .fixed, sourceKey: .green))
+        }
+
         return events
     }
 

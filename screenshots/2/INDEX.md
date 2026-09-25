@@ -1,13 +1,14 @@
 # screenshots/2 — review set (components.md §17)
 
-Three batches. **Batch 1** (this file's original content, task P2-T27, items
+Four batches. **Batch 1** (this file's original content, task P2-T27, items
 1–5) covers the Routines window. **Batch 2** (task P2-T29 retry, items 6–7)
 covers the conflict panel's two-option case. **Batch 3** (task P2-T31 retry,
-item 8) covers the conflict panel's preview-active state. See each batch's
-own section near the end of this file for its method, image(s), and what
-could not be captured — none of this is folded into batch 1's narrative
-below, since all three were captured by different tasks against different
-parts of the app.
+item 8) covers the conflict panel's preview-active state. **Batch 4** (task
+P2-T32, item 9) covers the sidebar needs-attention row at counts 0, 1 and 12.
+See each batch's own section near the end of this file for its method,
+image(s), and what could not be captured — none of this is folded into batch
+1's narrative below, since all four were captured by different tasks against
+different parts of the app.
 
 ## Batch 1 — Routines window (components.md §17 items 1–5)
 
@@ -475,7 +476,183 @@ the original block peeking out from behind the proposed block's higher
 
 - §17 items 9–12 (needs-attention row at other counts, status item states,
   popover states, snooze result row) — explicitly out of scope for this task
-  per its own brief; separate follow-up tasks' job.
+  per its own brief; separate follow-up tasks' job. **(Item 9 closed by batch
+  4, below — this line is kept, struck nowhere, only annotated, since it was
+  accurate at batch 3's own capture time.)**
 - The `kclick`-vs-`AXPress` finding above — not an app gap, a capture-tooling
   note for whichever task next needs to drive this window by real HID click
   on a machine that may be in concurrent use.
+
+---
+
+## Batch 4 — sidebar needs-attention row at 0, 1 and 12 (components.md §17 item 9)
+
+Task P2-T32. Capture-only in intent, but unlike batches 1–3 this one required
+a real, permanent `Kadence/Mock/MockData.swift` fixture addition (not a
+revert-after-capture change) to reach a count of 12 — see "The count-12
+fixture" below. No other `Kadence/`, `KadenceTests/` or `Scripts/` file was
+touched.
+
+Dataset and appearance: the same fixed mock dataset and dark appearance as
+batches 2–3 (system default, unchanged). Window: the main window
+(`MainWindow`), `{80, 80}` / `1500×900`, same fixed frame batches 2–3 used —
+chosen again here for the same reason (predictable layout for the capture
+region). Unlike batch 1's Routines-window captures, these three PNGs are all
+**1×** (`1500×900`, not `3000×1800`), matching batches 2–3's own note about
+this machine's scale factor varying by capture session.
+
+### What `state.conflicts.count` actually counts
+
+`SidebarView.swift`'s needs-attention row is `if !state.conflicts.isEmpty`,
+reading `CalendarState.conflicts: [Conflict]`, which `MainWindow.swift`'s
+`refreshConflicts()` sets from `ConflictEngine.detect(events:routineBlocks:)`
+— a `.routine`-origin event overlapping a `.manual`/`.imported`-origin event,
+skipping any `.skipped` occurrence (G-015). Two things confirmed by reading
+the code before touching any fixture, not assumed:
+
+- `events` (`MainWindow`'s own `@Query(sort: \Event.start)`) has **no date
+  predicate** — it is every `Event` in the store, not just the visible
+  day/week. A conflict pair can sit on a day nobody is looking at and still
+  count.
+- `WindowConflict` (routine-vs-protected-window overlaps, e.g. the existing
+  "Late lab session" fixture against the Sleep window) is a **separate**
+  type, never folded into `state.conflicts` — DEVIATIONS.md already records
+  this as "still no `WindowConflict` wired into ... the needs-attention row/
+  count" (P2-T19's entry). Confirmed unchanged by this task: only
+  `Conflict` (event-vs-event) feeds the sidebar badge.
+
+Both facts are what make the count-0 and count-12 states buildable as pure
+fixture data, entirely off-day, with no interaction needed.
+
+### Count 1 — the existing default, unmodified
+
+Before this task added anything, the mock dataset already produced exactly
+**one** `Conflict`: item 17's own "Client call" (`.manual`, 19:50–20:20) /
+"Focus review" (`.routine`, `.fixed`, 20:00–21:00) pair, added by task P2-T29
+for the conflict-panel batch 2 captures above. Checked by hand against every
+other event in `makeEvents(now:)` (every routine event's start/end against
+every manual/imported event's) before relying on it — no other pair overlaps
+under `ConflictEngine.overlaps`'s strict (non-touching) rule. This state
+needed no fixture change at all: build, wipe the stale store (same trap
+batch 2 already hit and documented — a leftover `default.store` from a prior
+run predates the mock dataset a given build actually seeds, so it is deleted
+before every fresh launch in this batch too), launch, confirm via `sqlite3`
+that the store holds the expected 23 events, screenshot.
+
+### Count 0 — deliberately constructed, not reached by driving the UI
+
+The task brief's own suggested route was resolving the count-1 conflict
+through the real conflict panel (select the needs-attention row, preview the
+recommended option, apply it with `↩`) and screenshotting what's left. That
+UI path was tried first, driven for real (`kclick`/`kkey`, the same HID-event
+helpers batches 2–3 left under `/tmp/kcap/`, not `System Events ... click
+at`/synthetic AX actions): the option-row click and the `↑`/`↓` preview
+navigation (`CalendarState.moveSelectedConflictOption`) both worked and were
+visibly confirmed (the recommended option highlighted blue, the accent
+preview border appeared on the canvas, `↓` correctly moved the preview from
+the shorten option to the skip option). Applying with `↩`
+(`CalendarState.applyFocusedConflictOption`, gated on
+`state.focusedRegion == .inspector`) did not visibly commit across several
+different focus-reaching sequences (a direct click into the panel; `⇥`-cycled
+into the inspector one or more times before `↓`/`↩`) — the panel stayed open
+with the same option highlighted and the block on the canvas never animated
+to its shortened frame. This was not chased further into a root-cause,
+because `state.focusedRegion` is a hand-tracked flag separate from SwiftUI's
+own `@FocusState`, kept in sync by a `.onChange` with a documented one-way
+gap (see `MainWindow.swift`'s own comments near line 63/239), and correctly
+diagnosing which of several plausible focus-timing causes is responsible
+needs instrumentation this task's brief did not ask for and is not owed to a
+capture-only task — `applyFocusedConflictOption`, `handleKey`'s `.return`
+case, and everything else in `CalendarState`/`ConflictEngine` were left
+untouched, per this task's explicit scope. **Not filed as a `design/GAPS.md`
+gap** — nothing here contradicts or leaves unspecified a `design/` value;
+this is a candidate code-behavior question for whoever owns
+`applyFocusedConflictOption` next, recorded in `STATUS.md`/`DEVIATIONS.md`
+instead.
+
+Given that, count 0 was constructed deliberately instead, per this task's own
+brief allowing exactly that: item 17's "Client call"/"Focus review" pair was
+temporarily commented out in `MockData.swift`, built, the store wiped and
+reseeded, and the result confirmed two ways before capture — `sqlite3`
+against the fresh store showed no row titled "Client call" or "Focus review"
+(21 events total, down from 23), and the running app's sidebar shows no
+needs-attention row at all, Sources starting at the very top of the list
+where the row would otherwise sit. The comment-out was then reverted
+immediately (confirmed via `git diff` matching this batch's own intended
+final `MockData.swift` state — see below) before the count-12 build.
+
+### The count-12 fixture — the one permanent `MockData.swift` addition
+
+`MockData.makeEvents(now:)` gained a new item 18, appended right after item
+17's own pair, following the same "why this exists" comment style item 17's
+own P2-T29 addition already set: a loop over `plusDays: 2` through
+`plusDays: 12` (11 iterations), each adding one more `.manual`/`.routine
+.fixed` pair with item 17's own exact overlap shape (19:50–20:20 /
+20:00–21:00, 20-minute overlap, the `.shorten` branch of
+`ConflictEngine.makeOptions` — no `RoutineTemplate`/`RoutineBlock` wiring
+needed, same reasoning item 17's own comment already gives). Days 2–12 are
+otherwise-empty in every existing fixture (items 1–17 only ever place a
+timed event on `plusDays: 0` or `plusDays: 1`), so this addition cannot
+change the rendered layout of anything any prior batch or any existing test
+looks at — confirmed by `check-accessibility.sh` still reporting the same
+**24** block-shaped elements on today's grid after the addition (the 22 new
+events all land on future, unvisited days). Combined with item 17's own pair,
+this gives `state.conflicts.count == 12` for review. Kept permanently per
+this task's own brief, mirroring batch 2's own precedent for committing a
+`MockData.swift` fixture addition rather than reverting it — this is mock
+dataset content, not engine or state behavior, and no `Kadence/State/*` or
+`Kadence/Views/*` file was touched to produce it.
+
+### The three images
+
+| file | §17 item | what it shows |
+|---|---|---|
+| `needs-attention-count-0.png` | 9 (0 half) | Sidebar with no needs-attention row — item 17's pair temporarily removed |
+| `needs-attention-count-1.png` | 9 (1 half) | Sidebar needs-attention row reading "1" — the unmodified default dataset |
+| `needs-attention-count-12.png` | 9 (12 half) | Sidebar needs-attention row reading "12" — item 17's pair plus the 11 new item-18 pairs |
+
+**`needs-attention-count-0.png`.** Full main window. The sidebar's Sources
+section begins immediately below the sidebar's top edge — no "Needs
+attention" row, no badge, no empty-state placeholder of any kind, matching
+§10.2's "hidden entirely at zero — no empty-state counter, no zero badge.
+Zero shows nothing at all" exactly.
+
+**`needs-attention-count-1.png`.** Full main window. A "Needs attention" row
+sits above the Sources section, reading a plain "1" in a small chip at the
+row's trailing edge, no icon (§10.2's "the row takes no icon").
+
+**`needs-attention-count-12.png`.** Full main window. Same row, now reading
+"12". **Verified, not just eyeballed** (components.md §10.2: `blockMeta`
+type, `color.text.secondary` on `color.surface.canvasSunken`, radius
+`radius.chip`): a 4×-zoomed crop of the badge (verification-only, not
+shipped) plus direct pixel sampling of the saved PNG —
+
+| sample | measured (dark mode) | token (dark mode) |
+|---|---|---|
+| badge background | `(22, 22, 23)` | `color.surface.canvasSunken` `#161618` = `(22, 22, 24)` |
+| ordinary sidebar background (control) | `(26, 26, 27)` | — (confirms the badge fill is a distinct, slightly darker chip against the sidebar, not the same surface) |
+| brightest pixel of the "12" glyph | `(159, 163, 171)` | `color.text.secondary` `#A8ADB5` = `(168, 173, 181)` |
+
+The background match is within one 8-bit count per channel — as close as a
+screenshot round-trip gets. The glyph sample reads slightly under the token
+because at this row height and 1× capture scale, the "1"/"2" strokes are only
+a few pixels wide, so even the brightest sampled pixel still carries some
+anti-aliasing blend toward the darker chip fill behind it — the same
+quantization/gamma-blend caveat batch 1's own opacity measurement notes for
+exactly this reason. The direction and magnitude are both consistent with
+`color.text.secondary` and inconsistent with any other text color in this
+app's palette (`Text.primary` renders far brighter, at or near white; no red
+or amber tone is present anywhere in the sample). No icon precedes the label,
+matching count 1's own image and §10.2's rule.
+
+### Known open at capture time (batch 4, in addition to batches 1–3's lists above)
+
+- **`CalendarState.applyFocusedConflictOption` via `↩`, driven through real
+  HID key events while the conflict panel is open, did not visibly commit**
+  in this task's own testing — see "Count 0" above for the full account and
+  what was and was not investigated. Not fixed, not filed as a `design/GAPS.md`
+  gap (nothing here is a spec question), recorded here and in
+  `STATUS.md`/`DEVIATIONS.md` for whichever task next drives that path.
+- §17 items 10–12 (menu bar extra status item/popover states, the snooze
+  result row) — explicitly out of scope for this task per its own brief;
+  separate follow-up tasks' job, per the task brief that produced this batch.

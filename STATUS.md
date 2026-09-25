@@ -4679,3 +4679,111 @@ Next up, unchanged from §31: the flexibility control's interactive stepper
 (§13.2); §17 items 9–12; interactions.md §12's remaining keyboard rows and
 click-vs-keyboard focus rule; components.md §16's cross-scene block-move
 coordination; components.md §13.4 in full.
+
+## 33. P2-T32 — Capture screenshots/2 batch 4: sidebar needs-attention row at 1, 12, and 0 (components.md §17 item 9, 2026-09-25)
+
+Capture-only in intent, but this task made one permanent, additive change to
+`Kadence/Mock/MockData.swift` to reach a count of 12 (see below) — no
+`Kadence/State/*`, `Kadence/Views/*` or `KadenceTests/*` file was touched.
+
+**Built/captured (`screenshots/2/`, full account and method in that
+directory's own `INDEX.md`, "Batch 4" section):**
+
+- `needs-attention-count-1.png` — the sidebar's "Needs attention" row reading
+  "1", from the **unmodified** default dataset. No fixture change needed:
+  item 17's existing "Client call"/"Focus review" pair (P2-T29) was already
+  the only `Conflict` `ConflictEngine.detect` produces from the stock mock
+  data — checked by hand against every routine/manual-or-imported pair in
+  `MockData.makeEvents` before relying on it, not assumed.
+- `needs-attention-count-0.png` — the row **absent**, Sources starting at the
+  sidebar's top edge. Constructed deliberately: item 17's pair was
+  temporarily commented out, built, the store wiped and reseeded, confirmed
+  via `sqlite3` (21 events, neither "Client call" nor "Focus review" present)
+  and via the running app (no needs-attention row), then the comment-out was
+  reverted before the next build. See "Count 0" in `INDEX.md`'s batch 4
+  section for why this route was chosen over the brief's suggested
+  resolve-via-`↩` route — that route was tried first and is the one
+  unresolved finding this task is reporting, not fixing (next paragraph).
+- `needs-attention-count-12.png` — the row reading "12". Required one new,
+  permanent addition to `MockData.makeEvents` (item 18): a loop over
+  `plusDays: 2...12` adding 11 more routine/manual pairs, each reusing item
+  17's own exact shape (`.manual` 19:50–20:20 / `.routine .fixed` 20:00–21:00,
+  20-minute overlap) on days nothing else in the fixture set ever places a
+  timed event — so it cannot change any existing capture's or test's
+  rendered layout for today's or tomorrow's grid (`check-accessibility.sh`
+  still reports 24 block-shaped elements on today's grid after the addition).
+  Combined with item 17's own pair: `state.conflicts.count == 12`. Kept
+  permanently, per this task's own brief, mirroring batch 2's own precedent
+  for committing a mock-dataset fixture addition rather than reverting it.
+- The count-12 badge was pixel-checked against components.md §10.2's own
+  spec (`blockMeta` type, `color.text.secondary` on
+  `color.surface.canvasSunken`, radius `radius.chip`), not just eyeballed:
+  badge background sampled at `(22, 22, 23)` against
+  `color.surface.canvasSunken`'s dark value `#161618` = `(22, 22, 24)` (within
+  1 count/channel); the "12" glyph's brightest sampled pixel at
+  `(159, 163, 171)` against `color.text.secondary`'s dark value `#A8ADB5` =
+  `(168, 173, 181)` — under the token, consistent with anti-aliasing blend at
+  this row's small font size and 1× capture scale (the same caveat §32's own
+  opacity measurement already recorded for the same reason), and clearly
+  distinct in both direction and magnitude from `Text.primary` (near-white)
+  or any red/amber tone. Full table in `INDEX.md`'s batch 4 section.
+
+**Finding, not fixed, not a `design/GAPS.md` gap (recorded here and in
+`DEVIATIONS.md` instead):** `CalendarState.applyFocusedConflictOption`,
+reached via `↩` while the conflict panel is open and an option is previewed
+(`handleKey`'s `.return where state.focusedRegion == .inspector &&
+state.selectedConflictID != nil && state.selectedConflictOptionID != nil`
+case), did not visibly commit when driven through real HID key events
+(`kkey`, the same virtual-keycode helper batches 2–3 left under `/tmp/kcap/`)
+in this task's own testing, across several different sequences for getting
+`state.focusedRegion` to read `.inspector` (a direct click into the panel
+before applying; one or more `⇥` cycles via `cycleFocus` before `↓`/`↩`).
+Everything upstream of the apply itself worked and was visually confirmed
+each time: the option row highlighted on click, `↑`/`↓` moved the preview
+between options (`moveSelectedConflictOption`), and the canvas accent preview
+border appeared correctly. Only the final `↩` commit — the block animating to
+its shortened frame and the conflict count dropping — never visibly happened.
+Not chased to a root cause: `state.focusedRegion` is a hand-tracked flag kept
+in sync with SwiftUI's own `@FocusState` by a one-directional `.onChange`
+(`MainWindow.swift` line ~63 only updates it when the real focus value is
+non-nil, so real-vs-tracked focus can diverge exactly when a view loses focus
+without another view claiming it), and this task's brief did not ask for, and
+a capture-only task is not owed, the deeper instrumentation needed to tell
+apart a genuine wiring gap from a synthetic-HID-input timing artifact (§32
+above already documents this same machine producing `kclick` interference
+under concurrent human use). Recorded for whoever next needs this exact
+keyboard path. `CalendarState.swift`, `MainWindow.swift` and
+`ConflictEngine.swift` were read but not edited.
+
+**Verified (this task):**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **` (run twice: once for the count-1/count-0 build with
+  item 17's pair temporarily removed, once for the final, permanent
+  count-12 state).
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 359 `passed`
+  lines / 0 `failed` lines, against the final `MockData.swift`.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.`
+- `./Scripts/check-accessibility.sh` — `PASS (elements present)`, 24
+  block-shaped elements (screen was unlocked; no lock-probe branch taken).
+- Reseed verified via `sqlite3` before each of the three captures: 23 events
+  (count 1, unmodified), 21 events with neither fixture title present (count
+  0), 45 events with 22 `Fixture *`-titled rows present (count 12).
+- All Kadence processes confirmed killed (`pkill -9`, `pgrep` empty) after
+  every capture pass.
+
+**Not built, out of scope for this task (per its own brief):** §17 items 10
+(menu bar extra status item states), 11 (popover states) and 12 (snooze
+result row) — separate follow-up tasks. G-017 (the conflict panel's
+three-option/non-first-recommended half) and A25 (detached-instance
+tracking) were not investigated or touched, per this task's own explicit
+instruction. The `TimeWindow` editor is unchanged, complete as of P2-T24.
+
+Next up: the `↩`-apply finding above, for whoever picks up
+`CalendarState.applyFocusedConflictOption`/`MainWindow.handleKey` next; §17
+items 10–12; the flexibility control's interactive stepper (§13.2);
+interactions.md §12's remaining keyboard rows and click-vs-keyboard focus
+rule; components.md §16's cross-scene block-move coordination; components.md
+§13.4 in full.

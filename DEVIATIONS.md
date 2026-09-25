@@ -1134,6 +1134,44 @@ in `Kadence/`.
   and/or a ranking rule that can diverge from strict disturbance-ascending),
   out of scope for a capture task. See `STATUS.md` §31.
 
+- **A27 — interactions.md §10.1. `↩` apply of a previewed conflict option
+  (built by P2-T17, `CalendarState.applyFocusedConflictOption`) could not be
+  made to visibly commit through real HID key events in this session.**
+  *(new 2026-09-25, task P2-T32, while capturing `screenshots/2/` batch 4's
+  count-0 image.)* Not confirmed as a code defect — recorded as an open
+  question, not a ruling. Everything upstream worked and was visually
+  confirmed: clicking a conflict option row previewed it (blue highlight,
+  the accent canvas border appeared), and `↑`/`↓` moved the preview between
+  options once `state.focusedRegion == .inspector` (`↓` correctly moved from
+  the shorten option to the skip option, confirmed by the highlighted row
+  changing). Pressing `↩` (virtual keycode 36, via the same `kkey` HID-event
+  helper batches 2–3 already used successfully for scrolling/keys) in that
+  same state never visibly changed the canvas or the sidebar count, across
+  several different sequences for reaching `.inspector` focus (a direct
+  click into the panel; one or more `⇥` cycles via `MainWindow.cycleFocus`
+  before `↓`/`↩`). `handleKey`'s `.return where state.focusedRegion ==
+  .inspector && state.selectedConflictID != nil && state.selectedConflictOptionID
+  != nil` case (`MainWindow.swift` ~line 488) is gated on `state.focusedRegion`,
+  a hand-tracked flag kept in sync with SwiftUI's own `@FocusState` by a
+  one-directional `.onChange` (`MainWindow.swift` ~line 63: only updates when
+  the new real focus value is non-nil), which can diverge from real
+  first-responder state in ways this task did not fully trace — and, per
+  `STATUS.md` §32's own precedent, this machine has independently shown
+  synthetic-HID-input interference under concurrent human use during a
+  capture session, which cannot be ruled out here either. Not chased further:
+  diagnosing which of these (a genuine focus-wiring gap vs. an
+  environmental/tooling artifact, the same distinction `STATUS.md`'s
+  `check-accessibility.sh` history draws repeatedly) needs instrumentation
+  this capture-only task's brief did not ask for. `CalendarState.swift`,
+  `MainWindow.swift` and `ConflictEngine.swift` were read but not edited.
+  Worked around for the count-0 capture itself by constructing the state
+  directly in `MockData.swift` instead (temporarily, reverted before the
+  count-12 build) — see `screenshots/2/INDEX.md`'s batch 4 section and
+  `STATUS.md` §33 for the full account. *Still open* — needs either a live
+  re-verification on a quiescent machine or a focused look at the
+  `state.focusedRegion`/`@FocusState` sync, neither of which this task
+  attempted.
+
 ---
 
 ## B — built, but not the way the spec describes
