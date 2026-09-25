@@ -189,6 +189,32 @@ enum MockData {
 
         // 16. A day with nothing on it at all — two days out is deliberately empty.
 
+        // 17. Task P2-T29 addition (components.md §17 item 6, the two-option
+        //     half only — see DEVIATIONS.md for the three-option and
+        //     recommended-not-first halves, which `ConflictEngine` cannot
+        //     produce without an engine change, so are not attempted here).
+        //     A `.fixed` routine block overlapping a manual event: `.fixed`
+        //     reaches `ConflictEngine.makeOptions`'s `.shorten` branch, which
+        //     needs no `RoutineBlock`/`externalID` wiring (unlike `.shiftable`'s
+        //     `.shiftLater`, which does), so a plain seeded pair is enough —
+        //     no new `RoutineTemplate`/`RoutineBlock` fixture required. Times
+        //     chosen so neither event touches any existing fixture in this
+        //     list: "Notes write-up" ends 19:45, "Reading" (routine,
+        //     droppable) starts 21:00, and this pair sits strictly between
+        //     them. Overlap: 20:00–20:20 (20 min). `shortenOption` keeps the
+        //     back half (20:20–21:00, 40 min, comfortably clear of the
+        //     15-minute floor) — trims 20 min — so the panel shows exactly
+        //     two rows: `Shorten … by 20 min` (recommended, 20 < 60) and
+        //     `Skip today's …` (60 min disturbance) second.
+        events.append(Event(
+            title: "Client call",
+            start: at(19, 50), end: at(20, 20),
+            origin: .manual, sourceKey: .amber))
+        events.append(Event(
+            title: "Focus review",
+            start: at(20), end: at(21),
+            origin: .routine, flexibility: .fixed, sourceKey: .green))
+
         return events
     }
 
