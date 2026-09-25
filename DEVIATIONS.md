@@ -1110,6 +1110,30 @@ in `Kadence/`.
   separate, much larger `RoutineEngine`-level task, out of scope for both
   P2-T27 and P2-T28. See `STATUS.md` §28.
 
+- **A26 — components.md §14.3. Only the "two options, recommended always
+  first" subset of "two or three options, recommended usually but not
+  necessarily first" is built.** *(new 2026-09-25, task P2-T29 retry, while
+  capturing `screenshots/2/` batch 2's conflict-panel images.)* §14.3: "Two or
+  three per conflict... Options are ordered by disturbance, least first. The
+  recommended one is usually but not necessarily first." `ConflictEngine.
+  makeOptions` (`Kadence/State/ConflictEngine.swift`, lines 344–367) only ever
+  appends one flexibility-derived option (or none) plus one skip option — at
+  most two `RawOption`s reach `finalize`, never three — and `finalize` (lines
+  444–464) always sorts strictly ascending by `disturbanceMinutes` and marks
+  index 0 `isRecommended`, so the recommended option is always the
+  least-disturbance one and always first. No fixture can exercise the
+  three-option case or a non-first recommendation because no code path
+  produces either; this is a structural cap in `makeOptions`/`finalize`
+  themselves, confirmed by reading the functions, not by exhausting fixture
+  attempts. Full citation and reasoning: `design/GAPS.md` **G-017**. The
+  built two-option, always-first-recommended case is captured in
+  `screenshots/2/conflict-panel-two-options.png` (components.md §17 item 6's
+  two-option half); item 6's three-option half and item 7 (a non-first
+  recommendation) are the parts this entry covers as *not built*. *Still
+  open* — closing it needs an `ConflictEngine` change (a third option source
+  and/or a ranking rule that can diverge from strict disturbance-ascending),
+  out of scope for a capture task. See `STATUS.md` §31.
+
 ---
 
 ## B — built, but not the way the spec describes

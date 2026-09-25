@@ -1,4 +1,14 @@
-# screenshots/2 — Routines window review set, batch 1 (components.md §17 items 1–5)
+# screenshots/2 — review set (components.md §17)
+
+Two batches. **Batch 1** (this file's original content, task P2-T27, items
+1–5) covers the Routines window. **Batch 2** (task P2-T29 retry, appended at
+the end of this file, items 6–7) covers the conflict panel's two-option case.
+See the "Batch 2" section near the end for that batch's own method, image,
+and what could not be captured — it is not folded into batch 1's narrative
+below since the two were captured by different tasks against different parts
+of the app.
+
+## Batch 1 — Routines window (components.md §17 items 1–5)
 
 Task P2-T27. Capture-only: no `Kadence/`, `KadenceTests/` or `Scripts/` file was
 changed by this task. **Items 4 and 5 of components.md §17 (detached instances,
@@ -258,3 +268,135 @@ hand-written into the data layer to fake a screenshot, and no UI was added
   preview-active state, menu bar extra states, snooze result row) are
   deliberately out of scope for this task and not represented here at all —
   a follow-up task's job, per this task's own brief.
+
+---
+
+## Batch 2 — conflict panel, two-option case (components.md §17 item 6, two-option half)
+
+Task P2-T29 (retry, after two prior failed attempts for reasons unrelated to
+app code — see `STATUS.md`'s entries for both). Capture-only: the only code
+change anywhere in this batch's lineage is the small `Kadence/Mock/MockData.swift`
+fixture addition already committed at HEAD before this retry started (a
+`.manual` "Client call" 19:50–20:20 overlapping a `.routine .fixed` "Focus
+review" 20:00–21:00, both on today's date — see that file's own inline
+comment for why these times and this flexibility were chosen). This retry
+touched no `Kadence/`, `KadenceTests/` or `Scripts/` file.
+
+Dataset: same fixed mock dataset as batch 1, but note the store had to be
+**wiped and reseeded** for this capture — `MockData.seedIfNeeded` only seeds
+an empty store (see that function's own doc comment), and a stale
+`~/Library/Containers/XIX.Kadence/Data/Library/Application Support/default.store`
+left over from an earlier attempt (21 events, predating the "Client call"/
+"Focus review" fixture) was still on disk. Deleted
+`default.store`/`-shm`/`-wal` before the launch used for this capture, then
+verified via `sqlite3` against the reseeded store that both new events were
+present (23 events total) before driving the app further. Appearance: dark
+(system default, unchanged, same as batch 1). Window: the main window
+(`MainWindow`), not the Routines window — the conflict panel lives in the
+main window's inspector.
+
+### Capture method
+
+Same family of technique as batch 1 (real input, no synthetic AX state,
+bounds read back rather than assumed), reusing the same compiled helpers left
+under `/tmp/kcap/` (`kclick` — a real `CGEventType` mouseDown/mouseUp pair
+through the HID event tap, not `System Events ... click at`, which only sends
+`AXPress` and would bypass hit-testing exactly the way
+`check-block-click-selects.sh`'s own header explains; `wininfo` — true
+on-screen window bounds via `CGWindowListCopyWindowInfo`, not assumed):
+
+1. `xcodebuild -scheme Kadence -destination 'platform=macOS' build` — clean
+   build (also this task's required build-and-test step; see `STATUS.md`).
+2. Kill any existing `Kadence.app/Contents/MacOS/Kadence` process by pid (same
+   pid-targeting discipline as `check-accessibility.sh` — `System Events`
+   resolves a process by name, so a wedged instance with no window can
+   answer for a healthy one).
+3. Delete the stale store (see "Dataset" above), then `open -n "$APP" --args
+   -ApplePersistenceIgnoreState YES`, poll for the first window the same way
+   `check-accessibility.sh` does, and confirm via `sqlite3` against the fresh
+   `default.store` that "Client call"/"Focus review" are present before
+   proceeding — this batch hit the stale-store trap once and is recording the
+   check so a future capture task does not lose time rediscovering it.
+4. Position/size the main window to a fixed `{80, 80}`/`1500×900` frame
+   (`System Events ... set position/size of window 1`) — the same
+   `1500×900` size `check-block-click-selects.sh`/`check-block-hit-regions.sh`
+   already use for main-window driving, applied here for the same reason
+   (predictable layout for both AX queries and the capture region).
+5. Locate the needs-attention row: a small AppleScript walks the AX tree from
+   `window 1` down (depth-bounded recursion over `UI elements of`), collecting
+   role + value/title/description + position/size for every element that
+   carries a non-generic label. Before the store held the new fixture, no such
+   row existed in the sidebar (confirming `state.conflicts.isEmpty` at that
+   point — see "Dataset" above for the fix); after reseeding, exactly one new
+   `AXButton` appeared as the sidebar's first outline row, at the position
+   components.md §10.2 describes (top of the list, ahead of "Sources").
+6. `kclick` a real HID click at that button's on-screen center
+   (`components.md §14.1`: "Activating it selects the first unresolved
+   conflict and puts the inspector into conflict mode"). Re-ran the same AX
+   walk afterward and confirmed the inspector's content changed from the
+   ordinary day-summary panel to the conflict panel — the walk now surfaced
+   `overlaps` and `20:00–20:20 · 20 min overlap` (components.md §14.2's own
+   wording, `ConflictPanelView.overlapLine`) in place of the "Blocks / N",
+   "Scheduled / H h", "First / HH:mm · title" rows batch 1's day-summary
+   panel would show instead — that swap is what confirms conflict mode is
+   active, since the option-row and collision-block buttons' own AX
+   title/description did not surface through this particular walk (SwiftUI
+   appears to fold their inner `Text` children into the button's own AX node
+   without exposing a readable title/description/value through this method —
+   not investigated further, since the screenshot itself is the actual
+   evidence for this task, and the walk already gave two independent,
+   spec-matching text confirmations).
+7. `wininfo Kadence` to read back the window's true on-screen bounds
+   immediately before capture (confirmed unchanged from step 4: `{80, 80,
+   1500, 900}`).
+8. `screencapture -x -R80,80,1500,900` against those exact bounds.
+9. All Kadence processes killed (`pkill -9 -f
+   "Kadence.app/Contents/MacOS/Kadence"`) after the capture, confirmed with a
+   follow-up `pgrep` returning nothing.
+
+Unlike batch 1's captures, this PNG came back **1500×900** (1×), not 2×
+`(3000×1800)` — noted so a reviewer isn't surprised by a different pixel size
+between the two batches; nothing here depends on which scale factor a given
+capture session's display happened to render at.
+
+### The one image
+
+| file | §17 item | what it shows |
+|---|---|---|
+| `conflict-panel-two-options.png` | 6 (two-option half) | Full main window, conflict mode active in the inspector |
+
+**`conflict-panel-two-options.png`.** The inspector (right-hand panel) shows,
+top to bottom: the **collision header** (§14.2) — a real "Client call" block,
+the word "overlaps", a real "Focus review" block, both rendered at the
+16–27pt density tier with their normal rail/hue/style (the same
+`.conflicted` presentation the grid itself uses, per `ConflictPanelView`'s own
+doc comment), then the overlap line "20:00–20:20 · 20 min overlap"; then the
+**two option rows** (§14.3) — "Shorten Focus review by 20 min" with a
+**Recommended** chip and the delta line "Focus review now 20:20–21:00", and
+below it "Skip today's Focus review" with the delta line "Frees 60 min ·
+today's occurrence only", with no chip. This is components.md §17 item 6's
+two-option half, driven by the `.fixed`-flexibility branch of
+`ConflictEngine.makeOptions`'s `.shorten` case (recommended because 20 min
+disturbance < the skip option's 60 min — `ConflictEngine.finalize`'s
+ascending sort).
+
+### What could not be captured — §17 item 6's three-option half, and item 7, blocked
+
+**Not attempted, not faked.** `ConflictEngine.makeOptions`/`finalize`
+(`Kadence/State/ConflictEngine.swift`, lines 344–367 / 444–464) can
+structurally only ever produce 1–2 options per conflict, with the recommended
+one always at index 0 after a strict ascending-disturbance sort — there is no
+input (fixture or otherwise) that reaches a third option or a non-first
+recommendation, because there is no code path in either function that
+produces one. This is a build gap, not a missing fixture — see `design/GAPS.md`'s
+new **G-017** entry for the full citation and reasoning; it is not
+re-explained here. Per this task's own instruction, `ConflictEngine.swift`
+was not touched to manufacture a state it cannot currently reach.
+
+### Known open at capture time (batch 2, in addition to batch 1's list above)
+
+- **components.md §17 item 6's three-option half, and item 7 in full** — see
+  "What could not be captured" above and `design/GAPS.md` G-017.
+- §17 items 8–12 (preview-active state, needs-attention row at other counts,
+  status item states, popover states, snooze result row) — explicitly out of
+  scope for this task per its own brief; separate follow-up tasks' job.

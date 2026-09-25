@@ -4513,3 +4513,79 @@ reproduction.) No bisection by test class was needed since the hang is
 provably post-test-execution, not inside any test. **Not a deviation** —
 this is an infra/toolchain finding, not a spec-vs-build mismatch; no
 `DEVIATIONS.md` or `GAPS.md` entry filed.
+
+## 31. P2-T29 (retry) — Capture screenshots/2 batch 2: conflict panel, two-option case; file G-017 (2026-09-25)
+
+Narrow retry of P2-T29, which failed twice for reasons unrelated to app code
+(a transient agent-permission issue, since ruled resolved; and the
+`xcodebuild` post-test-execution hang P2-T30 diagnosed as an intermittent
+Xcode/`IDEFoundation` runtime-profile-download stall, not caused by any test
+file or fixture). Captured exactly one image and filed exactly one gap, per
+this retry's own narrowed scope; did not re-attempt the three-option/
+non-first-recommendation half of components.md §17 item 6 or item 7, both of
+which P2-T29's own investigation (repeated here, not redone from scratch —
+see `design/GAPS.md` G-017) had already shown are structurally impossible for
+the current `ConflictEngine` to produce.
+
+**Built/captured:**
+
+- `screenshots/2/conflict-panel-two-options.png` — the main window (not the
+  Routines window), inspector in conflict mode, showing components.md §14.2's
+  collision header ("Client call" block / "overlaps" / "Focus review" block /
+  "20:00–20:20 · 20 min overlap") and §14.3's two option rows ("Shorten Focus
+  review by 20 min", **Recommended** chip, delta "Focus review now
+  20:20–21:00"; "Skip today's Focus review", no chip, delta "Frees 60 min ·
+  today's occurrence only") — components.md §17 item 6's two-option half.
+  Driven via the needs-attention row (§14.1/§10.2) with a real HID click
+  (`kclick`, the same discipline `check-block-click-selects.sh` documents —
+  not `System Events ... click at`, which sends `AXPress` directly and
+  bypasses hit-testing), window bounds read back via `wininfo`
+  (`CGWindowListCopyWindowInfo`) rather than assumed. Full method, what could
+  not be captured, and why, are in `screenshots/2/INDEX.md`'s new "Batch 2"
+  section — not reproduced here.
+- `design/GAPS.md` **G-017** (new) — `ConflictEngine.makeOptions` (lines
+  344–367) and `ConflictEngine.finalize` (lines 444–464), read at HEAD,
+  structurally cap every conflict at 1–2 options with the recommended one
+  always at index 0 (strict ascending-disturbance sort, no tie-break, no
+  override) — components.md §17 item 6's three-option half and item 7 (a
+  non-first recommendation) describe panel states this build cannot reach
+  with any input, not states missing a fixture. `ConflictEngine.swift` was
+  not touched.
+
+**One operational finding worth recording for the next capture task:**
+`MockData.seedIfNeeded` only seeds an empty store (its own doc comment says
+so), and this session's `~/Library/Containers/XIX.Kadence/Data/Library/
+Application Support/default.store` was left over from an earlier attempt —
+21 events, predating the "Client call"/"Focus review" fixture P2-T29 added at
+HEAD. The needs-attention row was consequently absent on first launch (0
+conflicts, correctly — not a bug). Deleted `default.store`/`-shm`/`-wal`
+before relaunching, then verified via `sqlite3` that the reseeded store
+contained both new events (23 total) before driving the app further. Not a
+code change and not a deviation — a capture-environment gotcha, recorded here
+and in `screenshots/2/INDEX.md`'s batch 2 method section so it doesn't cost
+the next task the same investigation.
+
+**Verified (this task):**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 359 `passed`
+  lines / 0 `failed` lines, no hang this run (the P2-T30-diagnosed stall is
+  intermittent and did not reproduce here).
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.`
+- All Kadence processes confirmed killed (`pkill -9`) after capture.
+
+**Not built, out of scope for this retry (per its own brief):**
+components.md §17 items 8–12 (preview-active state, needs-attention row at
+other counts, status item states, popover states, snooze result row) —
+separate follow-up tasks.
+
+**Blocked:** components.md §17 item 6's three-option half and item 7 — see
+G-017; needs an `ConflictEngine` change (a third option source and/or a
+non-disturbance tie-break/override for `isRecommended`), out of scope for any
+capture task. Next up otherwise unchanged from §28/§30: the flexibility
+control's interactive stepper (§13.2); §17 items 8–12; interactions.md §12's
+remaining keyboard rows and click-vs-keyboard focus rule; components.md §16's
+cross-scene block-move coordination; components.md §13.4 in full.

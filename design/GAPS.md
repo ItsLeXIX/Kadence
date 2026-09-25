@@ -1098,3 +1098,66 @@ snooze-scheduling rule (design/PRD text for what "snooze" should actually
 compute), at which point `EventStore.snooze` is replaced outright and
 `Kadence/Views/MenuBar/MenuBarPopoverView.swift`/`MenuBarFormatting.snoozeResult`
 need no change at all — they only ever read the resulting `start`.
+
+---
+
+## 2026-09-25 — G-017 — ConflictEngine structurally cannot produce a 3-option conflict or a non-first recommendation
+
+**Where it bit:** task P2-T29 (retry), capturing `screenshots/2/` batch 2 —
+components.md §17 item 6 (the conflict panel's option-row states) and item 7
+(a conflict whose recommended option is not first). Item 6's two-option half
+was captured (`screenshots/2/conflict-panel-two-options.png`, the seeded
+"Client call" `.manual` / "Focus review" `.routine .fixed` overlap in
+`Kadence/Mock/MockData.swift`). Item 6's three-option half and item 7 in full
+could not be, and this entry records why that is a build gap, not a missing
+fixture.
+
+**What components.md §14.3 says.** "Two or three [options] per conflict." And
+on ordering: "Options are ordered by disturbance, least first. The
+recommended one is usually but not necessarily first — when it is not, the
+ordering still reads as a ranking because line 2 says why."
+
+**What the engine actually does, at HEAD.** `ConflictEngine.makeOptions`
+(`Kadence/State/ConflictEngine.swift`, lines 344–367) switches on
+`routineEvent.flexibility` and appends at most one flexibility-derived
+`RawOption` (`.shiftLater` for `.shiftable`, `.shorten` for `.fixed`, nothing
+extra for `.droppable`) plus exactly one `skipOption(for:)` call — there is no
+third source of options anywhere in the function, and no code path that can
+append more than two `RawOption`s to `raw` before it is handed to `finalize`.
+`ConflictEngine.finalize` (lines 444–464) then unconditionally does
+`raw.sorted { $0.disturbanceMinutes < $1.disturbanceMinutes }` and marks
+`index == 0` as `isRecommended` — strictly disturbance-ascending, no other
+tie-break, no override. The combination means:
+
+- Every conflict `detect` can produce has **exactly 1 or 2** options (1 only
+  in the documented edge case `makeOptions`'s own comment names — a
+  `.droppable` conflict, or a `.shiftable`/`.fixed` conflict where the
+  derived option doesn't fit), never 3.
+- The recommended option is **always** index 0 after the ascending sort —
+  i.e. always the least-disturbance option — never anything else, so "usually
+  but not necessarily first" collapses to "always first."
+
+**Why this is an engine gap, not a fixture gap.** No `Event`/`RoutineBlock`
+fixture, however constructed, can make `makeOptions` emit a third
+`RawOption` — the function has only two `append` call sites, full stop — and
+none can make `finalize` mark anything but the disturbance-minimum as
+recommended, since that is the entirety of its sort/mark logic. Closing this
+needs an engine change: a third option source (e.g. a `.shiftable` block
+that could also be shortened, or a "do nothing, absorb the overlap" option)
+and/or a ranking rule that can diverge from strict disturbance-ascending
+(e.g. a tie-break or a policy override that promotes a different option to
+`isRecommended` while leaving the display order by disturbance). Both are
+out of scope for a capture task.
+
+**Consequence for components.md §17.** Item 6's three-option half and item 7
+in full describe conflict-panel states this build cannot currently reach by
+any input — not "no fixture yet drives it," but "no input drives it."
+
+**Not blocking** for anything item 6's two-option half or any other shipped
+acceptance criterion depends on: `ConflictRankingTests` already asserts
+"exactly one recommended per conflict" and "options sorted ascending by
+disturbance," both of which this reading holds unconditionally already — see
+`KadenceTests/ConflictRankingTests.swift`. Needed only to close: a spec or
+engine decision to add a third option source and/or a non-disturbance
+tie-break/override rule for `isRecommended`, at which point `makeOptions`/
+`finalize` above are exactly what would need to change.
