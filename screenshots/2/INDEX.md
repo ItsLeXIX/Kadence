@@ -1,12 +1,13 @@
 # screenshots/2 — review set (components.md §17)
 
-Two batches. **Batch 1** (this file's original content, task P2-T27, items
-1–5) covers the Routines window. **Batch 2** (task P2-T29 retry, appended at
-the end of this file, items 6–7) covers the conflict panel's two-option case.
-See the "Batch 2" section near the end for that batch's own method, image,
-and what could not be captured — it is not folded into batch 1's narrative
-below since the two were captured by different tasks against different parts
-of the app.
+Three batches. **Batch 1** (this file's original content, task P2-T27, items
+1–5) covers the Routines window. **Batch 2** (task P2-T29 retry, items 6–7)
+covers the conflict panel's two-option case. **Batch 3** (task P2-T31 retry,
+item 8) covers the conflict panel's preview-active state. See each batch's
+own section near the end of this file for its method, image(s), and what
+could not be captured — none of this is folded into batch 1's narrative
+below, since all three were captured by different tasks against different
+parts of the app.
 
 ## Batch 1 — Routines window (components.md §17 items 1–5)
 
@@ -400,3 +401,81 @@ was not touched to manufacture a state it cannot currently reach.
 - §17 items 8–12 (preview-active state, needs-attention row at other counts,
   status item states, popover states, snooze result row) — explicitly out of
   scope for this task per its own brief; separate follow-up tasks' job.
+  **(Item 8 closed by batch 3, below.)**
+
+---
+
+## Batch 3 — conflict panel, preview-active state (components.md §17 item 8)
+
+Task P2-T31 (retry — the first attempt ran out of turns with no commit).
+Capture-only: no `Kadence/`, `KadenceTests/` or `Scripts/` file was touched.
+
+Dataset and appearance: identical to batch 2's own — see that section above,
+not restated here. Steps 1–6 of batch 2's "Capture method" (build, kill any
+stale process, wipe/reseed the store, verify via `sqlite3`, position the main
+window to `{80, 80}`/`1500×900`, AX-walk to find and click the needs-attention
+row to enter conflict mode) were followed exactly, with one substitution
+recorded in `STATUS.md`'s new §32 rather than here: a real `kclick` HID event
+did not register against this session's window (evidence points at
+concurrent, unrelated human use of the machine during this task, not an app
+defect — full account in `STATUS.md`), so both the needs-attention row and
+the option-row click below were driven via `AXPress` posted at the same
+AX-confirmed element instead. This exercises the same `Button` `action` a
+real click would; it is a capture-tooling substitution, not a different
+interaction path through the app.
+
+**The one new step.** `ConflictPanelView`'s `optionRow` (lines 107–135) is a
+plain `Button` wired in `MainWindow.swift` (`inspectorBody`, ~line 257) to
+`onSelectConflictOption: { state.selectedConflictOptionID = $0 }`. Setting
+that one field is everything that gates preview — `MainWindow.isConflictPreviewActive`
+and `DayColumnView`'s `activeConflictPreview`/`isPreviewGhost` (lines
+~164–219) both key off it being non-nil. An AX walk of the inspector (taken
+while already in conflict mode, window confirmed at `{80,80}/1500×900`)
+located the first option row's `AXButton` at absolute `(1276, 250)`, size
+`288×60` — activating it (via `AXPress`, per the substitution above) was
+the entire step.
+
+Before saving, preview-active state was confirmed against all four things
+this task's brief asked for, not assumed: (a) a blue inset border around the
+calendar grid only (`Tokens.Color.Interactive.accent` /
+`previewCanvasBorder`); (b) "Focus review" drawn at its proposed shortened
+frame (20:20–21:00); (c) a dimmed sliver of the same block at its original
+frame (20:00–20:20 — the part the full-opacity proposed block, drawn above
+it at a higher `zIndex`, doesn't cover; `DayColumnView`'s `isPreviewGhost`
+dims the *real* block in place rather than drawing a second dashed copy, so
+only the uncovered part reads as dimmed — see `STATUS.md` §32 for the exact
+line references); (d) the clicked option row highlighted with
+`Tokens.Color.Interactive.selectedRowFill`. All four were visible in a
+zoomed verification crop (not shipped) before the full-window capture below
+was saved.
+
+The canvas was scrolled down first (`kscroll`, the same real-HID-scroll
+helper batch 1 used — this one worked normally, unlike `kclick`) so the
+07:00–23:00 range, and specifically the previewed block, is in frame; the
+20:00 hour is well below the fold at the window's default top scroll
+position.
+
+### The one image
+
+| file | §17 item | what it shows |
+|---|---|---|
+| `conflict-panel-preview-active.png` | 8 | Conflict preview active: canvas border, previewed block, dimmed ghost sliver, selected option row |
+
+**`conflict-panel-preview-active.png`.** Full main window, `1500×900` (1×,
+same scale note as batch 2 — not 2×). Inspector shows the same collision
+header as batch 2's own image plus the first option row now highlighted
+blue; the calendar canvas carries the accent inset border around its own
+bounds only; "Focus review" appears at `20:20–21:00` in its normal
+full-opacity style; immediately above it, a thin amber sliver (`20:00–20:20`,
+still carrying the conflicted-block warning glyph) is the dimmed remainder of
+the original block peeking out from behind the proposed block's higher
+`zIndex`.
+
+### Known open at capture time (batch 3, in addition to batches 1–2's lists above)
+
+- §17 items 9–12 (needs-attention row at other counts, status item states,
+  popover states, snooze result row) — explicitly out of scope for this task
+  per its own brief; separate follow-up tasks' job.
+- The `kclick`-vs-`AXPress` finding above — not an app gap, a capture-tooling
+  note for whichever task next needs to drive this window by real HID click
+  on a machine that may be in concurrent use.

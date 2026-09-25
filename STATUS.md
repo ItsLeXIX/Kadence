@@ -4589,3 +4589,93 @@ capture task. Next up otherwise unchanged from §28/§30: the flexibility
 control's interactive stepper (§13.2); §17 items 8–12; interactions.md §12's
 remaining keyboard rows and click-vs-keyboard focus rule; components.md §16's
 cross-scene block-move coordination; components.md §13.4 in full.
+
+## 32. P2-T31 (retry) — Capture screenshots/2 batch 3: conflict panel preview-active state (2026-09-25)
+
+Retry of P2-T31, whose previous attempt ran out of turns with no commit
+(HEAD was `bd3aa4c`, tree clean — confirmed at the start of this task).
+Capture-only: no `Kadence/` or `KadenceTests/` file was touched. Reused
+batch 2's method (build → kill stale process → wipe/reseed store → position
+window → find and activate the needs-attention row) through its own step 6,
+then added the one new step this task's brief called for: clicking the
+first (recommended) conflict option row to activate preview.
+
+**Built/captured:**
+
+- `screenshots/2/conflict-panel-preview-active.png` — same main window,
+  scrolled to the 07:00–23:00 range so the previewed block is in frame.
+  Shows, verified by direct visual inspection against the four criteria in
+  this task's own brief: (a) a blue inset border around the calendar grid
+  only (not the sidebar or inspector) — `Tokens.Color.Interactive.accent` /
+  `previewCanvasBorder`; (b) "Focus review" rendered at its proposed
+  shortened frame (20:20–21:00, full opacity, green, zIndex above the
+  regular block per `DayColumnView.conflictPreviewBlock`); (c) a dimmed
+  sliver of the same block at its original frame (20:00–20:20, the part not
+  covered by the full-opacity proposed block sitting on top of it at higher
+  zIndex — confirmed against `DayColumnView.swift`'s own
+  `isPreviewGhost`/`.opacity(... ? Tokens.Opacity.blockDragOrigin : 1)` logic,
+  lines ~211–268: the ghost is the *real* block dimmed in place, not a
+  second copy, so only the part the proposed block doesn't cover is visible
+  as dimmed); (d) the clicked "Shorten Focus review by 20 min" option row
+  highlighted with a solid blue fill (`Tokens.Color.Interactive.selectedRowFill`).
+  Confirmed via a zoomed crop of the 20:00 region (not shipped, verification
+  only) before saving the full-window capture as final.
+
+**Deviation from the brief's suggested click method — recorded, not a spec
+deviation:** the brief expected a plain `kclick` (real `CGEventType`
+mouseDown/mouseUp via the HID tap, same helper batch 2 used) to work for
+both the needs-attention row and the option row. In this session it did not:
+repeated `kclick` attempts at AX-confirmed button centers (for both the
+needs-attention row and, before that was even reached, a sanity-check
+sidebar checkbox) produced no effect at all — no state change, confirmed by
+re-screenshotting after each attempt. Diagnosis: this machine is in active
+concurrent use by its human owner during this session — evidence includes a
+`System Settings ▸ Accessibility` window that was open and mid-interaction
+at the start of this task (accessibility and screen-recording permissions
+briefly denied to this session's tooling, then granted, without any action
+by this task), the Kadence window's on-screen position drifting to a
+different display's coordinate space within seconds of being set whenever
+more than about a second elapsed between commands, and one capture that
+caught a completely different foreground application (a browser showing
+guitar tabs) at the window's expected screen region. None of this points at
+an app defect — sanity checks (repositioning, `wininfo` read-backs) showed
+the *window* was where it should be each time a capture was taken; the
+`kclick`-specific failures are consistent with synthetic HID events racing
+real ones on a live desktop rather than anything in `Kadence/`. Switched to
+posting `AXPress` at the same AX-confirmed coordinates (via `System Events`,
+targeting the specific element found by position, not `click at` blind
+hit-testing) for both clicks; this worked immediately and reliably once
+adopted, and does not exercise a different app code path than a real click
+would for a `Button`'s `action`. `kscroll` (real HID scroll events), used
+afterward to bring the 20:00 hour into frame, worked normally — the
+interference seen was specific to `kclick`'s mouseDown/mouseUp pair, not to
+synthetic input broadly. Recorded here for the next capture task rather than
+re-discovered.
+
+**Verified (this task):**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 359 `passed`
+  lines / 0 `failed` lines, no hang this run (the P2-T30-diagnosed
+  intermittent post-suite stall did not reproduce here — noted per standing
+  instructions, not chased).
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.`
+- Reseed verified via `sqlite3` against the fresh `default.store` (23
+  events, "Client call"/"Focus review" both present) before driving the app,
+  same discipline batch 2's INDEX.md records.
+- All Kadence processes confirmed killed (`pkill -9`, `pgrep` empty) after
+  capture.
+
+**Not built, out of scope for this task (per its own brief):**
+components.md §17 items 9–12 (needs-attention row at other counts, status
+item states, popover states, snooze result row) — separate follow-up tasks.
+§17 item 6's three-option half and item 7 remain blocked on G-017, unchanged
+from §31.
+
+Next up, unchanged from §31: the flexibility control's interactive stepper
+(§13.2); §17 items 9–12; interactions.md §12's remaining keyboard rows and
+click-vs-keyboard focus rule; components.md §16's cross-scene block-move
+coordination; components.md §13.4 in full.
