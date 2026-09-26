@@ -750,3 +750,17 @@ needed. §17 items 11 (popover states) and 12 (snooze result row) are still
 this batch's own explicit next-next items, unstarted, per the P2-T35 brief.
 The full-width-vs-clipped-to-`size.statusItemMaxWidth` sub-variant of item
 10 is also still unattempted, independent of the lock.
+
+**Batch 6 attempt, still locked, timestamp 2026-09-26 03:58:12 CEST**
+(task P2-T36): ran the exact lock probe `check-accessibility.sh` uses
+(`swift -e` reading `CGSSessionScreenIsLocked` from
+`CGSessionCopyCurrentDictionary()`) as step 0, before touching the store or
+building anything, per this task's own brief. Result: `1` — still locked.
+Per Parsa's standing ruling that a lock failure is environmental and should
+not consume a full task's turn budget, stopped immediately: no build, no
+reseed, no `screencapture` attempted, no store mutation made. A pre-existing
+Kadence process (unrelated to this task, not launched by it) was observed
+running via `pgrep` but was left untouched, since it predates this attempt
+and killing it is not part of the lock-stop protocol. Still nothing further
+to add beyond Batch 5's "What is next" above: re-run steps 4–5 of
+`STATUS.md` §34 Part B the moment the probe reports `0`.

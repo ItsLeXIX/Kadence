@@ -1274,7 +1274,9 @@ Still open, all re-checked against the current spec text this session:
   changes no test's or existing capture's rendered layout, since it is
   the last today-dated event chronologically and no other fixture shares its
   time range. See `STATUS.md` §34 for the P2-T35 bookkeeping closeout and
-  the capture attempt this fixture was added for.
+  the capture attempt this fixture was added for, and §35 for P2-T36's
+  follow-up retry, which found the screen still locked and made no further
+  changes to this fixture.
 - `⌘1/⌘2/⌘3`, `⌘T`, `T`, `←`/`→`, `⌘N`, `↩`, `⌫`, `⌘↩`, `⌥⌘↩`, `⌥`-arrows,
   `⌥⇧`-arrows, `↑`/`↓`, `⎋`, `↖`/`↘`, `⌃⌘S`, `⌥⌘I`, `⌘Z` are all wired, and each
   is a menu item with the same key equivalent.

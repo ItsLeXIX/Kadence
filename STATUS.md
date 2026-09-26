@@ -4919,3 +4919,30 @@ this session — the screen is locked and this task cannot unlock it (needs
 this machine's password). Not blocked at the time either: the build, the
 full test suite, and the token check are all green, independent of the
 lock.
+
+## 35. P2-T36 — retry status-item screenshots, lock-probe-first: still locked
+
+Task brief required running the same lock probe `check-accessibility.sh`
+uses (`CGSSessionScreenIsLocked` via `CGSessionCopyCurrentDictionary()`,
+via `swift -e`) as step 0, before touching the store or building anything,
+and to stop within a handful of turns if it reported locked. Ran it:
+result `1` (locked), at 2026-09-26 03:58:12 CEST. Per Parsa's standing
+ruling that a lock failure is environmental and not a defect, stopped
+immediately — no build, no reseed, no relaunch, no `screencapture`
+attempted, no store mutation made. `screenshots/2/status-item-{normal,
+late,empty}.png` still do not exist. See `screenshots/2/INDEX.md`'s new
+"Batch 6" note (appended to the Batch 5 section) for the exact timestamp
+and probe result. Nothing about the proven method from P2-T35 (schema,
+reference-date conversion, per-state `ZSTART`/`ZEND` deltas, the
+`ZSTATUSRAW='done'` isolation trick) needed re-deriving or changed — it
+remains ready to run verbatim the moment the probe reports `0`.
+
+**Not built / not captured this task:** same three PNGs as P2-T33/34/35,
+still blocked by the same environmental lock, not attempted as fakes.
+Out of scope, untouched: §17 items 11–12, the clipped-width sub-variant,
+and the previously-recorded `applyFocusedConflictOption` via ↩ issue.
+
+**Blocked:** identical to §34 — the screen is locked and this task cannot
+unlock it (needs this machine's password). Build/tests/tokens were not
+re-run this task since nothing in the codebase changed; §34's green result
+stands unmodified.
