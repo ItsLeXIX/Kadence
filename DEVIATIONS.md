@@ -1257,6 +1257,24 @@ Still open, all re-checked against the current spec text this session:
 
 ## Not a deviation — worth stating
 
+- **`MockData.makeEvents`'s item 19, the `Journal` fixture** (`.manual`/
+  `.graphite`, currently `now.addingTimeInterval(4 * 60)`–`now.addingTimeInterval(19 * 60)`).
+  Added by task P2-T33 (commit `ae8a369`) as a controllable target so
+  `NextUpProvider` — which always resolves the *earliest* not-done/
+  not-skipped event of today as NEXT, not the soonest-still-upcoming one —
+  has a genuine "not yet started" event available for components.md §17 item
+  10's Normal/Late menu-bar-status-item captures late in the day, when every
+  other seeded today fixture has already started. P2-T34 (commit `c7699c5`)
+  fixed its original hardcoded `at(23, 35)`/`at(23, 50)` times (which only
+  reproduced Normal before 23:35 wall-clock and Late only a few minutes
+  after) to the current `now`-relative offsets, which hold regardless of
+  when seeding runs. Not a spec deviation — this is mock data supporting a
+  capture task, kept permanently per the same precedent `STATUS.md` §33
+  already set for its own count-12 conflict-fixture addition (item 18); it
+  changes no test's or existing capture's rendered layout, since it is
+  the last today-dated event chronologically and no other fixture shares its
+  time range. See `STATUS.md` §34 for the P2-T35 bookkeeping closeout and
+  the capture attempt this fixture was added for.
 - `⌘1/⌘2/⌘3`, `⌘T`, `T`, `←`/`→`, `⌘N`, `↩`, `⌫`, `⌘↩`, `⌥⌘↩`, `⌥`-arrows,
   `⌥⇧`-arrows, `↑`/`↓`, `⎋`, `↖`/`↘`, `⌃⌘S`, `⌥⌘I`, `⌘Z` are all wired, and each
   is a menu item with the same key equivalent.

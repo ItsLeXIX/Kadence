@@ -4787,3 +4787,135 @@ items 10–12; the flexibility control's interactive stepper (§13.2);
 interactions.md §12's remaining keyboard rows and click-vs-keyboard focus
 rule; components.md §16's cross-scene block-move coordination; components.md
 §13.4 in full.
+
+## 34. P2-T35 — close out P2-T33/P2-T34's missing bookkeeping; attempt
+screenshots/2 batch 5: menu bar status item states (components.md §17 item
+10, 2026-09-26)
+
+**Part A — bookkeeping closeout.** P2-T33 (commit `ae8a369`, 2026-09-25
+23:12) and P2-T34 (commit `c7699c5`, 2026-09-26 02:56) each ran out of turns
+attempting this exact capture and each produced only a `Kadence/Mock/MockData.swift`
+diff, with no `STATUS.md`/`DEVIATIONS.md` entry — closed here:
+
+- **P2-T33** added item 19 to `MockData.makeEvents`: a `Journal` event
+  (`.manual`/`.graphite`, matching `Coffee with Nora`/`Stand-up`'s own
+  origin/source choice), fixed at `at(23, 35)`–`at(23, 50)` (today's
+  wall-clock 23:35–23:50). Its own comment explains why: `NextUpProvider`
+  always resolves the *earliest* not-done/not-skipped event of today as
+  NEXT, not the soonest-still-upcoming one, so once the day's last existing
+  fixture (`Late lab session`, 22:30–23:30) starts, every later capture
+  attempt sees the same already-started event — no fixture set gives a
+  genuine "not yet started" (Normal) target late in the day without adding
+  one. `Journal` fills the one free today-slot after `Late lab session` ends
+  and before midnight.
+- **P2-T34** fixed a clock dependency the above introduced: the hardcoded
+  `at(23, 35)`/`at(23, 50)` only reproduces the Normal state if captured
+  before 23:35 wall-clock, and Late only a few minutes after — fragile on
+  any later run. It replaced both with offsets relative to `now` itself
+  (`now.addingTimeInterval(4 * 60)` / `now.addingTimeInterval(19 * 60)`),
+  so the fixture always starts a few minutes after seeding regardless of
+  what time seeding runs, clear of every other `at(...)`-based today fixture
+  (none of which fall in the few-minutes window right after `now`).
+
+Both diffs were read via `git show ae8a369 -- Kadence/Mock/MockData.swift`
+and `git show c7699c5 -- Kadence/Mock/MockData.swift`, not re-derived. The
+fixture (P2-T34's now-relative version) is correct and current — no further
+`MockData.swift` change was made or is needed; this task's brief explicitly
+forbids touching it again. See the "Not a deviation" note added to
+`DEVIATIONS.md`.
+
+**Part B — capture item 10: attempted, blocked by a locked screen, not the
+event-timing trap the brief suspected.**
+
+Baseline (unrelated to the lock, both green):
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 359 `passed`
+  lines / 0 `failed` lines.
+- `swift Scripts/generate-tokens.swift --check` —
+  `Kadence/DesignSystem/Tokens.swift is up to date.`
+
+Method followed exactly as briefed, and it got further than either prior
+attempt before hitting a wall:
+
+1. Killed all Kadence processes (`pkill -9 -f Kadence`; confirmed via
+   `pgrep`), deleted `default.store`/`-shm`/`-wal`, launched the built app
+   briefly to let `seedIfNeeded` reseed, quit again.
+2. `sqlite3 default.store '.tables'` / `.schema ZEVENT` — SwiftData's real
+   generated names: table `ZEVENT`, columns `ZTITLE`, `ZSTART`, `ZEND`,
+   `ZSTATUSRAW`, `ZORIGINRAW`, `ZISALLDAY`, `ZISLOCKED`, etc. (Core Data
+   naming, not the Swift property names.)
+3. **Date encoding, worked out by comparison rather than guessed:** `ZSTART`/
+   `ZEND` are Core Data reference-date seconds (epoch **2001-01-01 00:00:00
+   UTC**, Unix offset `978307200`), not Unix epoch and not ISO8601 text.
+   Confirmed two ways: `Morning review`'s stored `ZSTART` (`812095200`)
+   converts to `2026-09-26 08:00:00+02:00` — the exact fixed clock time
+   `MockData` seeds it at (`at(8)`); and the freshly-reseeded `Journal`'s own
+   `ZSTART` converted to a few minutes after the actual seed wall-clock time,
+   consistent with `now.addingTimeInterval(4 * 60)`.
+4. Marked every other today-dated event `ZSTATUSRAW='done'` directly via
+   `sqlite3 UPDATE` (`Breakfast`, `Morning review`, `Datenmodellierung`,
+   `Statistik übung`, `Coffee with Nora`, `Stand-up`, `Check mail`,
+   `Prep: relational algebra`, `Gym`, `Training`, `Group call`,
+   `Code review`, `Notes write-up`, `Client call`, `Focus review`,
+   `Reading`, `Late lab session` — 17 rows), leaving `Journal` as the only
+   eligible today event, exactly as `MockData`'s own item-19 comment
+   prescribes. Verified by `SELECT` before relaunching each time —
+   `Kadence/Mock/MockData.swift` itself was never touched.
+5. Set `Journal`'s `ZSTART`/`ZEND` via `UPDATE` to `now + 600s` (Normal
+   target) using the reference-date offset above, relaunched, and attempted
+   to read the status item's `AXTitle` via `System Events` — the same
+   approach P2-T25 already proved out (STATUS.md §26).
+
+**This is where it stopped, and not for the reason the brief anticipated.**
+A lock-state probe (`CGSessionCopyCurrentDictionary()`, the same check
+`P2-T15`/§15–16 established as this machine's standard gate) read
+`CGSSessionScreenIsLocked = 1`, `CGSSessionScreenLockedTime` corresponding to
+**2026-09-26 02:22:16** — i.e. the screen has been locked continuously since
+*before* P2-T34's own commit timestamp (02:56:55). That strongly suggests
+the screen lock, not the wall-clock/fixture problem P2-T34's own commit
+message diagnosed, is the real reason **both** P2-T33 and P2-T34 ran out of
+turns with zero screenshots: every `screencapture` this task took while
+locked came back as a single flat colour (`screencapture -x` → a
+3360×2100 PNG with exactly one distinct pixel value), and the status item's
+own `AXTitle` read `"Nothing left today"` even with the freshly-verified
+database state showing `Journal` `scheduled` with a `ZSTART` ~9 minutes in
+the future — i.e. it did not reflect the real, on-disk NEXT event at all.
+Whether that specific mismatch is the screen-lock suspending the
+MenuBarExtra's own SwiftUI update cycle (most likely, given the process was
+launched *while already locked*, so its first and only render pass may have
+run before `@Query` finished loading) or a second, independent issue was not
+chased further — under a confirmed-locked screen, per this machine's own
+established precedent (STATUS.md §15/§16), no AX read is trustworthy enough
+to diagnose that distinction, and burning turns on it would not produce a
+usable screenshot regardless of the answer. Tried once, briefly, to see if
+the lock would clear on its own or dismiss non-destructively (a keystroke via
+`System Events`, no password entry attempted) — `CGSSessionScreenLockedTime`
+was unchanged afterward, confirming it needs this machine's password, which
+this task does not have, to clear.
+
+**Cleaned up before stopping, matching every prior batch's discipline:**
+store deleted and reseeded fresh once more (`sqlite3` confirmed
+`ZSTATUSRAW` back to the pristine 44 `scheduled` / 1 `done` / 1 `skipped`
+split, `Journal` back to a `now`-relative future start, 46 total rows), and
+all Kadence processes confirmed killed (`pkill -9`, `pgrep` empty).
+
+**Not built / not captured this task:** the three `screenshots/2/
+status-item-*.png` files this task's brief asked for — blocked by the
+locked screen above, not attempted as fakes. §17 items 11 (popover states)
+and 12 (snooze result row) were explicitly out of scope per this task's own
+brief and were not touched. The full-width-vs-clipped-to-`size.statusItemMaxWidth`
+sub-variant of item 10 was also not attempted, per the brief's own explicit
+deferral, independent of the lock. See `screenshots/2/INDEX.md`'s new batch
+5 section for the exact reproducible method above, ready to run to
+completion the moment the screen is confirmed unlocked (`CGSSessionScreenIsLocked`
+absent or `0`) — no further investigation should be needed, only the lock
+probe passing and a few minutes to redo steps 4–5 above and `screencapture`.
+
+**Blocked:** getting real `screenshots/2/status-item-{normal,late,empty}.png`
+this session — the screen is locked and this task cannot unlock it (needs
+this machine's password). Not blocked at the time either: the build, the
+full test suite, and the token check are all green, independent of the
+lock.

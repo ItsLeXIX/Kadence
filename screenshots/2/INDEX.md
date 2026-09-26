@@ -1,14 +1,20 @@
 # screenshots/2 — review set (components.md §17)
 
-Four batches. **Batch 1** (this file's original content, task P2-T27, items
-1–5) covers the Routines window. **Batch 2** (task P2-T29 retry, items 6–7)
-covers the conflict panel's two-option case. **Batch 3** (task P2-T31 retry,
-item 8) covers the conflict panel's preview-active state. **Batch 4** (task
-P2-T32, item 9) covers the sidebar needs-attention row at counts 0, 1 and 12.
-See each batch's own section near the end of this file for its method,
-image(s), and what could not be captured — none of this is folded into batch
-1's narrative below, since all four were captured by different tasks against
-different parts of the app.
+Four batches, plus one attempted-and-blocked fifth. **Batch 1** (this file's
+original content, task P2-T27, items 1–5) covers the Routines window.
+**Batch 2** (task P2-T29 retry, items 6–7) covers the conflict panel's
+two-option case. **Batch 3** (task P2-T31 retry, item 8) covers the conflict
+panel's preview-active state. **Batch 4** (task P2-T32, item 9) covers the
+sidebar needs-attention row at counts 0, 1 and 12. **Batch 5** (task P2-T35,
+item 10 — the menu bar status item) produced **no images**: two prior tasks
+(P2-T33, P2-T34) ran out of turns attempting it, and this task's own attempt
+got as far as a fully reproducible capture method before hitting a locked
+screen it cannot clear itself. See that section near the end of this file for
+the full account and the method, left ready to run to completion. See each
+batch's own section near the end of this file for its method, image(s), and
+what could not be captured — none of this is folded into batch 1's narrative
+below, since all five were attempted by different tasks against different
+parts of the app.
 
 ## Batch 1 — Routines window (components.md §17 items 1–5)
 
@@ -656,3 +662,91 @@ matching count 1's own image and §10.2's rule.
 - §17 items 10–12 (menu bar extra status item/popover states, the snooze
   result row) — explicitly out of scope for this task per its own brief;
   separate follow-up tasks' job, per the task brief that produced this batch.
+
+## Batch 5 — attempted, blocked: menu bar status item states (components.md §17
+item 10, task P2-T35, 2026-09-26)
+
+**No images produced.** `status-item-normal.png`, `status-item-late.png` and
+`status-item-empty.png` do **not** exist in this directory. Two prior tasks
+(P2-T33, P2-T34) each ran out of turns attempting this same capture and each
+left only a `Kadence/Mock/MockData.swift` diff behind (a `Journal` fixture,
+added then fixed — see `STATUS.md` §34 and `DEVIATIONS.md`'s "Not a
+deviation" section for the full history). This task closed out that
+bookkeeping, then made its own attempt, following exactly the method its own
+brief specified — no real-time waiting, direct SQLite edits to the ephemeral
+store rather than editing `MockData.swift` again — and got substantially
+further than either prior attempt before hitting a different, harder wall:
+**the screen on this machine is locked**, and has been since before P2-T34's
+own commit timestamp (`CGSSessionScreenLockedTime` → 2026-09-26 02:22:16;
+P2-T34 committed at 02:56:55). That timing makes it likely the *real* reason
+both prior tasks produced zero screenshots was this same lock, not the
+wall-clock fixture problem P2-T34's own commit message names — the fixture
+problem was real and worth fixing, but was not, on this evidence, the actual
+blocker.
+
+### What was proven out, ready for the next attempt
+
+- **Schema** (`sqlite3 default.store '.schema ZEVENT'`): table `ZEVENT`,
+  relevant columns `ZTITLE` (text), `ZSTART`/`ZEND` (Core Data reference-date
+  seconds — epoch **2001-01-01 00:00:00 UTC**, i.e. `unix_time − 978307200`),
+  `ZSTATUSRAW` (text: `scheduled`/`done`/`skipped`), `ZISALLDAY`,
+  `ZISLOCKED`. Confirmed against two known values: `Morning review`'s stored
+  `ZSTART` (`812095200`) converts to `2026-09-26 08:00:00` local — the exact
+  `at(8)` `MockData` seeds it at — and a freshly reseeded `Journal`'s own
+  `ZSTART` converted to a few minutes after the real seed wall-clock time,
+  matching `now.addingTimeInterval(4 * 60)`.
+- **Isolating `Journal` as NEXT:** with a fresh reseed (46 rows: 44
+  `scheduled`, 1 `done` — `Statistik übung` — 1 `skipped` — `Gym`), a single
+  `UPDATE ZEVENT SET ZSTATUSRAW='done' WHERE ZTITLE IN (...)` naming the
+  other 17 today-dated titles (`Breakfast`, `Morning review`,
+  `Datenmodellierung`, `Statistik übung`, `Coffee with Nora`, `Stand-up`,
+  `Check mail`, `Prep: relational algebra`, `Gym`, `Training`,
+  `Group call`, `Code review`, `Notes write-up`, `Client call`,
+  `Focus review`, `Reading`, `Late lab session`) leaves `Journal` as the only
+  not-done/not-skipped event today — verified by `SELECT` before each
+  relaunch. `MockData.swift` was never touched.
+- **Per-state `Journal` values**, computed from a fresh `date +%s` minus
+  `978307200` each time (not hardcoded): Normal → `ZSTART = now + 600`,
+  `ZEND = now + 1500`; Late → `ZSTART = now − 120`, `ZEND = now + 780`;
+  Empty → also `ZSTATUSRAW='done'`.
+
+None of the above needed a workaround — it all worked exactly as the task
+brief predicted. What did not work, under the confirmed lock:
+
+- `screencapture -x` returned a well-formed 3360×2100 PNG with **exactly one
+  distinct pixel value across the whole image** — the lock curtain, not the
+  desktop or menu bar. No crop of that image would show anything real.
+- The status item's own `AXTitle`, read via the same `System Events` /
+  `menu bar item of menu bar 2` approach P2-T25 proved out (`STATUS.md`
+  §26), read `"Nothing left today"` even immediately after the `UPDATE`
+  above confirmed `Journal` `scheduled` with a `ZSTART` ~9 minutes in the
+  future on disk — i.e. it did not reflect the real state. Whether this is
+  the screen lock suspending the `MenuBarExtra` label's own SwiftUI update
+  cycle (the app was launched *while already locked*, so its first render
+  may have run before `@Query` finished loading and never refreshed) or a
+  separate bug was not chased further: under a confirmed lock, per this
+  machine's own established precedent (`STATUS.md` §15–16), no AX read here
+  is trustworthy enough to tell the two apart, and doing so would not yield
+  a usable screenshot regardless of the answer.
+- One non-destructive attempt to see if the lock would clear itself (a
+  keystroke via `System Events`, no password entry attempted) left
+  `CGSSessionScreenLockedTime` unchanged — it needs this machine's password,
+  which this task does not have.
+
+### Cleanup performed before stopping
+
+Store deleted and reseeded fresh once more; `sqlite3` confirmed the pristine
+44 `scheduled` / 1 `done` / 1 `skipped` split (46 rows total, `Journal` back
+to its normal `now`-relative future start). All Kadence processes confirmed
+killed (`pkill -9 -f Kadence`, `pgrep` empty).
+
+### What is next
+
+The moment `CGSessionCopyCurrentDictionary()` shows `CGSSessionScreenIsLocked`
+absent or `0`, re-run steps 4–5 of `STATUS.md` §34's Part B (the `UPDATE`
+statements above, one relaunch + `screencapture` + AX title check per state)
+for Normal, Late and Empty in turn — no further investigation should be
+needed. §17 items 11 (popover states) and 12 (snooze result row) are still
+this batch's own explicit next-next items, unstarted, per the P2-T35 brief.
+The full-width-vs-clipped-to-`size.statusItemMaxWidth` sub-variant of item
+10 is also still unattempted, independent of the lock.
