@@ -244,42 +244,25 @@ enum MockData {
                 origin: .routine, flexibility: .fixed, sourceKey: .green))
         }
 
-        // 19. Task P2-T33 addition (components.md §17 item 10 — the menu bar
-        //     status item's Normal/Late states, components.md §15.1). Both
-        //     states are computed by `NextUpProvider.evaluate` from the real
-        //     wall clock (`now = Date()`, no injected/fake clock in the live
-        //     menu bar UI — see `MenuBarStatusItemView.swift`), and it always
-        //     picks the EARLIEST not-done/not-skipped event of *today*, not
-        //     the soonest still-upcoming one — so whichever of today's
-        //     existing fixtures happens to be earliest (`Breakfast`, 07:15)
-        //     is "next" for the entire rest of the day once its own start has
-        //     passed, no matter how much later other events start. That
-        //     makes a clean "Normal" (not-yet-started) capture impossible
-        //     from the existing fixture set at any evening capture time: every
-        //     existing today event starts at or before 23:30 (`Late lab
-        //     session`), so by the time this task could plausibly run there is
-        //     no existing event left whose start is still in the future. This
-        //     one small addition — `Journal`, fixed at 23:35-23:50, the one
-        //     free today-slot after `Late lab session` ends (23:30) and before
-        //     midnight, chosen to not overlap any existing today fixture's
-        //     time range — gives a real future-dated target to capture the
-        //     Normal state against (before 23:35) and, a few minutes later,
-        //     the same target naturally becomes a small, believable Late
-        //     demo (its own start a few minutes in the past) instead of the
-        //     many-hours-elapsed number `Breakfast` would otherwise produce.
-        //     `.manual`/`.graphite` — a plain personal event, matching
-        //     `Coffee with Nora`/`Stand-up`'s own choice of origin/source for
-        //     a one-off, no `ConflictEngine`/`RoutineEngine` involvement
-        //     either way. See STATUS.md/screenshots/2/INDEX.md (batch 5) for
-        //     the capture method — reaching the actual Normal/Late/Empty
-        //     states also needs every *other* today event's `status` toggled
-        //     to `.done` for a given capture, which is done directly against
-        //     the ephemeral, always-wiped-and-reseeded SQLite store (batches
-        //     2-4's own established "wipe/reseed before every capture"
-        //     discipline), never by editing this file's other entries.
+        // 19. Task P2-T33/P2-T34 addition (components.md §17 item 10 — the
+        //     menu bar status item's Normal/Late states, components.md
+        //     §15.1). P2-T33's version hardcoded `at(23, 35)`/`at(23, 50)`
+        //     (today's wall-clock 23:35–23:50), which only reproduces Normal
+        //     if captured before that clock time and Late only a few minutes
+        //     after — fragile on any later cycle. Using offsets relative to
+        //     `now` itself instead removes that dependency: the event always
+        //     starts a few minutes after seeding, whatever time seeding runs.
+        //     4–19 minutes keeps it clear of every other `at(...)`-based
+        //     today fixture above regardless of wall-clock time, since none
+        //     of them fall in the few-minutes window right after `now`.
+        //     `.manual`/`.graphite`, matching `Coffee with Nora`/`Stand-up`.
+        //     See STATUS.md/screenshots/2/INDEX.md (batch 5) for the capture
+        //     method — reaching the actual Normal/Late/Empty states also
+        //     needs every *other* today event's `status` toggled to `.done`,
+        //     done directly against the ephemeral SQLite store, never here.
         events.append(Event(
             title: "Journal",
-            start: at(23, 35), end: at(23, 50),
+            start: now.addingTimeInterval(4 * 60), end: now.addingTimeInterval(19 * 60),
             origin: .manual, sourceKey: .graphite))
 
         return events
