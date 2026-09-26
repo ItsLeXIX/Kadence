@@ -602,20 +602,30 @@ private struct RoutineDayColumnView: View {
         template?.blocks.map(\.snapshot) ?? []
     }
 
+    /// Whether this column's weekday is one of the template's active
+    /// weekdays. Blocks only render on active days; creating a block on
+    /// an inactive day would silently place it on the nearest active day
+    /// instead, which is confusing — so creation and move gestures are
+    /// disabled here (the column still renders its time-window backdrop
+    /// and hour lines so the user sees the full week shape).
+    private var isActiveDay: Bool {
+        template?.activeWeekdays.contains(weekday) ?? false
+    }
+
     private var layoutItems: [LayoutItem] {
         var items = RoutineWeekLayout.layoutItems(
             blocks: blocks,
             activeWeekdays: template?.activeWeekdays ?? [],
             weekday: weekday,
             referenceDayStart: referenceDayStart)
-        // The draft is laid out with everything else so the user sees where it
-        // will land, even though it is not in the store yet (interactions.md
-        // §3) — same reasoning as `DayColumnView.layoutItems`. Included
-        // regardless of whether `weekday` is one of the template's active
-        // weekdays: the column being dragged in is just where the geometry
-        // comes from, not a claim about which weekdays the eventual block
-        // will render on.
-        if let draft {
+        // The draft is laid out only on active weekday columns.
+        // Creating on an inactive column would silently place the block
+        // on the nearest active day instead — the "silent relocation"
+        // defect reported in goal.txt §A. `createSurface` is already
+        // non-hit-testable on inactive days, but this guard catches the
+        // edge case where a draft outlives a weekday-toggle that
+        // deactivates the column it was started in.
+        if let draft, isActiveDay {
             items.append(LayoutItem(id: draft.id, start: draft.start, end: draft.end, title: draft.title))
         }
         return items
@@ -661,7 +671,7 @@ private struct RoutineDayColumnView: View {
                 // layer, so creating one from here would be editing the
                 // wrong layer.
                 createSurface(width: proxy.size.width, geometry: geometry)
-                    .allowsHitTesting(editorMode == .blocks)
+                    .allowsHitTesting(editorMode == .blocks && isActiveDay)
 
                 // components.md §13.3: "Windows mode: ... blocks drop to
                 // `opacity.editorInactiveLayer`, not hit-testable." Applied
