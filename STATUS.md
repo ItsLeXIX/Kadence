@@ -4946,3 +4946,99 @@ and the previously-recorded `applyFocusedConflictOption` via ↩ issue.
 unlock it (needs this machine's password). Build/tests/tokens were not
 re-run this task since nothing in the codebase changed; §34's green result
 stands unmodified.
+
+## 36. P2-T37 — Fix: ↩ did not apply the focused conflict option (inspector key routing dropped `.return`)
+
+**Root cause, found by reading the code, not re-derived — this closes the
+§33/P2-T32 finding above** ("applying with ↩... did not visibly commit").
+`MainWindow.swift`'s `inspector` computed view attached
+`.onKeyPress(keys: [.upArrow, .downArrow, .escape], action: handleKey)` — a
+keys-*filtered* hook that only ever fires for those three keys. `handleKey`
+has always had a correct case for `.return`
+(`case .return where state.focusedRegion == .inspector &&
+state.selectedConflictID != nil && state.selectedConflictOptionID != nil:
+applyFocusedConflictOption()`, added by P2-T17 — see §16) — but it was dead
+code whenever the inspector held real SwiftUI focus, because SwiftUI only
+dispatches a key event to the `.onKeyPress` hooks along the *focused* view's
+own chain. The grid's separate `.onKeyPress(action: handleKey)` is
+unfiltered and does include `.return`, but that only fires when the GRID has
+focus, not the inspector (a sibling view). `state.focusedRegion` (the field
+the `.return` case guards on) was never the problem — the key event itself
+never reached `handleKey` at all while the inspector had focus. §33's own
+account matches this exactly: everything upstream of the apply (row
+highlight on click, `↑`/`↓` preview, the canvas accent border) worked,
+because those all route through the inspector's own filtered hook; only the
+final `↩` commit never fired, because `.return` was the one key missing from
+that hook's list. The old comment on the hook explicitly (and, per
+`interactions.md` line 71 and §10.1's last paragraph, incorrectly) asserted
+"return... stay[s] grid-only" — that assertion is now corrected in place.
+
+**The fix:** added `.return` to the inspector's forwarded key list
+(`.onKeyPress(keys: [.upArrow, .downArrow, .escape, .return],
+action: handleKey)`) and rewrote the stale comment. Confirmed by reading the
+switch-case order in `handleKey` that widening this list is harmless for the
+inspector's other states: with the panel open but no option focused yet
+(right after `activateNeedsAttention()`, which explicitly sets
+`selectedConflictOptionID = nil`), the conflict-apply case's guard fails and
+falls through to the plain `.return` case (`case .return: if selected != nil
+{ ... isInspectorVisible = true }`), which only re-asserts
+`isInspectorVisible = true` — already true, since the inspector has focus —
+a no-op, not a new behaviour. The `⌘↩`/`⌘⌥↩` cases sit ahead of the plain
+`.return` case and are unaffected (they require `command`, which a bare `↩`
+never sets). `CalendarState.applyFocusedConflictOption` and `ConflictEngine`
+were not touched.
+
+**Regression check added, following this repo's own house style for
+interaction-level checks the unit-test layer cannot reach**
+(`Scripts/check-block-click-selects.sh`, `Scripts/check-accessibility.sh`):
+`Scripts/check-conflict-apply-return.sh`. It runs the same
+`CGSSessionScreenIsLocked` lock probe `check-accessibility.sh` uses as step
+0; builds; launches with `-ApplePersistenceIgnoreState YES` against a
+freshly-reseeded store; clicks the real "Needs attention" row (real
+`CGEvent` HID clicks, not AX actions — same discipline as
+`check-block-click-selects.sh` and for the same reason: an AX-action click
+would bypass real hit-testing/focus and could pass against a broken build);
+clicks the recommended "Shorten Focus review by 20 min" option row inside
+the panel (this both sets `selectedConflictOptionID` and — per §15's own
+P2-T16 note that clicking the panel is this app's established way to give
+the inspector real focus — lands real SwiftUI focus on `.inspector`); sends
+a real HID Return keypress; and asserts via `sqlite3` against the live
+`ZEVENT` table (schema per §34/P2-T35: `ZTITLE`, `ZSTART`, reference-date
+seconds) that "Focus review"'s `ZSTART` moved by exactly `+1200` (20
+minutes) — `ConflictEngine.shortenOption`'s own computed result for this
+exact fixture pair (today's "Client call"/"Focus review", P2-T29). A
+no-op `↩` (the P2-T32 defect) would leave the delta at `0`.
+
+**This session's lock probe read `CGSSessionScreenIsLocked = 1`** (checked
+directly, at the time this task ran) — so, per the task's own explicit
+instruction and the standing precedent from §15/§16/§34/§35, the script was
+run once to confirm it correctly stops *before* building or launching
+anything (`SKIP: screen is LOCKED... Stopping BEFORE building or launching`,
+exit 1) and was **not** run to completion. This is not a fake pass — no
+result is claimed for the live HID/AX portion this session. The script is
+ready to run to completion, unmodified, the moment the screen is unlocked.
+
+**Verified (this task, everything that does not need the display):**
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build` —
+  `** BUILD SUCCEEDED **`.
+- `xcodebuild -scheme Kadence -destination 'platform=macOS'
+  -only-testing:KadenceTests test` — `** TEST SUCCEEDED **`, 359 `passed`
+  lines / 0 `failed` lines. `KadenceTests/ConflictApplyTests.swift`'s four
+  `@Suite`s (`ApplyShiftAndShortenTests`, `ApplyAdvanceTests`,
+  `ApplySkipTodayTests`, `ConflictEngineSkippedFilterTests`) all passed,
+  unmodified in behavior — that file was not touched, exactly as this task's
+  brief required.
+- `swift Scripts/generate-tokens.swift --check` — `Kadence/DesignSystem/
+  Tokens.swift is up to date.` (this task introduced no new token).
+- `Scripts/check-conflict-apply-return.sh` — ran once, hit the lock probe,
+  stopped clean before touching the build or the store. See above.
+
+**Not touched, per this task's own scope:** `design/`, `screenshots/2/`,
+`DECISIONS.md`, `TimeWindow`/`MenuBarExtra`/snooze code,
+`CalendarState.applyFocusedConflictOption`, `ConflictEngine`.
+
+**Next / blocked:** get `Scripts/check-conflict-apply-return.sh` to a real
+`PASS` the moment the screen is confirmed unlocked — no further
+investigation should be needed first, the fix and the script are both
+already in place.

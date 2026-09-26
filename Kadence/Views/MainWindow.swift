@@ -233,15 +233,29 @@ struct MainWindow: View {
             .focused($focusedRegion, equals: .inspector)
             .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
             // interactions.md §10.1/§10.2 — ↑/↓ move+preview between conflict
-            // options and ⎋ abandons, both scoped inside `handleKey` itself
+            // options, ⎋ abandons, and ↩ applies the focused/previewed option
+            // (§10.1's last paragraph: "↩ applies"; §10.2's table line 71),
+            // all scoped inside `handleKey` itself
             // (`state.focusedRegion == .inspector && state.selectedConflictID
-            // != nil`). Deliberately a `keys:`-filtered hook, not the grid's
-            // unrestricted `.onKeyPress(action: handleKey)` — the inspector
-            // has never routed any other key through `handleKey` (`t`,
-            // delete, return, the option-modified moves are all grid-only,
-            // and stay that way), so only the three keys this task actually
-            // needs are forwarded.
-            .onKeyPress(keys: [.upArrow, .downArrow, .escape], action: handleKey)
+            // != nil`, plus `selectedConflictOptionID != nil` for `.return`
+            // specifically). Deliberately a `keys:`-filtered hook, not the
+            // grid's unrestricted `.onKeyPress(action: handleKey)` — `t`,
+            // delete, and the option-modified moves are still grid-only and
+            // stay that way — but `.return` must be forwarded too: SwiftUI
+            // only dispatches a key to the `.onKeyPress` hooks along the
+            // FOCUSED view's own chain, so when the inspector holds real
+            // focus, the grid's own `.return`-inclusive hook (above) never
+            // fires, and `handleKey`'s conflict-apply case (below) was
+            // unreachable dead code without `.return` in this list. (Fixed
+            // P2-T37 — see STATUS.md/DEVIATIONS.md for the prior "applying
+            // with ↩ did not visibly commit" finding this closes.) Widening
+            // this list to include `.return` is safe for the inspector's
+            // other states: with a conflict selected but no option focused,
+            // `handleKey`'s conflict-apply case's guard fails and falls
+            // through to the plain `.return` case, which only re-asserts
+            // `isInspectorVisible = true` (already true, since the inspector
+            // has focus) — a harmless no-op, not a new behaviour.
+            .onKeyPress(keys: [.upArrow, .downArrow, .escape, .return], action: handleKey)
     }
 
     private var inspectorBody: some View {

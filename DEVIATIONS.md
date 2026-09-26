@@ -1134,11 +1134,13 @@ in `Kadence/`.
   and/or a ranking rule that can diverge from strict disturbance-ascending),
   out of scope for a capture task. See `STATUS.md` §31.
 
-- **A27 — interactions.md §10.1. `↩` apply of a previewed conflict option
+- ~~**A27 — interactions.md §10.1. `↩` apply of a previewed conflict option
   (built by P2-T17, `CalendarState.applyFocusedConflictOption`) could not be
-  made to visibly commit through real HID key events in this session.**
+  made to visibly commit through real HID key events in this session.**~~
+  **Closed 2026-09-26, task P2-T37 — this was a real code defect, now fixed.**
   *(new 2026-09-25, task P2-T32, while capturing `screenshots/2/` batch 4's
-  count-0 image.)* Not confirmed as a code defect — recorded as an open
+  count-0 image; root-caused and fixed by P2-T37, not re-investigated from
+  scratch.)* Not confirmed as a code defect at the time — recorded as an open
   question, not a ruling. Everything upstream worked and was visually
   confirmed: clicking a conflict option row previewed it (blue highlight,
   the accent canvas border appeared), and `↑`/`↓` moved the preview between
@@ -1149,28 +1151,39 @@ in `Kadence/`.
   same state never visibly changed the canvas or the sidebar count, across
   several different sequences for reaching `.inspector` focus (a direct
   click into the panel; one or more `⇥` cycles via `MainWindow.cycleFocus`
-  before `↓`/`↩`). `handleKey`'s `.return where state.focusedRegion ==
-  .inspector && state.selectedConflictID != nil && state.selectedConflictOptionID
-  != nil` case (`MainWindow.swift` ~line 488) is gated on `state.focusedRegion`,
-  a hand-tracked flag kept in sync with SwiftUI's own `@FocusState` by a
-  one-directional `.onChange` (`MainWindow.swift` ~line 63: only updates when
-  the new real focus value is non-nil), which can diverge from real
-  first-responder state in ways this task did not fully trace — and, per
-  `STATUS.md` §32's own precedent, this machine has independently shown
-  synthetic-HID-input interference under concurrent human use during a
-  capture session, which cannot be ruled out here either. Not chased further:
-  diagnosing which of these (a genuine focus-wiring gap vs. an
-  environmental/tooling artifact, the same distinction `STATUS.md`'s
-  `check-accessibility.sh` history draws repeatedly) needs instrumentation
-  this capture-only task's brief did not ask for. `CalendarState.swift`,
-  `MainWindow.swift` and `ConflictEngine.swift` were read but not edited.
-  Worked around for the count-0 capture itself by constructing the state
-  directly in `MockData.swift` instead (temporarily, reverted before the
-  count-12 build) — see `screenshots/2/INDEX.md`'s batch 4 section and
-  `STATUS.md` §33 for the full account. *Still open* — needs either a live
-  re-verification on a quiescent machine or a focused look at the
-  `state.focusedRegion`/`@FocusState` sync, neither of which this task
-  attempted.
+  before `↓`/`↩`). At the time, `handleKey`'s `.return where
+  state.focusedRegion == .inspector && state.selectedConflictID != nil &&
+  state.selectedConflictOptionID != nil` case (`MainWindow.swift` ~line 488)
+  was suspected of being gated on a stale `state.focusedRegion` — a
+  hand-tracked flag kept in sync with SwiftUI's own `@FocusState` by a
+  one-directional `.onChange` — diverging from real first-responder state.
+
+  **P2-T37's actual root cause, found by reading the code: `state.focusedRegion`
+  was never the problem.** The `.return` case above was correct and, by the
+  time it runs, `state.focusedRegion` genuinely does read `.inspector` — the
+  key event simply never reached `handleKey` at all. `MainWindow.swift`'s
+  `inspector` computed view attached
+  `.onKeyPress(keys: [.upArrow, .downArrow, .escape], action: handleKey)` — a
+  keys-*filtered* hook. SwiftUI dispatches a key only to the `.onKeyPress`
+  hooks along the currently-*focused* view's own chain; the grid's separate,
+  unfiltered `.onKeyPress(action: handleKey)` includes `.return`, but only
+  fires when the grid (not the inspector, a sibling view) holds focus. So
+  with real focus on the inspector, `.return` was dropped before `handleKey`
+  ever ran, regardless of what `state.focusedRegion` held — exactly
+  consistent with §33's observation that everything routed through the
+  inspector's own filtered hook (`↑`/`↓`, preview) worked, and only `.return`
+  (the one key missing from that hook's list) did not. Not an environmental/
+  synthetic-HID artifact, as this entry had left open as a possibility — a
+  real, deterministic dispatch-layer gap. Fixed by adding `.return` to that
+  hook's key list; see `STATUS.md` §36 for the full account and
+  `Scripts/check-conflict-apply-return.sh` for the regression check (an
+  interaction-level check in this repo's own house style, since
+  `KadenceTests/ConflictApplyTests.swift` drives
+  `CalendarState.applyFocusedConflictOption` directly and cannot see the
+  SwiftUI key-routing layer the bug lived in). That script's own live HID/AX
+  run was itself deferred by a locked screen at the time P2-T37 ran (see
+  `STATUS.md` §36) — the code fix and the full `KadenceTests` suite are
+  green independent of that.
 
 ---
 
