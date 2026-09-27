@@ -88,7 +88,7 @@ struct KadenceApp: App {
             MenuBarPopoverView()
                 .environment(undoStack)
         } label: {
-            MenuBarStatusItemView()
+            MenuBarStatusItemView(container: container)
         }
         .modelContainer(container)
         .menuBarExtraStyle(.window)

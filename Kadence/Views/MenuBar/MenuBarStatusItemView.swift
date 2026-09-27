@@ -5,13 +5,13 @@
 //  The status item's own label (components.md §15.1), used as
 //  `MenuBarExtra`'s `label:` closure in `KadenceApp.swift`.
 //
-//  The primary text — the clock time normally, the elapsed phrase once late
-//  — is wrapped in `.fixedSize()`, which stops SwiftUI compressing it no
-//  matter how little room `Tokens.Size.statusItemMaxWidth` leaves. The title
-//  is the one `Text` given `.lineLimit(1)`/`.truncationMode(.tail)`, so it is
-//  the only thing that can shrink or disappear. That makes "the time is
-//  never truncated" (§15.1) a structural property of the view tree, not a
-//  rule that merely usually holds at the widths this task happened to try.
+//  Primary text and title are rendered as a single concatenated `Text` so
+//  that the menu bar extra's label reports the full intrinsic width to the
+//  system — two separate `Text` views in an `HStack` caused the truncatable
+//  title to shrink to zero, leaving only the time visible (`@Query`-in-
+//  label workaround commit, same session). The outer `frame(width:)` clips
+//  at `statusItemMaxWidth`, so if the full string is wider than 180pt the
+//  title truncates with `.tail` as §15.1 specifies.
 //
 
 import SwiftUI
@@ -19,7 +19,14 @@ import SwiftData
 import Combine
 
 struct MenuBarStatusItemView: View {
-    @Query(sort: \Event.start) private var events: [Event]
+    /// `@Query` does not populate in a `MenuBarExtra` label view on macOS —
+    /// the label is hosted as an `NSView` outside the normal SwiftUI scene
+    /// hierarchy, so the model-container environment never reaches `@Query`.
+    /// Work around this by fetching directly from the container's main
+    /// context on each timer tick (the same interval the `now` clock already
+    /// uses, so no extra wakeups).
+    let container: ModelContainer
+    @State private var events: [Event] = []
     @State private var now = Date()
 
     private var result: NextUpProvider.Result {
@@ -28,7 +35,8 @@ struct MenuBarStatusItemView: View {
 
     var body: some View {
         content
-            .frame(maxWidth: Tokens.Size.statusItemMaxWidth, alignment: .leading)
+            .frame(width: Tokens.Size.statusItemMaxWidth, alignment: .leading)
+            .fixedSize()
             // interactions.md §12.1 — "the status item's text changes
             // without animation — it updates on a timer and any animation in
             // a menu bar reads as a glitch." Everything `content` reads
@@ -40,7 +48,14 @@ struct MenuBarStatusItemView: View {
                 Timer.publish(every: Tokens.Motion.NowLineTick.interval, on: .main, in: .common).autoconnect()
             ) { date in
                 now = date
+                fetchEvents()
             }
+            .onAppear { fetchEvents() }
+    }
+
+    private func fetchEvents() {
+        let descriptor = FetchDescriptor<Event>(sortBy: [SortDescriptor(\Event.start)])
+        events = (try? container.mainContext.fetch(descriptor)) ?? []
     }
 
     @ViewBuilder
@@ -67,16 +82,20 @@ struct MenuBarStatusItemView: View {
 
     @ViewBuilder
     private func primaryAndTitle(primary: String, title: String) -> some View {
-        HStack(spacing: Tokens.Spacing.xxs) {
+        // A single `Text` concatenation — the menu bar extra's label
+        // sizing measures `sizeThatFits`, and a separate `Text` with
+        // `.truncationMode(.tail)` reports a minimum width of zero,
+        // collapsing the title entirely. Concatenating into one `Text`
+        // gives the system the full intrinsic width, and the outer
+        // `.frame(width:)` clips at `statusItemMaxWidth`.
+        if title.isEmpty {
             Text(primary)
                 .typeStyle(.statusItem)
-                .fixedSize()
-            if !title.isEmpty {
-                Text("· \(title)")
-                    .typeStyle(.statusItem)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
+        } else {
+            Text("\(primary) · \(title)")
+                .typeStyle(.statusItem)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 }
