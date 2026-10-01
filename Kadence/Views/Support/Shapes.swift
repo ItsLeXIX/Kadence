@@ -135,6 +135,16 @@ private struct CursorOnHover: ViewModifier {
                 isPushed = false
             }
         }
+        // A view can be removed while the pointer is still inside it (the
+        // Routines window swaps a column's create surface for its refusal
+        // surface when the weekday set changes), and then no "hover ended"
+        // ever arrives. Pop here too, or the pushed cursor outlives its view.
+        .onDisappear {
+            if isPushed {
+                NSCursor.pop()
+                isPushed = false
+            }
+        }
     }
 }
 

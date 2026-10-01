@@ -146,17 +146,13 @@ enum RoutineEngine {
 /// before calling in, exactly the inverse of what `RoutineWeekLayout.layoutItems`
 /// already does to turn `startMinutes` into a `Date` for the layout engine.
 ///
-/// SPEC-GAP (design/GAPS.md G-013): interactions.md §11.1 says §3/§4 apply
-/// "unchanged", but those sections assume a freely-floating `Date` — they
-/// never say what happens when a drag would push a block's start before
-/// 00:00 or its end past 24:00 on its own day, which a bounded `startMinutes`
-/// field can hit and an `Event` never could. Clamped at the day boundary
-/// (same shape as the existing 15-minute-minimum-duration clamp already in
-/// §4) rather than left undefined, pending a real answer. `create` below
-/// (task P2-T12) reuses this exact same clamp for the same reason — a
-/// double-click or drag near either end of the day is just as capable of
-/// producing an out-of-range start/end as a move/resize drag is, and G-013
-/// is not reopened or re-litigated for it, just applied consistently.
+/// Day-boundary clamp — interactions.md §11.1, "Cross-midnight drags clamp"
+/// (closes design/GAPS.md G-013): a move clamps `startMinutes` to
+/// `0…(1440 − duration)`; a resize clamps the moved edge to `0…1440` and
+/// keeps §4's 15-minute minimum. It never wraps to the previous or next
+/// column, because a block is not on a column and a template has no "next
+/// day". `create` below (task P2-T12) applies the same clamp, which G-013's
+/// closure names explicitly.
 @MainActor
 struct RoutineBlockStore {
     let context: ModelContext
@@ -269,8 +265,8 @@ struct RoutineBlockStore {
     /// `redo` inserts the new block, `undo` removes it by `id`.
     ///
     /// `startMinutes`/`duration` clamp to the same `0...1440` day-boundary
-    /// shape `move`/`resize` already use (this type's own header, G-013) —
-    /// reused for consistency, not a new answer to that gap. The 15-minute
+    /// shape `move`/`resize` already use (interactions.md §11.1, see this
+    /// type's own header). The 15-minute
     /// minimum duration is interactions.md §3's own rule for a drag-created
     /// block ("drag on empty grid creates a block of the dragged duration,
     /// minimum 15 minutes"), applied here the same way `resize`'s minimum

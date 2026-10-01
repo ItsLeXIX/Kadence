@@ -132,6 +132,14 @@ extension TypeStyle {
         textStyle: Tokens.Typography.EditorModeLabel.textStyle,
         lineLimit: Tokens.Typography.EditorModeLabel.lineLimit)
 
+    // components.md §13.5.3 — the "Not in this routine" note pinned in an
+    // inactive weekday column of the Routines window (wraps to two lines).
+    static let inactiveDayLabel = TypeStyle(
+        size: Tokens.Typography.InactiveDayLabel.size,
+        weight: Tokens.Typography.InactiveDayLabel.weight,
+        textStyle: Tokens.Typography.InactiveDayLabel.textStyle,
+        lineLimit: Tokens.Typography.InactiveDayLabel.lineLimit)
+
     static let dayHeaderWeekday = TypeStyle(
         size: Tokens.Typography.DayHeaderWeekday.size,
         weight: Tokens.Typography.DayHeaderWeekday.weight,

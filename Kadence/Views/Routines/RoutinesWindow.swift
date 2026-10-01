@@ -73,6 +73,17 @@
 //    - RoutineEngine.materialize honouring protected windows, MenuBarExtra,
 //      snooze — separate, later tasks, unrelated to this window.
 //
+//  Task P2-T38 — weekday activity (components.md §13.5.1–§13.5.3, §13.5.5;
+//  interactions.md §11.1 as amended 2026-10-01). In Blocks mode an inactive
+//  weekday column recedes (hour lines at half-hour weight, ground unchanged),
+//  carries the pinned "Not in this routine" note with an `Add <Day>` button,
+//  and refuses create gestures with an `.operationNotAllowed` cursor; active
+//  columns gain a header underline in the template's rail colour. A block
+//  move/resize is vertical only, and its drop preview draws in every active
+//  column at once (`RoutineBlockDrag`, shared by the canvas). The rules
+//  themselves live in `Kadence/Layout/RoutineColumnRules.swift`. The
+//  `Add <Day>` button is deliberately a no-op until P2-T39 (§13.5.4).
+//
 //  Move/resize/delete/create all go through `RoutineBlockStore`
 //  (`Kadence/State/RoutineEngine.swift`) — the Routines-window sibling of
 //  `EventStore`, same id-addressed/undo-named shape, written over
@@ -120,21 +131,8 @@
 import SwiftUI
 import SwiftData
 
-/// components.md §13.3's mode control: "Blocks" / "Windows". `.blocks` is the
-/// default — the window opens the way P2-T10 through P2-T12 already left it.
-enum RoutinesEditorMode: String, CaseIterable, Identifiable {
-    case blocks
-    case windows
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .blocks: "Blocks"
-        case .windows: "Windows"
-        }
-    }
-}
+// `RoutinesEditorMode` now lives in `Kadence/Layout/RoutineColumnRules.swift`
+// (task P2-T38), beside the weekday-column rules that take it.
 
 struct RoutinesWindow: View {
     @Query(sort: \RoutineTemplate.name) private var templates: [RoutineTemplate]
@@ -311,7 +309,11 @@ struct RoutinesWindow: View {
 
     private var canvas: some View {
         VStack(spacing: 0) {
-            RoutineWeekdayHeaderRow(weekdays: orderedWeekdays)
+            RoutineWeekdayHeaderRow(
+                weekdays: orderedWeekdays,
+                activeWeekdays: selectedTemplate?.activeWeekdays ?? [],
+                railColor: (selectedTemplate?.sourceKey ?? .graphite).rail,
+                editorMode: editorMode)
             RoutinesCanvasView(
                 weekdays: orderedWeekdays,
                 template: selectedTemplate,
@@ -402,6 +404,14 @@ struct RoutineBlockSelection: Equatable {
 
 private struct RoutineWeekdayHeaderRow: View {
     let weekdays: [Int]
+    /// Task P2-T38 — components.md §13.5.2: "The header marks activity
+    /// positively. Active days gain the underline; the inactive ones are not
+    /// degraded." The weekday symbol itself is identical in every case.
+    let activeWeekdays: Set<Int>
+    /// The template's own `color.source.<slot>.rail` (§13.1 makes it the one
+    /// hue in this window).
+    let railColor: Color
+    let editorMode: RoutinesEditorMode
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -410,7 +420,27 @@ private struct RoutineWeekdayHeaderRow: View {
                 Text(weekdaySymbol(weekday))
                     .typeStyle(.dayHeaderWeekday)
                     .foregroundStyle(Tokens.Color.Text.secondary)
-                    .frame(maxWidth: .infinity)
+                    // `.frame(maxWidth: .infinity, maxHeight: .infinity)`
+                    // lets the cell fill the row's full height so the
+                    // underline below can sit on the row's bottom edge.
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .bottom) {
+                        // §13.5.2: "`size.borderEmphasis` (1.5) tall, drawn at
+                        // the header's bottom edge directly above its
+                        // `color.separator.region` hairline, full column
+                        // width". The `.padding(.bottom, hairline)` is what
+                        // puts it *above* that hairline rather than over it.
+                        // Blocks mode only (§13.5.5) — `.unmarked` never shows it.
+                        if RoutineColumnTreatment.resolve(
+                            weekday: weekday, activeWeekdays: activeWeekdays, mode: editorMode
+                        ).showsHeaderUnderline {
+                            Rectangle()
+                                .fill(railColor)
+                                .frame(height: Tokens.Size.borderEmphasis)
+                                .padding(.bottom, Tokens.Size.hairline)
+                                .accessibilityHidden(true)
+                        }
+                    }
             }
         }
         .frame(height: Tokens.Size.dayHeaderHeight)
@@ -440,6 +470,19 @@ private struct RoutinesCanvasView: View {
     let timeWindowStore: TimeWindowStore
     @Binding var windowSelection: UUID?
 
+    /// Task P2-T38 — the one in-flight block move/resize, owned HERE rather
+    /// than by each column. interactions.md §11.1: "The drop preview appears
+    /// in every active column at once." Before this task the drag lived in the
+    /// originating column's own `@State`, so only that column could see it.
+    /// `RoutineBlockDrag` carries no weekday at all (see its doc comment), so
+    /// one value is equally valid in all seven columns.
+    @State private var blockDrag: RoutineBlockDrag?
+    /// Task P2-T38 — how far the vertical scroll view has scrolled, in
+    /// points. components.md §13.5.3 pins the inactive-column note "to the top
+    /// of the visible region", which a view inside the scroll content can only
+    /// do if it knows this number.
+    @State private var scrollOffsetY: CGFloat = 0
+
     private let hourHeight = Tokens.Size.hourHeightWeek
 
     var body: some View {
@@ -463,6 +506,14 @@ private struct RoutinesCanvasView: View {
                         alignment: .leading)
             }
             .scrollIndicators(.automatic)
+            // macOS 15 API: calls `action` whenever the value the `of:`
+            // closure extracts from the scroll geometry changes. Here that is
+            // the content's vertical offset — positive once scrolled down.
+            .onScrollGeometryChange(for: CGFloat.self) { scrollGeometry in
+                scrollGeometry.contentOffset.y + scrollGeometry.contentInsets.top
+            } action: { _, newOffset in
+                scrollOffsetY = newOffset
+            }
             .modifier(HorizontalScrollIfNeeded(isEnabled: needsHorizontalScroll))
         }
         .background(Tokens.Color.Surface.canvas)
@@ -487,6 +538,12 @@ private struct RoutinesCanvasView: View {
                     timeWindows: timeWindows,
                     timeWindowStore: timeWindowStore,
                     windowSelection: $windowSelection,
+                    blockDrag: $blockDrag,
+                    showsDropPreview: RoutineBlockDrag.previewWeekdays(
+                        orderedWeekdays: weekdays,
+                        activeWeekdays: template?.activeWeekdays ?? []
+                    ).contains(weekday),
+                    scrollOffsetY: scrollOffsetY,
                     // components.md §7: the window label is drawn "once, at
                     // the window's top edge, in the leading day column" —
                     // same rule `TimedCanvasView.windowsBackdrop`/
@@ -537,10 +594,22 @@ private struct RoutineDayColumnView: View {
     /// Task P2-T21.
     let timeWindowStore: TimeWindowStore
     @Binding var windowSelection: UUID?
+    /// Task P2-T38 — the canvas-wide block move/resize (see
+    /// `RoutinesCanvasView.blockDrag`). A `@Binding` because every column
+    /// reads it to draw the preview and the origin ghost, and whichever column
+    /// the drag started in writes it.
+    @Binding var blockDrag: RoutineBlockDrag?
+    /// Whether this column draws `blockDrag`'s drop preview — true for every
+    /// active column, false for an inactive one (interactions.md §11.1).
+    let showsDropPreview: Bool
+    /// Vertical scroll offset of the canvas, for pinning the §13.5.3 note.
+    let scrollOffsetY: CGFloat
     let showsWindowLabels: Bool
 
-    /// In-flight drag, kept local so the model is only written on drop — same
-    /// rule as `DayColumnView.DragSession`.
+    /// In-flight create-drag, kept local so nothing is written until drop —
+    /// same rule as `DayColumnView.DragSession`. Create stays per-column
+    /// (unlike `blockDrag`): it begins a draft in the column it was made in,
+    /// and an inactive column refuses it outright.
     @State private var drag: RoutineDragSession?
     @State private var hoveredID: UUID?
     /// The in-flight creation draft, if any (task P2-T12). Local to this one
@@ -561,22 +630,19 @@ private struct RoutineDayColumnView: View {
     /// `.onEnded`. Same nothing-written-until-drop rule as `drag`/`windowDrag`.
     @State private var windowCreateDrag: TimeWindowCreateDragSession?
 
+    /// Create-drag only, as of task P2-T38. Move/resize moved to the shared,
+    /// minute-based `RoutineBlockDrag` (`RoutineColumnRules.swift`).
     struct RoutineDragSession: Equatable {
-        enum Mode: Equatable { case move, resizeTop, resizeBottom, create }
-        var mode: Mode
-        /// `nil` for `.create` — there is no existing block to address until
-        /// the drag ends and a new one is actually made.
-        var blockID: UUID?
         var origin: Date
         var current: Date
     }
 
     struct TimeWindowDragSession: Equatable {
-        /// Analogous to `RoutineDragSession.Mode` above, minus `.create` — a
+        /// Analogous to `RoutineBlockDrag.Mode` — a
         /// `TimeWindow` is never created from this drag (task P2-T22).
         /// Classified once, from the drag's `startLocation` against the
         /// dragged span's own top/bottom `Tokens.Size.blockResizeHandleHeight`
-        /// band, the same way `blockGesture` classifies `RoutineDragSession.Mode`.
+        /// band, the same way `blockGesture` classifies `RoutineBlockDrag.Mode`.
         enum Mode: Equatable { case move, resizeTop, resizeBottom }
         var windowID: UUID
         var mode: Mode
@@ -584,7 +650,7 @@ private struct RoutineDayColumnView: View {
     }
 
     /// Task P2-T23 — drag-to-create on empty windows-mode canvas. Mirrors
-    /// `RoutineDragSession`'s own `.create` case shape (`origin`/`current`
+    /// `RoutineDragSession`'s create-drag shape (`origin`/`current`
     /// snapped `Date`s, nothing written until `.onEnded`), kept as its own
     /// type rather than a third case bolted onto `TimeWindowDragSession`
     /// above, which addresses an EXISTING window by `windowID` — a window
@@ -603,13 +669,17 @@ private struct RoutineDayColumnView: View {
     }
 
     /// Whether this column's weekday is one of the template's active
-    /// weekdays. Blocks only render on active days; creating a block on
-    /// an inactive day would silently place it on the nearest active day
-    /// instead, which is confusing — so creation and move gestures are
-    /// disabled here (the column still renders its time-window backdrop
-    /// and hour lines so the user sees the full week shape).
+    /// weekdays, regardless of editor mode. (Commit 5b73949 introduced this
+    /// as a hand fix for the silent-relocation defect; task P2-T38 keeps it
+    /// and puts the spec behind it — components.md §13.5.1.)
     private var isActiveDay: Bool {
         template?.activeWeekdays.contains(weekday) ?? false
+    }
+
+    /// components.md §13.5.2 / §13.5.5 — what this column shows and accepts.
+    private var treatment: RoutineColumnTreatment {
+        RoutineColumnTreatment.resolve(
+            weekday: weekday, activeWeekdays: template?.activeWeekdays ?? [], mode: editorMode)
     }
 
     private var layoutItems: [LayoutItem] {
@@ -618,13 +688,12 @@ private struct RoutineDayColumnView: View {
             activeWeekdays: template?.activeWeekdays ?? [],
             weekday: weekday,
             referenceDayStart: referenceDayStart)
-        // The draft is laid out only on active weekday columns.
-        // Creating on an inactive column would silently place the block
-        // on the nearest active day instead — the "silent relocation"
-        // defect reported in goal.txt §A. `createSurface` is already
-        // non-hit-testable on inactive days, but this guard catches the
-        // edge case where a draft outlives a weekday-toggle that
-        // deactivates the column it was started in.
+        // The draft is laid out only on active weekday columns. This is a
+        // second lock, not the main one: the create surface is refused on
+        // inactive columns, and a draft whose column is deactivated is
+        // abandoned outright (`.onChange(of: isActiveDay)` in `body`,
+        // interactions.md §11.1). This guard only covers the single frame
+        // between the weekday set changing and that `onChange` running.
         if let draft, isActiveDay {
             items.append(LayoutItem(id: draft.id, start: draft.start, end: draft.end, title: draft.title))
         }
@@ -653,7 +722,12 @@ private struct RoutineDayColumnView: View {
                     showsPeakFocus: editorMode == .windows)
                     .allowsHitTesting(false)
 
-                HourLinesLayer(geometry: geometry)
+                // §13.5.2: an inactive column (Blocks mode only) recedes by
+                // drawing its hour lines at half-hour weight. The ground is
+                // left alone — `RoutinesCanvasView`'s `color.surface.canvas`
+                // background shows through unchanged, on purpose (DECISIONS.md
+                // 2026-10-01: `canvasSunken` would hide protected windows).
+                HourLinesLayer(geometry: geometry, recessed: treatment.recessesHourLines)
 
                 if showsWindowLabels {
                     WindowLabelsLayer(
@@ -670,8 +744,19 @@ private struct RoutineDayColumnView: View {
                 // §13.3 — in windows mode routine blocks are not the editable
                 // layer, so creating one from here would be editing the
                 // wrong layer.
-                createSurface(width: proxy.size.width, geometry: geometry)
-                    .allowsHitTesting(editorMode == .blocks && isActiveDay)
+                //
+                // Task P2-T38 — interactions.md §11.1, "Gestures on an
+                // inactive column are refused": an inactive column gets a
+                // different surface that accepts no create gesture at all
+                // (no block, no draft, no outline) and shows
+                // `.operationNotAllowed`. Its only response is the ordinary
+                // empty-grid tap-to-deselect, which is not a create gesture.
+                if treatment.refusesBlockCreate {
+                    refusedCreateSurface(geometry: geometry)
+                } else {
+                    createSurface(width: proxy.size.width, geometry: geometry)
+                        .allowsHitTesting(treatment.acceptsBlockCreate)
+                }
 
                 // components.md §13.3: "Windows mode: ... blocks drop to
                 // `opacity.editorInactiveLayer`, not hit-testable." Applied
@@ -700,7 +785,17 @@ private struct RoutineDayColumnView: View {
                 // Blocks mode (createSurface/blockGesture are non-hit-
                 // testable in Windows mode above), so `drag` is always nil
                 // there and this never fires in Windows mode either.
-                if let previewRect = dropPreviewFrame(in: proxy.size.width, geometry: geometry) {
+                //
+                // Task P2-T38 — interactions.md §11.1: a move/resize preview
+                // is drawn "in every active column at once"; none in an
+                // inactive column. `showsDropPreview` is that rule, computed
+                // once by the canvas. The create-drag preview stays local to
+                // the one column the drag runs in.
+                if let previewRect = createPreviewFrame(in: proxy.size.width, geometry: geometry) {
+                    dropPreview(previewRect)
+                }
+                if showsDropPreview,
+                   let previewRect = blockDragPreviewFrame(in: proxy.size.width, geometry: geometry) {
                     dropPreview(previewRect)
                 }
 
@@ -731,7 +826,7 @@ private struct RoutineDayColumnView: View {
                     .allowsHitTesting(editorMode == .windows)
 
                 // Live dashed preview for the drag-to-create above — mirrors
-                // `dropPreview`/`dropPreviewFrame`'s own mechanism for
+                // `dropPreview`/`createPreviewFrame`'s own mechanism for
                 // blocks-mode create, keyed off `windowCreateDrag` instead of
                 // `drag` so the two never interfere (one only ever runs in
                 // Blocks mode, the other only in Windows mode).
@@ -741,10 +836,39 @@ private struct RoutineDayColumnView: View {
 
                 windowInteractionLayer(geometry: geometry)
                     .allowsHitTesting(editorMode == .windows)
+
+                // components.md §13.5.3 — one note per inactive column,
+                // pinned to the top of the *visible* region: `scrollOffsetY`
+                // is how far the canvas has scrolled, so offsetting by it
+                // keeps the note on screen however far down the user is.
+                // Inset `spacing.xs` from the column's leading edge and from
+                // that visible top. Drawn last so the `Add` button sits above
+                // the refusal surface and is clickable.
+                if treatment.showsInactiveNote {
+                    InactiveDayNote(weekday: weekday, onAdd: {
+                        // P2-T39: components.md §13.5.4 activation (write the
+                        // weekday, named undo step, arrival motion) is the
+                        // next task. Deliberately a no-op until then.
+                    })
+                    .padding(.leading, Tokens.Spacing.xs)
+                    .offset(y: max(scrollOffsetY, 0) + Tokens.Spacing.xs)
+                }
             }
             .frame(height: geometry.totalHeight, alignment: .top)
         }
         .frame(height: hourHeight * 24)
+        // interactions.md §11.1: "A draft whose column is deactivated
+        // mid-edit is abandoned ... if the surface went away, you did not
+        // decide." `.onChange` runs its closure whenever the observed value
+        // changes between renders. Any half-finished create-drag goes too —
+        // it would otherwise turn into a draft on mouse-up.
+        .onChange(of: isActiveDay) { _, _ in
+            guard let activeWeekdays = template?.activeWeekdays,
+                  RoutineDraftRules.mustAbandonDraft(draftWeekday: weekday, activeWeekdays: activeWeekdays)
+            else { return }
+            draft = nil
+            drag = nil
+        }
     }
 
     @ViewBuilder
@@ -785,7 +909,11 @@ private struct RoutineDayColumnView: View {
             .frame(width: laidOut.frame.width, height: laidOut.frame.height, alignment: .topLeading)
             .contentShape(Rectangle().inset(by: laidOut.hitInset))
             .offset(x: laidOut.frame.minX, y: laidOut.frame.minY)
-            .opacity(drag?.blockID == block.id ? Tokens.Opacity.blockDragOrigin : 1)
+            // The origin ghost, `opacity.blockDragOrigin` — shown in EVERY
+            // column that draws this block, because `blockDrag` is shared
+            // (interactions.md §11.1: "with the origin ghost at
+            // `opacity.blockDragOrigin` in each of them too").
+            .opacity(blockDrag?.blockID == block.id ? Tokens.Opacity.blockDragOrigin : 1)
             // interactions.md §8 — open-hand cursor for a draggable block.
             .cursor(.openHand)
             .onHover { hovering in
@@ -803,50 +931,60 @@ private struct RoutineDayColumnView: View {
     private func presentation(for block: RoutineBlockSnapshot, isSelected: Bool) -> Presentation {
         var presentation: Presentation = isSelected ? [.selected] : []
         if hoveredID == block.id { presentation.insert(.hovered) }
-        if drag?.blockID == block.id { presentation.insert(.dragging) }
+        if blockDrag?.blockID == block.id { presentation.insert(.dragging) }
         return presentation
     }
 
     // MARK: Gesture (mirrors DayColumnView.blockGesture's shape)
 
+    /// Move/resize. Task P2-T38 — interactions.md §11.1: "A block drag is
+    /// vertical only. Horizontal translation is ignored outright." Only
+    /// `value.translation.height` is ever read below, and the session it
+    /// writes (`RoutineBlockDrag`) has no weekday to change — so dragging
+    /// sideways, into another column active or inactive, does nothing there.
+    /// The session is the canvas-wide `blockDrag`, so every active column
+    /// draws the same preview while the drag runs.
     private func blockGesture(block: RoutineBlockSnapshot, laidOut: LaidOutBlock, geometry: TimeGeometry) -> some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { value in
-                let handle = Tokens.Size.blockResizeHandleHeight
-                let localY = value.startLocation.y - laidOut.frame.minY
-                let mode: RoutineDragSession.Mode =
-                    localY <= handle ? .resizeTop
-                    : localY >= laidOut.frame.height - handle ? .resizeBottom
-                    : .move
-
                 let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
-                let delta = value.translation.height
-                let deltaTime = TimeInterval(delta / hourHeight) * 3600
-                let blockStart = referenceDayStart.addingTimeInterval(TimeInterval(block.startMinutes * 60))
 
-                if drag == nil {
-                    drag = RoutineDragSession(mode: mode, blockID: block.id, origin: blockStart, current: blockStart)
+                if blockDrag?.blockID != block.id {
+                    // First change of this drag: classify the mode once, from
+                    // where the pointer went down relative to the block's own
+                    // top/bottom resize-handle bands.
+                    let handle = Tokens.Size.blockResizeHandleHeight
+                    let localY = value.startLocation.y - laidOut.frame.minY
+                    let mode: RoutineBlockDrag.Mode =
+                        localY <= handle ? .resizeTop
+                        : localY >= laidOut.frame.height - handle ? .resizeBottom
+                        : .move
+                    blockDrag = RoutineBlockDrag(
+                        blockID: block.id, mode: mode,
+                        startMinutes: block.startMinutes,
+                        durationMinutes: Int(block.duration / 60))
                 }
-                drag?.current = TimeGeometry.snap(blockStart.addingTimeInterval(deltaTime), toMinutes: snap)
+                blockDrag = blockDrag?.updated(
+                    translationHeight: value.translation.height,
+                    hourHeight: hourHeight,
+                    snapMinutes: snap)
             }
             .onEnded { _ in
-                defer { drag = nil }
-                guard let session = drag, session.blockID == block.id,
+                defer { blockDrag = nil }
+                guard let session = blockDrag, session.blockID == block.id,
                       let template, let liveBlock = template.blocks.first(where: { $0.id == block.id })
                 else { return }
 
-                let currentMinutes = minutes(for: session.current)
+                // `proposedRange` already applies the store's own clamps, so
+                // what was previewed is exactly what is written.
+                let range = session.proposedRange
                 switch session.mode {
                 case .move:
-                    store.move(liveBlock, toStartMinutes: currentMinutes)
+                    store.move(liveBlock, toStartMinutes: range.start)
                 case .resizeTop:
-                    store.resize(liveBlock, newStartMinutes: currentMinutes)
+                    store.resize(liveBlock, newStartMinutes: range.start)
                 case .resizeBottom:
-                    let deltaMinutes = currentMinutes - minutes(for: session.origin)
-                    let oldEndMinutes = liveBlock.startMinutes + Int(liveBlock.duration / 60)
-                    store.resize(liveBlock, newEndMinutes: oldEndMinutes + deltaMinutes)
-                case .create:
-                    break // Unreachable: `session.blockID == block.id` above already excludes it.
+                    store.resize(liveBlock, newEndMinutes: range.end)
                 }
                 selection = RoutineBlockSelection(blockID: block.id, weekday: weekday)
             }
@@ -949,7 +1087,7 @@ private struct RoutineDayColumnView: View {
     /// Whole-span move, or a top/bottom-edge resize (task P2-T22) — mode is
     /// classified once from the drag's `startLocation` against `span`'s own
     /// top/bottom `Tokens.Size.blockResizeHandleHeight` band, exactly the way
-    /// `blockGesture` classifies `RoutineDragSession.Mode`. Snap (15-minute,
+    /// `blockGesture` classifies `RoutineBlockDrag.Mode`. Snap (15-minute,
     /// 5-minute with `⌃`) via `TimeGeometry.snap`, same rule every other drag
     /// in this window already uses, and only written to `TimeWindowStore` on
     /// `.onEnded` — `windowDrag` exists purely so the hit region can follow
@@ -1057,7 +1195,7 @@ private struct RoutineDayColumnView: View {
     }
 
     /// Live dashed preview for `windowCreateGesture` above — same geometry
-    /// math as `dropPreviewFrame`'s own `.create` case, just keyed off
+    /// math as `createPreviewFrame`, just keyed off
     /// `windowCreateDrag` instead of `drag` (blocks-mode create's own session
     /// type), rendered through the same `dropPreview(_:)` view.
     private func windowCreatePreviewFrame(in width: CGFloat, geometry: TimeGeometry) -> CGRect? {
@@ -1096,17 +1234,35 @@ private struct RoutineDayColumnView: View {
                         let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
                         let from = TimeGeometry.snap(geometry.date(forY: value.startLocation.y), toMinutes: snap)
                         let to = TimeGeometry.snap(geometry.date(forY: value.location.y), toMinutes: snap)
-                        drag = RoutineDragSession(mode: .create, blockID: nil, origin: from, current: to)
+                        drag = RoutineDragSession(origin: from, current: to)
                     }
                     .onEnded { _ in
                         defer { drag = nil }
-                        guard let session = drag, session.mode == .create else { return }
+                        guard let session = drag else { return }
                         let lower = min(session.origin, session.current)
                         let upper = max(session.origin, session.current)
                         let duration = max(upper.timeIntervalSince(lower), 15 * 60)
                         beginDraft(at: lower, duration: duration)
                     }
             )
+    }
+
+    /// Task P2-T38 — the inactive column's empty canvas (Blocks mode only).
+    /// interactions.md §11.1: "Double-click and create-drag on the empty
+    /// canvas of an inactive column do nothing: no block, no draft, no
+    /// outline. The cursor over that canvas is `.operationNotAllowed`."
+    /// So: no double-click handler and no drag gesture are attached at all —
+    /// there is nothing to begin a draft or draw an outline from. It still
+    /// takes a single tap as "clicking empty grid deselects" (§6), which is
+    /// not a create gesture.
+    private func refusedCreateSurface(geometry: TimeGeometry) -> some View {
+        Rectangle()
+            .fill(.clear)
+            .contentShape(Rectangle())
+            .frame(height: geometry.totalHeight)
+            .cursor(.operationNotAllowed)
+            .accessibilityHidden(true)
+            .onTapGesture { selection = nil }
     }
 
     /// Start typing a new block. Nothing is persisted until `commitDraft()`.
@@ -1153,7 +1309,13 @@ private struct RoutineDayColumnView: View {
     /// result, per interactions.md §3 ("the event is selected on commit").
     private func commitDraft() {
         defer { draft = nil }
-        guard let draft, let template else { return }
+        // interactions.md §11.1 — never commit into a column that no longer
+        // accepts creation; the draft is abandoned instead (same rule as the
+        // `.onChange(of: isActiveDay)` in `body`, checked again here because
+        // `↩` can land before that `onChange` has run).
+        guard let draft, let template,
+              !RoutineDraftRules.mustAbandonDraft(draftWeekday: weekday, activeWeekdays: template.activeWeekdays)
+        else { return }
         let startMinutes = minutes(for: draft.start)
         if let created = store.create(
             title: draft.title, startMinutes: startMinutes, duration: draft.duration, in: template) {
@@ -1163,45 +1325,31 @@ private struct RoutineDayColumnView: View {
 
     // MARK: Drop preview
 
-    private func dropPreviewFrame(in width: CGFloat, geometry: TimeGeometry) -> CGRect? {
+    /// The create-drag's outline — this column only.
+    private func createPreviewFrame(in width: CGFloat, geometry: TimeGeometry) -> CGRect? {
         guard let session = drag else { return nil }
         let inset = Tokens.Spacing.xxs
+        let lower = min(session.origin, session.current)
+        let upper = max(session.origin, session.current)
+        return CGRect(
+            x: inset, y: geometry.y(for: lower),
+            width: width - 2 * inset,
+            height: max(geometry.height(from: lower, to: upper), Tokens.Size.blockMinRenderedHeight))
+    }
 
-        switch session.mode {
-        case .create:
-            let lower = min(session.origin, session.current)
-            let upper = max(session.origin, session.current)
-            return CGRect(
-                x: inset, y: geometry.y(for: lower),
-                width: width - 2 * inset,
-                height: max(geometry.height(from: lower, to: upper), Tokens.Size.blockMinRenderedHeight))
-
-        case .move, .resizeTop, .resizeBottom:
-            guard let blockID = session.blockID,
-                  let block = blocks.first(where: { $0.id == blockID })
-            else { return nil }
-            let originalStart = referenceDayStart.addingTimeInterval(TimeInterval(block.startMinutes * 60))
-            let originalEnd = originalStart.addingTimeInterval(block.duration)
-
-            let start: Date
-            let end: Date
-            switch session.mode {
-            case .resizeTop:
-                start = min(session.current, originalEnd.addingTimeInterval(-15 * 60))
-                end = originalEnd
-            case .resizeBottom:
-                start = originalStart
-                let delta = session.current.timeIntervalSince(session.origin)
-                end = max(originalEnd.addingTimeInterval(delta), start.addingTimeInterval(15 * 60))
-            default:
-                start = session.current
-                end = session.current.addingTimeInterval(block.duration)
-            }
-            return CGRect(
-                x: inset, y: geometry.y(for: start),
-                width: width - 2 * inset,
-                height: max(geometry.height(from: start, to: end), Tokens.Size.blockMinRenderedHeight))
-        }
+    /// The move/resize outline, at `blockDrag.proposedRange` converted into
+    /// THIS column's geometry. The same minutes give the same frame in every
+    /// column, which is what makes the multi-column preview line up.
+    private func blockDragPreviewFrame(in width: CGFloat, geometry: TimeGeometry) -> CGRect? {
+        guard let session = blockDrag else { return nil }
+        let inset = Tokens.Spacing.xxs
+        let range = session.proposedRange
+        let start = referenceDayStart.addingTimeInterval(TimeInterval(range.start * 60))
+        let end = referenceDayStart.addingTimeInterval(TimeInterval(range.end * 60))
+        return CGRect(
+            x: inset, y: geometry.y(for: start),
+            width: width - 2 * inset,
+            height: max(geometry.height(from: start, to: end), Tokens.Size.blockMinRenderedHeight))
     }
 
     private func dropPreview(_ rect: CGRect) -> some View {
@@ -1228,6 +1376,60 @@ private struct RoutineDayColumnView: View {
             .offset(y: chip.anchor.y)
             .padding(.trailing, Tokens.Spacing.xxs)
             .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Inactive-column note (components.md §13.5.3, task P2-T38)
+
+/// "Not in this routine" + an `Add Sat` text button, stacked `spacing.xxs`
+/// apart, at most `size.inactiveDayNoteMaxWidth` wide. No glyph in either
+/// element (§13.5.3: the symbol vocabularies are closed). Copy is exact.
+private struct InactiveDayNote: View {
+    /// `Calendar`'s weekday number (1 = Sunday … 7 = Saturday).
+    let weekday: Int
+    let onAdd: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
+            Text("Not in this routine")
+                .typeStyle(.inactiveDayLabel)
+                .foregroundStyle(Tokens.Color.Text.secondary)
+                // Lets the text take the second line its type token allows
+                // (`lineLimit` 2) instead of being squeezed to one line and
+                // truncated by the narrow column.
+                .fixedSize(horizontal: false, vertical: true)
+                .allowsHitTesting(false)
+
+            Button(action: onAdd) {
+                // "The weekday is the same `shortWeekdaySymbols` form the
+                // header uses, so the button names the column it is in."
+                Text("Add \(Calendar.current.shortWeekdaySymbols[weekday - 1])")
+                    .underline()
+                    .typeStyle(.editorModeLabel)
+                    .foregroundStyle(Tokens.Color.Interactive.accent)
+                    // Hover: a `color.interactive.hoverOverlay` rounded rect at
+                    // `radius.chip` with `spacing.xxs` padding. The negative
+                    // padding after the background gives the space back, so
+                    // the button text stays flush with the label above while
+                    // the hover rect extends `spacing.xxs` around it.
+                    .padding(Tokens.Spacing.xxs)
+                    .background {
+                        if isHovered {
+                            RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
+                                .fill(Tokens.Color.Interactive.hoverOverlay)
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .padding(-Tokens.Spacing.xxs)
+            }
+            // `.plain` drops the system bezel; the text above is the whole look.
+            .buttonStyle(.plain)
+            .cursor(.pointingHand)
+            .onHover { isHovered = $0 }
+        }
+        .frame(maxWidth: Tokens.Size.inactiveDayNoteMaxWidth, alignment: .leading)
     }
 }
 

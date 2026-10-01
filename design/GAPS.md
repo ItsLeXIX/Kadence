@@ -1541,3 +1541,55 @@ scheduling logic, `DECISIONS.md` 2026-09-10 bars it from this phase, and
 `components.md` §16 and `MenuBarFormatting.snoozeResult` only ever read the
 resulting start, so nothing in Phase 2 changes when the real rule lands. Recorded
 here so its continued openness is a decision rather than an oversight.
+
+---
+
+## 2026-10-01 — G-025 — §13.5.3's note and §7's window label both claim the leading column's top-left corner
+
+**Where it bit:** task P2-T38, building `components.md` §13.5.3's in-column note
+(`InactiveDayNote` in `Kadence/Views/Routines/RoutinesWindow.swift`).
+
+**What the spec says.** §13.5.3 pins the note to the top of the visible region,
+inset `spacing.xs` from the column's leading edge. §13.5.2 keeps §7's
+window-label rule: the label goes "once, at the window's top edge, in the
+**leading** day column — whether or not that column is active". When the window
+is scrolled past its top edge, §7 pins that label to the top of the visible
+region too, also in the leading column.
+
+**What is missing.** When the leading column is inactive, both elements want the
+same corner. Examples: a Sunday-first locale with a Mon–Fri template, or any
+template that doesn't run on the first weekday. One case is a protected `Sleep`
+window wrapping past midnight with the canvas scrolled to 00:00, or scrolled
+anywhere inside the window once §7's pinning is built. Neither section says
+which one yields, or whether one stacks below the other.
+
+**What was built instead of guessing.** Nothing special-cased. Both draw where
+their own rules put them, and in that case they overlap. §7's scrolled-past
+label pinning is not built at all yet (not listed in `DEVIATIONS.md` either), so
+today the clash only occurs when the window's top edge is in view. No
+`// SPEC-GAP` marker, since no value was invented. The overlap is just left
+unresolved.
+
+**Not blocking** for the default fixture (Mon-first locale, the leading column
+Monday is active). Needed to close: a stacking or priority rule for the two
+pinned elements in the leading column.
+
+---
+
+## 2026-10-01 — G-026 — §13.5.2's recessed hour lines under Increase Contrast
+
+**Where it bit:** task P2-T38, `HourLinesLayer`'s new `recessed` flag
+(`Kadence/Views/Canvas/GridLayers.swift`).
+
+**What the spec says.** §13.5.2's table gives inactive columns
+`color.separator.halfHour` for "hour and half-hour lines both". On the main
+grid, Increase Contrast swaps hour lines to `color.separator.strong`.
+
+**What is missing.** Whether the recessed column keeps `halfHour` under Increase
+Contrast, or steps up to some stronger value, as every other line does in
+that mode.
+
+**What was built instead of guessing.** The table is read literally:
+`halfHour` in both modes. Under Increase Contrast that widens the gap
+between active and inactive columns (`strong` against `halfHour`), and it
+takes no value the spec doesn't name. Not blocking.

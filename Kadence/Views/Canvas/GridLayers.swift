@@ -165,11 +165,19 @@ struct HourLinesLayer: View {
     let geometry: TimeGeometry
     /// Half-hour lines are drawn in the columns only, never across the gutter.
     var includeHalfHours: Bool = true
+    /// components.md §13.5.2 — an inactive weekday column in the Routines
+    /// window draws its hour lines at half-hour weight ("hour and half-hour
+    /// lines both" in `color.separator.halfHour`), which recedes the column
+    /// without touching its ground. `false` everywhere else.
+    var recessed: Bool = false
 
     @Environment(\.colorSchemeContrast) private var contrast
 
     private var hourColor: Color {
-        contrast == .increased ? Tokens.Color.Separator.strong : Tokens.Color.Separator.hour
+        // §13.5.2's table gives one value for a recessed column and does not
+        // carve out Increase Contrast, so the recessed case wins outright.
+        if recessed { return Tokens.Color.Separator.halfHour }
+        return contrast == .increased ? Tokens.Color.Separator.strong : Tokens.Color.Separator.hour
     }
 
     var body: some View {

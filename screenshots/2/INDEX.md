@@ -10,7 +10,11 @@ item 10 — the menu bar status item) produced **no images**: two prior tasks
 (P2-T33, P2-T34) ran out of turns attempting it, and this task's own attempt
 got as far as a fully reproducible capture method before hitting a locked
 screen it cannot clear itself. See that section near the end of this file for
-the full account and the method, left ready to run to completion. See each
+the full account and the method, left ready to run to completion.
+**Superseded 2026-10-01 (task P2-T38):** items 10, 11 and 12 now have images,
+captured by hand in commit `0d81c96` (2026-09-27) alongside a status-item fix.
+See **"Batch 7 — menu bar captures from commit 0d81c96"** at the end of this
+file for the file-to-item mapping and what is still missing. See each
 batch's own section near the end of this file for its method, image(s), and
 what could not be captured — none of this is folded into batch 1's narrative
 below, since all five were attempted by different tasks against different
@@ -667,7 +671,9 @@ matching count 1's own image and §10.2's rule.
 item 10, task P2-T35, 2026-09-26)
 
 **No images produced.** `status-item-normal.png`, `status-item-late.png` and
-`status-item-empty.png` do **not** exist in this directory. Two prior tasks
+`status-item-empty.png` do **not** exist in this directory. *(Stale as of
+commit `0d81c96`: all three now exist — see Batch 7 at the end of this file.
+This section is kept as the record of the blocked attempt.)* Two prior tasks
 (P2-T33, P2-T34) each ran out of turns attempting this same capture and each
 left only a `Kadence/Mock/MockData.swift` diff behind (a `Journal` fixture,
 added then fixed — see `STATUS.md` §34 and `DEVIATIONS.md`'s "Not a
@@ -764,3 +770,68 @@ running via `pgrep` but was left untouched, since it predates this attempt
 and killing it is not part of the lock-stop protocol. Still nothing further
 to add beyond Batch 5's "What is next" above: re-run steps 4–5 of
 `STATUS.md` §34 Part B the moment the probe reports `0`.
+
+## Batch 7 — menu bar captures from commit `0d81c96` (components.md §17 items 10–12)
+
+Recorded by task P2-T38 (2026-10-01). These eight PNGs were **not** made by an
+agent task: they were captured by hand and committed in `0d81c96` ("Fix
+MenuBarStatusItemView @Query bug and capture §17 screenshots", 2026-09-27),
+together with the status-item fix that made item 10 capturable at all (see
+`STATUS.md` §38). No capture method was recorded with them, so unlike batches
+1–4 there is no reproducible procedure here, only what the images show.
+
+**Item numbering.** That commit's message calls these "items 1-3 (status item
+states), 6-9 (popover states), and 10-12 (snooze result rows)". Those numbers
+do not match `components.md` §17, where the status item is item **10**, the
+popover item **11** and the snooze result row item **12**. The mapping below
+uses §17's numbering.
+
+| File | §17 item | What it shows |
+|---|---|---|
+| `status-item-normal.png` | 10 — normal | `13:29 · Journal`, menu-bar crop, 130×30 (1×) |
+| `status-item-late.png` | 10 — late | `clock.badge.exclamationmark` + `5m ago · Journal`, 160×30 (1×) |
+| `status-item-empty.png` | 10 — empty | `Nothing left today`, 302×60 (2×), wallpaper behind it |
+| `popover-normal.png` | 11 — normal, and more than `size.popoverMaxRestRows` | NEXT `Prep: relational algebra` 14:30–16:00 · Planned study; `Done` / `Snooze` / `Open` (disabled); six rest rows then `+2 more`. 346×407 (1×) |
+| `popover-late.png` | 11 — late, and more than `size.popoverMaxRestRows` | Same item, `Started 30m ago · Planned study` in the now colour; `Re-offer` / `Done` / `Snooze` / `Open` (disabled); six rest rows then `+2 more`. 692×814 (2×) |
+| `popover-empty.png` | 11 — empty | NEXT label and `Nothing left today` only, no action row, no rest section. 692×332 (2×) |
+| `snooze-same-day.png` | 12 — same-day | `Moved to 14:26` + `Undo` replacing the action row; the block reads 14:26–15:56. 692×602 (2×) |
+| `snooze-next-day.png` | 12 — next-day | `Moved to tomorrow 00:05` + `Undo`; the block reads **23:50 – 01:20**. 346×200 (1×) |
+
+**Still missing or questionable, for DA's review (not fixed here):**
+
+- **Item 10's clipped sub-variant** ("each at full width **and** clipped to
+  `size.statusItemMaxWidth`") has no images. None of the three titles is long
+  enough to reach the 180pt budget.
+- **Item 11's "more than `size.popoverMaxRestRows`"** has no image of its own.
+  Normal and late both happen to show it (six rows plus `+2 more`), so it is
+  covered implicitly. There is no popover image with fewer rows than the cap.
+- **`snooze-next-day.png` disagrees with itself.** The confirmation says
+  `Moved to tomorrow 00:05` but the NEXT block's time reads `23:50 – 01:20`.
+  It may be a stale frame or a real mismatch between
+  `MenuBarFormatting.snoozeResult` and the block's time line. I have not
+  investigated it (out of scope for P2-T38). It should be checked before the
+  image is accepted.
+- **`snooze-same-day.png` moved the block earlier.** `Moved to 14:26` against
+  `popover-normal.png`'s 14:30 start. That fits `EventStore.snoozeOffset`
+  being "now + 15 min" under the still-open G-016 placeholder, but it reads
+  oddly as a snooze. Flagged so it is not mistaken for a defect, or confirmed
+  as one.
+- **Mixed capture scales** (1× and 2×, see the table), and `status-item-empty`
+  includes wallpaper where the other two are tight crops on black.
+
+### `secondary_with_popover.png` — flagged for deletion
+
+Not part of any batch and not described anywhere before this note. It is now
+**tracked**: it was committed with the design commit `b5be079`, so it is no
+longer untracked as the P2-T38 brief says. Nothing was deleted.
+
+What it shows: a full-screen 3360×2100 desktop capture dated Sat 26 Sep 13:31.
+The Kadence main window is in Week view (21–27 Sep, needs-attention count 12,
+Saturday's inspector summary). Despite the filename, **no popover is open**.
+The menu bar shows the status item reading `14:30 · Prep: relational
+algebra`. The frame also includes unrelated personal content: a WhatsApp menu
+bar, another app's window title bar, and video subtitles over the desktop.
+It answers no §17 item that the cropped images above don't already cover.
+**Recommendation: Parsa deletes it**, both for the personal content and
+because the name says it shows something it doesn't.
+

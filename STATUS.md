@@ -5042,3 +5042,207 @@ ready to run to completion, unmodified, the moment the screen is unlocked.
 `PASS` the moment the screen is confirmed unlocked — no further
 investigation should be needed first, the fix and the script are both
 already in place.
+
+## 37. Hand commit `5b73949` — inactive weekday columns stopped relocating new blocks (2026-09-26, recorded by P2-T38)
+
+**Not an agent task.** Committed by hand outside the agent loop. Recorded here
+by P2-T38 on 2026-10-01 from `git show 5b73949`. It was not re-derived.
+
+**The defect.** The seeded `Daily routine` template is Mon/Wed/Fri
+(`activeWeekdays = [2, 4, 6]`). A block created by double-click or drag on a
+Tue/Thu/Sat/Sun column was silently placed on Mon, Wed and Fri instead. The
+column only supplied the time; `RoutineBlockStore.create` has no weekday
+parameter because a `RoutineBlock` has none. Before this commit,
+`layoutItems`' own comment called that intended ("the column being dragged in
+is just where the geometry comes from").
+
+**The change** (`Kadence/Views/Routines/RoutinesWindow.swift` only, +19/−9):
+
+- a new `isActiveDay` on `RoutineDayColumnView`
+  (`template?.activeWeekdays.contains(weekday) ?? false`);
+- `createSurface`'s hit-testing went from `editorMode == .blocks` to
+  `editorMode == .blocks && isActiveDay`, so double-click and create-drag do
+  nothing on an inactive column;
+- the in-flight draft is laid out only when `isActiveDay`, as a guard for a
+  draft that outlives a weekday toggle.
+
+**What it did not do,** which G-018 later spelled out: inactive columns still
+looked identical to active ones (no visual statement of why they were inert),
+there was no `.operationNotAllowed` cursor, a draft in a deactivated column was
+hidden rather than abandoned, and dragging an existing block toward an inactive
+column was not addressed. Its own doc comment also said "creation and move
+gestures are disabled", but the move gesture was never touched.
+
+**Spec status.** This was unspecced when committed. `design/GAPS.md` G-018 (filed
+and closed 2026-10-01, `components.md` §13.5, `interactions.md` §11.1) adopted
+the gesture-disable as the spec's refusal rule. P2-T38 (§39) completed it.
+`DEVIATIONS.md` records it under "Resolved — retired by a spec ruling". No
+tests were added by the commit. Build/test results were not recorded at the
+time.
+
+## 38. Hand commit `0d81c96` — status item `@Query` fix, title width fix, §17 items 10–12 captured (2026-09-27, recorded by P2-T38)
+
+**Not an agent task.** Committed by hand. Recorded here by P2-T38 on
+2026-10-01 from `git show 0d81c96`.
+
+**Bug 1 — the status item never saw any events.** `@Query` does not populate
+inside a `MenuBarExtra`'s `label:` view. The label is hosted as an `NSView`
+outside the SwiftUI scene hierarchy, so the model container never reaches it.
+`.modelContainer(container)` on the `MenuBarExtra` scene covers the popover
+but not the label. This is very likely the unexplained part of `screenshots/2`
+Batch 5 (§34): the AX title read `Nothing left today` even right after the store
+was edited to make `Journal` next. That was blamed on the lock at the time.
+**Fix:** `MenuBarStatusItemView` now takes `container: ModelContainer`
+(`KadenceApp.swift` passes it), holds `events` in `@State`, and calls
+`fetchEvents()` (a `FetchDescriptor<Event>` sorted by start, on
+`container.mainContext`) in `.onAppear` and on every tick of the existing
+`motion.nowLineTick` timer (60s). Consequence: the item can lag a store change
+by up to one tick. For example, after `Done` in the popover the status item
+updates at the next minute. interactions.md §12.1 says the item "updates on a
+timer", so this is not logged as a deviation.
+
+**Bug 2 — the title collapsed to zero width.** In the label, a separate
+`.truncationMode(.tail)` title `Text` reported a minimum width of zero and
+vanished, leaving only the time. **Fix:** one concatenated
+`Text("\(primary) · \(title)")`, `.lineLimit(1)`, `.truncationMode(.tail)`,
+inside `.frame(width: statusItemMaxWidth)` + `.fixedSize()`.
+
+**Deviations it introduced,** now logged as `DEVIATIONS.md` **B14** and **B15**:
+the time is no longer structurally protected from truncation (§15.1, "never
+truncated"); the 2026-10-01 time-alone-below-`statusItemTitleMinWidth` rule is
+not built (that token arrived later); and the item is always exactly 180pt
+wide instead of at most 180pt.
+
+**Screenshots added:** `screenshots/2/status-item-{normal,late,empty}.png`,
+`popover-{normal,late,empty}.png`, `snooze-{same-day,next-day}.png`. The commit
+message numbers them "items 1-3 / 6-9 / 10-12". By `components.md` §17 they
+are items **10 / 11 / 12**. `screenshots/2/INDEX.md` now maps them ("Batch 7")
+and flags two things for DA: `snooze-next-day.png`'s confirmation (`tomorrow
+00:05`) disagrees with the block's own time line (`23:50 – 01:20`), and the
+item-10 clipped sub-variant is still missing. No tests were added by the
+commit.
+
+## 39. P2-T38 — bookkeeping (§37/§38, G-013/G-014/G-015 closures, tokens v1.1.0); inactive weekday columns (components.md §13.5.1–§13.5.3, §13.5.5; interactions.md §11.1)
+
+### Part 1 — bookkeeping
+
+- **§37 and §38 above** record hand commits `5b73949` and `0d81c96`.
+- **`screenshots/2/INDEX.md`:** the header and Batch 5 now say items 10–12 have
+  images. A new "Batch 7" section maps all eight PNGs to §17 items and
+  lists what is missing or questionable. **`secondary_with_popover.png`** is
+  described and flagged for Parsa to delete: a full-desktop capture, no popover
+  open despite the name, with unrelated personal content in frame. Nothing was
+  deleted. Correction to the brief: that file is **tracked**, not untracked.
+  It went in with design commit `b5be079` (which also committed the
+  `design/` changes the brief's starting `git status` showed as modified).
+- **G-014 / G-015:** the P2-T16 and P2-T17 judgement-call entries in
+  `DEVIATIONS.md` are struck through in place and moved verbatim to a new
+  section, "Resolved — retired by a spec ruling", with the GAPS references.
+- **G-013:** `RoutineEngine.swift`'s `SPEC-GAP (design/GAPS.md G-013)` comment
+  is replaced with a reference to `interactions.md` §11.1 ("Cross-midnight
+  drags clamp"), and `create`'s doc comment points at the same section. No
+  behaviour change. `grep -rn SPEC-GAP Kadence/` is now empty, so
+  `DEVIATIONS.md` C's "no `// SPEC-GAP` markers" claim holds again. The
+  retirement is recorded in the Resolved section too.
+- **Tokens v1.1.0:** `swift Scripts/generate-tokens.swift` regenerated
+  `Tokens.swift`, adding `Typography.InactiveDayLabel`,
+  `Size.statusItemTitleMinWidth` and `Size.inactiveDayNoteMaxWidth`.
+  `TypeStyle.inactiveDayLabel` was added to `TypeStyle.swift`.
+  `statusItemTitleMinWidth` is generated but unused (B14).
+
+### Part 2 — inactive weekday columns
+
+New pure file **`Kadence/Layout/RoutineColumnRules.swift`** holds the rules:
+
+- `RoutinesEditorMode` moved here from `RoutinesWindow.swift`, unchanged.
+- `RoutineColumnTreatment` (`.active` / `.inactive` / `.unmarked`) is resolved
+  from weekday, `activeWeekdays` and mode, and exposes
+  `showsHeaderUnderline`, `recessesHourLines`, `showsInactiveNote`,
+  `acceptsBlockCreate` and `refusesBlockCreate`. Windows mode is always
+  `.unmarked` (§13.5.5).
+- `RoutineDraftRules.mustAbandonDraft` covers §11.1's deactivated-column rule.
+  It is keyed on the weekday set only; mode switches are not part of that rule.
+- `RoutineBlockDrag` is a move/resize session in minutes with **no weekday
+  field**. `updated(translationHeight:…)` takes only the vertical component,
+  and `proposedRange` applies the same clamps as `RoutineBlockStore`, so the
+  preview equals what lands. `previewWeekdays` returns the active columns.
+
+**`RoutinesWindow.swift`:**
+
+- **Header:** a `size.borderEmphasis` underline in
+  `template.sourceKey.rail`, at the header's bottom edge above the region
+  hairline, on `.active` columns only. The weekday text is unchanged.
+- **Hour lines:** `HourLinesLayer(recessed:)` (new flag in `GridLayers.swift`)
+  draws hour lines in `color.separator.halfHour` on inactive columns. The
+  ground is untouched: still `color.surface.canvas` (DECISIONS.md 2026-10-01),
+  and the window layer is still at full strength.
+- **Refusal:** inactive columns swap `createSurface` for
+  `refusedCreateSurface`, which has no double-click or drag gesture,
+  `.cursor(.operationNotAllowed)`, and keeps tap-to-deselect. That gives no
+  block, no draft and no outline. `5b73949`'s `isActiveDay` and the draft
+  layout guard are kept, now documented against the spec.
+- **Draft abandonment:** `.onChange(of: isActiveDay)` clears the draft and
+  any half-finished create-drag. `commitDraft()` also refuses to commit into
+  a now-inactive column, since `↩` can arrive before that `onChange` runs.
+- **Vertical-only drag:** the move/resize session moved from per-column
+  `@State` to `RoutinesCanvasView.blockDrag`, passed to every column as a
+  `@Binding`. Each active column draws the dashed `[3, 3]` accent preview
+  at the same proposed minutes, and the origin ghost (`opacity.blockDragOrigin`)
+  shows in every column that draws the block. Inactive columns draw no preview.
+  The local per-column `RoutineDragSession` is now create-only. No time badge,
+  as before (A15).
+- **Note:** `InactiveDayNote` shows `Not in this routine` (`inactiveDayLabel`,
+  `color.text.secondary`, up to two lines) and, `spacing.xxs` below, a
+  `.plain` button `Add <shortWeekdaySymbol>` (`editorModeLabel`,
+  `color.interactive.accent`, underlined, `.pointingHand`, hover rect in
+  `color.interactive.hoverOverlay` at `radius.chip` with `spacing.xxs`
+  padding). It is at most `size.inactiveDayNoteMaxWidth` wide, inset
+  `spacing.xs` from the column's leading edge and from the top of the visible
+  region. It stays pinned through `onScrollGeometryChange` (macOS 15) on the
+  canvas's vertical `ScrollView`. **The button is a no-op**, marked
+  `// P2-T39`. §13.5.4 activation is the next task.
+- **`Shapes.swift`:** `CursorOnHover` now also pops on `.onDisappear`.
+  Swapping a column's create surface for its refusal surface under a hovering
+  pointer would otherwise leave a pushed cursor with no matching "hover
+  ended".
+
+**New GAPS questions:** G-025 (the note and §7's window label collide in the
+leading column when it is inactive) and G-026 (recessed hour lines under
+Increase Contrast; read literally as `halfHour`). Neither needed a SPEC-GAP
+marker, because no value was invented.
+
+### Verified
+
+- `xcodebuild -scheme Kadence -destination 'platform=macOS' build`:
+  `** BUILD SUCCEEDED **`. The only app warning is the existing unused `start`
+  at `MonthGridView.swift:153`, which this task did not touch. No new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **382 `passed`
+  lines / 0 `failed`** (§36: 359; the +23 are the new
+  `KadenceTests/RoutineColumnRulesTests.swift`: column treatment and
+  Blocks-only scope, draft abandonment, vertical-only drag, multi-column
+  preview columns, and preview-equals-store across nine move/resize cases
+  including both day ends).
+- `swift Scripts/generate-tokens.swift --check`: up to date.
+- **Lock probe:** `CGSSessionScreenIsLocked = 0`, on console, at
+  2026-10-01 17:44 CEST. The screen was **unlocked**.
+- **`Scripts/check-routines-window.sh`: FAIL** (`no Kadence process has a
+  window`). Diagnosed rather than assumed. The Kadence process was alive and
+  idle (`sample`: main thread in `_DPSNextEvent`), and `CGWindowListCopyWindowInfo`
+  showed its 1500×900 main window existing but `onscreen 0`. Meanwhile **Opera
+  GX was in macOS full screen** (`AXFullScreen = true`) and frontmost: the only
+  onscreen layer-0 windows were Opera's, and
+  `set frontmost` on Kadence was refused. Kadence's window was on the desktop
+  Space, not the current one, so AX counted 0 windows. This is environmental,
+  the same family as STATUS.md §11's "third-party app holding frontmost". It is
+  not this change: the main window doesn't use any P2-T38 code apart from
+  `HourLinesLayer`'s default and the cursor pop. The leftover Kadence process
+  was quit.
+- **`Scripts/check-conflict-apply-return.sh`: NOT RUN.** It sends real HID
+  clicks and a Return keypress. With a full-screen browser frontmost, those
+  would have gone into the user's browser, not Kadence. It still has no real
+  PASS. Re-run both scripts with no full-screen app in front.
+
+**Next:** P2-T39, `components.md` §13.5.4 activation: wire `Add <Day>` and the
+§8.1 weekday toggle row, the named undo steps, and the `motion.viewChange`
+arrival. Then re-run the two scripts on a free desktop, and capture §17 items
+13–14.
