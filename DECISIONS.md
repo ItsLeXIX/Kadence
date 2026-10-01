@@ -193,3 +193,58 @@ runs its redo closure immediately AND both wrote directly, producing two rows
 with the same id. Pre-existing and invisible. It surfaced only because these
 tests run against a real in-memory ModelContainer; a stubbed store would have
 passed. Tests that touch persistence use a real container.
+ ## 2026-10-01 — The Routines window's seven columns are read-outs, not placement surfaces.
+A RoutineBlock is a time of day on the template's weekday set; it is not on a column. 
+The window never said so, so a block created on an inactive column was silently relocated 
+onto the active days (fixed by hand in 5b73949, never specced).
+Ruled: a create gesture on an inactive column is refused, with the reason standing before
+the gesture (recessed hour lines, no header underline, a pinned Not in this routine note) 
+and the remedy one click away in the same column (Add Sat). Auto-adding was rejected because 
+activating a weekday adds every block in the template — the cheapest, most mis-aimed gesture 
+must not carry the widest change. A prompt was rejected as the same modal tax DECISIONS.md 2026-09-10 already refused.
+Riders: a block drag here is vertical only, so a block cannot move between columns at all; 
+the drop preview draws in every active column at once, which is the clearest statement the 
+window can make about what it is editing. The inactive column's ground stays color.surface.canvas 
+— canvasSunken measures 1.01:1 against color.window.protectedFill in light appearance and would 
+delete a protected window from the column it was meant to explain. All of this is Blocks mode 
+only; TimeWindow.weekdays is its own set. Closes G-018, G-013.
+
+## 2026-10-01 — Conflict options: the catalogue is three, and the recommendation is a preservation rule.
+G-017 reported the engine structurally cannot produce three options or recommend a non-first one,
+and proposed either an engine change or relaxing the spec. Neither was needed in full: makeOptions
+gates shorten behind flexibility == .fixed, and no spec ever asked it to. Ungating it is the third source,
+and it is the brief's own example triple.
+Catalogue: shiftLater (.shiftable, within ±), shorten (any flexibility, remainder ≥ 15 min), skipToday (always).
+This also fixes an unfiled defect: .droppable conflicts were offering exactly one option.
+Display order stays ascending by disturbance. The recommendation is not the disturbance minimum:
+a proportionate shift (≤ the occurrence's own duration), else a shorten keeping ≥ half, else skip.
+Disturbance-minutes is blind to what kind of thing is spent — trimming 20 minutes off a 45-minute
+session is not the same currency as moving it 20 minutes. §14.3's "usually but not necessarily first"
+is now reachable by a named fixture.
+shiftEarlier is excluded at day level (almost always the cheapest option and almost never the achievable
+one) and included at template level, where the user is editing the week deliberately. The ± in the model
+stays two-sided for Phase 6. Closes G-017.
+
+## 2026-10-01 — Protected windows: materialisation refuses. Surfacing a conflict afterwards is not compliance.
+CONTEXT.md's rule is "never scheduled into automatically". If after-the-fact surfacing satisfied it,
+the rule would have no content — every violation could be excused by a badge, and Phase 6's "validate
+and reject the plan rather than trusting the model to have obeyed" would be arguing with Phase 2.
+materialize creates nothing for a pair that strictly overlaps a .protected span. It does not trim and
+does not shift: both are an automatic process choosing a time. Only .protected is a hard constraint.
+Manual placement is untouched — interactions.md §4 binds automatic placement, not a user being explicit.
+The refusal is never silent: conflicted on the template block in the colliding columns, a Will not run —
+inside Sleep (protected) on … inspector line, and the needs-attention count. Activating it opens the
+Routines window, because none of its options can be applied to a day. Closes G-023, G-024.
+
+## 2026-10-01 — Detachment is four fields; deletion is a tombstone; the past is never written.
+DECISIONS.md 2026-09-10 said an edited instance is pinned and never defined "edited". Ruled: exactly the
+four template-owned fields detach (start, end, title, flexibility). status does not — done and skipped are
+facts about a day, and if skipped detached, every .skipToday conflict resolution would detach and Re-sync
+would offer to undo the user's own resolutions.
+Found by this work: deleting a materialised instance was unhandled. materialize's existence check finds nothing
+and recreates it, so a deleted routine block comes back on its own — the same class of silent behaviour as the
+weekday defect, in a path nobody had looked at. Deletion now leaves a tombstone keyed by the existing (sourceID,
+externalID); ⌘Z restores both.
+Re-materialisation updates untouched instances rather than only creating, or the template is not the baseline it
+claims to be. Withdrawal deletes future non-detached instances and keeps detached ones. Materialisation never
+writes to any day before startOfDay(today) — the one rule in §13.6 with no exception. Closes G-019, G-020, G-021.

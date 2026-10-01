@@ -405,6 +405,23 @@ total hours, and the detached-instance count with its Re-sync button
 (`components.md` §13.4). Same rule as §6 — the empty state is a summary, never a
 placeholder graphic.
 
+**Amended 2026-10-01.**
+
+- **Active weekdays is a control, not a field.** It is the same Mon-first toggle
+  row the time-window inspector already uses for `TimeWindow.weekdays`: seven
+  `dayHeaderWeekday` toggles, `←`/`→` to move, `space` to flip. This is the
+  keyboard path for `components.md` §13.5.4, so the column note's `Add Sat`
+  button is not the only way in. Same undo step names.
+- **The detached count reads `3 instances edited` / `1 instance edited`** — no
+  "this week". `components.md` §13.7.3 scopes it from today forward through the
+  materialisation horizon, which is not a week, and the popover lists the real
+  dates.
+- **The editor inspector has a conflict mode.** A template conflict
+  (`components.md` §14.6) replaces the inspector's contents with §10's panel —
+  collision header, option rows, `1 of N` footer — at
+  `size.editorInspectorWidth`. Same collapse behaviour as §8's: below 1040pt it
+  returns as an overlay, and it never forces the window wider.
+
 ---
 
 ## 9. Menu bar popover

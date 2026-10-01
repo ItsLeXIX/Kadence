@@ -316,6 +316,21 @@ runs the block-move transition on the committed frames, drops the canvas border,
 and advances to the next unresolved conflict — or returns the inspector to normal
 if that was the last one (`components.md` §14.5).
 
+**Amended 2026-10-01.** Three additions:
+
+- **A single-option conflict is still a focus region.** `↑`/`↓` have nowhere to
+  go; focus lands on the one option, which previews immediately like any other,
+  and `↩` applies it. It carries no `Recommended` chip (`components.md` §14.3.3).
+- **A template conflict (`components.md` §14.6) is reached in the Routines
+  window.** Activating it from the needs-attention row — or `⌘⇧A` landing on one —
+  opens that window, selects the template and the block, and focuses the editor
+  inspector's conflict panel. The preview, `↑`/`↓`, `↩` and `⎋` all behave
+  exactly as they do in the main window; the canvas they animate is the Routines
+  canvas, and `↩`'s undo step is named `Resolve Routine Conflict`.
+- **`⌘⇧A` orders both kinds together**, day conflicts before template conflicts,
+  each by the start of what they affect. Two queues would make the count in the
+  sidebar mean two different things.
+
 ### 10.2 Abandonment is unconditional
 
 **A pending preview is abandoned, never persisted, the moment focus leaves the
@@ -357,6 +372,52 @@ Switching between Blocks and Windows mode: `⌘[` / `⌘]`, or the mode control.
 The current selection is dropped on mode change, because a selection you can no
 longer edit is a trap.
 
+**Amended 2026-10-01 — what §3 and §4 "unchanged" cannot mean here.** Three
+clarifications and one closure. A `RoutineBlock` is a time of day on a set of
+weekdays, not an object on a column (`components.md` §13.5), and §3/§4 were written
+against an `Event` that sits on exactly one day.
+
+- **A block drag is vertical only.** Horizontal translation is ignored outright.
+  A block cannot be moved between columns, active or inactive, because there is
+  no per-column instance to move — which is also the complete answer to "what
+  happens when you drag a block toward an inactive column": nothing happens
+  there, and §13.5.2's treatment is what says why before the user tries.
+- **The drop preview appears in every active column at once.** One drag, one
+  snapped destination, and a dashed `[3, 3]` `color.interactive.accent` outline
+  at that frame in **each** of the template's active columns, with the origin
+  ghost at `opacity.blockDragOrigin` in each of them too. No preview is drawn in
+  an inactive column. This is the clearest statement the window can make about
+  what it is editing, and it costs no new component — it is §4's drop preview,
+  drawn more than once. The pointer-following time badge stays single, at the
+  pointer.
+- **Cross-midnight drags clamp (closes G-013).** A move clamps `startMinutes` to
+  `0…(1440 − duration)`; a resize clamps the moved edge to `0…1440` and keeps
+  §4's 15-minute minimum. It never wraps to the previous or next column, because
+  a block is not on a column, and a template has no "next day". This confirms the
+  placeholder `RoutineBlockStore` already shipped; it is now the spec.
+- **Gestures on an inactive column are refused** (`components.md` §13.5.1).
+  Double-click and create-drag on the empty canvas of an inactive column do
+  nothing: no block, no draft, no outline. The cursor over that canvas is
+  `.operationNotAllowed`, the same signal §4 already uses for a block that will
+  not move. A draft whose column is deactivated mid-edit is abandoned, per
+  `DECISIONS.md`'s draft rule — if the surface went away, you did not decide.
+  Windows mode is unaffected: there, every column is live (§13.5.5).
+
+### 11.1.1 Weekday activation
+
+No new global shortcut. Two paths, both named undo steps
+(`Add Saturday to Routine` / `Remove Saturday from Routine`):
+
+- **Pointer:** the `Add Sat` button in the inactive column's note
+  (`components.md` §13.5.3).
+- **Keyboard:** the weekday toggle row in the editor inspector with nothing
+  selected (`layouts.md` §8.1). It is reached by `⇥` into the inspector;
+  `←`/`→` move between the seven toggles and `space` flips the focused one.
+
+Deactivating a weekday deletes that weekday's future, non-detached instances
+inside the same undo step (`components.md` §13.6.4). It is not confirmed: nothing
+in the template is destroyed, and the step is one `⌘Z`.
+
 ### 11.2 Re-sync is one undo step
 
 Re-syncing detached instances (`components.md` §13.4) discards the user's own
@@ -371,6 +432,23 @@ edits across several days, so two things are required and neither is optional:
 
 If any affected day is visible in the main window when re-sync is applied, the
 block-move transition (§7.1) runs there for each restored instance.
+
+**Amended 2026-10-01 — scope, and the single-instance sibling.**
+
+- **Scope** is the detached instances of this template from `startOfDay(today)`
+  forward, inside the materialisation horizon (`components.md` §13.6.5). Past
+  detached instances are neither counted nor re-synced; nothing in this app
+  rewrites the past. The confirmation lists exactly the dates it will write.
+- **`Revert to routine`** (`components.md` §13.4, one selected instance in the
+  main-grid inspector) does the same write to one instance. Its undo step is
+  named `Revert Instance to Routine` — deliberately not `Re-sync Routine`,
+  because the Edit menu is the only thing standing between "I undid one day" and
+  "I undid a week".
+- Re-sync restores the template's **current** values, not the values in force
+  when each instance was detached (`components.md` §13.7.2). "Re-sync" means
+  "make this match the routine as it is now"; any other reading needs a second
+  copy of every template field per instance and still surprises the user.
+- Re-sync never resurrects a deleted instance (`components.md` §13.7.4).
 
 ---
 

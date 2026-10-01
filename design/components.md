@@ -776,6 +776,27 @@ control teaches the grid's own vocabulary rather than describing it in words.
 `.shiftable` reveals a stepper for its ± minutes, `blockMeta` type, 15-minute
 steps, range 15–180.
 
+**Amended 2026-10-01 — the stepper's value semantics (closes G-022).** The model
+field is optional and `ConflictEngine` silently produces no `.shiftLater` option
+when it is absent, so "range 15–180" is not enough on its own:
+
+- **Default on entry.** Choosing `Shiftable` for a block that has no ± value
+  writes **30** immediately — not `nil`, not 15. 30 is two snap steps, the
+  smallest value that lets a block clear an ordinary 15–30 minute collision, so
+  the default is useful rather than merely legal.
+- **Switching away keeps the number.** Choosing `Fixed` or `Droppable` leaves the
+  stored ± value untouched and hides the stepper. Coming back to `Shiftable`
+  restores what was there. Discarding it would punish the user for looking at the
+  other two segments.
+- **A `.shiftable` block with no ± value is a defect, not a state.** It renders
+  the stepper at 30 and writes 30 on first display. There is no "unset"
+  presentation, because the only thing an unset value does in this build is
+  remove a resolution option the user never asked to lose.
+- **Clamping.** Values outside 15–180 clamp to the nearest bound; the stepper
+  never presents a value it would not accept.
+- One named undo step per change: `Set Flexibility` for the segment, `Set Shift
+  Range` for the stepper.
+
 ### 13.3 Modes: blocks or windows
 
 Dragging on empty canvas has to mean one thing, and this window has two kinds of
@@ -814,6 +835,351 @@ anchored to the button, `size.resyncPopoverWidth`, listing the affected dates
 (`popoverRow` type, up to six then `+N`), primary action `Re-sync 3 instances`.
 It is **one undo step** — see `interactions.md` §11.2.
 
+**Amended 2026-10-01.** This subsection specifies the *surfaces*. What actually
+makes an instance detached, what marks it, how re-materialisation treats it, and
+what Re-sync writes are specified in §13.7, which closes G-019, G-020 and G-021.
+
+### 13.5 Weekday activity
+
+Ruling this implements: G-018. A `RoutineTemplate` has `activeWeekdays`; the
+canvas has seven columns. Those two facts disagree unless the window says which
+columns are part of the routine, so until 2026-10-01 a block created on a
+Tuesday column was silently relocated onto Monday, Wednesday and Friday.
+
+**The underlying shape, stated once because every rule below follows from it.**
+A `RoutineBlock` is not on a weekday. It is a time of day, and it runs on every
+one of the template's active weekdays. The seven columns are therefore **seven
+read-outs of one week-shaped pattern, not seven placement surfaces** — which is
+why the same block is drawn three times for a Mon/Wed/Fri template, and why
+editing any one of those three changes all three at once. That is not a bug to
+hide; it is the model, and the window should teach it.
+
+#### 13.5.1 The ruling: refuse, with the reason standing and the remedy adjacent
+
+A create gesture on an inactive weekday column is **refused**. It does not add
+the weekday, and it does not ask.
+
+Rejected alternatives, and why:
+
+- **Add the weekday automatically.** Activating a weekday adds *every* block in
+  the template to that column. A create-drag is the cheapest, most frequently
+  mis-aimed gesture in the window; letting it perform the widest change in the
+  window is the wrong coupling. This is `DECISIONS.md` 2026-09-10's reasoning
+  ("Apple's 'this event / all future' prompt taxes the most frequent
+  interaction") read from the other side: do not let the frequent gesture carry
+  the rare, expensive decision either.
+- **Ask.** A prompt on a drag is the same modal tax, with an extra click.
+
+A refusal is only unacceptable when it is a dead end. This one is not: the
+reason is on screen **before** the gesture is attempted and stays there, and the
+remedy sits inside the column the pointer is already in. Nothing is transient,
+so nothing is silent.
+
+#### 13.5.2 How an inactive column looks
+
+Blocks mode only (§13.5.5). Three channels, all token-only, and **the column's
+ground stays `color.surface.canvas`**:
+
+| | Active column | Inactive column |
+|---|---|---|
+| Ground | `color.surface.canvas` | `color.surface.canvas` — **unchanged** |
+| Hour lines | `color.separator.hour` | `color.separator.halfHour` — hour and half-hour lines both |
+| Day divider | `color.separator.dayDivider` | unchanged |
+| Window layer | §7 as drawn | §7 as drawn, **full strength** |
+| Header underline | `size.borderEmphasis` in the template's `color.source.<slot>.rail` | none |
+| In-column note | none | §13.5.3 |
+
+**Do not sink the ground.** `color.surface.canvasSunken` was the obvious choice
+and is wrong: measured against `color.window.protectedFill` it leaves 1.01:1 in
+light appearance, so a protected window drawn on a sunken column disappears
+exactly where the user most needs to see it (a Saturday morning inside Sleep).
+Dropping the hour lines to half-hour weight recedes the column without touching
+the ground the window treatments are calibrated against.
+
+**The header marks activity positively.** Active days gain the underline; the
+inactive ones are not degraded. The weekday symbol stays `dayHeaderWeekday` /
+`color.text.secondary` in both cases — `color.text.tertiary` is barred for
+anything the user must read (`tokens.json` `$meta.contrastPairs.note`), and a
+weekday header is read. The underline is `size.borderEmphasis` (1.5) tall, drawn
+at the header's bottom edge directly above its `color.separator.region` hairline,
+full column width, in the template's own rail colour. Hue here is the template's
+hue, which §13.1 already makes the one hue in this window.
+
+Window labels keep §7's rule unchanged: once, at the window's top edge, in the
+**leading** day column — whether or not that column is active. A `TimeWindow`
+carries its own `weekdays` and has nothing to do with the template's set.
+
+#### 13.5.3 The in-column note
+
+One note per inactive column, pinned to the **top of the visible region** of its
+own column — the same pinning rule a scrolled-past window label uses (§7) and for
+the same reason: a note that scrolls away is a note that is not there when the
+gesture is attempted. Inset `spacing.xs` from the column's leading edge and
+`spacing.xs` from the top of the visible region. Maximum width
+`size.inactiveDayNoteMaxWidth` (76), so it fits inside
+`size.routineEditorColumnMin` (84) with its inset.
+
+Two elements, stacked `spacing.xxs` apart:
+
+1. `Not in this routine` — `inactiveDayLabel` type, `color.text.secondary`,
+   wrapping to two lines. Measured 6.42:1 / 7.54:1 on `color.surface.canvas`.
+2. `Add Sat` — a text button, `editorModeLabel` type,
+   `color.interactive.accent` (4.56:1 / 6.03:1 on canvas, now a checked pair in
+   `tokens.json`), underlined, cursor `.pointingHand`. On hover a
+   `color.interactive.hoverOverlay` rounded rect at `radius.chip` with
+   `spacing.xxs` padding. The weekday is the same `shortWeekdaySymbols` form the
+   header uses, so the button names the column it is in.
+
+No glyph, in either element. The symbol vocabularies are closed (§10.1) and this
+is chrome in a window that already has two of them.
+
+**Copy is exact.** `Not in this routine`, not "inactive", not "disabled", not
+"no blocks". The user did not disable anything; this weekday is simply not part
+of this routine, and the next sentence tells them how it could be.
+
+#### 13.5.4 Activation
+
+Three paths, one write:
+
+- the `Add Sat` button (§13.5.3);
+- the weekday toggle row in the editor inspector with nothing selected
+  (`layouts.md` §8.1) — the keyboard path, so the pointer path is not the only
+  one;
+- removal only: toggling an active weekday off in that same row.
+
+One named undo step each: `Add Saturday to Routine` / `Remove Saturday from
+Routine`, spelled with the weekday's full name (`standaloneWeekdaySymbols`) so
+the Edit menu reads as a sentence.
+
+On activation the column's hour lines return to `color.separator.hour`, the
+header gains its underline, the note disappears, and **every block in the
+template appears in the column at once**, over `motion.viewChange` (0.16,
+easeInOut, opacity only). That simultaneous arrival is the point: it is the
+clearest available statement of what a weekday set means, and it happens in the
+same frame as the click, so the width of the change cannot be missed. Under
+Reduce Motion it is an instant swap, per that token's own entry.
+
+Deactivation runs the same transition in reverse. It is not confirmed — nothing
+is destroyed (the blocks belong to the template, not the column) and `⌘Z` is one
+press away. What happens to instances **already materialised** on that weekday is
+§13.6.4's job, not this one's.
+
+#### 13.5.5 Scope: Blocks mode only
+
+Every rule in §13.5 applies in **Blocks mode** and in no other mode. In Windows
+mode all seven columns are first-class editing surfaces: no note, no line
+reweighting, and no header underline at all — a `TimeWindow`'s `weekdays` is its
+own set, unrelated to `activeWeekdays`, so a protected window on a Saturday is
+perfectly ordinary and must be editable whether or not the routine runs then.
+Showing the template's weekday state while the template is not the edited layer
+would mark the wrong thing.
+
+### 13.6 Materialisation
+
+What `RoutineEngine.materialize` may and may not do. Nothing here is a visual
+value; it is the behaviour the surfaces in §13.4, §13.5 and §13.7 describe, and it
+is specified here because the rules are what make those surfaces truthful.
+
+#### 13.6.1 Protected windows: refuse, never place, never shift
+
+`CONTEXT.md`: *"Protected time windows are never scheduled into automatically."*
+
+**"Place it, then surface a conflict" does not satisfy that rule** (closes
+G-023). If after-the-fact surfacing counted as compliance, the rule would have
+no content — every violation could be excused by a badge, and the brief's Phase 6
+posture ("validate and reject the plan rather than trusting the model to have
+obeyed") would be arguing with its own Phase 2. Materialisation is an automatic
+process. It refuses.
+
+1. For each `(block, date)` pair, materialisation computes the pair's interval
+   and compares it against every `.protected` `TimeWindow` span on that date.
+2. Any overlap — strict, touching endpoints do not count, the same test
+   `ConflictEngine` uses — means **no event is created for that pair**.
+3. It does **not** trim the pair to the non-overlapping remainder, and it does
+   **not** shift it clear. Both are an automatic process choosing a time, which
+   is the thing the rule forbids and the thing "the assistant proposes, the user
+   disposes" forbids twice.
+4. `.lowEnergy` and `.peakFocus` windows never block materialisation. They are
+   preferences the planner reads in Phase 6; only `.protected` is a hard
+   constraint, and only `.protected` is named by the rule.
+
+Manual action is untouched: `interactions.md` §4's "Dropping into a protected
+window is allowed" stands, for exactly the reason stated there — that rule binds
+automatic placement, not a user being explicit.
+
+#### 13.6.2 A refusal is never silent
+
+A refused pair means a block the user wrote into their routine will never run.
+That is the definition of something needing attention, so it surfaces in three
+places and the first two are in the window where the cause lives:
+
+- **The Routines window canvas.** A block whose interval overlaps a `.protected`
+  span takes the §6 **`conflicted`** presentation, in exactly the columns where
+  it collides and no others. This needs no materialisation to compute — template
+  interval versus window span is a static comparison — and it introduces no new
+  component: the alert border at `size.borderEmphasis` and the
+  `exclamationmark.triangle.fill` badge already mean precisely this.
+- **The editor inspector**, for that selected block: one line,
+  `inspectorLabel` / `inspectorValue`, reading
+  `Will not run — inside Sleep (protected) on Mon, Wed, Fri`. The window's label
+  and the colliding weekdays, both named. Never "blocked", never "error".
+- **The needs-attention count** (§10.2) in the main window, which is what keeps
+  this off the list of things the user has to remember to go and check. See
+  §14.6 for what activating it does.
+
+#### 13.6.3 Re-materialisation keeps untouched instances current
+
+The brief requires re-materialisation "when a template changes without
+destroying manual edits". Creating-only is not enough: a block moved from 07:00
+to 07:30 in the template must move on the calendar too, or the template is not
+the baseline it claims to be (closes G-020).
+
+Per `(block, date)` pair inside the horizon (§13.6.5):
+
+| Pair state | Re-materialisation does |
+|---|---|
+| No event exists, no tombstone | create it — unless §13.6.1 refuses |
+| Event exists, **not** detached | **update** start, end, title and flexibility to the template's current values |
+| Event exists, **detached** (§13.7) | leave it completely alone |
+| Event exists, tombstoned (§13.7.4) | leave it deleted — do not recreate |
+| Template no longer produces the pair | §13.6.4 |
+
+An update carries the event's own `status` (`.done` / `.skipped`) forward
+unchanged. Status is a fact about a day, never a divergence from a routine.
+
+#### 13.6.4 Withdrawal: when the template stops producing a pair
+
+A weekday is deactivated, a block is deleted from the template, or §13.6.1
+starts refusing a pair that it previously created. In every case:
+
+- **Future, non-detached instances are deleted.** A routine that no longer
+  contains Saturday should not leave Saturdays on the calendar; leaving them
+  would make the template a lie in the other direction.
+- **Detached instances are kept**, and they stop being detached — there is no
+  longer a template pair for them to differ from. They become ordinary
+  `.routine`-origin events, keep their `(sourceID, externalID)`, and §13.4's
+  inspector line is replaced by `No longer part of Gym routine`, with no
+  `Revert to routine` action, because there is nothing to revert to.
+- **Past instances are never touched**, detached or not. See §13.6.5.
+
+All of a single withdrawal is **one named undo step**, folded into the step that
+caused it — `Remove Saturday from Routine` undoes the deletions as well as the
+weekday, in one `⌘Z`. Same reasoning as `interactions.md` §11.2: an undo that
+only partly undoes is worse than none, because the user stops pressing before
+they are whole.
+
+#### 13.6.5 Horizon, triggers, and the past
+
+- **Materialisation never writes to any day before `startOfDay(today)`** — not a
+  create, not an update, not a delete. The past is a record. This is the one rule
+  in §13.6 with no exception anywhere.
+- **Horizon:** today through the later of `today + 28 days` and
+  `(the main window's visible range's end) + 7 days`. The 7-day lead means paging
+  forward never shows an empty week that fills in after a beat.
+- **Triggers:** app launch; any edit to a template, a block or a `TimeWindow`;
+  and a change to the main window's visible range. It is idempotent, so a
+  trigger firing twice costs nothing.
+
+### 13.7 Detachment, re-sync and deletion
+
+Rulings this implements: `DECISIONS.md` 2026-09-10 "Routine instances edit
+instance-only, no dialog", plus G-019 and G-021. §13.4 specifies the surfaces;
+this is what they describe.
+
+#### 13.7.1 What detaches an instance
+
+Detachment means "this instance differs from the routine, deliberately, and
+re-materialisation must not overwrite it." The test is therefore not "was this
+event touched" but **"does this edit change something the template owns"**.
+
+| Main-grid edit | Detaches |
+|---|---|
+| Move (drag, `⌥↑`/`⌥↓`, `⌥←`/`⌥→`) | **yes** |
+| Resize (drag, `⌥⇧↑`/`⌥⇧↓`) | **yes** |
+| Retitle | **yes** |
+| Change flexibility | **yes** |
+| Mark done / undone | no |
+| Mark skipped / unskipped | no |
+| Applying a conflict option (`§14`) | per the option's own edit — `.shiftLater` and `.shorten` detach, `.skipToday` does not |
+| Notes, location, lock | no |
+| Delete | not detachment — §13.7.4 |
+
+Start, end, title and flexibility are the four fields the template owns, so
+exactly those four detach. `status` does not: `done` and `skipped` are facts
+about one day, and if `skipped` detached, then every `.skipToday` conflict
+resolution would detach an instance and `Re-sync` would offer to undo the user's
+own conflict resolutions — which is backwards. Notes, location and lock are not
+template-owned, so the template has nothing to say about them.
+
+An instance that is edited back to the template's values **stays detached**. The
+user made this day explicit; matching by coincidence is not the same as being
+generated, and silently re-adopting it would mean a later template edit moves a
+day the user had pinned.
+
+#### 13.7.2 What marks it
+
+One persisted flag on the instance, set at the moment of a §13.7.1 edit and
+cleared only by Re-sync (§13.7.3), `Revert to routine` (§13.4), or withdrawal
+(§13.6.4). Nothing else is stored:
+
+- The **affected date** that §13.4's popover and `interactions.md` §11.2 list is
+  the instance's own day. It is not a second field.
+- The **template's values** are read live from the `RoutineBlock`, which still
+  exists. `Revert to routine` and `Re-sync` therefore restore the template's
+  *current* values, not the values in force when the instance was detached. That
+  is the predictable reading — "re-sync" means "make this match the routine as it
+  is now" — and it is the only one that does not require a second copy of every
+  template field per instance.
+
+The flag is **not** a block signal. `DECISIONS.md` 2026-09-10 settled that: every
+channel on the grid is spent, and detachment matters when reasoning about the
+routine, never when reading Tuesday.
+
+#### 13.7.3 Re-sync
+
+Scope, which §13.4's `3 instances edited this week` left open (closes G-021):
+**the detached, non-tombstoned instances of this template whose day falls in the
+horizon (§13.6.5), from `startOfDay(today)` forward.** Past detached instances
+are neither counted nor re-synced — §13.6.5 has no exceptions.
+
+The count's copy therefore changes: `3 instances edited` and
+`1 instance edited`, with no "this week". The old string named a scope the
+feature does not have, and the popover lists the actual dates anyway. Still
+`blockMeta` / `color.text.secondary`, still hidden entirely at zero.
+
+The popover (§13.4) lists those dates, up to six then `+N`; the primary action
+reads `Re-sync 3 instances` / `Re-sync 1 instance`. Applying it sets start, end,
+title and flexibility back to the template's current values for every listed
+instance, clears every flag, and leaves `status` alone. One undo step,
+`Undo Re-sync Routine` (`interactions.md` §11.2).
+
+`Revert to routine` (§13.4, one selected instance in the main-grid inspector)
+does exactly the same thing to exactly one instance. Its undo step is named
+**`Revert Instance to Routine`** — a distinct name, because the two are different
+sizes of damage and the Edit menu is the only warning the user gets.
+
+#### 13.7.4 Deleting an instance leaves a tombstone
+
+`⌫` on a materialised routine instance currently removes the row, and the next
+re-materialisation pass finds no event for that `(block, date)` pair and creates
+it again. The block comes back on its own. That is the same class of silent
+behaviour as the weekday defect, and it is closed the same way (part of G-019).
+
+**Deleting a materialised instance records that the pair was deleted**, and
+re-materialisation never recreates a tombstoned pair (§13.6.3). The record is
+keyed by the same `(sourceID, externalID)` pair the instance had, so it needs no
+new identity scheme.
+
+- It is **not** detachment and does not appear in the detached count. A deleted
+  day is not an edited day; there is nothing to re-sync it to.
+- `⌘Z` restores the instance **and** removes the tombstone, in the one step
+  `interactions.md` §5 already names.
+- Re-sync does not resurrect tombstoned pairs. Deleting the block from the
+  template, or deactivating the weekday, makes the tombstone irrelevant and it
+  may be discarded.
+- Tombstones before `startOfDay(today)` are never consulted, because nothing
+  materialises into the past (§13.6.5).
+
 ---
 
 ## 14. Conflict resolution
@@ -836,6 +1202,25 @@ resolver, same hue, same rail — so the thing in the panel is recognisably the
 thing on the grid.
 
 Below them, the overlap itself: `13:00–14:30 · 45 min overlap`, `blockMeta`.
+
+**Amended 2026-10-01 — when the other side is a window, not a block (closes
+G-024).** A protected-window collision has no second block to render, and a
+`TimeWindow` must not be drawn as one: a block means content, and §7 spends its
+whole argument on windows being canvas. The lower half of the header is instead a
+**window row**: full panel width, the same height the 16–27 tier gives the block
+above it, filled with the window's own §7 treatment — `color.window.protectedFill`
+with its `color.window.protectedEdge` lines at top and bottom — carrying two
+labels, `windowLabel` / `color.window.label` for the window's own label and
+`blockMeta` / `color.text.secondary` for `protected · 22:00–07:00`. No hue, no
+rail, no glyph, no corner radius: it is a slab, because that is what it is on the
+grid.
+
+The word between the two becomes **`lands in`**, not `overlaps`. Two blocks
+overlap each other symmetrically; a block lands in a window, and the asymmetry is
+the whole point of the rule being broken.
+
+Under Increase Contrast the row takes §7's override (`color.window
+.protectedEdgeHC` on all four sides) for the same reason the grid does.
 
 ### 14.3 The option row
 
@@ -863,6 +1248,114 @@ Options are ordered by disturbance, least first. The recommended one is usually
 but not necessarily first — when it is not, the ordering still reads as a ranking
 because line 2 says why.
 
+**Amended 2026-10-01 — the option catalogue, the cap, the ranking, the
+recommendation and the exact copy. Closes G-017.**
+
+G-017 reported that the engine can only ever produce one or two options and can
+only ever recommend the first. Both halves are resolved by specifying the thing
+§14.3 had left to the engine, rather than by relaxing §14.3 to match it: the brief
+asks for "2–3 concrete resolution options ranked by how little they disturb the
+day, with one marked recommended", and the brief's own worked example names the
+three — *"shift training 90 min later", "shorten it to 45 min", "skip today"*.
+The engine's shortfall is not that three is too many; it is that it gates
+`shorten` behind `flexibility == .fixed` for no reason the spec ever gave. A
+block being shiftable does not make it unshortenable.
+
+#### 14.3.1 The catalogue
+
+Exactly three kinds, in this **kind order** (used as the tie-break everywhere
+below):
+
+| Kind | Available when | Disturbance |
+|---|---|---|
+| `shiftLater` | `flexibility == .shiftable`, and the smallest 15-minute-stepped later shift that clears the collision is ≤ the block's ± minutes | minutes moved |
+| `shorten` | **any** flexibility, and the larger of the two non-overlapping remainders is ≥ 15 min | minutes trimmed |
+| `skipToday` | always | the occurrence's full duration in minutes |
+
+Three consequences, all intended:
+
+- `.shiftable` now reaches **three** options in the ordinary case.
+- `.droppable` now reaches **two** (`shorten` + `skipToday`) instead of one. A
+  single take-it-or-leave-it row is not "decisions come with defaults"; it is an
+  ultimatum with a chip on it.
+- `.fixed` reaches two, which §14.3's "two or three" always permitted.
+
+**`shiftEarlier` is deliberately not in the catalogue.** `Flexibility
+.shiftable(±minutes)` in the brief's data model is two-sided, and an earlier
+shift is almost always the cheapest option on the disturbance scale — which is
+exactly why it is wrong here. A routine block is a habit anchored to a time of
+day; moving breakfast earlier is not a cheaper version of moving it later, and a
+ranking that offered it first would recommend the least achievable thing most of
+the time. The field stays two-sided for the Phase 6 planner, which has the
+energy-window information needed to judge an earlier slot. Phase 2 does not.
+
+#### 14.3.2 Cap and order
+
+- **Cap: three.** The catalogue cannot exceed it, so no option is ever dropped.
+- **Display order: ascending `disturbanceMinutes`; ties broken by kind order.**
+  This is the brief's ranking, unchanged.
+- **`skipToday` is never removed**, whatever else is present. It is the no-guilt
+  escape, and `.droppable`'s only honest resolution.
+
+#### 14.3.3 The recommendation rule
+
+Disturbance-minutes answers "how little does this disturb the day". It does not
+answer "which of these should I pick", because it is blind to *what kind* of
+thing is being spent. Twenty minutes trimmed off a 45-minute gym session is not
+20 minutes of disturbance in the same sense as a 20-minute shift: one keeps the
+session, the other dismantles it. So the recommendation reads the kinds, in this
+order, and takes the first that qualifies:
+
+1. **`shiftLater`**, if available and `disturbanceMinutes ≤ the occurrence's own
+   duration`. Moving a block by no more than its own length is proportionate;
+   moving a 30-minute coffee by two hours is not, and at that point it is not the
+   same coffee.
+2. **`shorten`**, if available and the kept duration is `≥ half` the original.
+   Half a session is still the session. A quarter of one is a different activity
+   with the same name.
+3. **`skipToday`**, otherwise. When nothing can be preserved proportionately, the
+   honest recommendation is the one that puts the block back in the pool.
+
+Exactly one option carries the chip. **A single-option conflict carries no chip
+at all** — a recommendation among one is noise, and the footer's `1 of N`
+(`layouts.md` §10) already says where the user is. That case is reachable: a
+`.fixed` occurrence wholly contained in the other event has no remainder to keep
+and cannot shift, so `skipToday` stands alone.
+
+This rule **does** diverge from the display order in reachable cases, which is
+what §14.3's "usually but not necessarily first" was always describing. Worked
+example, and the fixture §17 item 7 uses: a 90-minute `.shiftable` occurrence at
+17:00–18:30 with ±90, colliding with a 17:30–18:15 event — `shorten` trims 60,
+`shiftLater` moves 75, `skipToday` costs 90, so the rows read 60 · 75 · 90 and the
+**second** is recommended, because 75 ≤ 90 keeps the whole session.
+
+#### 14.3.4 Exact copy
+
+Line 1, `conflictOptionTitle`, imperative, no trailing period:
+
+| Kind | Title |
+|---|---|
+| `shiftLater` | `Shift Training 75 min later` |
+| `shorten` | `Shorten Training to 30 min` |
+| `skipToday` | `Skip Training today` |
+
+Line 2, `conflictOptionDelta`. It must carry the number the ranking is made of
+*and* what that number costs, because the recommendation can disagree with the
+order and line 2 is the only place that disagreement is explained:
+
+| Kind | Line 2 |
+|---|---|
+| `shiftLater` | `17:00 → 18:15 · all 90 min kept` |
+| `shorten` | `90 min → 30 min · 60 min lost` |
+| `skipToday` | `Does not run today · 90 min lost · re-offered` |
+
+`re-offered` is not decoration. It is the no-guilt rule stated at the moment the
+user is deciding to skip something: the block goes back in the pool, it is not
+gone and it is not a mark against them.
+
+Durations are always `N min` below 60 and `N h MM` at or above it
+(`1 h 30`), monospaced digits throughout, times in 24-hour `HH:mm`.
+
 ### 14.4 Preview in place
 
 Focusing an option previews it on the real grid. Every block the option would
@@ -876,6 +1369,15 @@ inspector — carries a `size.previewCanvasBorder` inset border in
 frame, and it is what stops a previewed day being mistaken for the real one at a
 glance across the room.
 
+**An option with no destination frame shows the ghost and nothing else (closes
+G-014).** `skipToday` proposes no new frame, so there is no proposed frame to
+draw a dashed twin at. The occurrence dims to `opacity.blockDragOrigin` exactly
+as any focused option dims what it is about to change, and no `previewed` twin is
+drawn. Manufacturing one at the block's own unchanged position would put a dashed
+accent outline directly on top of the ghost, which reads as a rendering fault,
+not as a proposal. The canvas border (above) is what says a hypothetical is
+active; it is present for `skipToday` like any other option.
+
 Nothing is written until the option is applied. Abandonment is specified in
 `interactions.md` §10.2 and is unconditional.
 
@@ -884,6 +1386,59 @@ Nothing is written until the option is applied. Abandonment is specified in
 When the last conflict is resolved the panel does not congratulate. It returns to
 the ordinary inspector, and the needs-attention row disappears (§10.2, hidden at
 zero). No "all clear" state, no checkmark screen.
+
+**A skipped occurrence is resolved (closes G-015).** Applying `skipToday` does
+not move the occurrence, so an interval test alone would report the identical
+collision on the next pass and the panel could never advance. The ruling:
+**a `.skipped` routine occurrence is not an overlap.** `EventStore
+.toggleSkipped`'s own reading is the right one — an occurrence that has been put
+back in the pool is not occupying the slot it was skipped out of, so it is not
+competing for it. Status gates detection, for the `.routine` side only, and only
+for `.skipped`. `.done` never gates it: a completed block really did occupy its
+slot.
+
+### 14.6 Template conflicts: a routine block that cannot run
+
+A §13.6.1 refusal — a template block whose interval lands in a protected window —
+is a conflict with no event on either side. It uses the same panel, with three
+differences and no new components.
+
+**It is not shown in the main window.** The needs-attention row counts it and is
+its entry point (§13.6.2), but activating it **opens the Routines window**
+(`⌘⌥R`'s window), selects the template, selects the block, and puts the *editor*
+inspector into conflict mode. None of this conflict's options can be applied to a
+day — they all edit the routine — so offering them over a day grid would invite
+the user to fix Tuesday for a problem that is in the template.
+
+**The collision header** is §14.2's amended form: the routine block as a real
+block above, the window row below, `lands in` between them, and the overlap line
+naming the weekdays it happens on — `22:30–23:15 · 45 min · Mon, Wed, Fri`.
+
+**The options** are template-level, same row geometry, same chip, same §14.3.2
+ordering (ascending disturbance, kind-order tie-break):
+
+| Kind | Available when | Disturbance | Title | Line 2 |
+|---|---|---|---|---|
+| `shiftLater` | a 15-minute-stepped later start clears every colliding span on every active weekday, within `0…1440` | minutes moved | `Shift Errands 30 min later in the routine` | `12:30 → 13:00 · all 45 min kept · every active day` |
+| `shiftEarlier` | same, earlier | minutes moved | `Shift Errands 75 min earlier in the routine` | `12:30 → 11:15 · all 45 min kept · every active day` |
+| `shorten` | the larger remainder outside every colliding span is ≥ 15 min | minutes trimmed | `Shorten Errands to 15 min` | `45 min → 15 min · 30 min lost · every active day` |
+| `remove` | always | duration × colliding active weekdays | `Remove Errands from this routine` | `Deletes the block · 135 min lost across Mon, Wed, Fri` |
+
+`shiftEarlier` **is** in this catalogue, unlike §14.3.1's: here the user is
+editing the shape of their week on purpose, not triaging one day under time
+pressure, and an earlier slot is a perfectly ordinary thing to choose
+deliberately. Cap is three: `remove` is always retained, and the other two slots
+go to the lowest-disturbance remainder, kind order breaking ties.
+
+Recommendation: §14.3.3's rule with `remove` in `skipToday`'s place — a
+proportionate shift (either direction), else a shorten that keeps half, else
+`remove`.
+
+**Preview** is §14.4 on the Routines window's own canvas: the previewed block in
+every active column at once, ghosts at their current frames, and the
+`size.previewCanvasBorder` accent border on the Routines canvas. Applying is one
+named undo step, `Resolve Routine Conflict`, and §13.6.3 re-materialises behind
+it inside the same step.
 
 ---
 
@@ -905,6 +1460,22 @@ and a truncated time is worse than no title. The title truncates tail-first
 inside whatever the time leaves. Below the budget the item degrades to the time
 alone. No icon in the normal state; every point in a crowded menu bar is
 contested and the text is the information.
+
+**Amended 2026-10-01 — where "below the budget" is.** `size.statusItemMaxWidth`
+is a budget, not a guarantee; a crowded menu bar gives the item less. The item
+measures what it is actually given and:
+
+- renders `HH:mm · Title` with the title truncated tail-first, while the space
+  left after the time and the ` · ` separator is at least
+  `size.statusItemTitleMinWidth` (32 — about four characters plus an ellipsis at
+  `statusItem` size);
+- renders the time **alone**, with no separator and no ellipsis, below that. A
+  one-character stub of a title is not information; it is noise beside the one
+  thing on the item that matters.
+
+In the late state the glyph and the elapsed figure together replace the time in
+this calculation — the glyph is never dropped, because without it the elapsed
+figure reads as a clock time.
 
 | State | Content | Colour |
 |---|---|---|
@@ -1004,3 +1575,120 @@ Additions to the §12 fixture set. Same rule: display fixtures, no services.
 11. Popover: normal, late, empty, and with more than `size.popoverMaxRestRows`
     remaining
 12. The snooze result row, same-day and next-day
+13. The Routines window in Blocks mode with four inactive weekday columns —
+    reweighted hour lines, the in-column note, and the active columns' header
+    underlines (§13.5.2, §13.5.3)
+14. The same window in **Windows** mode, where none of §13.5's treatment applies
+    (§13.5.5)
+15. A template block taking the `conflicted` presentation in the Routines window
+    because it lands in a protected window (§13.6.2), with the editor inspector's
+    `Will not run — …` line
+16. The §14.6 template conflict panel: the window-row collision header and three
+    template-level options
+17. A single-option conflict, showing **no** `Recommended` chip (§14.3.3)
+18. A `skipToday` option focused: the ghost dim with no dashed twin, plus the
+    canvas border (§14.4)
+
+---
+
+### 17.1 Exact fixtures
+
+Every capture above is a display fixture. These are the ones whose state is not
+reachable by guessing, so the values are named here rather than left to the
+capture task. **Items 6, 7, 15, 16 and 17 need routine `Event`s that
+`RoutineEngine.materialize` actually produced** — `ConflictEngine` resolves a
+routine occurrence's ± minutes by reversing its `externalID`, so a hand-seeded
+`.routine` event cannot reach `shiftLater` at all. Materialisation must be wired
+and running before these can be captured.
+
+**Additions to the `Daily routine` template** (Mon/Wed/Fri, `.green`):
+
+| Title | Start | Duration | Flexibility | ± | Serves |
+|---|---|---|---|---|---|
+| `Training` | 17:00 | 90 min | `.shiftable` | 90 | items 6, 7, 17 |
+| `Errands` | 12:30 | 45 min | `.shiftable` | 90 | items 15, 16 |
+
+**Addition to the `TimeWindow` seed:** `Lunch`, `.protected`, Mon/Wed/Fri,
+12:00–13:00. The existing `Sleep` (22:00–07:00, every day) deliberately overlaps
+nothing, so it cannot drive item 15; a bounded daytime protected window can, and
+it is also the only fixture in which a protected collision has a way out in both
+directions.
+
+**Addition to the seeded events:** `Supervisor meeting`, `.manual`, 17:30–18:15,
+on the first Mon/Wed/Fri at or after today.
+
+#### Item 6 — two options and three
+
+- **Three options.** `Training` (17:00–18:30) × `Supervisor meeting`
+  (17:30–18:15). Rows: `Shorten Training to 30 min` (60) ·
+  `Shift Training 75 min later` (75) · `Skip Training today` (90).
+- **Two options.** The existing seeded pair, unchanged: the `.fixed`
+  `Focus review` × `Client call` overlap already captured as
+  `screenshots/2/conflict-panel-two-options.png`.
+
+#### Item 7 — recommended not first
+
+The three-option fixture above, with no change. `shiftLater` moves 75 minutes,
+which is ≤ the occurrence's 90-minute duration, so §14.3.3 recommends it; it sorts
+**second**, behind the 60-minute shorten. The chip is on row 2.
+
+#### Item 17 — single option, no chip
+
+`Training` with its ± minutes set to **15** for this capture, against a
+`Supervisor meeting` widened to 16:45–18:45 — which wholly contains the
+occurrence. `shiftLater` needs 105 min (> 15), both remainders are 0, so
+`skipToday` stands alone and carries no chip.
+
+#### Items 15 and 16 — the protected-window refusal
+
+`Errands` (12:30–13:15) × `Lunch` (12:00–13:00) on Mon, Wed, Fri. Item 15 is the
+Routines canvas: the block carries `conflicted` in those three columns and only
+those. Item 16 is the panel, reached from the needs-attention row, with three
+rows: `Shift Errands 30 min later in the routine` (30) ·
+`Shorten Errands to 15 min` (30) · `Remove Errands from this routine` (135).
+`Shift Errands 75 min earlier in the routine` (75) is a fourth candidate that the
+three-option cap drops, which is what makes this fixture also a check on §14.6's
+cap and kind-order tie-break. The first row is recommended.
+
+#### Item 10 — status item widths
+
+The clipping half needs a title that cannot fit under any reasonable
+measurement, so it is named rather than described:
+
+| Capture | `now` | Title | Available width | Expected |
+|---|---|---|---|---|
+| normal, full | 17:10 | `Gym` | 180 | `17:30 · Gym` |
+| normal, clipped | 17:10 | `Statistik Übung Gruppe 4` | 180 | `17:30 · Statistik Üb…` |
+| late, full | 17:42 | `Gym` | 180 | glyph + `12m ago · Gym` |
+| late, clipped | 17:42 | `Statistik Übung Gruppe 4` | 180 | glyph + `12m ago · Stati…` |
+| empty | 23:40 | — | 180 | `Nothing left today` |
+| degraded | 17:10 | `Statistik Übung Gruppe 4` | **110** | `17:30` alone |
+
+The exact truncation point is whatever the measured font produces; what the
+capture is checking is that the **time is intact in every row** and that the
+110pt row shows no separator and no ellipsis (§15.1).
+
+#### Item 11 — popover rest-row overflow
+
+`now` = 17:10. Next: `Training`, 17:30–18:15, `Daily routine`. Rest of today,
+nine rows, so six render and the overflow line is plural:
+
+`18:30 Code review` · `19:00 Dinner` · `19:30 Reading` · `20:00 Mail triage` ·
+`20:30 Stretching` · `21:00 Journal` · `21:30 Plan tomorrow` · `22:00 Tidy desk` ·
+`22:30 Water plants`
+
+Expected: rows `18:30` through `21:00`, then `+3 more`.
+
+The other three popover states: **normal** = the same fixture with only the first
+three rest rows; **late** = `now` 17:42 against the same next item, giving
+`Started 12m ago · Gym`; **empty** = `now` 23:40, no next item, rest section
+omitted entirely.
+
+#### Item 13 — inactive weekday columns
+
+The `Daily routine` template unchanged (Mon/Wed/Fri), Blocks mode, window wide
+enough that all seven columns are above
+`size.routineEditorColumnMin`. Tue/Thu/Sat/Sun each show the note; Mon/Wed/Fri
+each show the green header underline. A second capture at
+`size.routineEditorMinWidth` (780) checks the note still fits inside
+`size.inactiveDayNoteMaxWidth`.

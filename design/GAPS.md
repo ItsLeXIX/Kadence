@@ -1161,3 +1161,383 @@ disturbance," both of which this reading holds unconditionally already — see
 engine decision to add a third option source and/or a non-disturbance
 tie-break/override rule for `isRecommended`, at which point `makeOptions`/
 `finalize` above are exactly what would need to change.
+
+---
+
+# 2026-10-01 — design session: the rulings needed to finish Phase 2
+
+Design-only session; no coding agent running, so `design/` was not frozen. Scope
+was Phase 2 of `BRIEF-PRODUCT.md` and nothing beyond it. Every entry below is
+written into a spec file before being marked CLOSED here, per `CONTEXT.md`.
+
+---
+
+## 2026-10-01 — G-018 — the Routines window offers seven columns over a model that has no weekdays (DEFECT)
+
+**Where it bit:** the mock template `Daily routine` has
+`activeWeekdays = [2, 4, 6]` (Mon/Wed/Fri). `RoutineWeekLayout.layoutItems`
+returns nothing for the other four weekdays, so those columns render as an empty
+hour grid plus the time-window backdrop. Before commit `5b73949`, creating a
+block on a Tue/Thu/Sat/Sun column silently placed it on Mon, Wed and Fri
+instead — the user drew on one column and the block appeared on three others.
+
+**Why it happened.** A `RoutineBlock` is not on a weekday. It is a
+`startMinutes` + `duration` that runs on every one of the template's active
+weekdays (`RoutineTemplate.swift`'s own doc comment). The canvas presents seven
+columns, which reads as seven placement surfaces. Nothing in `design/` ever said
+which of the two readings was true, so the window inherited the one the geometry
+implies and the store implemented the one the model allows.
+
+**`5b73949` was a hand fix, never specced.** It disables `createSurface`
+hit-testing and draft layout on inactive columns
+(`RoutinesWindow.swift`'s `isActiveDay`). It stops the silent relocation and
+nothing else: the columns still draw hour lines and the window backdrop with no
+statement of why they are inert, and dragging an existing block toward one was
+not addressed at all.
+
+**RULING — CLOSED. Written into `components.md` §13.5 (with §13.5.1–§13.5.5) and
+`interactions.md` §11.1 / §11.1.1.**
+
+(a) **Refuse, with the reason standing and the remedy adjacent.** A create
+gesture on an inactive column does nothing — no block, no draft, no outline,
+cursor `.operationNotAllowed`. It does not add the weekday and it does not ask.
+Auto-adding was rejected because activating a weekday adds *every* block in the
+template to that column, and a create-drag is the cheapest and most
+mis-aimed gesture in the window; a prompt was rejected as the same modal tax
+`DECISIONS.md` 2026-09-10 already refused. The refusal is not a dead end: the
+reason is on screen before the gesture and stays there (§13.5.2–§13.5.3), and
+the remedy — an `Add Sat` text button — is inside the column the pointer is
+already in. Undo step names: `Add Saturday to Routine` /
+`Remove Saturday from Routine`. Full copy, geometry and the activation
+transition are in §13.5.3–§13.5.4.
+
+(b) **Column treatment, §13.5.2.** Three channels, token-only: hour *and*
+half-hour lines both drawn in `color.separator.halfHour`; no header underline
+(active days gain a `size.borderEmphasis` underline in the template's
+`color.source.<slot>.rail`, so activity is marked positively rather than the
+inactive days being degraded); and a pinned two-element note,
+`Not in this routine` + `Add Sat`. **The ground stays
+`color.surface.canvas`** — `color.surface.canvasSunken` measures 1.01:1 against
+`color.window.protectedFill` in light appearance, which would delete a protected
+window from exactly the column it was drawn to explain. Window layer and window
+labels unchanged, at full strength, because a `TimeWindow` carries its own
+`weekdays` and has nothing to do with `activeWeekdays`. All of §13.5 applies in
+**Blocks mode only** (§13.5.5).
+
+(c) **`5b73949`'s gesture-disable stays, and is now specified** —
+`interactions.md` §11.1's "Gestures on an inactive column are refused" is that
+behaviour, plus the `.operationNotAllowed` cursor it was missing and the
+draft-abandonment rule its own inline comment was guessing at. Also now
+specified, and previously absent: a block drag in this window is **vertical
+only** (a block cannot move between columns at all, which is the complete answer
+to dragging toward an inactive column), and the drop preview is drawn in **every
+active column at once**.
+
+**New tokens:** `typography.inactiveDayLabel`, `size.inactiveDayNoteMaxWidth`
+(76). **New checked contrast pair:** `color.interactive.accent` on
+`color.surface.canvas` (measured 4.56 / 6.03).
+
+---
+
+## 2026-10-01 — G-017 — CLOSED
+
+**The ruling: implement 2–3 options. `components.md` §14.3 and §17 items 6/7 are
+not relaxed.** Written into `components.md` §14.3.1–§14.3.4.
+
+G-017's diagnosis was right and its conclusion was one step short. The engine
+cannot produce three options because `makeOptions` gates `shorten` behind
+`flexibility == .fixed`, and **no spec ever asked it to**. A block being
+shiftable does not make it unshortenable. Ungating `shorten` for every
+flexibility is the third option source, and it is the brief's own worked example:
+*"shift training 90 min later", "shorten it to 45 min", "skip today"* — three
+options, one block, and the brief did not say the block was `.fixed`.
+
+- **Catalogue (§14.3.1):** `shiftLater` (`.shiftable` only, within ± minutes),
+  `shorten` (**any** flexibility, remainder ≥ 15 min), `skipToday` (always).
+  Consequences: `.shiftable` reaches three; **`.droppable` reaches two instead of
+  one**, which was a defect of its own — a single take-it-or-leave-it row is an
+  ultimatum with a chip on it, not "decisions come with defaults"; `.fixed`
+  reaches two, which §14.3 always permitted.
+- **`shiftEarlier` is deliberately excluded** from the day-level catalogue and
+  the reasoning is recorded: it is almost always the cheapest option on the
+  disturbance scale and almost never the achievable one, so a disturbance
+  ranking would recommend it first most of the time. It *is* included in the
+  template-level catalogue (§14.6), where the user is editing the shape of the
+  week on purpose. The `±` in the model stays two-sided for Phase 6.
+- **Cap three** — unreachable by construction, so no option is ever dropped.
+  Display order ascending by `disturbanceMinutes`, ties by kind order.
+  `skipToday` is never removed.
+- **Recommendation (§14.3.3) is a preservation rule, not the disturbance
+  minimum,** and it legitimately diverges from the display order: `shiftLater`
+  if its minutes ≤ the occurrence's own duration; else `shorten` if it keeps ≥
+  half; else `skipToday`. Disturbance-minutes is blind to *what kind* of thing is
+  spent — 20 minutes trimmed off a 45-minute session is not 20 minutes of the
+  same currency as a 20-minute shift. §14.3's "usually but not necessarily
+  first" is now true of a reachable, named fixture rather than aspirational.
+- **A single-option conflict carries no chip at all.** Reachable: a `.fixed`
+  occurrence wholly contained in the other event. A recommendation among one is
+  noise.
+- **Exact line-1 and line-2 copy per kind (§14.3.4)**, including
+  `re-offered` on the skip row, which is the no-guilt rule stated at the moment
+  the user is deciding to skip.
+- **Fixtures (§17.1)** for items 6, 7 and the new item 17, with the arithmetic
+  worked: `Training` 17:00–18:30 `.shiftable` ±90 × `Supervisor meeting`
+  17:30–18:15 gives rows 60 · 75 · 90 with the **second** recommended. This is
+  item 7, and it needs no engine special case.
+
+**Blocking dependency G-017 did not name:** `RoutineEngine.materialize` has no
+call site anywhere in `Kadence/`. Every `.routine` event on the grid today is
+hand-seeded, and `ConflictEngine` resolves ± minutes by reversing a materialised
+event's `externalID` — so `shiftLater` is unreachable for a seeded event no
+matter what the ranking says. Materialisation must be wired before items 6, 7,
+15, 16 or 17 can be captured. Recorded in §17.1 and in the build-task order.
+
+---
+
+## 2026-10-01 — G-019 — §13.4 never says what makes an instance detached, what marks it, or what happens when one is deleted
+
+**Where it bit:** `RoutineEngine.swift`'s header ("Recognising that an existing
+event has since been hand-edited … needs the main-grid edit-command path wired
+up first") and `RoutinesWindow.swift` line ~1292 ("there is no main-grid edit
+path yet that can tell an instance apart from an untouched one, so the count is
+always zero"). Both are correct, and both were waiting on a spec answer that did
+not exist: `components.md` §13.4 and `DECISIONS.md` 2026-09-10 say an instance
+"edited on the main grid" is pinned, and nothing anywhere defines *edited*.
+
+**Three concrete holes.** (1) Does marking an instance done or skipped detach
+it? If skipped detaches, then applying a `.skipToday` conflict option detaches,
+and `Re-sync` then offers to undo the user's own conflict resolutions. (2) What
+field marks it, and does `Revert to routine` need a stored copy of the
+template's old values? (3) **Deleting a materialised instance is not handled at
+all** — `materialize`'s `eventExists` check finds nothing and recreates it on the
+next pass, so a deleted routine block comes back on its own. That is the same
+class of silent behaviour as G-018, in a path nobody had looked at.
+
+**RULING — CLOSED. Written into `components.md` §13.7.1, §13.7.2 and §13.7.4.**
+
+- **Exactly four fields detach: start, end, title, flexibility** — the four the
+  template owns. Move, resize, retitle and flexibility changes detach; `done`,
+  `skipped`, notes, location and lock do not. `status` is a fact about a day,
+  never a divergence from a routine, which also keeps `.skipToday` resolutions
+  out of the detached count. A full edit-by-edit table is in §13.7.1.
+- **An instance edited back to the template's values stays detached.** The user
+  made that day explicit; matching by coincidence is not the same as being
+  generated.
+- **One persisted flag, and nothing else.** The affected date is the instance's
+  own day, not a second field; the template's values are read live from the
+  still-existing `RoutineBlock`, so `Revert` and `Re-sync` restore the
+  template's **current** values. Detachment remains **not** a block signal
+  (`DECISIONS.md` 2026-09-10 — every channel on the grid is spent).
+- **Deleting a materialised instance leaves a tombstone** keyed by the same
+  `(sourceID, externalID)` pair, and re-materialisation never recreates a
+  tombstoned pair. It is not detachment and is not counted. `⌘Z` restores the
+  instance and removes the tombstone in the one step `interactions.md` §5
+  already names. Tombstones before `startOfDay(today)` are never consulted.
+
+---
+
+## 2026-10-01 — G-020 — re-materialisation is specified only as "leaves detached instances alone", which is not enough to be correct
+
+**Where it bit:** `RoutineEngine.materialize` creates and never updates. Its own
+doc comment is explicit — "calling `materialize` again over an overlapping range
+creates nothing new for a date/block pair that already exists". So moving a
+template block from 07:00 to 07:30 changes the Routines window and changes
+nothing on the calendar, and the template is not the baseline §13.4 claims it is.
+`BRIEF-PRODUCT.md` Phase 2 asks for an engine that "re-materialises when a
+template changes without destroying manual edits"; only the second half was
+specified.
+
+**Also unspecified:** what happens to instances of a `(block, weekday)` pair the
+template has stopped producing (a weekday deactivated, a block deleted); what
+date range re-materialisation covers; and whether it may write to the past.
+
+**RULING — CLOSED. Written into `components.md` §13.6.3, §13.6.4 and §13.6.5.**
+
+- **Per-pair table (§13.6.3):** no event and no tombstone → create (unless
+  §13.6.1 refuses); exists and not detached → **update** start, end, title and
+  flexibility to the template's current values; exists and detached → leave
+  alone; tombstoned → leave deleted. An update carries `status` forward
+  unchanged.
+- **Withdrawal (§13.6.4):** future non-detached instances of a withdrawn pair are
+  **deleted**; detached ones are **kept** and stop being detached, with §13.4's
+  inspector line replaced by `No longer part of Gym routine` and no `Revert`
+  action; past instances are never touched. The whole withdrawal folds into the
+  undo step that caused it — `Remove Saturday from Routine` undoes the deletions
+  too, in one `⌘Z`, for `interactions.md` §11.2's own reason.
+- **The past is a record (§13.6.5):** materialisation never writes to any day
+  before `startOfDay(today)` — not a create, not an update, not a delete. This is
+  the one rule in §13.6 with no exception anywhere.
+- **Horizon:** today through the later of `today + 28 days` and
+  `(visible range end) + 7 days`. **Triggers:** launch, any template / block /
+  `TimeWindow` edit, and a change to the visible range. Idempotent, so a double
+  trigger costs nothing.
+
+---
+
+## 2026-10-01 — G-021 — `3 instances edited this week` names a scope the feature does not have, and `Revert to routine` has no undo step name
+
+**Where it bit:** `components.md` §13.4 and `interactions.md` §11.2 specify
+Re-sync's confirmation and its single undo step (`Undo Re-sync Routine`) but
+never say which instances are in scope — the visible week, the current calendar
+week, or all of them. §13.4 also gives a single-instance `Revert to routine`
+action in the main-grid inspector with no undo step name at all, while
+`interactions.md` §9 requires every mutation to register a named action.
+
+**RULING — CLOSED. Written into `components.md` §13.7.3 and `interactions.md`
+§11.2.**
+
+- **Scope:** the detached, non-tombstoned instances of this template from
+  `startOfDay(today)` forward, inside the materialisation horizon (§13.6.5).
+  Past detached instances are neither counted nor re-synced.
+- **The copy changes to `3 instances edited` / `1 instance edited`** — "this
+  week" is deleted, because the scope is not a week and the popover lists the
+  real dates anyway.
+- **`Revert to routine`'s undo step is `Revert Instance to Routine`** — a
+  deliberately distinct name, because the Edit menu is the only thing standing
+  between "I undid one day" and "I undid a week".
+- Both restore the template's **current** values, and neither resurrects a
+  tombstoned pair.
+
+---
+
+## 2026-10-01 — G-022 — §13.2's ± stepper has a range but no value semantics, and the absent value silently removes a resolution option
+
+**Where it bit:** `components.md` §13.2 specifies the stepper as "`blockMeta`
+type, 15-minute steps, range 15–180" and stops. `RoutineBlock.shiftableMinutes`
+is optional, and `ConflictEngine.shiftLaterOption` returns `nil` when it is
+absent — so a `.shiftable` block with no ± value silently loses its
+`shiftLater` option, which after G-017 is the option the recommendation prefers.
+Nothing said what choosing `Shiftable` writes, what leaving it keeps, or whether
+absent is a legal state.
+
+**RULING — CLOSED. Written into `components.md` §13.2.**
+
+Choosing `Shiftable` with no stored value writes **30** immediately — two snap
+steps, the smallest value that clears an ordinary 15–30 minute collision, so the
+default is useful rather than merely legal. Switching to `Fixed` or `Droppable`
+**keeps** the number and hides the stepper. A `.shiftable` block with no value is
+a defect, not a state: it renders at 30 and writes 30 on first display, because
+the only thing "unset" does in this build is remove an option the user never
+asked to lose. Values clamp to 15–180. Undo steps `Set Flexibility` and
+`Set Shift Range`.
+
+---
+
+## 2026-10-01 — G-023 — does "place it, then surface a conflict" satisfy `CONTEXT.md`'s protected-window rule?
+
+**Where it bit:** `CONTEXT.md`'s hard rule — "Protected time windows are never
+scheduled into automatically." `RoutineEngine.materialize` ignores `TimeWindow`
+entirely. `ConflictEngine.detectWindowConflicts` (task P2-T19) detects routine
+placements that land in a protected window *after the fact*, and nothing said
+whether that counts as compliance.
+
+**RULING — CLOSED. It does not. Written into `components.md` §13.6.1 and
+§13.6.2, with the panel in §14.6.**
+
+If after-the-fact surfacing counted, the rule would have no content: every
+violation could be excused by a badge. The brief's own Phase 6 posture —
+"validate and reject the plan rather than trusting the model to have obeyed" —
+would be arguing with its own Phase 2. Materialisation is an automatic process,
+so it **refuses**: any strict overlap with a `.protected` span means no event is
+created for that pair. It does **not** trim and does **not** shift, because both
+are an automatic process choosing a time. `.lowEnergy` and `.peakFocus` never
+block materialisation — only `.protected` is a hard constraint and only
+`.protected` is named by the rule. `interactions.md` §4's "dropping into a
+protected window is allowed" stands untouched: that rule binds automatic
+placement, not a user being explicit.
+
+**A refusal is never silent (§13.6.2).** It surfaces in the Routines window
+canvas as the §6 `conflicted` presentation on the template block, in exactly the
+colliding columns (a static template-vs-window comparison — no materialisation
+needed, no new component); in the editor inspector as
+`Will not run — inside Sleep (protected) on Mon, Wed, Fri`; and in the
+needs-attention count, so it does not depend on the user remembering to look.
+Activating it from the sidebar **opens the Routines window**, not the main
+inspector, because none of its options can be applied to a day (§14.6).
+
+**Fixture §17 should use (§17.1).** The current mock data cannot show this: the
+only protected window is `Sleep` 22:00–07:00 and no block overlaps it (`Reading`
+ends 21:30; `Gym` starts exactly at 07:00, and touching endpoints are not an
+overlap). Add **`Lunch`, `.protected`, Mon/Wed/Fri, 12:00–13:00** to the
+`TimeWindow` seed, and **`Errands`, 12:30, 45 min, `.shiftable` ±90** to the
+`Daily routine` template. A bounded daytime window is also the only fixture in
+which a protected collision has a way out in both directions, which is what
+makes §14.6's cap and tie-break visible. §17 items 15 and 16.
+
+---
+
+## 2026-10-01 — G-024 — §14.2's collision header has no form for a window on the other side
+
+**Where it bit:** `ConflictEngine.detectWindowConflicts`'s own doc comment named
+this and deliberately filed no gap ("nothing in this function's own scope needs
+it answered"). It is needed now that §14.6 exists. `components.md` §14.2 renders
+"the two colliding blocks as **real blocks**"; a `WindowConflict` has one block
+and one `TimeWindow`, and a window must not be drawn as a block — a block means
+content, and §7 spends its whole argument on windows being canvas.
+
+**RULING — CLOSED. Written into `components.md` §14.2.**
+
+The lower half becomes a **window row**: full panel width, the height the 16–27
+tier gives the block above it, filled with the window's own §7 treatment
+(`color.window.protectedFill` plus `color.window.protectedEdge` at top and
+bottom), carrying its label in `windowLabel` / `color.window.label` and
+`protected · 22:00–07:00` in `blockMeta` / `color.text.secondary`. No hue, no
+rail, no glyph, no corner radius — a slab, because that is what it is on the
+grid. The word between the two becomes **`lands in`**, not `overlaps`: two
+blocks overlap symmetrically, a block lands in a window, and the asymmetry is
+the point of the rule being broken. Increase Contrast takes §7's override.
+
+---
+
+## 2026-10-01 — G-014 — CLOSED
+
+**Ruling: the ghost dim is the whole preview for a destination-less option.
+Written into `components.md` §14.4.** `skipToday` proposes no frame, so there is
+no proposed frame to draw a dashed twin at. The occurrence dims to
+`opacity.blockDragOrigin` exactly as any focused option dims what it is about to
+change, and no `previewed` twin is drawn — manufacturing one at the block's own
+unchanged position puts a dashed accent outline directly on top of the ghost,
+which reads as a rendering fault rather than a proposal. The
+`size.previewCanvasBorder` canvas border is present, as it is for every option;
+that is what says a hypothetical is active. This confirms what task P2-T16 built
+(`ConflictPreviewFrames.resolve` returning `proposed == nil`); it is now the
+spec, and `DEVIATIONS.md`'s P2-T16 entry can be retired.
+
+---
+
+## 2026-10-01 — G-015 — CLOSED
+
+**Ruling: a `.skipped` routine occurrence is not an overlap. Written into
+`components.md` §14.5.** `EventStore.toggleSkipped`'s own reading is the right
+one — an occurrence put back in the pool is not occupying the slot it was skipped
+out of, so it is not competing for it. Without this, applying `skipToday` leaves
+the identical collision detectable on the next pass and §14.5's "advance to the
+next unresolved conflict" can never progress. Status gates detection for the
+`.routine` side only, and only for `.skipped`: `.done` never gates it, because a
+completed block really did occupy its slot. This confirms the single `guard` task
+P2-T17 added to `ConflictEngine.detect`; it is now the spec, and
+`DEVIATIONS.md`'s P2-T17 entry can be retired.
+
+---
+
+## 2026-10-01 — G-013 — CLOSED
+
+**Ruling: clamp at the day boundary, never wrap. Written into `interactions.md`
+§11.1.** A move clamps `startMinutes` to `0…(1440 − duration)`; a resize clamps
+the moved edge to `0…1440` and keeps §4's 15-minute minimum. It never wraps to
+the previous or next column, because a `RoutineBlock` is not on a column
+(§13.5's statement of the model) and a template has no "next day". This confirms
+the placeholder `RoutineBlockStore.move`/`.resize` already shipped and the same
+clamp `create` reuses — the SPEC-GAP comments in `RoutineEngine.swift` can be
+replaced with a reference to §11.1.
+
+---
+
+## 2026-10-01 — G-016 — still OPEN, deliberately
+
+Not closed and not closable in Phase 2. Snooze's destination time is Phase 4
+scheduling logic, `DECISIONS.md` 2026-09-10 bars it from this phase, and
+`EventStore.snoozeOffset`'s fixed 15 minutes remains the right placeholder:
+`components.md` §16 and `MenuBarFormatting.snoozeResult` only ever read the
+resulting start, so nothing in Phase 2 changes when the real rule lands. Recorded
+here so its continued openness is a decision rather than an oversight.
