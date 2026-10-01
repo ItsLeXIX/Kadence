@@ -66,6 +66,10 @@ struct KadenceApp: App {
                 // (wired once, app-wide) reads correctly no matter which
                 // window is key.
                 .environment(undoStack)
+                // Task P2-T40: the materialisation horizon depends on the
+                // main window's visible range (components.md §13.6.5), so
+                // this window reads the same `CalendarState`.
+                .environment(calendar)
         }
         .modelContainer(container)
         .defaultSize(

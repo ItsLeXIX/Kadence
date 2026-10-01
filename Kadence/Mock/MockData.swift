@@ -113,18 +113,17 @@ enum MockData {
             location: Place(name: "Café Sperl")))
 
         // 3–5. Routine blocks, one per flexibility.
-        events.append(Event(
-            title: "Morning review",
-            start: at(8), end: at(9),
-            origin: .routine, flexibility: .fixed, sourceKey: .green))
+        //     Task P2-T40: "Morning review" (.fixed) and "Reading" (.droppable)
+        //     are no longer hand-seeded here. The "Daily routine" template
+        //     (`makeRoutineTemplates`) produces both, plus "Gym" (.shiftable),
+        //     through `RoutineEngine.materialize` on Mon/Wed/Fri. Seeding them
+        //     here as well would put two of each on those days. "Training"
+        //     stays: no template produces it, so it is still a hand-seeded
+        //     `.routine` event with no `(sourceID, externalID)`.
         events.append(Event(
             title: "Training",
             start: at(17), end: at(17, 45),
             origin: .routine, flexibility: .shiftable, sourceKey: .green))
-        events.append(Event(
-            title: "Reading",
-            start: at(21), end: at(21, 30),
-            origin: .routine, flexibility: .droppable, sourceKey: .green))
 
         // 6. Planned study session, 90 min, purple.
         events.append(Event(
@@ -182,10 +181,9 @@ enum MockData {
             start: at(10, 45), end: at(11, 45),
             origin: .imported, status: .done, sourceKey: .blue,
             sourceID: "timetable", externalID: "stat-ue-04"))
-        events.append(Event(
-            title: "Gym",                    // skipped, re-offered
-            start: at(16, 15), end: at(17),
-            origin: .routine, status: .skipped, flexibility: .shiftable, sourceKey: .green))
+        // "skipped" — task P2-T40: no longer a hand-seeded "Gym" at 16:15.
+        // The template's own Gym instance carries it instead; see
+        // `skipFirstGymInstance`.
 
         // 16. A day with nothing on it at all — two days out is deliberately empty.
 
@@ -266,6 +264,57 @@ enum MockData {
             origin: .manual, sourceKey: .graphite))
 
         return events
+    }
+
+    // MARK: Seeding everything + the launch pass (task P2-T40)
+
+    /// Both windows' launch `.task`: seed whatever is missing, then run the
+    /// launch materialisation trigger (components.md §13.6.5), then (on a
+    /// freshly seeded store only) apply the one fixture that lives on a
+    /// materialised instance.
+    ///
+    /// Order matters. `seedIfNeeded` only seeds an *empty* `Event` store, so
+    /// emptiness has to be checked before anything materialises. Otherwise
+    /// opening the Routines window first (⌘⌥R, before `MainWindow`'s `.task`)
+    /// would fill the store with routine instances, and the hand-seeded
+    /// fixtures would never arrive. That is why both windows call this one
+    /// function rather than each seeding their own part.
+    ///
+    /// `materialize` is passed in as a closure (like a callback parameter in
+    /// Java/C#), so this mock-data file doesn't need to know the horizon or
+    /// the undo stack. The caller passes `RoutineMaterialization.run`.
+    @MainActor
+    @discardableResult
+    static func seedAllIfNeeded(
+        _ context: ModelContext, now: Date = Date(), materialize: () -> Void
+    ) -> MockFixtures {
+        let storeWasEmpty = ((try? context.fetchCount(FetchDescriptor<Event>())) ?? 0) == 0
+        seedRoutineTemplatesIfNeeded(context)
+        seedTimeWindowsIfNeeded(context)
+        let fixtures = seedIfNeeded(context, now: now)
+        materialize()
+        if storeWasEmpty { skipFirstGymInstance(context, now: now) }
+        return fixtures
+    }
+
+    /// components.md §12 item 14's `skipped` state used to be a hand-seeded
+    /// `.routine` "Gym" at 16:15 today. The template produces "Gym" now, so
+    /// the state moves onto the template's first Gym instance from today on
+    /// (Mon/Wed/Fri at 07:00). Status doesn't detach an instance
+    /// (components.md §13.7.1), so this is an ordinary skipped occurrence of
+    /// the routine.
+    @MainActor
+    static func skipFirstGymInstance(_ context: ModelContext, now: Date) {
+        let templates = (try? context.fetch(FetchDescriptor<RoutineTemplate>())) ?? []
+        guard let gym = templates.lazy.flatMap(\.blocks).first(where: { $0.title == "Gym" }) else { return }
+        let prefix = gym.id.uuidString + "#"
+        let today = Calendar.current.startOfDay(for: now)
+        let events = (try? context.fetch(FetchDescriptor<Event>(sortBy: [SortDescriptor(\.start)]))) ?? []
+        guard let first = events.first(where: {
+            $0.start >= today && ($0.externalID?.hasPrefix(prefix) ?? false)
+        }) else { return }
+        first.status = .skipped
+        try? context.save()
     }
 
     // MARK: Travel bands — items 7–8

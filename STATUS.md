@@ -5340,3 +5340,195 @@ arrival. Then re-run the two scripts on a free desktop, and capture §17 items
 `Remove <Day> from Routine` at the `// P2-T41` marker). Separately: give the
 needs-attention row an accessibility label (or adjust the script's lookup)
 so `check-conflict-apply-return.sh` can reach its real assertion.
+
+## 41. P2-T40 — needs-attention accessibility; materialisation wired, with protected-window refusal (components.md §10.2, §13.6.1, §13.6.2, §13.6.5)
+
+### Part 1 — the needs-attention row's accessible name
+
+- **`SidebarView`:** the row's `Button` now has `.accessibilityLabel("Needs
+  attention")` and `.accessibilityValue("<count>")`, both the row's own
+  visible text. No spec gives the spoken form, so it is marked
+  `// SPEC-GAP (design/GAPS.md G-029)`, and DEVIATIONS C4.
+- **Verified through the AX API** (`AXUIElementCopyAttributeValue`, which is
+  what VoiceOver reads): the row is now `AXButton`, description `Needs
+  attention`, value `12`. Before, it had no description and no value.
+- **`check-conflict-apply-return.sh` still fails at the same step** (`no
+  'Needs attention' element found`), and the reason is now the script's
+  reader, not the app. On macOS 26.6 this SwiftUI button's attribute list
+  has `AXAttributedDescription` but not `AXDescription`. System Events'
+  `value of attribute "AXDescription"` therefore throws, the script's `try`
+  swallows it, and the `blob` is empty. `value of attribute
+  "AXAttributedDescription"` fails in System Events too (`-10000`). The same
+  is true of every source checkbox's name. This is why
+  `check-routines-window.sh` reads `AXHelp` instead. The repo script was
+  **not** edited, per the brief.
+- **Beyond the lookup**, run as a scratchpad copy of the script with only
+  `query()` swapped for an AX-API reader (the clicks, keys and verdict are
+  unchanged; nothing was saved in `Scripts/`):
+  1. The row is found: `needs attention 12` at (203, 148).
+  2. **The click does nothing.** The inspector stays on the day summary,
+     even with Kadence frontmost. Diagnosed live: a real click on the
+     Exams checkbox in the same sidebar toggles it (restored afterwards); a
+     click on the row's *text* (x 133) opens the panel; `AXPress` on the
+     button opens the panel. The row is a `.plain` button whose label has a
+     `Spacer()`, and a `.plain` button hit-tests only what it draws, so the
+     script's centre-of-row click lands in the gap. This is a **real app
+     defect**: the row looks clickable across its width and isn't. It is
+     DEVIATIONS B17 and was **not fixed** (out of scope; the likely fix is
+     a `contentShape` on the label).
+  3. Finishing by hand on that instance (panel opened by the text click,
+     Kadence confirmed frontmost before each event): a click on `Shorten
+     Focus review by 20 min, Recommended`, then a real HID Return, moved
+     `Focus review`'s `ZSTART` from 812570400 to 812571600: **+1200 s,
+     exactly the script's PASS condition.** So ↩-apply works end to end. The
+     script still has never had a real PASS of its own, and won't until
+     both B17 and its reader are dealt with.
+
+### Part 2 — materialisation
+
+**Engine (`Kadence/State/RoutineEngine.swift`):**
+
+- `RoutineEngine.materialize` gains `timeWindows:`, `today:` and
+  `recordsUndo:`. It starts at `max(range start, startOfDay(today))`, so it
+  never writes to the past. It skips any `(block, day)` pair that
+  `ProtectedWindowRule` refuses, collects the new snapshots, then inserts
+  them either as one named step (default; joins an open step if there is
+  one) or unrecorded. Identity and idempotency are unchanged: `(template id,
+  "<block id>#yyyy-MM-dd")`.
+- **`ProtectedWindowRule`** (new): minutes-of-day per weekday. A wrapping
+  window contributes `[start, 1440)` to its own weekday and `[0, end)` to the
+  next one, so Sunday's Sleep refuses a Monday 06:00 block. The overlap is
+  strict (touching endpoints allowed), and only `.protected` counts. It
+  provides `refuses`, `refusingWindows`, `refusals` (per window, the active
+  weekdays it refuses, in column order) and the §13.6.2 copy.
+- **`RoutineMaterialization`** (new): `horizon(today:visibleEnd:)` (today →
+  the later of day +29 and visible end +7, half-open), `run(...)` (every
+  template in the store, every window in the store, unrecorded), and
+  `Fingerprint`, the `Hashable` value the triggers watch.
+- `EventStore.insertUnrecorded(_:)` is the one documented exception to
+  "every mutation is undoable". See DEVIATIONS B16 for why, and its cost.
+
+**Call sites (§13.6.5 triggers):**
+
+- **Launch:** `MainWindow` and `RoutinesWindow` `.task` both call
+  `MockData.seedAllIfNeeded(context) { RoutineMaterialization.run(...) }`.
+  Seeding, the first pass and the one instance fixture run in a fixed order,
+  so opening ⌘⌥R first can't starve the hand-seeded fixtures.
+- **Edits and visible range:** `RoutineMaterializationTriggers`
+  (`Kadence/Views/Support/`, new) is attached to both windows. It
+  `@Query`s templates and windows and runs `run(...)` on a change to the
+  `Fingerprint` (template weekdays, block start/duration, window
+  weekdays/start/end/kind) or to `visibleInterval.end`. It stays idle until
+  the launch pass has run. The Routines window now gets the shared
+  `CalendarState` from `KadenceApp`, for the horizon only.
+
+**Refusal surfaces (`RoutinesWindow.swift`):**
+
+- Canvas: `RoutineDayColumnView.presentation` adds `.conflicted` when
+  `ProtectedWindowRule.refuses` for that column's weekday. That is the
+  existing §6 treatment (alert border at `borderEmphasis`, triangle badge)
+  in exactly the colliding columns. No new component.
+- Inspector: below Flexibility, one `Will not run — inside <label>
+  (protected) on <days>` line per refusing window
+  (`inspectorLabel`/`inspectorValue`, see DEVIATIONS C judgement calls),
+  combined for VoiceOver. `// P2-T46` marks the needs-attention count and
+  routing.
+
+**Mock data (`MockData.swift`):**
+
+- **Removed:** the hand-seeded `.routine` `Morning review` (08:00–09:00
+  today), `Reading` (21:00–21:30 today) and `Gym` (skipped, 16:15–17:00
+  today). The `Daily routine` template produces all three, so seeding them
+  as well would duplicate them.
+- **Recreated through the template:** §12 item 14's `skipped` state. It was
+  only on the hand-seeded Gym. `skipFirstGymInstance` now marks the
+  template's first Gym instance from today on as `.skipped`, on a freshly
+  seeded store only. Status doesn't detach (§13.7.1).
+- **Unchanged, and still hand-seeded `.routine` events with no
+  `(sourceID, externalID)`:** `Training`, `Breakfast`, `Focus review`, and
+  `Fixture review 2…12`. No template produces them. The conflict fixtures
+  work because they are `.fixed` (shorten/skip need no block lookup), not
+  because they are hand-seeded, so they were left alone. That also keeps
+  `check-conflict-apply-return.sh`'s single-row `ZTITLE='Focus review'`
+  read valid. A materialised `Focus review` would be many rows. 12
+  conflicts remain, pinned by a test seeded on a Monday and on a Thursday.
+- **Visible on the main grid** (seeded today, Thu 1 Oct 2026): today's
+  column no longer has Morning review, Reading or the skipped Gym. Fri 2 Oct
+  shows Gym 07:00–08:00 (skipped, dashed), Morning review **08:15–08:45**
+  (the template's time, not the old 08:00–09:00) and Reading 21:00–21:30,
+  and so does every Mon/Wed/Fri through the horizon. **Mon 28 and Wed 30
+  Sep, in the current week, show no routine blocks**, because they are
+  before today. Seen in a live window capture (scratchpad only, not
+  committed). Mock data has no protected-window refusal: Gym 07:00 touches
+  Sleep's end and Reading ends 21:30. Lunch/Errands are P2-T48's.
+- **Existing stores:** `seedIfNeeded` only seeds an empty store, so a store
+  seeded before this change keeps its old hand-seeded Morning review, Reading
+  and Gym on their seed day. Both scripts delete the store, so they're
+  unaffected.
+
+### Tests
+
+New `KadenceTests/RoutineMaterializationTests.swift`, 6 suites:
+
+- Refusal on strict overlap, only on the colliding weekdays.
+- Refusal per pair; no trimming or shifting.
+- Touching at both ends allowed; `.lowEnergy`/`.peakFocus` never block.
+- Window weekdays respected.
+- Cross-midnight Sleep at seven block positions.
+- The morning half belongs to the previous weekday (Sun→Mon, Sat→Sun wrap).
+- The past is never written (partly past and wholly past ranges).
+- Idempotency by `(sourceID, externalID)` even after an instance is moved.
+- Horizon minimum, visible-range extension, and a past visible range.
+- `run()` fills exactly day 0…day +28, refuses using the store's own
+  windows, records no undo step, and is idempotent.
+- `materialize` joins an open step.
+- `refusals` copy is exact (`Will not run — inside Lunch (protected) on
+  Mon, Wed, Fri`) and names active weekdays only.
+- The canvas rule agrees with `materialize` on all seven weekdays.
+- `ConflictEngine` on real materialised events: `.shiftable` ± found
+  through the externalID; `.fixed` gives shorten + skip.
+- MockData: seeding + launch pass has no duplicates, 12 conflicts and one
+  skipped Gym, and a second launch adds nothing.
+
+`RoutineEngineTests.swift`: its 14 `materialize` calls now pass
+`today: rangeStart`, because their fixed Sep 2026 range is in the past and
+the new rule would otherwise (correctly) write nothing. No assertion
+changed. Existing `ConflictEngineTests` are untouched and pass.
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`. The only app warning is
+  the existing `MonthGridView.swift:153`. No new warnings in app or test
+  code. The `#require` warnings in `RoutineWeekLayoutTests.swift` predate
+  this task.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`. **xcresult:
+  385 passed / 0 failed** (P2-T39: 360; +25 new test functions). For
+  reference, `' passed on'` lines are 432 (P2-T39: 398).
+- `swift Scripts/generate-tokens.swift --check`: up to date.
+- **Pre-flight** (before each script run): `CGSSessionScreenIsLocked = 0`,
+  on console. No window reported `AXFullScreen`. Terminal was frontmost.
+- **`check-routines-window.sh`: PASS**: 9 block elements, the click
+  selected Gym, and the inspector changed.
+- **`check-conflict-apply-return.sh`: FAIL at `no 'Needs attention' element
+  found`.** The app side is fixed. The rest of the run (B17, then +1200 s
+  on ↩) is in Part 1 above.
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-029** (the row's spoken label/value).
+- DEVIATIONS **C4**, four P2-T40 judgement calls under C, **A28**
+  (create-only), **A29** (deleted instances come back; undo can duplicate),
+  **A30** (P2-T46 surfaces), **B16** (background materialisation isn't in
+  the causing undo step), **B17** (the row's dead click area).
+
+### Also noticed, not touched
+
+- `GridBlockModel`'s accessibility label (`BlockModels.swift:63`) says
+  `conflicts with a protected window` for **every** conflicted block. That's
+  right for the new Routines-window refusals but wrong on the main grid,
+  where `Client call` / `Focus review` conflict with each other. §11's
+  example is `conflicts with Training`.
+
+**Next:** P2-T41 (update/withdrawal table; folding materialisation into the
+causing step, B16). Tombstones (A29) need a task. Then B17 and the script's
+reader, so `check-conflict-apply-return.sh` can PASS on its own.

@@ -710,9 +710,15 @@ removed; `increaseContrast` parameter, GAPS G-003).
 
 ## C — invented design values
 
-*(Updated 2026-10-01, task P2-T39.)* One invented design value and one
-behavioural placeholder, both marked `// SPEC-GAP` in `Kadence/`. Before
-P2-T39 this section read "None".
+*(Updated 2026-10-01, task P2-T40.)* One invented design value and two
+placeholders (one behavioural, one accessibility string), all marked
+`// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
+
+- **C4 — the needs-attention row's accessibility label and value (GAPS
+  G-029).** *(new 2026-10-01, task P2-T40.)* `SidebarView` gives the row
+  label `Needs attention` and value the bare count (`12`), both taken from
+  what the row draws. No spec says what the row speaks. Before this, the row
+  was an unnamed button, so VoiceOver said only "button".
 
 - **C2 — the focused toggle inside the weekday toggle row (GAPS G-028).**
   `WeekdayToggleRow` (`RoutinesWindow.swift`) marks the toggle `←`/`→` have
@@ -734,6 +740,29 @@ Two P2-T39 judgement calls that need no marker, because no value was invented:
   (layouts.md §8.1: "the same Mon-first toggle row the time-window inspector
   already uses"). Its look and its write are unchanged, and it gains the same
   `⇥`/`←`/`→`/`space` keyboard path.
+
+P2-T40 judgement calls that need no marker, because no value was invented:
+
+- **Horizon "through" is inclusive** (components.md §13.6.5). Day
+  `today + 28` is materialised, so the exclusive end is the start of day
+  `today + 29`. `(visible end) + 7` takes `CalendarState.visibleInterval.end`,
+  which is already exclusive, so the last visible day + 7 is covered too.
+  Read the other way, the horizon would be one day shorter.
+- **The `Will not run` line is split at the dash** (§13.6.2: "one line,
+  `inspectorLabel` / `inspectorValue`"): `Will not run —` in
+  `inspectorLabel`, `inside Sleep (protected) on Mon, Wed, Fri` in
+  `inspectorValue`. The label doesn't use the inspector's 84pt label column
+  (it doesn't fit), and there is no gap between the two runs, only the
+  sentence's own space. The value wraps rather than truncates.
+- **One `Will not run` line per refusing window.** §13.6.2 shows one window.
+  A block refused by two protected windows gets two lines, in the order the
+  windows come from the store. Days are named with `shortWeekdaySymbols` in
+  the window's column order (Mon-first here), the same source as `Add Sat`.
+- **Refusal is compared in minutes-of-day per weekday**, not via
+  `TimeWindow.spans(on:)`'s `startOfDay + seconds`. A block never crosses
+  midnight (G-013), so the block and the window's spans on that weekday are
+  enough, and it can't drift on a DST day. The canvas and `materialize` use
+  the same function (`ProtectedWindowRule`), so they can't disagree.
 
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind
@@ -1194,6 +1223,33 @@ Two P2-T39 judgement calls that need no marker, because no value was invented:
   `STATUS.md` §36) — the code fix and the full `KadenceTests` suite are
   green independent of that.
 
+- **A28 — components.md §13.6.3 / §13.6.4 / §13.7. Materialisation only
+  creates.** *(new 2026-10-01, task P2-T40.)* `materialize` now has call
+  sites (launch, template/block/window edits, visible-range changes), but it
+  never updates an existing instance to the template's current values,
+  never withdraws instances the template stopped producing, and has no
+  detachment flag or tombstone. So moving a template block doesn't move
+  existing instances, deactivating a weekday or deleting a block leaves its
+  future instances on the calendar, and an edit that stops a refusal adds
+  instances while one that starts a refusal removes none. P2-T41 is the
+  update/withdrawal table. Tombstones (§13.7.4) are not scheduled in any
+  task this file knows of.
+- **A29 — components.md §13.7.4. A deleted materialised instance comes back,
+  and undoing its delete can then duplicate it.** *(new 2026-10-01, task
+  P2-T40. This is a consequence of A28 that only exists now that
+  `materialize` has call sites.)* `⌫` on a routine instance removes the row.
+  The next trigger (paging the calendar, any routine edit, relaunch) finds no
+  event for that `(sourceID, externalID)` and creates it again. If the user
+  then presses `⌘Z` on the original delete, `EventStore` re-inserts the old
+  snapshot alongside the recreated one: two events with the same identity.
+  Tombstones close both. Not covered by a test yet, because the fix is
+  §13.7.4's, not this task's.
+- **A30 — components.md §13.6.2 third surface and §14.6.** *(new 2026-10-01,
+  task P2-T40.)* A refused pair doesn't reach the needs-attention count, and
+  that row doesn't route to the Routines window. The canvas `conflicted`
+  presentation and the inspector `Will not run …` line are built. Marked
+  `// P2-T46` in `RoutineInspectorView.blockDetails`.
+
 ---
 
 ## B — built, but not the way the spec describes
@@ -1303,6 +1359,32 @@ Still open, all re-checked against the current spec text this session:
   that menu-bar space whatever the content. This is read from the code. The
   committed crops are tight to the text, so they neither confirm nor rule out
   the empty padding. *Still open*, same task as B14.
+- **B16 — components.md §13.6.4 / §14.6 / interactions.md §11.2. Background
+  materialisation is not part of the edit that caused it.** *(new
+  2026-10-01, task P2-T40.)* The spec folds materialisation into the
+  causing step (`Remove Saturday from Routine` undoes the deletions;
+  `Resolve Routine Conflict` re-materialises inside its step). The P2-T40
+  triggers run from `.onChange` *after* the edit's step has closed, and they
+  write with `EventStore.insertUnrecorded`, which records no step at all.
+  Launch and paging are not user actions, so the alternative (an
+  `Undo Materialize …` step on top of the user's own) would make `⌘Z` remove
+  routine instances instead of undoing the user's edit. The cost: undoing
+  `Add Saturday to Routine` or `Create Routine Block` leaves the instances
+  that edit created, until P2-T41's withdrawal removes them. `materialize`
+  still joins an open step when called inside one (pinned by
+  `MaterializationHorizonTests.joinsOpenStep`), so P2-T41 and P2-T46 can call
+  it inside their steps.
+- **B17 — components.md §14.1, "The needs-attention row is a button". Only
+  its drawn text and badge are clickable.** *(new 2026-10-01, found by task
+  P2-T40, not fixed: out of scope.)* The row is a `.plain` `Button` whose
+  label is `HStack { Text; Spacer(); badge }`. A `.plain` button only
+  hit-tests what it draws, so the `Spacer` gap between `Needs attention` and
+  the count does nothing when clicked. Measured live at 1500×900: a real
+  click at the row's centre (x 203, just past the text) left the inspector
+  unchanged; a click on the text (x 133) and an `AXPress` both opened the
+  panel. This is where `Scripts/check-conflict-apply-return.sh` fails next,
+  because it clicks the row's centre. The likely fix is a `contentShape` on
+  the label, so the whole row is the target.
 
 ---
 

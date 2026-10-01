@@ -24,6 +24,10 @@ struct MainWindow: View {
     @Query private var routineBlocks: [RoutineBlock]
     @State private var fixtures = MockFixtures()
     @State private var didSeed = false
+    /// Set once the launch `.task` has seeded and run the first
+    /// materialisation pass (task P2-T40). `RoutineMaterializationTriggers`
+    /// stays idle until then.
+    @State private var isMaterializationReady = false
     /// interactions.md §1 — which region ⇥ has landed on.
     @FocusState private var focusedRegion: CalendarState.FocusRegion?
 
@@ -98,8 +102,18 @@ struct MainWindow: View {
         .task {
             guard !didSeed else { return }
             didSeed = true
-            fixtures = MockData.seedIfNeeded(context)
+            // Task P2-T40: seeding plus the launch materialisation trigger
+            // (components.md §13.6.5). See `MockData.seedAllIfNeeded` for why
+            // seeding and the first pass are one call.
+            let visibleEnd = state.visibleInterval.end
+            fixtures = MockData.seedAllIfNeeded(context) {
+                RoutineMaterialization.run(context: context, undo: undoStack, visibleEnd: visibleEnd)
+            }
+            isMaterializationReady = true
         }
+        // §13.6.5's other two triggers: a template/block/window edit, and a
+        // change to the visible range (paging, Today, switching mode).
+        .materializesRoutines(isReady: isMaterializationReady, visibleEnd: state.visibleInterval.end)
         .onReceive(
             Timer.publish(every: Tokens.Motion.NowLineTick.interval, on: .main, in: .common).autoconnect()
         ) { date in

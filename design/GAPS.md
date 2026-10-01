@@ -1644,3 +1644,27 @@ invented. Shown only while the row has keyboard focus. Not blocking.
 
 **Needed to close:** the focused-item marker for this row, or a ruling that
 each toggle is its own focus stop after all.
+
+---
+
+## 2026-10-01 — G-029 — the needs-attention row has no specified accessibility label or value
+
+**Where it bit:** task P2-T40, `SidebarView` (`Kadence/Views/Chrome/SidebarView.swift`).
+P2-T39 found the row drawn as `Needs attention 12` but exposed to the
+Accessibility tree as an unnamed button with no text. VoiceOver announced only
+"button", and `Scripts/check-conflict-apply-return.sh` couldn't find it.
+
+**What the spec says.** `components.md` §10.2 specifies the row's look: a bare
+label, no icon, and a `blockMeta` count badge hidden at zero. §11's VoiceOver
+paragraph covers grid blocks only. `layouts.md` §2 lists the row. None of them
+says what the row speaks.
+
+**What was built instead of guessing.** Placeholder, marked
+`// SPEC-GAP (design/GAPS.md G-029)`: accessibility label `Needs attention`
+(the row's visible text) and accessibility value the bare count, e.g. `12`
+(the badge's visible number). VoiceOver reads it as "Needs attention, 12,
+button". No new words were invented. Not blocking.
+
+**Needed to close:** the row's spoken label and value. For example, whether the
+count carries a noun (`12 conflicts`, `12 items`), and whether P2-T46's
+template conflicts (§13.6.2) change that noun.

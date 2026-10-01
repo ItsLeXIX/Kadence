@@ -154,6 +154,10 @@ struct RoutinesWindow: View {
     /// `⌘Z`/`⌘⇧Z` (wired once, app-wide, in `KadenceCommands`) undo/redo
     /// routine edits exactly like event edits — one stack for the whole app.
     @Environment(UndoStack.self) private var undoStack
+    /// Task P2-T40: read only for the main window's visible range, which sets
+    /// the materialisation horizon (components.md §13.6.5). `KadenceApp`
+    /// injects the same instance `MainWindow` uses.
+    @Environment(CalendarState.self) private var calendarState
 
     @State private var selectedTemplateID: UUID?
     @State private var selection: RoutineBlockSelection?
@@ -165,6 +169,8 @@ struct RoutinesWindow: View {
     @State private var windowSelection: UUID?
     @State private var editorMode: RoutinesEditorMode = .blocks
     @State private var didSeed = false
+    /// Task P2-T40 — see `MainWindow.isMaterializationReady`.
+    @State private var isMaterializationReady = false
     /// So `⌫` (below) has somewhere to land. Requested whenever a block is
     /// selected — including the very first tap — since nothing else in this
     /// window claims keyboard focus by default.
@@ -284,10 +290,21 @@ struct RoutinesWindow: View {
         .task {
             guard !didSeed else { return }
             didSeed = true
-            MockData.seedRoutineTemplatesIfNeeded(context)
-            MockData.seedTimeWindowsIfNeeded(context)
+            // Task P2-T40: the same seeding + launch materialisation call
+            // `MainWindow` makes. This window can be the first one a session
+            // opens (⌘⌥R), and the hand-seeded events must still arrive
+            // before the first pass (see `MockData.seedAllIfNeeded`).
+            let visibleEnd = calendarState.visibleInterval.end
+            MockData.seedAllIfNeeded(context) {
+                RoutineMaterialization.run(context: context, undo: undoStack, visibleEnd: visibleEnd)
+            }
+            isMaterializationReady = true
             canvasFocused = true
         }
+        // components.md §13.6.5: an edit made here materialises even when
+        // the main window isn't open. Horizon end is the main window's
+        // visible range, read from the shared `CalendarState`.
+        .materializesRoutines(isReady: isMaterializationReady, visibleEnd: calendarState.visibleInterval.end)
         .onChange(of: selectedTemplateID) { _, _ in
             selection = nil
             windowSelection = nil
@@ -373,6 +390,7 @@ struct RoutinesWindow: View {
             RoutineInspectorView(
                 template: selectedTemplate,
                 selectedBlock: selectedBlockSnapshot,
+                timeWindows: timeWindows,
                 onSetWeekday: setWeekday)
         }
     }
@@ -986,6 +1004,18 @@ private struct RoutineDayColumnView: View {
         var presentation: Presentation = isSelected ? [.selected] : []
         if hoveredID == block.id { presentation.insert(.hovered) }
         if blockDrag?.blockID == block.id { presentation.insert(.dragging) }
+        // components.md §13.6.2 (task P2-T40): a block whose interval overlaps
+        // a `.protected` window on THIS column's weekday takes §6's
+        // `conflicted` state, in exactly the colliding columns. It's the same
+        // rule `RoutineEngine.materialize` uses to refuse the pair, so a
+        // conflicted block here is exactly a day the calendar won't get.
+        // Blocks are drawn only in active columns, so an inactive column
+        // never shows this.
+        if ProtectedWindowRule.refuses(
+            startMinutes: block.startMinutes, duration: block.duration,
+            weekday: weekday, windows: timeWindows) {
+            presentation.insert(.conflicted)
+        }
         return presentation
     }
 
@@ -1511,6 +1541,8 @@ private struct InactiveDayNote: View {
 private struct RoutineInspectorView: View {
     let template: RoutineTemplate?
     let selectedBlock: RoutineBlockSnapshot?
+    /// Task P2-T40 — for §13.6.2's `Will not run` line.
+    let timeWindows: [TimeWindow]
     /// Task P2-T39 — `(weekday, active)`: the toggle row's write
     /// (components.md §13.5.4 via `RoutinesWindow.setWeekday`).
     let onSetWeekday: (Int, Bool) -> Void
@@ -1558,6 +1590,50 @@ private struct RoutineInspectorView: View {
         // this task. Read-only text stands in for it, per the task's own
         // "your call" — this is the value it reads, not a design decision.
         field("Flexibility", block.flexibility.rawValue.capitalized)
+
+        // components.md §13.6.2 (task P2-T40): one line per protected window
+        // that refuses this block, naming the window and the colliding
+        // weekdays. `ForEach` over value types that aren't `Identifiable`
+        // needs `id:`, which says which property tells the rows apart.
+        if let template {
+            ForEach(refusals(for: block, in: template), id: \.windowID) { refusal in
+                refusalLine(refusal)
+            }
+        }
+        // P2-T46: the needs-attention count entry for these refusals, and
+        // routing from that row into this window (§13.6.2's third surface,
+        // §14.6).
+    }
+
+    private func refusals(for block: RoutineBlockSnapshot, in template: RoutineTemplate) -> [ProtectedWindowRule.Refusal] {
+        ProtectedWindowRule.refusals(
+            startMinutes: block.startMinutes, duration: block.duration,
+            activeWeekdays: template.activeWeekdays,
+            orderedWeekdays: orderedWeekdays,
+            windows: timeWindows)
+    }
+
+    /// `Will not run — inside Sleep (protected) on Mon, Wed, Fri`, in
+    /// `inspectorLabel` / `inspectorValue` as §13.6.2 specifies. The split
+    /// falls at the dash: `Will not run —` is the label and the rest is the
+    /// value. Unlike `field(_:_:)` the label has no fixed 84pt column,
+    /// because `Will not run —` doesn't fit in it. `spacing: 0` with the
+    /// space carried in the label text keeps the sentence's own spacing
+    /// instead of inventing a gap. The value wraps instead of truncating, so
+    /// the window and the days are always both named.
+    private func refusalLine(_ refusal: ProtectedWindowRule.Refusal) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(ProtectedWindowRule.inspectorLabel + " ")
+                .typeStyle(.inspectorLabel)
+                .foregroundStyle(Tokens.Color.Text.secondary)
+            Text(ProtectedWindowRule.inspectorValue(for: refusal))
+                .typeStyle(.inspectorValue)
+                .foregroundStyle(Tokens.Color.Text.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        // VoiceOver reads the line as one sentence instead of two fragments.
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Nothing selected — the template summary (§8.1)

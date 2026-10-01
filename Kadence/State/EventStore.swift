@@ -113,6 +113,22 @@ struct EventStore {
         return event(snapshot.id)
     }
 
+    /// Insert materialised routine instances **without** an undo step.
+    ///
+    /// The one deliberate exception to this file's "every mutation is
+    /// undoable" rule, and the only caller is the background materialisation
+    /// pass (`RoutineMaterialization.run`, task P2-T40). The triggers in
+    /// components.md §13.6.5 (launch, a visible-range change, an edit) are
+    /// the app keeping the calendar in step with the routine, not a user
+    /// action. Recording them would put `Undo Materialize …` on top of the
+    /// user's own last step, so one `⌘Z` would remove a routine's instances
+    /// instead of undoing what the user just did. One save for the batch.
+    func insertUnrecorded(_ snapshots: [EventSnapshot]) {
+        guard !snapshots.isEmpty else { return }
+        for snapshot in snapshots { context.insert(snapshot.makeEvent()) }
+        try? context.save()
+    }
+
     // MARK: Mutate
 
     func delete(_ event: Event) {

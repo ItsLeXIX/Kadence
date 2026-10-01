@@ -42,6 +42,11 @@ private func allEvents(_ context: ModelContext) -> [Event] {
 private let calendar = Calendar(identifier: .gregorian)
 private let rangeStart = calendar.date(from: DateComponents(year: 2026, month: 9, day: 13))!
 private let fourteenDayRange = DateInterval(start: rangeStart, duration: 14 * 24 * 3600)
+// Task P2-T40: `materialize` never writes before `startOfDay(today)`
+// (components.md §13.6.5). These suites predate that rule and use a fixed
+// September 2026 range, so each call passes `today: rangeStart`, which
+// makes "today" the range's first day. The past rule has its own tests in
+// RoutineMaterializationTests.swift.
 
 /// Monday / Wednesday / Friday. Which three weekdays does not matter for the
 /// count assertions below — any 3-of-7 set appears exactly 2 times each in an
@@ -90,7 +95,7 @@ struct MaterializeFieldTests {
         try context.save()
 
         let created = RoutineEngine.materialize(
-            template: template, into: fourteenDayRange, store: store, calendar: calendar)
+            template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
 
         // 3 active weekdays × 2 occurrences each in an exact 2-week span × 2 blocks.
         #expect(created == 12)
@@ -104,7 +109,7 @@ struct MaterializeFieldTests {
         context.insert(template)
         try context.save()
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
 
         let events = allEvents(context)
         #expect(events.count == 12)
@@ -123,7 +128,7 @@ struct MaterializeFieldTests {
         context.insert(template)
         try context.save()
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
 
         let gymEvents = allEvents(context).filter { $0.title == "Gym" }
         #expect(gymEvents.count == 6)
@@ -144,7 +149,7 @@ struct MaterializeFieldTests {
         context.insert(template)
         try context.save()
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
 
         let studyEvents = allEvents(context).filter { $0.title == "Study" }
         #expect(studyEvents.count == 6)
@@ -165,7 +170,7 @@ struct MaterializeFieldTests {
         try context.save()
         let gymBlockID = template.blocks.first { $0.title == "Gym" }!.id.uuidString
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
 
         let gymEvents = allEvents(context).filter { $0.title == "Gym" }
         for event in gymEvents {
@@ -188,7 +193,7 @@ struct MaterializeFieldTests {
         try context.save()
 
         let created = RoutineEngine.materialize(
-            template: template, into: fourteenDayRange, store: store, calendar: calendar)
+            template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
         #expect(created == 0)
         #expect(allEvents(context).isEmpty)
     }
@@ -208,14 +213,14 @@ struct MaterializeIdempotenceTests {
         try context.save()
 
         let firstRun = RoutineEngine.materialize(
-            template: template, into: fourteenDayRange, store: store, calendar: calendar)
+            template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
         #expect(firstRun == 12)
 
         let pairsAfterFirstRun = Set(allEvents(context).map { "\($0.sourceID ?? "")#\($0.externalID ?? "")" })
         #expect(pairsAfterFirstRun.count == 12)
 
         let secondRun = RoutineEngine.materialize(
-            template: template, into: fourteenDayRange, store: store, calendar: calendar)
+            template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
         #expect(secondRun == 0, "re-running must create nothing new")
         #expect(allEvents(context).count == 12, "count must be unchanged")
 
@@ -230,7 +235,7 @@ struct MaterializeIdempotenceTests {
         context.insert(template)
         try context.save()
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
         #expect(undo.undoSteps.count == 1)
         #expect(undo.undoMenuTitle == "Undo Materialize Weekday Routine")
 
@@ -248,13 +253,13 @@ struct MaterializeIdempotenceTests {
         context.insert(template)
         try context.save()
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
         let originalIDs = Set(allEvents(context).map(\.id))
 
         // Same start, double the length: the first 14 days must be untouched.
         let extendedRange = DateInterval(start: rangeStart, duration: 28 * 24 * 3600)
         let created = RoutineEngine.materialize(
-            template: template, into: extendedRange, store: store, calendar: calendar)
+            template: template, into: extendedRange, today: rangeStart, store: store, calendar: calendar)
 
         #expect(created == 12, "the second 14 days' worth of new occurrences")
         let allIDs = Set(allEvents(context).map(\.id))
@@ -276,7 +281,7 @@ struct MaterializePriorityFlexibilityTests {
         context.insert(template)
         try context.save()
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
 
         let refetched = try context.fetch(FetchDescriptor<RoutineTemplate>()).first!
         #expect(refetched.blocks.first { $0.title == "Gym" }?.priority == 1)
@@ -290,7 +295,7 @@ struct MaterializePriorityFlexibilityTests {
         context.insert(template)
         try context.save()
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
 
         let events = allEvents(context)
         #expect(events.filter { $0.title == "Gym" }.allSatisfy { $0.flexibility == .fixed })
@@ -304,7 +309,7 @@ struct MaterializePriorityFlexibilityTests {
         context.insert(template)
         try context.save()
 
-        RoutineEngine.materialize(template: template, into: fourteenDayRange, store: store, calendar: calendar)
+        RoutineEngine.materialize(template: template, into: fourteenDayRange, today: rangeStart, store: store, calendar: calendar)
 
         let refetched = try context.fetch(FetchDescriptor<RoutineTemplate>()).first!
         #expect(refetched.blocks.first { $0.title == "Study" }?.shiftableMinutes == 30)

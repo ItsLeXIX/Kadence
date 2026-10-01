@@ -35,6 +35,21 @@ struct SidebarView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(height: 24)
+                // P2-T40: a `.plain` button inside a sidebar `List` row
+                // reached the accessibility tree as an unnamed button: its
+                // label's `Text`s were neither its description nor visible
+                // children, so VoiceOver announced only "button".
+                // `.accessibilityLabel` sets the element's name (AXDescription);
+                // `.accessibilityValue` sets its value (AXValue). Both replace
+                // whatever SwiftUI would derive from the label view.
+                //
+                // The name is the row's visible text. The count is the badge's
+                // own number.
+                // SPEC-GAP (design/GAPS.md G-029): neither components.md §10.2
+                // nor §11 gives this row's spoken label or value. The bare
+                // count is a placeholder; the spec may want e.g. a noun with it.
+                .accessibilityLabel("Needs attention")
+                .accessibilityValue("\(state.conflicts.count)")
             }
 
             Section {

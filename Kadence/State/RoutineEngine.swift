@@ -4,17 +4,15 @@
 //
 //  Turns a `RoutineTemplate` into ordinary `Event`s on the calendar
 //  (BRIEF-PRODUCT.md; components.md §13). This is the data-layer
-//  materialisation pass:
+//  materialisation pass.
 //
-//  - No TimeWindow editor, no menu bar extra, no snooze (layouts.md §8,
-//    interactions.md §15, §16).
-//  - No conflict detection (components.md §14).
-//  - No detachment tracking or re-sync (components.md §13.4, interactions.md
-//    §11.2). This engine never touches a materialized event once it exists —
-//    it only ever checks whether one is already there and, if so, leaves it
-//    alone. Recognising that an existing event has since been hand-edited (so
-//    that re-sync can offer to overwrite it) needs the main-grid edit-command
-//    path wired up first, which is a separate follow-up task.
+//  As of task P2-T40 it has call sites (`RoutineMaterialization.run`, below,
+//  driven by the triggers in components.md §13.6.5), never writes before
+//  today, and refuses pairs inside a `.protected` window (§13.6.1). It still
+//  only ever *creates*. Updating untouched instances to the template's current
+//  values (§13.6.3), withdrawing pairs the template no longer produces
+//  (§13.6.4), and tombstones for deleted instances (§13.7.4) are later work,
+//  starting with P2-T41.
 //
 //  Each materialized event gets a `(sourceID, externalID)` pair —
 //  `(template.id.uuidString, "<block.id>#<yyyy-MM-dd>")` — which is exactly
@@ -22,6 +20,8 @@
 //  re-sync, so importing twice updates instead of duplicating". Here that
 //  means: calling `materialize` again over an overlapping range creates
 //  nothing new for a date/block pair that already exists.
+//  `ConflictEngine.routineBlock(for:in:)` reverses the same `externalID` to
+//  find a routine event's block and its ± minutes.
 //
 //  `RoutineBlockStore` below (tasks P2-T11, P2-T12) is the Routines-window
 //  sibling of `EventStore`: move, resize, delete AND (as of P2-T12) create for
@@ -40,15 +40,37 @@ import SwiftData
 enum RoutineEngine {
 
     /// Create one `Event` per `(active weekday × block)` pair in `range`,
-    /// skipping any pair that already has a materialized event. Everything
-    /// this call does — every block, every date — is one named, undoable step.
+    /// skipping any pair that already has a materialized event.
+    ///
+    /// Three rules from components.md §13.6 (task P2-T40):
+    ///
+    /// - **The past is never written (§13.6.5).** Days before
+    ///   `startOfDay(today)` are skipped, whatever `range` asks for.
+    /// - **Protected windows refuse (§13.6.1).** A pair whose interval
+    ///   strictly overlaps a `.protected` span in `timeWindows` gets no event.
+    ///   It is not trimmed and not shifted. `ProtectedWindowRule` below makes
+    ///   that decision, and the Routines window's `conflicted` presentation
+    ///   uses the same rule, so the canvas and the calendar can't disagree.
+    /// - **Idempotent.** A pair is keyed by `(sourceID, externalID)`, and a
+    ///   pair that already has an event is left alone. Updating it to the
+    ///   template's current values is §13.6.3, task P2-T41.
+    ///
+    /// Undo: with `recordsUndo == true` (the default), the whole call is one
+    /// named step, or it joins the step that is already open if called
+    /// inside one (`UndoStack.perform`'s re-entrancy). The background
+    /// triggers (`RoutineMaterialization.run`) pass `false`. Launch, a
+    /// visible-range change and an edit are not the user asking for these
+    /// events, so they put nothing on the Edit menu.
     ///
     /// - Returns: the number of *new* events created. Re-running with the same
-    ///   template and range returns 0 and leaves the store unchanged.
+    ///   inputs returns 0 and leaves the store unchanged.
     @discardableResult
     static func materialize(
         template: RoutineTemplate,
         into range: DateInterval,
+        timeWindows: [TimeWindow] = [],
+        today: Date = Date(),
+        recordsUndo: Bool = true,
         store: EventStore,
         calendar: Calendar = .current
     ) -> Int {
@@ -56,50 +78,57 @@ enum RoutineEngine {
 
         let context = store.context
         let sourceID = template.id.uuidString
-        var createdCount = 0
+        var created: [EventSnapshot] = []
 
-        store.transaction("Materialize \(template.name)") {
-            var day = calendar.startOfDay(for: range.start)
+        // §13.6.5: start at today if `range` reaches into the past.
+        var day = Swift.max(calendar.startOfDay(for: range.start), calendar.startOfDay(for: today))
 
-            while day < range.end {
-                if template.activeWeekdays.contains(calendar.component(.weekday, from: day)) {
-                    let key = dayKey(day, calendar: calendar)
+        while day < range.end {
+            let weekday = calendar.component(.weekday, from: day)
+            if template.activeWeekdays.contains(weekday) {
+                let key = dayKey(day, calendar: calendar)
 
-                    for block in template.blocks {
-                        let externalID = "\(block.id.uuidString)#\(key)"
+                for block in template.blocks {
+                    let externalID = "\(block.id.uuidString)#\(key)"
 
-                        // Idempotence: a pair that already exists is left
-                        // alone rather than duplicated or overwritten. Once a
-                        // hand-edit can be told apart from an untouched
-                        // instance (§13.4, out of scope here), this is where
-                        // re-sync would instead offer to replace it.
-                        guard !eventExists(sourceID: sourceID, externalID: externalID, in: context) else {
-                            continue
-                        }
-                        guard let blockStart = calendar.date(
-                            byAdding: .minute, value: block.startMinutes, to: day)
-                        else { continue }
-
-                        let event = Event(
-                            title: block.title,
-                            start: blockStart,
-                            end: blockStart.addingTimeInterval(block.duration),
-                            origin: .routine,
-                            flexibility: block.flexibility,
-                            sourceKey: template.sourceKey,
-                            sourceID: sourceID,
-                            externalID: externalID)
-                        store.insertMaterialized(EventSnapshot(event))
-                        createdCount += 1
+                    guard !eventExists(sourceID: sourceID, externalID: externalID, in: context) else {
+                        continue
                     }
-                }
+                    // §13.6.1: refuse. `continue` skips this pair only, so
+                    // the same block still materialises on its other days.
+                    guard !ProtectedWindowRule.refuses(
+                        startMinutes: block.startMinutes, duration: block.duration,
+                        weekday: weekday, windows: timeWindows)
+                    else { continue }
+                    guard let blockStart = calendar.date(
+                        byAdding: .minute, value: block.startMinutes, to: day)
+                    else { continue }
 
-                guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
-                day = next
+                    created.append(EventSnapshot(Event(
+                        title: block.title,
+                        start: blockStart,
+                        end: blockStart.addingTimeInterval(block.duration),
+                        origin: .routine,
+                        flexibility: block.flexibility,
+                        sourceKey: template.sourceKey,
+                        sourceID: sourceID,
+                        externalID: externalID)))
+                }
             }
+
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
         }
 
-        return createdCount
+        guard !created.isEmpty else { return 0 }
+        if recordsUndo {
+            store.transaction("Materialize \(template.name)") {
+                for snapshot in created { store.insertMaterialized(snapshot) }
+            }
+        } else {
+            store.insertUnrecorded(created)
+        }
+        return created.count
     }
 
     // MARK: - Identity
@@ -118,6 +147,220 @@ enum RoutineEngine {
     private static func dayKey(_ date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+    }
+}
+
+// MARK: - Protected-window refusal (components.md §13.6.1, task P2-T40)
+
+/// Does a routine block, on a given weekday, land in a `.protected` window?
+///
+/// One rule with two readers: `RoutineEngine.materialize` refuses the pair,
+/// and the Routines window draws the block `conflicted` in that column and
+/// names the window in the inspector (§13.6.2). §13.6.2 calls the canvas half
+/// "a static comparison" of template interval against window span. Both
+/// readers ask this type, so they always agree.
+///
+/// Everything is minutes-of-day on a weekday, not `Date`s. A `RoutineBlock`
+/// never crosses midnight (interactions.md §11.1, G-013: drags clamp to
+/// `0…1440`), so a block lives inside one day. A window can wrap
+/// (Sleep 22:00–07:00): its evening part belongs to the weekday it starts
+/// on, and its morning part (00:00–07:00) to the **next** day. That is the
+/// same reading as `TimeWindow.spans(on:)`. So a 06:00 block on Monday is
+/// refused by a Sleep window that is active on Sunday.
+@MainActor
+enum ProtectedWindowRule {
+
+    /// The parts of `window` that fall on `weekday`, as `[start, end)` in
+    /// minutes since midnight. Empty for a window that isn't on that day.
+    /// The kind is ignored here; `refusingWindows` filters on it.
+    static func minuteSpans(of window: TimeWindow, onWeekday weekday: Int) -> [Range<Int>] {
+        let start = window.startMinutes
+        let end = window.endMinutes
+        var spans: [Range<Int>] = []
+        if end > start {
+            if window.weekdays.contains(weekday) { spans.append(start..<end) }
+        } else {
+            // Wraps midnight. `(weekday + 5) % 7 + 1` is the previous weekday
+            // in Calendar's 1...7 numbering (Sunday's previous is Saturday, 7).
+            let previous = (weekday + 5) % 7 + 1
+            if window.weekdays.contains(weekday), start < 1440 { spans.append(start..<1440) }
+            if window.weekdays.contains(previous), end > 0 { spans.append(0..<end) }
+        }
+        return spans
+    }
+
+    /// Every `.protected` window whose span on `weekday` strictly overlaps
+    /// the block `[startMinutes, startMinutes + duration)`. Touching
+    /// endpoints are not an overlap: a block starting at 07:00 is not inside
+    /// a window ending at 07:00. This is the same test `ConflictEngine` uses.
+    /// `.lowEnergy` and `.peakFocus` never count (§13.6.1 rule 4).
+    static func refusingWindows(
+        startMinutes: Int, duration: TimeInterval, weekday: Int, windows: [TimeWindow]
+    ) -> [TimeWindow] {
+        // Seconds, not whole minutes, so a duration that isn't a whole number
+        // of minutes is compared exactly.
+        let blockStart = TimeInterval(startMinutes * 60)
+        let blockEnd = blockStart + duration
+        guard blockEnd > blockStart else { return [] }
+
+        return windows.filter { window in
+            guard window.kind == .protected else { return false }
+            return minuteSpans(of: window, onWeekday: weekday).contains { span in
+                let spanStart = TimeInterval(span.lowerBound * 60)
+                let spanEnd = TimeInterval(span.upperBound * 60)
+                return blockStart < spanEnd && spanStart < blockEnd
+            }
+        }
+    }
+
+    static func refuses(startMinutes: Int, duration: TimeInterval, weekday: Int, windows: [TimeWindow]) -> Bool {
+        !refusingWindows(startMinutes: startMinutes, duration: duration, weekday: weekday, windows: windows).isEmpty
+    }
+
+    /// One entry per protected window that refuses the block on at least one
+    /// of `activeWeekdays`, carrying the weekdays it refuses on. This feeds
+    /// the inspector's `Will not run — inside <label> (protected) on <days>`
+    /// line (§13.6.2). `orderedWeekdays` is the window's column order, so the
+    /// days read in the same order as the columns. Windows come out in
+    /// `windows`' order.
+    struct Refusal: Equatable {
+        let windowID: UUID
+        let label: String
+        let weekdays: [Int]
+    }
+
+    static func refusals(
+        startMinutes: Int, duration: TimeInterval,
+        activeWeekdays: Set<Int>, orderedWeekdays: [Int], windows: [TimeWindow]
+    ) -> [Refusal] {
+        windows.compactMap { window in
+            let days = orderedWeekdays.filter { weekday in
+                activeWeekdays.contains(weekday)
+                    && refuses(startMinutes: startMinutes, duration: duration, weekday: weekday, windows: [window])
+            }
+            return days.isEmpty ? nil : Refusal(windowID: window.id, label: window.label, weekdays: days)
+        }
+    }
+
+    /// components.md §13.6.2's exact copy:
+    /// `Will not run — inside Sleep (protected) on Mon, Wed, Fri`.
+    /// Split at the dash into the inspector's label and value (see
+    /// `RoutineInspectorView`). Weekday names are the calendar's
+    /// `shortWeekdaySymbols`, the same source as the `Add Sat` button.
+    static let inspectorLabel = "Will not run —"
+
+    static func inspectorValue(for refusal: Refusal, calendar: Calendar = .current) -> String {
+        let days = refusal.weekdays
+            .map { calendar.shortWeekdaySymbols[($0 - 1) % 7] }
+            .joined(separator: ", ")
+        return "inside \(refusal.label) (protected) on \(days)"
+    }
+}
+
+// MARK: - Horizon and triggers (components.md §13.6.5, task P2-T40)
+
+/// Where `materialize` gets called from. The triggers (§13.6.5) are app
+/// launch, any edit to a template, a block or a `TimeWindow`, and a change to
+/// the main window's visible range. The views wire them up
+/// (`MainWindow`, `RoutinesWindow`, `RoutineMaterializationTriggers`). This
+/// type holds the horizon arithmetic and the "run every template" pass, so
+/// both are testable without a view.
+@MainActor
+enum RoutineMaterialization {
+
+    /// §13.6.5: "today + 28 days".
+    static let minimumLeadDays = 28
+    /// §13.6.5: "(the main window's visible range's end) + 7 days".
+    static let visibleRangeLeadDays = 7
+
+    /// "Today through the later of `today + 28 days` and `(visible range's
+    /// end) + 7 days`" (§13.6.5), as a half-open `DateInterval`.
+    ///
+    /// "Through" is read inclusively: day `today + 28` is materialised, so
+    /// the interval's exclusive end is the start of day `today + 29`.
+    /// `visibleEnd` is `CalendarState.visibleInterval.end`, which is already
+    /// exclusive (the start of the day after the last visible day). Adding 7
+    /// days to it therefore covers the last visible day + 7, inclusive.
+    /// `nil` means no visible range is known, and only the 28 days apply.
+    static func horizon(today: Date, visibleEnd: Date?, calendar: Calendar = .current) -> DateInterval {
+        let start = calendar.startOfDay(for: today)
+        let minimumEnd = calendar.date(byAdding: .day, value: minimumLeadDays + 1, to: start) ?? start
+        var end = minimumEnd
+        if let visibleEnd,
+           let visibleLeadEnd = calendar.date(
+               byAdding: .day, value: visibleRangeLeadDays, to: calendar.startOfDay(for: visibleEnd)) {
+            end = Swift.max(minimumEnd, visibleLeadEnd)
+        }
+        return DateInterval(start: start, end: end)
+    }
+
+    /// Materialise every template in `context` over the horizon, refusing
+    /// pairs in every `.protected` window in `context`. Writes are not
+    /// recorded as an undo step (see `RoutineEngine.materialize`'s doc
+    /// comment). Idempotent, so a trigger that fires twice, or two windows
+    /// each firing it for the same edit, creates nothing the second time.
+    @discardableResult
+    static func run(
+        context: ModelContext,
+        undo: UndoStack,
+        visibleEnd: Date?,
+        today: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        let templates = (try? context.fetch(FetchDescriptor<RoutineTemplate>())) ?? []
+        let windows = (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? []
+        let range = horizon(today: today, visibleEnd: visibleEnd, calendar: calendar)
+        let store = EventStore(context: context, undo: undo)
+
+        return templates.reduce(0) { total, template in
+            total + RoutineEngine.materialize(
+                template: template, into: range, timeWindows: windows,
+                today: today, recordsUndo: false, store: store, calendar: calendar)
+        }
+    }
+
+    /// Everything a template, block or window edit can change that affects
+    /// which pairs `materialize` creates. A view watches this with
+    /// `.onChange(of:)`. SwiftData models are `@Observable`, so reading their
+    /// properties while building this value inside a view's `body`
+    /// subscribes the view to those properties. An edit made in either
+    /// window re-renders the watcher, the value changes, and `onChange` fires.
+    struct Fingerprint: Hashable {
+        struct Block: Hashable {
+            let id: UUID
+            let startMinutes: Int
+            let duration: TimeInterval
+        }
+        struct Template: Hashable {
+            let id: UUID
+            let activeWeekdays: Set<Int>
+            let blocks: [Block]
+        }
+        struct Window: Hashable {
+            let id: UUID
+            let weekdays: Set<Int>
+            let startMinutes: Int
+            let endMinutes: Int
+            let kind: TimeWindowKind
+        }
+
+        let templates: [Template]
+        let windows: [Window]
+
+        init(templates: [RoutineTemplate], windows: [TimeWindow]) {
+            self.templates = templates.map { template in
+                Template(
+                    id: template.id,
+                    activeWeekdays: template.activeWeekdays,
+                    blocks: template.blocks.map {
+                        Block(id: $0.id, startMinutes: $0.startMinutes, duration: $0.duration)
+                    })
+            }
+            self.windows = windows.map {
+                Window(id: $0.id, weekdays: $0.weekdays, startMinutes: $0.startMinutes,
+                       endMinutes: $0.endMinutes, kind: $0.kind)
+            }
+        }
     }
 }
 
@@ -353,8 +596,10 @@ struct RoutineTemplateStore {
             // P2-T41: on deactivation, withdraw this weekday's future,
             // non-detached instances here (components.md §13.6.4), through
             // `EventStore` on the same `UndoStack`, so they join this step and
-            // one `⌘Z` restores both the weekday and the instances. Nothing is
-            // materialised yet (P2-T40), so there is nothing to withdraw.
+            // one `⌘Z` restores both the weekday and the instances. Since
+            // P2-T40, activation creates the new day's instances through the
+            // background trigger (`RoutineMaterializationTriggers`), outside
+            // this step. Until P2-T41 they stay put when this step is undone.
         }
     }
 }
