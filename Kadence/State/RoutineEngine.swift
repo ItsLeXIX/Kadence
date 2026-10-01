@@ -293,6 +293,72 @@ struct RoutineBlockStore {
     }
 }
 
+// MARK: - Template edits: weekday activation (task P2-T39)
+
+/// Edits to a `RoutineTemplate` itself rather than to one of its blocks.
+/// Today that is only components.md §13.5.4's weekday activation; same
+/// id-addressed, one-named-step shape as `RoutineBlockStore` above, and the
+/// same shared `UndoStack`.
+@MainActor
+struct RoutineTemplateStore {
+    let context: ModelContext
+    let undo: UndoStack
+
+    private func template(_ id: UUID) -> RoutineTemplate? {
+        var descriptor = FetchDescriptor<RoutineTemplate>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
+    private func setActiveWeekdays(_ weekdays: Set<Int>, templateID: UUID) {
+        guard let template = template(templateID) else { return }
+        template.activeWeekdays = weekdays
+        try? context.save()
+    }
+
+    /// Adds `weekday` to (`active == true`) or removes it from
+    /// `template.activeWeekdays`, as ONE named undo step:
+    /// `Add Saturday to Routine` / `Remove Saturday from Routine`
+    /// (components.md §13.5.4, interactions.md §11.1.1). All three paths in
+    /// §13.5.4 — the column note's `Add Sat` button, the inspector toggle
+    /// row turning a day on, and the same row turning it off — call this.
+    ///
+    /// Asking for the state the day is already in records nothing, so there
+    /// is no empty step to press `⌘Z` through (`UndoStack.perform`'s own
+    /// rule).
+    ///
+    /// The whole old and new sets are captured, not "insert"/"remove", so
+    /// undo restores the set exactly even if it is replayed out of step with
+    /// some other edit.
+    func setWeekday(_ weekday: Int, active: Bool, in template: RoutineTemplate, calendar: Calendar = .current) {
+        let old = template.activeWeekdays
+        let new = RoutineWeekdayActivation.applying(weekday, active: active, to: old)
+        guard new != old else { return }
+
+        // SPEC-GAP (design/GAPS.md G-027): removing the LAST active weekday.
+        // §13.5.4 and interactions.md §11.1.1 give no exception, so it is
+        // allowed and leaves an empty set: all seven columns go inactive and
+        // each shows its `Add` button, which is the way back. Nothing is
+        // refused here, because a refusal needs a rule the spec has not made.
+
+        let templateID = template.id
+        let name = RoutineWeekdayActivation.undoName(weekday: weekday, activating: active, calendar: calendar)
+        // The block form of `perform` opens one group, so anything else
+        // recorded inside the closure joins this step instead of pushing its
+        // own (see `UndoStack.perform`'s doc comment).
+        undo.perform(name) { group in
+            group.perform(
+                redo: { setActiveWeekdays(new, templateID: templateID) },
+                undo: { setActiveWeekdays(old, templateID: templateID) })
+            // P2-T41: on deactivation, withdraw this weekday's future,
+            // non-detached instances here (components.md §13.6.4), through
+            // `EventStore` on the same `UndoStack`, so they join this step and
+            // one `⌘Z` restores both the weekday and the instances. Nothing is
+            // materialised yet (P2-T40), so there is nothing to withdraw.
+        }
+    }
+}
+
 // MARK: - Snapshot (delete/undo)
 
 /// Everything needed to bring a `RoutineBlock` back after a delete — the same

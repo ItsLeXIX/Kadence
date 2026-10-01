@@ -710,8 +710,30 @@ removed; `increaseContrast` parameter, GAPS G-003).
 
 ## C — invented design values
 
-**None.** There are no invented design values and no `// SPEC-GAP` markers left
-in `Kadence/`.
+*(Updated 2026-10-01, task P2-T39.)* One invented design value and one
+behavioural placeholder, both marked `// SPEC-GAP` in `Kadence/`. Before
+P2-T39 this section read "None".
+
+- **C2 — the focused toggle inside the weekday toggle row (GAPS G-028).**
+  `WeekdayToggleRow` (`RoutinesWindow.swift`) marks the toggle `←`/`→` have
+  moved to with a `color.interactive.focusRing` stroke at `size.borderSelected`,
+  `radius.chip`, inside the toggle's bounds. It shows only while the row has
+  keyboard focus. The tokens exist, but this use of them is invented. No spec
+  marks a focused item inside a toggle row.
+- **C3 — removing the last active weekday is allowed (GAPS G-027).**
+  `RoutineTemplateStore.setWeekday` doesn't refuse it. The template is left
+  with an empty `activeWeekdays`, every column goes inactive with its
+  `Add <Day>` button, and `⌘Z` restores it. This is a behaviour, not a visual
+  value, but it is the same kind of placeholder, so it is listed here.
+
+Two P2-T39 judgement calls that need no marker, because no value was invented:
+
+- `←`/`→` in the toggle row **stop** at the first and last toggle instead of
+  wrapping. §11.1.1 says only "move between the seven toggles".
+- The time-window inspector's weekday row is now the same `WeekdayToggleRow`
+  (layouts.md §8.1: "the same Mon-first toggle row the time-window inspector
+  already uses"). Its look and its write are unchanged, and it gains the same
+  `⇥`/`←`/`→`/`space` keyboard path.
 
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind

@@ -84,6 +84,16 @@
 //  themselves live in `Kadence/Layout/RoutineColumnRules.swift`. The
 //  `Add <Day>` button is deliberately a no-op until P2-T39 (§13.5.4).
 //
+//  Task P2-T39 — weekday activation (components.md §13.5.4, interactions.md
+//  §11.1.1, layouts.md §8.1). The `Add <Day>` button and the template
+//  inspector's weekday toggle row both write through
+//  `RoutineTemplateStore.setWeekday` (`RoutineEngine.swift`): one named undo
+//  step each, `Add Saturday to Routine` / `Remove Saturday from Routine`. The
+//  inspector's old read-only "Weekdays" text is now that toggle row
+//  (`WeekdayToggleRow`, shared with the time-window inspector), reachable by
+//  `⇥`, `←`/`→` to move, `space` to flip. A column that changes state cross-
+//  fades over `motion.viewChange` (`RoutineColumnTransition`).
+//
 //  Move/resize/delete/create all go through `RoutineBlockStore`
 //  (`Kadence/State/RoutineEngine.swift`) — the Routines-window sibling of
 //  `EventStore`, same id-addressed/undo-named shape, written over
@@ -169,6 +179,20 @@ struct RoutinesWindow: View {
     /// which window is key.
     private var timeWindowStore: TimeWindowStore {
         TimeWindowStore(context: context, undo: undoStack)
+    }
+
+    /// Task P2-T39 — weekday activation (components.md §13.5.4). Same shared
+    /// `UndoStack` as the two stores above.
+    private var templateStore: RoutineTemplateStore {
+        RoutineTemplateStore(context: context, undo: undoStack)
+    }
+
+    /// components.md §13.5.4: the one write behind all three activation
+    /// paths. Passed down as a closure so the canvas and the inspector need
+    /// neither the store nor the template to call it.
+    private func setWeekday(_ weekday: Int, active: Bool) {
+        guard let selectedTemplate else { return }
+        templateStore.setWeekday(weekday, active: active, in: selectedTemplate)
     }
 
     private var selectedTemplate: RoutineTemplate? {
@@ -322,7 +346,8 @@ struct RoutinesWindow: View {
                 editorMode: editorMode,
                 timeWindows: timeWindows,
                 timeWindowStore: timeWindowStore,
-                windowSelection: $windowSelection)
+                windowSelection: $windowSelection,
+                onAddWeekday: { setWeekday($0, active: true) })
         }
     }
 
@@ -345,7 +370,10 @@ struct RoutinesWindow: View {
             TimeWindowInspectorView(window: selectedWindow, store: timeWindowStore)
                 .id(selectedWindow.id)
         } else {
-            RoutineInspectorView(template: selectedTemplate, selectedBlock: selectedBlockSnapshot)
+            RoutineInspectorView(
+                template: selectedTemplate,
+                selectedBlock: selectedBlockSnapshot,
+                onSetWeekday: setWeekday)
         }
     }
 
@@ -413,6 +441,8 @@ private struct RoutineWeekdayHeaderRow: View {
     let railColor: Color
     let editorMode: RoutinesEditorMode
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             Color.clear.frame(width: Tokens.Size.timeGutterWidth)
@@ -450,6 +480,11 @@ private struct RoutineWeekdayHeaderRow: View {
                 .fill(Tokens.Color.Separator.region)
                 .frame(height: Tokens.Size.hairline)
         }
+        // Task P2-T39 — §13.5.4: on activation "the header gains its
+        // underline" in the same transition as the column below. The
+        // underline is inserted/removed by an `if`, and an inserted view's
+        // default transition is a fade, so it fades in or out.
+        .animation(RoutineColumnTransition.animation(reduceMotion: reduceMotion), value: activeWeekdays)
     }
 
     private func weekdaySymbol(_ weekday: Int) -> String {
@@ -469,6 +504,8 @@ private struct RoutinesCanvasView: View {
     /// Task P2-T21.
     let timeWindowStore: TimeWindowStore
     @Binding var windowSelection: UUID?
+    /// Task P2-T39 — the `Add <Day>` button's action (components.md §13.5.4).
+    let onAddWeekday: (Int) -> Void
 
     /// Task P2-T38 — the one in-flight block move/resize, owned HERE rather
     /// than by each column. interactions.md §11.1: "The drop preview appears
@@ -539,6 +576,7 @@ private struct RoutinesCanvasView: View {
                     timeWindowStore: timeWindowStore,
                     windowSelection: $windowSelection,
                     blockDrag: $blockDrag,
+                    onAddWeekday: onAddWeekday,
                     showsDropPreview: RoutineBlockDrag.previewWeekdays(
                         orderedWeekdays: weekdays,
                         activeWeekdays: template?.activeWeekdays ?? []
@@ -599,6 +637,8 @@ private struct RoutineDayColumnView: View {
     /// reads it to draw the preview and the origin ghost, and whichever column
     /// the drag started in writes it.
     @Binding var blockDrag: RoutineBlockDrag?
+    /// Task P2-T39 — the note's `Add <Day>` action (components.md §13.5.4).
+    let onAddWeekday: (Int) -> Void
     /// Whether this column draws `blockDrag`'s drop preview — true for every
     /// active column, false for an inactive one (interactions.md §11.1).
     let showsDropPreview: Bool
@@ -612,6 +652,10 @@ private struct RoutineDayColumnView: View {
     /// and an inactive column refuses it outright.
     @State private var drag: RoutineDragSession?
     @State private var hoveredID: UUID?
+    /// `@Environment` reads a value SwiftUI supplies from outside the view —
+    /// here the system's Reduce Motion setting, which changes
+    /// `RoutineColumnTransition` (task P2-T39).
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The in-flight creation draft, if any (task P2-T12). Local to this one
     /// weekday column, exactly the way `drag` above is — nothing persists
     /// until `commitDraft()` calls into `RoutineBlockStore.create`.
@@ -845,16 +889,26 @@ private struct RoutineDayColumnView: View {
                 // that visible top. Drawn last so the `Add` button sits above
                 // the refusal surface and is clickable.
                 if treatment.showsInactiveNote {
-                    InactiveDayNote(weekday: weekday, onAdd: {
-                        // P2-T39: components.md §13.5.4 activation (write the
-                        // weekday, named undo step, arrival motion) is the
-                        // next task. Deliberately a no-op until then.
-                    })
+                    // Task P2-T39 — components.md §13.5.4: adds this weekday
+                    // to the template, as one `Add Saturday to Routine` step.
+                    InactiveDayNote(weekday: weekday, onAdd: { onAddWeekday(weekday) })
                     .padding(.leading, Tokens.Spacing.xs)
                     .offset(y: max(scrollOffsetY, 0) + Tokens.Spacing.xs)
                 }
             }
             .frame(height: geometry.totalHeight, alignment: .top)
+            // Task P2-T39 — components.md §13.5.4: when this column's weekday
+            // is activated, "every block in the template appears in the
+            // column at once, over `motion.viewChange` (0.16, easeInOut,
+            // opacity only)"; deactivation "runs the same transition in
+            // reverse". `.animation(_:value:)` animates every change in this
+            // subtree that happens in the same update as `isActiveDay`
+            // changing — and only those. The blocks and the note come and go
+            // through `ForEach`/`if`, whose default insertion/removal
+            // transition is `.opacity`; the hour-line colour interpolates.
+            // Keyed on the weekday set rather than on the click, so `⌘Z` and
+            // `⌘⇧Z` animate the same way.
+            .animation(RoutineColumnTransition.animation(reduceMotion: reduceMotion), value: isActiveDay)
         }
         .frame(height: hourHeight * 24)
         // interactions.md §11.1: "A draft whose column is deactivated
@@ -1379,6 +1433,25 @@ private struct RoutineDayColumnView: View {
     }
 }
 
+// MARK: - Column activation transition (components.md §13.5.4, task P2-T39)
+
+/// `motion.viewChange` for a weekday column changing state. An `enum` with no
+/// cases is Swift's usual namespace for static helpers (like a static class).
+enum RoutineColumnTransition {
+    /// §13.5.4: "over `motion.viewChange` (0.16, easeInOut, opacity only)
+    /// ... Under Reduce Motion it is an instant swap, per that token's own
+    /// entry." That entry (`Tokens.Motion.ViewChange.reduceMotion`) reads
+    /// "instant swap, 0.10 opacity fade only", so Reduce Motion keeps a 0.10
+    /// fade and drops nothing else; this transition has no movement to drop.
+    /// The 0.10 comes from that prose, as `MainWindow`'s view-mode cross-fade
+    /// already reads it — the token has no numeric field for it.
+    static func animation(reduceMotion: Bool) -> Animation {
+        reduceMotion
+            ? .easeInOut(duration: 0.10)
+            : .easeInOut(duration: Tokens.Motion.ViewChange.duration)
+    }
+}
+
 // MARK: - Inactive-column note (components.md §13.5.3, task P2-T38)
 
 /// "Not in this routine" + an `Add Sat` text button, stacked `spacing.xxs`
@@ -1438,6 +1511,13 @@ private struct InactiveDayNote: View {
 private struct RoutineInspectorView: View {
     let template: RoutineTemplate?
     let selectedBlock: RoutineBlockSnapshot?
+    /// Task P2-T39 — `(weekday, active)`: the toggle row's write
+    /// (components.md §13.5.4 via `RoutinesWindow.setWeekday`).
+    let onSetWeekday: (Int, Bool) -> Void
+
+    private var orderedWeekdays: [Int] {
+        RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)
+    }
 
     var body: some View {
         ScrollView {
@@ -1488,7 +1568,19 @@ private struct RoutineInspectorView: View {
             .typeStyle(.inspectorTitle)
             .foregroundStyle(Tokens.Color.Text.primary)
 
-        field("Weekdays", weekdayList(template.activeWeekdays))
+        // layouts.md §8.1 (amended 2026-10-01): "Active weekdays is a
+        // control, not a field. It is the same Mon-first toggle row the
+        // time-window inspector already uses" — so it is literally that row.
+        // It replaces the read-only weekday list that used to sit here.
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+            label("Weekdays")
+            WeekdayToggleRow(
+                weekdays: orderedWeekdays,
+                isOn: { template.activeWeekdays.contains($0) },
+                onFlip: { weekday in
+                    onSetWeekday(weekday, !template.activeWeekdays.contains(weekday))
+                })
+        }
         field("Blocks", "\(template.blocks.count)")
         field("Total", String(format: "%.1f h", totalHours(template)))
         // §13.4 — detached-instance count and its Re-sync button belong here
@@ -1530,12 +1622,6 @@ private struct RoutineInspectorView: View {
         return remainder == 0 ? "\(hours) h" : "\(hours) h \(remainder) min"
     }
 
-    private func weekdayList(_ weekdays: Set<Int>) -> String {
-        guard !weekdays.isEmpty else { return "None" }
-        let symbols = Calendar.current.shortWeekdaySymbols
-        return weekdays.sorted().map { symbols[$0 - 1] }.joined(separator: ", ")
-    }
-
     /// Hours per *week*, not just the sum of the block set: every block
     /// repeats on every active weekday (`RoutineWeekLayout`'s own header
     /// comment), so the total time this template actually occupies across a
@@ -1547,6 +1633,91 @@ private struct RoutineInspectorView: View {
     private func totalHours(_ template: RoutineTemplate) -> Double {
         let perOccurrence = template.blocks.reduce(0) { $0 + $1.duration } / 3600
         return perOccurrence * Double(template.activeWeekdays.count)
+    }
+}
+
+// MARK: - Weekday toggle row (layouts.md §8.1, task P2-T39)
+
+/// Seven weekday toggles in the window's column order. Used by both
+/// inspectors: the template's active weekdays and a `TimeWindow`'s weekdays.
+///
+/// Rendering is task P2-T24's (see DEVIATIONS.md for that judgement call):
+/// native `Toggle`s in `.toggleStyle(.button)`, `dayHeaderWeekday` labels,
+/// `color.interactive.accent` tint.
+///
+/// Keyboard (interactions.md §11.1.1, layouts.md §8.1): "reached by `⇥` into
+/// the inspector; `←`/`→` move between the seven toggles and `space` flips the
+/// focused one." The ROW is the single focus target, not each toggle, because
+/// interactions.md §1 says `⇥` leaves a region rather than moving inside it —
+/// seven separate tab stops would make `⇥` walk the row. The row tracks which
+/// toggle is "focused" itself (`focusedWeekday`) and draws the system focus
+/// ring on its container, as §1 asks of a focused region.
+private struct WeekdayToggleRow: View {
+    /// Display order — `RoutineWeekLayout.orderedWeekdays`.
+    let weekdays: [Int]
+    let isOn: (Int) -> Bool
+    /// Called with the weekday to flip; the caller does the write.
+    let onFlip: (Int) -> Void
+
+    /// `@FocusState` is SwiftUI's handle on keyboard focus: SwiftUI sets it
+    /// to `true` when this view becomes first responder, and setting it moves
+    /// focus here.
+    @FocusState private var rowFocused: Bool
+    /// The toggle `←`/`→` have moved to, by weekday. `nil` until the row is
+    /// first focused.
+    @State private var focusedWeekday: Int?
+
+    var body: some View {
+        HStack(spacing: Tokens.Spacing.xs) {
+            ForEach(weekdays, id: \.self) { weekday in
+                // `Binding(get:set:)` builds a two-way binding from two
+                // closures. The toggle hands back the new Bool; we ignore it
+                // and flip, since `onFlip` reads the current state itself.
+                Toggle(isOn: Binding(get: { isOn(weekday) }, set: { _ in onFlip(weekday) })) {
+                    Text(Calendar.current.shortWeekdaySymbols[weekday - 1])
+                        .typeStyle(.dayHeaderWeekday)
+                }
+                .toggleStyle(.button)
+                .tint(Tokens.Color.Interactive.accent)
+                // Not a tab stop of its own — the row is (see above).
+                .focusable(false)
+                .overlay {
+                    if rowFocused, focusedWeekday == weekday {
+                        // SPEC-GAP (design/GAPS.md G-028): no spec marks the
+                        // focused item inside a toggle row. Placeholder: the
+                        // existing selection-ring colour and width
+                        // (`color.interactive.focusRing`, `size.borderSelected`)
+                        // at `radius.chip`.
+                        RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
+                            .strokeBorder(Tokens.Color.Interactive.focusRing, lineWidth: Tokens.Size.borderSelected)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .accessibilityLabel(Calendar.current.weekdaySymbols[weekday - 1])
+            }
+        }
+        .focusable()
+        .focused($rowFocused)
+        .onChange(of: rowFocused) { _, focused in
+            // Entering the row lands on the first toggle in display order,
+            // unless `←`/`→` already chose one earlier.
+            if focused, focusedWeekday == nil { focusedWeekday = weekdays.first }
+        }
+        // `.onKeyPress` returns `.handled` to stop the key here, or
+        // `.ignored` to let it continue up to the window (e.g. `⌫`, `⌘[`).
+        .onKeyPress(.leftArrow) { moveFocus(by: -1) }
+        .onKeyPress(.rightArrow) { moveFocus(by: 1) }
+        .onKeyPress(.space) {
+            guard let focusedWeekday else { return .ignored }
+            onFlip(focusedWeekday)
+            return .handled
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func moveFocus(by offset: Int) -> KeyPress.Result {
+        focusedWeekday = RoutineWeekdayActivation.movingFocus(from: focusedWeekday, by: offset, in: weekdays)
+        return .handled
     }
 }
 
@@ -1660,37 +1831,20 @@ private struct TimeWindowInspectorView: View {
     private var weekdaysField: some View {
         HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
             label("Weekdays")
-            HStack(spacing: Tokens.Spacing.xs) {
-                ForEach(orderedWeekdays, id: \.self) { weekday in
-                    weekdayToggle(weekday)
-                }
-            }
+            // Task P2-T39 moved the row's body into `WeekdayToggleRow` so
+            // the template inspector can use the same one (layouts.md §8.1).
+            // Rendering and the write are unchanged; it also gains the row's
+            // `←`/`→`/`space` keyboard path.
+            WeekdayToggleRow(
+                weekdays: orderedWeekdays,
+                isOn: { window.weekdays.contains($0) },
+                onFlip: { weekday in
+                    store.setWeekdays(
+                        window,
+                        to: RoutineWeekdayActivation.applying(
+                            weekday, active: !window.weekdays.contains(weekday), to: window.weekdays))
+                })
         }
-    }
-
-    private func weekdayToggle(_ weekday: Int) -> some View {
-        let isOn = window.weekdays.contains(weekday)
-        return Toggle(isOn: Binding(
-            get: { isOn },
-            set: { newValue in
-                var newWeekdays = window.weekdays
-                if newValue { newWeekdays.insert(weekday) } else { newWeekdays.remove(weekday) }
-                store.setWeekdays(window, to: newWeekdays)
-            })) {
-                Text(weekdaySymbol(weekday))
-                    .typeStyle(.dayHeaderWeekday)
-            }
-            .toggleStyle(.button)
-            .tint(Tokens.Color.Interactive.accent)
-            .accessibilityLabel(weekdayFullName(weekday))
-    }
-
-    private func weekdaySymbol(_ weekday: Int) -> String {
-        Calendar.current.shortWeekdaySymbols[weekday - 1]
-    }
-
-    private func weekdayFullName(_ weekday: Int) -> String {
-        Calendar.current.weekdaySymbols[weekday - 1]
     }
 
     // MARK: Label

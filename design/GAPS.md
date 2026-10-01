@@ -1593,3 +1593,54 @@ that mode.
 `halfHour` in both modes. Under Increase Contrast that widens the gap
 between active and inactive columns (`strong` against `halfHour`), and it
 takes no value the spec doesn't name. Not blocking.
+
+---
+
+## 2026-10-01 — G-027 — what removing a template's last active weekday does
+
+**Where it bit:** task P2-T39, `RoutineTemplateStore.setWeekday`
+(`Kadence/State/RoutineEngine.swift`).
+
+**What the spec says.** `components.md` §13.5.4 lists "removal only: toggling
+an active weekday off" in the inspector row, not confirmed, one undo step.
+`interactions.md` §11.1.1 says the same. Neither makes an exception for the
+last active weekday.
+
+**What is missing.** Whether the last day can be turned off, leaving a template
+with an empty `activeWeekdays` that produces nothing. The alternative is
+refusing it, and §13.5.1 says a refusal has to show its reason. The time-window
+sibling (`TimeWindowStore.setWeekdays`, P2-T24) silently refuses an empty set,
+but no spec rule covers that either.
+
+**What was built instead of guessing.** It is allowed, read literally from
+§13.5.4: `Remove Friday from Routine` leaves an empty set, all seven columns
+go inactive and each shows its `Add <Day>` button, and one `⌘Z` restores the
+day. Marked `// SPEC-GAP (design/GAPS.md G-027)`. A test pins this placeholder
+(`RoutineWeekdayActivationTests.removeLastWeekday`). Not blocking.
+
+**Needed to close:** allow, or refuse with a stated surface for the reason.
+
+---
+
+## 2026-10-01 — G-028 — how the focused toggle inside a weekday toggle row is marked
+
+**Where it bit:** task P2-T39, `WeekdayToggleRow`
+(`Kadence/Views/Routines/RoutinesWindow.swift`).
+
+**What the spec says.** `layouts.md` §8.1 and `interactions.md` §11.1.1:
+`⇥` reaches the row, `←`/`→` move between the seven toggles, `space` flips
+"the focused one". `interactions.md` §1: a focused region draws the standard
+system focus ring on its container, and `⇥` leaves a region instead of moving
+inside it. So the row is one focus target with an internal focused item.
+
+**What is missing.** Any visual for which toggle inside the row is focused.
+The system ring goes around the container, so it can't show this.
+
+**What was built instead of guessing.** Placeholder, marked
+`// SPEC-GAP (design/GAPS.md G-028)`: a `color.interactive.focusRing` stroke at
+`size.borderSelected`, inset in the toggle's bounds, at `radius.chip`. These are
+the selection ring's own colour and width, but the shape and placement are
+invented. Shown only while the row has keyboard focus. Not blocking.
+
+**Needed to close:** the focused-item marker for this row, or a ruling that
+each toggle is its own focus stop after all.

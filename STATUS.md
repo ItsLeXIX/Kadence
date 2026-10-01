@@ -5246,3 +5246,97 @@ marker, because no value was invented.
 §8.1 weekday toggle row, the named undo steps, and the `motion.viewChange`
 arrival. Then re-run the two scripts on a free desktop, and capture §17 items
 13–14.
+
+## 40. P2-T39 — weekday activation (components.md §13.5.4; interactions.md §11.1.1; layouts.md §8.1)
+
+### Built
+
+- **`RoutineTemplateStore.setWeekday(_:active:in:)`** (new, in
+  `Kadence/State/RoutineEngine.swift`). All three §13.5.4 paths share this
+  one write. Each change is ONE `UndoStack` step named `Add Saturday to
+  Routine` / `Remove Saturday from Routine`, using the full
+  `standaloneWeekdaySymbols` name. The step captures the whole old and new
+  set, so undo/redo restore it exactly. Asking for the state a day is already
+  in records nothing. The step is opened with the block form of
+  `UndoStack.perform`, so a later `EventStore` call inside it joins the same
+  step. A `// P2-T41` marker shows where §13.6.4's withdrawal of
+  materialised instances will go. Deactivation changes the template only.
+- **`RoutineWeekdayActivation`** (pure, in `RoutineColumnRules.swift`):
+  `applying`, `undoName`, and `movingFocus` for the toggle row's `←`/`→`.
+- **`Add <Day>`** in the inactive-column note now calls `setWeekday(…,
+  active: true)`. The `// P2-T39` no-op is gone.
+- **Inspector toggle row** (layouts.md §8.1 amended). With nothing selected,
+  the template summary's read-only "Weekdays" text is replaced by
+  `WeekdayToggleRow`. The time-window inspector already used this row (look
+  unchanged: native `.button` toggles, `dayHeaderWeekday`, accent tint), and
+  now both inspectors share it. It is ordered by
+  `RoutineWeekLayout.orderedWeekdays(firstWeekday:)`, which is Mon-first on
+  this machine. The row is a single focus target with the system focus ring
+  on its container (interactions.md §1: `⇥` leaves a region, it doesn't walk
+  it). `←`/`→` move an internal focused toggle, stopping at the ends, and
+  `space` flips it. Turning a day off is the deactivation path. The old
+  `weekdayList` text helper is removed. It printed Sunday-first
+  (`weekdays.sorted()`), which no longer matters.
+- **Transition.** `RoutineColumnTransition.animation(reduceMotion:)` is
+  `motion.viewChange` (0.16, easeInOut). It is applied with
+  `.animation(_:value: isActiveDay)` on each column and
+  `.animation(_:value: activeWeekdays)` on the header row. Blocks and the
+  note come and go through `ForEach`/`if` with the default `.opacity`
+  transition, the hour-line colour interpolates, and the header underline
+  fades. It is keyed on state, not on the click, so `⌘Z`/`⌘⇧Z` animate the
+  same way, and deactivation is the reverse. Under Reduce Motion it uses the
+  token's own entry, "instant swap, 0.10 opacity fade only", as a 0.10
+  easeInOut fade. That matches how `MainWindow` already reads the same
+  token.
+
+### New GAPS / DEVIATIONS
+
+- **G-027**: the spec doesn't say whether the last active weekday can be
+  removed. The placeholder allows it, giving an empty set with all columns
+  inactive and each offering `Add`. It is marked SPEC-GAP and pinned by a
+  test. DEVIATIONS C3.
+- **G-028**: no spec marks the focused toggle inside the row. The placeholder
+  is a focusRing stroke at `size.borderSelected` / `radius.chip`, marked
+  SPEC-GAP. DEVIATIONS C2.
+- DEVIATIONS C no longer reads "None". It also records two judgement calls:
+  arrows stop at the ends of the row, and the time-window row is now the
+  shared one.
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no warnings in the changed
+  files (incremental build; the existing `MonthGridView.swift:153` warning
+  was not recompiled).
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`. The xcresult
+  summary went from **345 → 360 passed, 0 failed**: 15 new tests in
+  `KadenceTests/RoutineWeekdayActivationTests.swift`. Counting
+  `' passed on'` lines (§39's method) gives **398** against §39's **382**.
+  That is +16 for 15 new tests. The extra line comes from how parameterised
+  cases are printed, not from a new test; the xcresult count is the exact
+  one.
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** `CGSSessionScreenIsLocked = 0`, on console. No window
+  reported `AXFullScreen`. Opera was frontmost but windowed (in §39 it was
+  full screen).
+- **`check-routines-window.sh`: PASS.** ⌘⌥R opened the window, 9 routine
+  block elements were found, the click selected `Gym`, and the inspector
+  changed.
+- **`check-conflict-apply-return.sh`: FAIL, before any click or keypress.**
+  The failing step is `no 'Needs attention' element found`. Diagnosed with
+  `--keep`. A screenshot shows the row on screen as `Needs attention 12`, so
+  the conflicts exist. In the Accessibility tree it is `button 1 of UI
+  element 1 of row 1` of the sidebar outline, and neither its description
+  nor its children carry the text. The source rows' names are missing too.
+  The script's text match therefore can't find it. This is a
+  `SidebarView`/script problem from before this task. `git diff` shows
+  neither file was touched, and nothing P2-T39 changed is used by the main
+  window. The script still has never passed end to end. Fixing either side
+  was left out of scope.
+- **Not verified live:** the cross-fade and the toggle row's `⇥` entry and
+  arrow/space keys. No sanctioned script drives them, and no keystrokes were
+  sent outside the two scripts.
+
+**Next:** P2-T40 (materialisation wiring), then P2-T41 (withdrawal joins
+`Remove <Day> from Routine` at the `// P2-T41` marker). Separately: give the
+needs-attention row an accessibility label (or adjust the script's lookup)
+so `check-conflict-apply-return.sh` can reach its real assertion.

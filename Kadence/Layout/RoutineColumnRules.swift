@@ -182,3 +182,49 @@ struct RoutineBlockDrag: Equatable {
         orderedWeekdays.filter { activeWeekdays.contains($0) }
     }
 }
+
+// MARK: - Weekday activation (components.md §13.5.4, interactions.md §11.1.1)
+
+/// The pure half of activating or deactivating a weekday: the new set, the
+/// undo-step name, and where `←`/`→` move focus in the inspector's toggle row.
+/// `RoutineTemplateStore.setWeekday` (`RoutineEngine.swift`) does the write.
+enum RoutineWeekdayActivation {
+
+    /// `activeWeekdays` with `weekday` added (`active == true`) or removed.
+    /// A `Set` has no order, so "Mon-first" is never stored — it is applied
+    /// only when the set is displayed, through
+    /// `RoutineWeekLayout.orderedWeekdays(firstWeekday:)`.
+    static func applying(_ weekday: Int, active: Bool, to activeWeekdays: Set<Int>) -> Set<Int> {
+        var result = activeWeekdays
+        if active { result.insert(weekday) } else { result.remove(weekday) }
+        return result
+    }
+
+    /// components.md §13.5.4: "`Add Saturday to Routine` / `Remove Saturday
+    /// from Routine`, spelled with the weekday's full name
+    /// (`standaloneWeekdaySymbols`) so the Edit menu reads as a sentence."
+    /// `UndoStack` adds the leading "Undo "/"Redo " itself.
+    ///
+    /// `calendar` is a parameter so tests can pin an English locale; the app
+    /// passes `.current`. `weekday` is `Calendar`'s 1 = Sunday … 7 = Saturday,
+    /// so the symbol array is indexed at `weekday - 1`.
+    static func undoName(weekday: Int, activating: Bool, calendar: Calendar = .current) -> String {
+        let name = calendar.standaloneWeekdaySymbols[weekday - 1]
+        return activating ? "Add \(name) to Routine" : "Remove \(name) from Routine"
+    }
+
+    /// interactions.md §11.1.1 / layouts.md §8.1: "`←`/`→` move between the
+    /// seven toggles". The spec does not say whether focus wraps at either
+    /// end; it stops there, which is the reading that never moves focus
+    /// somewhere the user did not point (see STATUS.md §40).
+    ///
+    /// `ordered` is the row's display order; `offset` is −1 for `←`, +1 for
+    /// `→`. A `current` that is not in the row (nothing focused yet) lands on
+    /// the first toggle.
+    static func movingFocus(from current: Int?, by offset: Int, in ordered: [Int]) -> Int? {
+        guard !ordered.isEmpty else { return nil }
+        guard let current, let index = ordered.firstIndex(of: current) else { return ordered.first }
+        let target = min(max(index + offset, 0), ordered.count - 1)
+        return ordered[target]
+    }
+}
