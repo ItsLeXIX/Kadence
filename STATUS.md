@@ -6652,3 +6652,35 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
   all). The label-slicing entry is written (as resolved here) in P2-HK.
   §7's scrolled-past label pinning stays unbuilt: the review defers it,
   and P2-HK logs it. Recapture of 13–16 is item 20's.
+
+## 58. P2-F07 — inactive columns under Increase Contrast (components.md §13.5.2, amended 2026-10-05; G-026; PHASE2-REVIEW.md §6 item 7)
+
+### Built (`GridLayers.swift`)
+
+- `HourLineColors.resolve(recessed:increaseContrast:)` (pure) returns the
+  §13.5.2 tables as `SeparatorToken`s: active `hour` / `strong` (IC);
+  inactive `halfHour` / **`hour` (IC)** for hour and half-hour lines both.
+  The build had the recessed case win outright (`halfHour` under IC as well),
+  which left an Increase Contrast user with no visible grid in an inactive
+  column. `HourLinesLayer` draws both line kinds from the resolver.
+
+### Tests
+
+- `HourLineColorsTests` (3): inactive → `hour` for both line kinds under IC,
+  `halfHour` without; active unchanged (`hour`, `strong` under IC); inactive
+  is exactly one step below active in both modes.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 517
+  passed / 0 failed** (514 + 3).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- None. There was no `G-026` marker in code to remove: the old comment
+  ("the recessed case wins outright") is replaced. No recapture.

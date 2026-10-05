@@ -183,37 +183,69 @@ struct ColumnLabelInputsKey: PreferenceKey {
 
 // MARK: - Hour lines (layouts.md §3.1)
 
+/// The separator tokens an hour grid's lines use. An enum rather than
+/// `Color`s so tests can compare them (SwiftUI `Color`s from an asset catalog
+/// don't compare meaningfully).
+enum SeparatorToken: Equatable, Sendable {
+    case halfHour, hour, strong
+
+    var color: Color {
+        switch self {
+        case .halfHour: Tokens.Color.Separator.halfHour
+        case .hour: Tokens.Color.Separator.hour
+        case .strong: Tokens.Color.Separator.strong
+        }
+    }
+}
+
+/// components.md §13.5.2's two tables, as a pure function (task P2-F07).
+enum HourLineColors {
+    /// - Parameters:
+    ///   - recessed: an inactive Routines column (Blocks mode).
+    ///   - increaseContrast: the system's Increase Contrast setting.
+    /// - Returns: the hour-line and half-hour-line tokens.
+    static func resolve(recessed: Bool, increaseContrast: Bool) -> (hour: SeparatorToken, halfHour: SeparatorToken) {
+        switch (recessed, increaseContrast) {
+        // Active column: §11's Increase Contrast step for hour lines only.
+        case (false, false): (.hour, .halfHour)
+        case (false, true): (.strong, .halfHour)
+        // Inactive column: "hour and half-hour lines both" one step below
+        // active — `halfHour` normally, and (amended 2026-10-05, closes
+        // G-026) `hour` under Increase Contrast, so the recess survives the
+        // mode change instead of leaving no grid at all (1.14:1).
+        case (true, false): (.halfHour, .halfHour)
+        case (true, true): (.hour, .hour)
+        }
+    }
+}
+
 struct HourLinesLayer: View {
     let geometry: TimeGeometry
     /// Half-hour lines are drawn in the columns only, never across the gutter.
     var includeHalfHours: Bool = true
     /// components.md §13.5.2 — an inactive weekday column in the Routines
-    /// window draws its hour lines at half-hour weight ("hour and half-hour
-    /// lines both" in `color.separator.halfHour`), which recedes the column
-    /// without touching its ground. `false` everywhere else.
+    /// window recedes by drawing its lines one step lighter than an active
+    /// column's, without touching its ground. `false` everywhere else.
     var recessed: Bool = false
 
     @Environment(\.colorSchemeContrast) private var contrast
 
-    private var hourColor: Color {
-        // §13.5.2's table gives one value for a recessed column and does not
-        // carve out Increase Contrast, so the recessed case wins outright.
-        if recessed { return Tokens.Color.Separator.halfHour }
-        return contrast == .increased ? Tokens.Color.Separator.strong : Tokens.Color.Separator.hour
+    private var colors: (hour: SeparatorToken, halfHour: SeparatorToken) {
+        HourLineColors.resolve(recessed: recessed, increaseContrast: contrast == .increased)
     }
 
     var body: some View {
         ZStack(alignment: .top) {
             ForEach(0...24, id: \.self) { hour in
                 Rectangle()
-                    .fill(hourColor)
+                    .fill(colors.hour.color)
                     .frame(height: Tokens.Size.hairline)
                     .offset(y: CGFloat(hour) * geometry.hourHeight)
             }
             if includeHalfHours {
                 ForEach(0..<24, id: \.self) { hour in
                     Rectangle()
-                        .fill(Tokens.Color.Separator.halfHour)
+                        .fill(colors.halfHour.color)
                         .frame(height: Tokens.Size.hairline)
                         .offset(y: (CGFloat(hour) + 0.5) * geometry.hourHeight)
                 }
