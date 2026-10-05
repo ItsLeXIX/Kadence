@@ -23,6 +23,12 @@ struct GridBlockView: View {
     var contentTopInset: CGFloat = 0
 
     @Environment(\.colorSchemeContrast) private var contrast
+    /// `typography.blockMeta`'s size, scaled for Dynamic Type exactly as
+    /// `TypeStyleModifier` scales it, so the time is measured at the size it
+    /// is drawn at. `@ScaledMetric` is a property wrapper: SwiftUI re-reads
+    /// it when the text-size setting changes.
+    @ScaledMetric(relativeTo: TypeStyle.blockMeta.textStyle)
+    private var metaSize: CGFloat = Tokens.Typography.BlockMeta.size
 
     private var increaseContrast: Bool { contrast == .increased }
 
@@ -158,7 +164,16 @@ struct GridBlockView: View {
         //
         // Everything drawn after this point is a §3.5 rule-4 exception: the
         // selection ring (outside by design) and the elevation shadow.
-        .frame(height: renderedHeight, alignment: .top)
+        //   • P2-F04: the frame also fixes the WIDTH to what the caller
+        //     proposed (`minWidth: 0, maxWidth: .infinity`). Without it, a
+        //     row whose content was wider than the column (a fixed-size
+        //     title) made the whole ZStack — fill, border, clip shape and
+        //     selection ring — that wide, so the block printed across the
+        //     next column's divider (the 780pt capture). `.topLeading`
+        //     keeps any overflow on the trailing side, where it is clipped.
+        .frame(minWidth: 0, maxWidth: .infinity,
+               minHeight: renderedHeight, maxHeight: renderedHeight,
+               alignment: .topLeading)
         .clipShape(shape)
         // §6: `.dragging` and `.previewed` (components.md §14.4) are each a
         // block shown somewhere other than its committed frame, and each
@@ -233,21 +248,13 @@ struct GridBlockView: View {
             }
 
         case .compact:
-            HStack(alignment: .firstTextBaseline, spacing: Tokens.Size.blockGlyphGap) {
-                glyph(style)
-                Text(model.title)
-                    .typeStyle(.blockTitleCompact)
-                    .foregroundStyle(style.label)
-                Spacer(minLength: Tokens.Spacing.xs)
-                // §6 — the badge wins the trailing-top corner and the time is
-                // dropped. Time is recoverable from hover help and the inspector;
-                // a conflict is not recoverable from anywhere else on the grid.
-                if style.badge == nil {
-                    Text(model.timeRange(formatter: BlockFormatters.time))
-                        .typeStyle(.blockMeta)
-                        .foregroundStyle(style.meta)
-                        .layoutPriority(1)
-                }
+            // `GeometryReader` hands us the row's real width (after the rail
+            // and padding) so §3.3's 2026-10-05 rule can decide, before
+            // drawing, whether the time fits WHOLE beside a 44pt title. It
+            // fills the content area and pins its child to the top-leading
+            // corner, which is §3.5 rule 2's anchoring anyway.
+            GeometryReader { proxy in
+                compactRow(style: style, rowWidth: proxy.size.width)
             }
 
         case .full:
@@ -277,6 +284,37 @@ struct GridBlockView: View {
                         .typeStyle(.blockMeta)
                         .foregroundStyle(style.meta)
                 }
+            }
+        }
+    }
+
+    /// components.md §3.3 (amended 2026-10-05): the title beats the time.
+    /// `CompactRowLayout` decides; this only draws what it decided.
+    private func compactRow(style: BlockStyle, rowWidth: CGFloat) -> some View {
+        let time = model.timeRange(formatter: BlockFormatters.time)
+        // §6 — the badge wins the trailing-top corner and the time is
+        // dropped. Time is recoverable from hover help and the inspector;
+        // a conflict is not recoverable from anywhere else on the grid.
+        let timeWidth = style.badge == nil
+            ? CompactRowLayout.metaWidth(time, size: metaSize) : 0
+        let decision = CompactRowLayout.resolve(rowWidth: rowWidth, timeWidth: timeWidth)
+        return HStack(alignment: .firstTextBaseline, spacing: Tokens.Size.blockGlyphGap) {
+            glyph(style)
+            Text(model.title)
+                .typeStyle(.blockTitleCompact)
+                .foregroundStyle(style.label)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                // Rule 3: the title takes all the remaining width and
+                // truncates with `…` inside it — it is never squeezed by
+                // the time, and never wider than the row (§3.5 rule 1).
+                .frame(width: max(0, decision.titleWidth), alignment: .leading)
+            if decision.showsTime {
+                Text(time)
+                    .typeStyle(.blockMeta)
+                    .foregroundStyle(style.meta)
+                    // Whole or not at all: never let layout truncate it.
+                    .fixedSize()
             }
         }
     }

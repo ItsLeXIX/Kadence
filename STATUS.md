@@ -6488,3 +6488,54 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 
 - None. The `Source  Green` DEVIATIONS entry the review asks for is written
   (as resolved by this commit) in P2-HK. Recapture of item 5 is item 20's.
+
+## 55. P2-F04 — title beats time on a `.compact` row; text confined (components.md §3.3 and §3.5 rule 1, amended 2026-10-05; PHASE2-REVIEW.md §6 item 4)
+
+### Built
+
+- `Kadence/Layout/CompactRowLayout.swift` (new, pure): the 2026-10-05 rule.
+  The title keeps `size.blockCascadeMinReadableWidth` (44); the time is drawn
+  only if it fits **whole** after those 44pt and `size.blockGlyphGap`,
+  otherwise dropped; the title takes the rest and truncates with `…`. The
+  time's width is measured with AppKit's `monospacedDigitSystemFont` at the
+  `blockMeta` size, scaled the way `TypeStyleModifier` scales it.
+- `GridBlockView`'s `.compact` case reads its row width through a
+  `GeometryReader` and draws what `CompactRowLayout` decided. The old row
+  (`Spacer(minLength:)` + `layoutPriority(1)` on the time) gave the time its
+  full width first, which is how `Gym` became `G`. The trailing gap is now
+  `size.blockGlyphGap`, as the rule names, not `spacing.xs`.
+- **§3.5 rule 1, the 780pt divider crossing:** `GridBlockView`'s frame only
+  fixed the height, so a row wider than its column (a fixed-size title)
+  made the whole ZStack — fill, clip shape, selection ring — that wide. The
+  frame now also takes the caller's width (`minWidth: 0, maxWidth:
+  .infinity`, `.topLeading`), so the clip is the laid-out frame.
+
+### Tests
+
+- `CompactRowLayoutTests` (6 + 1 view test): `Gym` / `07:00-08:00` at a
+  126pt and a 104pt column keeps `Gym` whole and drops the time; at 200pt
+  both show with ≥ 44pt of title; at every row width 0–260 the time is
+  whole or absent and nothing overflows; the boundary is exactly glyph +
+  gap + 44 + gap + time; `Morning review` at 104pt is laid out narrower than
+  its natural width (it truncates inside); a badge gives the title the whole
+  row. `CompactRowConfinementTests`: a compact block with a long title in a
+  100pt frame claims ≤ 100pt.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 503
+  passed / 0 failed** (496 + 7).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Screenshot check** (scratch, not a §17 frame): Routines window at 780,
+  fresh store — `Gym` whole in Mon/Wed/Fri with the time dropped, `Morning
+  revie` (`.titleOnly`, clipped without an ellipsis per §3.3) stays inside
+  its column; no text crosses a divider. Main Week at 1500: `Gym` whole.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- None. The title/time squeeze entry is written (as resolved here) in
+  P2-HK. Recapture of 1, 5, 8, 13 is item 20's.
