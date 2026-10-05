@@ -6684,3 +6684,57 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 
 - None. There was no `G-026` marker in code to remove: the old comment
   ("the recessed case wins outright") is replaced. No recapture.
+
+## 59. P2-F08 — weekday toggle row (layouts.md §8.1 and components.md §13.5.4, amended 2026-10-05; G-027, G-028; PHASE2-REVIEW.md §6 item 8)
+
+### Built
+
+- `Kadence/Views/Routines/WeekdayToggleRow.swift` (new; the row moves out of
+  `RoutinesWindow.swift`). Seven 24pt (`size.weekdayToggleSize`) squares,
+  `spacing.xs` apart (192pt), `radius.chip`; `veryShortStandaloneWeekdaySymbols`
+  in `dayHeaderWeekday`, centred. On: `interactive.accent` / `text.onSolid`;
+  off: `surface.canvasSunken` / `text.secondary`. The focused toggle keeps
+  the inset `focusRing` stroke (now spec), keyboard focus only. Plain
+  buttons replace the system `.toggleStyle(.button)` chrome.
+- `WeekdayToggleItem.items(...)` (pure): letter, AX label (full weekday
+  name), AX value (`in routine` / `not in routine`; windows `on` / `off`),
+  and disabled + help for a **window's** last active day: `A window needs at
+  least one day. Delete it instead.` `space` on a disabled toggle does
+  nothing. A template's last day stays removable (paused routine).
+- Both inspectors place the row **under** its `Weekdays` label, `spacing.sm`,
+  as the flexibility control does.
+- **Found live:** `dayHeaderWeekday`'s uppercase `textCase` reached the
+  buttons' accessibility strings (`MONDAY`, `IN ROUTINE` in the AX tree). An
+  outer `.textCase(nil)` can't override it (the style applies it closest to
+  the `Text`), so the row uses a copy of the style with uppercasing off; the
+  symbols are capitals already. Re-read live: `Monday` / `in routine`.
+- G-027's `SPEC-GAP` in `RoutineEngine.setWeekday` and G-028's in the row
+  are replaced by spec references.
+
+### Tests
+
+- `WeekdayToggleRowTests` (7): full-name AX labels and `M T W T F S S`
+  letters, `in routine` / `not in routine`; windows `on` / `off`; the row is
+  192pt, inside the 228pt content width; a one-day window's toggle is the
+  only disabled one and carries the help text; a template's last day is
+  never disabled; `TimeWindowStore.setWeekdays(_, to: [])` still refuses;
+  the letter style isn't uppercased. The existing `removeLastWeekday` test
+  is kept and passes.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 524
+  passed / 0 failed** (517 + 7).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Check capture** (scratch): Routines inspector at 1400 — `Weekdays`
+  label above seven squares, `M` and `W` whole, M/W/F filled.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **C2** and **C3** move to "Resolved — retired by a spec
+  ruling"; C3 is marked partly overturned (the window half). Recapture of 4
+  and 14 is item 20's.

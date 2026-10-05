@@ -1945,11 +1945,16 @@ private struct RoutineInspectorView: View {
         // control, not a field. It is the same Mon-first toggle row the
         // time-window inspector already uses" — so it is literally that row.
         // It replaces the read-only weekday list that used to sit here.
-        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+        // layouts.md §8.1 (amended 2026-10-05, G-028): the row sits UNDER
+        // its label at full content width — beside the 84pt label column it
+        // was squeezed until `M`/`W` clipped to `N`/`V`. Label above,
+        // control below, `spacing.sm`, as the flexibility control does.
+        VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             label("Weekdays")
             WeekdayToggleRow(
                 weekdays: orderedWeekdays,
                 isOn: { template.activeWeekdays.contains($0) },
+                context: .routine,
                 onFlip: { weekday in
                     onSetWeekday(weekday, !template.activeWeekdays.contains(weekday))
                 })
@@ -2058,90 +2063,7 @@ private struct RoutineInspectorView: View {
     }
 }
 
-// MARK: - Weekday toggle row (layouts.md §8.1, task P2-T39)
-
-/// Seven weekday toggles in the window's column order. Used by both
-/// inspectors: the template's active weekdays and a `TimeWindow`'s weekdays.
-///
-/// Rendering is task P2-T24's (see DEVIATIONS.md for that judgement call):
-/// native `Toggle`s in `.toggleStyle(.button)`, `dayHeaderWeekday` labels,
-/// `color.interactive.accent` tint.
-///
-/// Keyboard (interactions.md §11.1.1, layouts.md §8.1): "reached by `⇥` into
-/// the inspector; `←`/`→` move between the seven toggles and `space` flips the
-/// focused one." The ROW is the single focus target, not each toggle, because
-/// interactions.md §1 says `⇥` leaves a region rather than moving inside it —
-/// seven separate tab stops would make `⇥` walk the row. The row tracks which
-/// toggle is "focused" itself (`focusedWeekday`) and draws the system focus
-/// ring on its container, as §1 asks of a focused region.
-private struct WeekdayToggleRow: View {
-    /// Display order — `RoutineWeekLayout.orderedWeekdays`.
-    let weekdays: [Int]
-    let isOn: (Int) -> Bool
-    /// Called with the weekday to flip; the caller does the write.
-    let onFlip: (Int) -> Void
-
-    /// `@FocusState` is SwiftUI's handle on keyboard focus: SwiftUI sets it
-    /// to `true` when this view becomes first responder, and setting it moves
-    /// focus here.
-    @FocusState private var rowFocused: Bool
-    /// The toggle `←`/`→` have moved to, by weekday. `nil` until the row is
-    /// first focused.
-    @State private var focusedWeekday: Int?
-
-    var body: some View {
-        HStack(spacing: Tokens.Spacing.xs) {
-            ForEach(weekdays, id: \.self) { weekday in
-                // `Binding(get:set:)` builds a two-way binding from two
-                // closures. The toggle hands back the new Bool; we ignore it
-                // and flip, since `onFlip` reads the current state itself.
-                Toggle(isOn: Binding(get: { isOn(weekday) }, set: { _ in onFlip(weekday) })) {
-                    Text(Calendar.current.shortWeekdaySymbols[weekday - 1])
-                        .typeStyle(.dayHeaderWeekday)
-                }
-                .toggleStyle(.button)
-                .tint(Tokens.Color.Interactive.accent)
-                // Not a tab stop of its own — the row is (see above).
-                .focusable(false)
-                .overlay {
-                    if rowFocused, focusedWeekday == weekday {
-                        // SPEC-GAP (design/GAPS.md G-028): no spec marks the
-                        // focused item inside a toggle row. Placeholder: the
-                        // existing selection-ring colour and width
-                        // (`color.interactive.focusRing`, `size.borderSelected`)
-                        // at `radius.chip`.
-                        RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
-                            .strokeBorder(Tokens.Color.Interactive.focusRing, lineWidth: Tokens.Size.borderSelected)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .accessibilityLabel(Calendar.current.weekdaySymbols[weekday - 1])
-            }
-        }
-        .focusable()
-        .focused($rowFocused)
-        .onChange(of: rowFocused) { _, focused in
-            // Entering the row lands on the first toggle in display order,
-            // unless `←`/`→` already chose one earlier.
-            if focused, focusedWeekday == nil { focusedWeekday = weekdays.first }
-        }
-        // `.onKeyPress` returns `.handled` to stop the key here, or
-        // `.ignored` to let it continue up to the window (e.g. `⌫`, `⌘[`).
-        .onKeyPress(.leftArrow) { moveFocus(by: -1) }
-        .onKeyPress(.rightArrow) { moveFocus(by: 1) }
-        .onKeyPress(.space) {
-            guard let focusedWeekday else { return .ignored }
-            onFlip(focusedWeekday)
-            return .handled
-        }
-        .accessibilityElement(children: .contain)
-    }
-
-    private func moveFocus(by offset: Int) -> KeyPress.Result {
-        focusedWeekday = RoutineWeekdayActivation.movingFocus(from: focusedWeekday, by: offset, in: weekdays)
-        return .handled
-    }
-}
+// The weekday toggle row lives in `WeekdayToggleRow.swift` (task P2-F08).
 
 // MARK: - Inspector: selected TimeWindow (task P2-T24, components.md §13.3)
 
@@ -2170,11 +2092,8 @@ private struct WeekdayToggleRow: View {
 ///     precedent, though that control's own interactive version does not
 ///     exist yet (still read-only text in `blockDetails` above) so there is
 ///     nothing to copy verbatim;
-///   - the weekday toggle row reuses `dayHeaderWeekday` type and
-///     `Tokens.Color.Interactive.accent` (the one existing generic
-///     "selected" tint this app already uses for the focus ring/drop
-///     preview) via the system `.toggleStyle(.button)` chrome, rather than
-///     inventing a bespoke selected-day swatch;
+///   - the weekday toggle row is `WeekdayToggleRow`, specified since
+///     2026-10-05 by layouts.md §8.1 (task P2-F08);
 ///   - the label field commits on `Return` or on losing focus, not per
 ///     keystroke — there is no existing precedent in this codebase for
 ///     editing an ALREADY-persisted text field (`DraftBlockView`'s own
@@ -2251,15 +2170,16 @@ private struct TimeWindowInspectorView: View {
     // MARK: Weekdays
 
     private var weekdaysField: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+        // Same component and placement as the template's row (layouts.md
+        // §8.1, amended 2026-10-05). `.window` context: `on`/`off` values,
+        // and the last active toggle is disabled (components.md §13.5.4,
+        // G-027) — a window with no days could never be selected again.
+        VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             label("Weekdays")
-            // Task P2-T39 moved the row's body into `WeekdayToggleRow` so
-            // the template inspector can use the same one (layouts.md §8.1).
-            // Rendering and the write are unchanged; it also gains the row's
-            // `←`/`→`/`space` keyboard path.
             WeekdayToggleRow(
                 weekdays: orderedWeekdays,
                 isOn: { window.weekdays.contains($0) },
+                context: .window,
                 onFlip: { weekday in
                     store.setWeekdays(
                         window,

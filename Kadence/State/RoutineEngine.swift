@@ -889,11 +889,11 @@ struct RoutineTemplateStore {
         let new = RoutineWeekdayActivation.applying(weekday, active: active, to: old)
         guard new != old else { return }
 
-        // SPEC-GAP (design/GAPS.md G-027): removing the LAST active weekday.
-        // §13.5.4 and interactions.md §11.1.1 give no exception, so it is
-        // allowed and leaves an empty set: all seven columns go inactive and
-        // each shows its `Add` button, which is the way back. Nothing is
-        // refused here, because a refusal needs a rule the spec has not made.
+        // components.md §13.5.4 (amended 2026-10-05, closes G-027): removing
+        // the LAST active weekday is allowed — a paused routine. It leaves an
+        // empty set: all seven columns go inactive and each shows its `Add`
+        // button, and `⌘Z` restores the day. (A TimeWindow's last day is the
+        // opposite case: refused, by a disabled toggle — `WeekdayToggleRow`.)
 
         let templateID = template.id
         let name = RoutineWeekdayActivation.undoName(weekday: weekday, activating: active, calendar: calendar)

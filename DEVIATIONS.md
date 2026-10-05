@@ -756,18 +756,6 @@ placeholders (three behavioural, two accessibility strings), all marked
   what the row draws. No spec says what the row speaks. Before this, the row
   was an unnamed button, so VoiceOver said only "button".
 
-- **C2 — the focused toggle inside the weekday toggle row (GAPS G-028).**
-  `WeekdayToggleRow` (`RoutinesWindow.swift`) marks the toggle `←`/`→` have
-  moved to with a `color.interactive.focusRing` stroke at `size.borderSelected`,
-  `radius.chip`, inside the toggle's bounds. It shows only while the row has
-  keyboard focus. The tokens exist, but this use of them is invented. No spec
-  marks a focused item inside a toggle row.
-- **C3 — removing the last active weekday is allowed (GAPS G-027).**
-  `RoutineTemplateStore.setWeekday` doesn't refuse it. The template is left
-  with an empty `activeWeekdays`, every column goes inactive with its
-  `Add <Day>` button, and `⌘Z` restores it. This is a behaviour, not a visual
-  value, but it is the same kind of placeholder, so it is listed here.
-
 Two P2-T39 judgement calls that need no marker, because no value was invented:
 
 - `←`/`→` in the toggle row **stop** at the first and last toggle instead of
@@ -1726,6 +1714,17 @@ stays on record. Moved here by task P2-T38, 2026-10-01.
   deactivation, the §13.5.2 column treatment, the §13.5.3 note, and the
   vertical-only drag with its multi-column preview. See `STATUS.md` §37 and
   §39.
+
+- ~~**C2 — the focused toggle inside the weekday toggle row (GAPS G-028).**~~ **Resolved by `design/GAPS.md` G-028 — CLOSED (2026-10-05), written into `layouts.md` §8.1; retired by task P2-F08:** the placeholder (a `size.borderSelected` `focusRing` stroke inset at `radius.chip`, keyboard focus only) is adopted; the row now sits under its label with 24pt toggles, and the `SPEC-GAP` marker is gone. *Original entry:* `WeekdayToggleRow` (`RoutinesWindow.swift`) marks the toggle `←`/`→` have
+  moved to with a `color.interactive.focusRing` stroke at `size.borderSelected`,
+  `radius.chip`, inside the toggle's bounds. It shows only while the row has
+  keyboard focus. The tokens exist, but this use of them is invented. No spec
+  marks a focused item inside a toggle row.
+
+- ~~**C3 — removing the last active weekday is allowed (GAPS G-027).**~~ **Resolved by `design/GAPS.md` G-027 — CLOSED (2026-10-05), written into `components.md` §13.5.4; retired by task P2-F08. Partly overturned:** the template half stands as built (a template's last weekday can be removed — a paused routine). The time-window half is new: a window's last active toggle is now **disabled** with the help text `A window needs at least one day. Delete it instead.`, replacing the store's silent refusal (which stays as a backstop). The `SPEC-GAP` marker in `RoutineEngine.setWeekday` is replaced by a §13.5.4 reference. *Original entry:* `RoutineTemplateStore.setWeekday` doesn't refuse it. The template is left
+  with an empty `activeWeekdays`, every column goes inactive with its
+  `Add <Day>` button, and `⌘Z` restores it. This is a behaviour, not a visual
+  value, but it is the same kind of placeholder, so it is listed here.
 
 ## Not a deviation — worth stating
 
