@@ -260,12 +260,38 @@ full content gets clipped mid-string and reads as damage (`10:`), not as
 something behind something else. `resolveBlockStyle` therefore takes visible
 width as well as rendered height.
 
+**Amended 2026-10-05 (Phase 2 screenshot review) — the title beats the time on a
+shared row.** At `.compact` the title and the trailing time share one row, and
+nothing said which one gives way when the column is narrow. The 2026-10-05
+captures show the wrong one giving way: `Gym` reduced to `G` (main Week grid) and
+to a single stray character (Routines window at 780pt) while `07:00-08:00`
+rendered in full. The time is recoverable from hover help and the inspector; the
+title is the one thing on the block that says what it is. The rule:
+
+1. The title is laid out first and keeps at least
+   `size.blockCascadeMinReadableWidth` (44) — the same "enough to tell *Coffee*
+   from *Code review*" floor the cascade rule uses (`DECISIONS.md` 2026-09-09).
+2. The trailing time is drawn only if it fits **whole** in what is left after that
+   44pt and `size.blockGlyphGap`. Otherwise it is **dropped entirely** — never
+   truncated (`07:00-0…` is not a time), and never allowed to squeeze the title.
+3. The title then takes all remaining width and truncates tail-first with an
+   ellipsis, per the rule above.
+
+This is the same trade §6 already makes for the conflict badge at `.titleOnly` and
+`.compact`: the corner goes to the thing that cannot be recovered elsewhere. It
+binds every GridBlock, including the Routines window's and the conflict panel's
+collision blocks. And §3.5 rule 1 still holds underneath it: a title that does not
+fit is clipped at the frame — the 780pt capture's `Morning review` printing across
+the next column's divider is a §3.5 violation, not a layout choice.
+
 **Reading the old numbers.** Prose elsewhere in this file was written against the
 previous bands. The mapping is normative: "11–15" or "below 16" means
 `.glyphOnly`; "16–27" means `.titleOnly`; "28–43" means `.compact`; "≥ 44" means
 `.full`. All Phase 1 prose in this file has been restated in tier names; the
 Phase 2 sections (§13–§17) still use the old numbers and are not re-edited here —
 read them through this mapping until the next Phase 2 revision window.
+**Amended 2026-10-05:** that window was the Phase 2 screenshot review; §14.2's two
+uses are restated in tier names and no other Phase 2 section used the old bands.
 
 ### 3.4 Source name in text — required
 
@@ -515,6 +541,36 @@ for the whole morning, which is exactly when the user is looking at it.
 Overlapping windows: protected wins. Never render both treatments in the same
 region.
 
+**Amended 2026-10-05 (Phase 2 screenshot review) — three rules the captures showed
+were missing.**
+
+1. **A window paints only inside its own spans.** A span is one weekday's
+   `start…end` rect, column-wide, plus the gutter strip at the same height (rule 2
+   above). Fill, edge lines and the low-energy hatch are clipped to that union and
+   nowhere else. Every 2026-10-05 Routines capture shows the `Low energy` hatch
+   (Mon–Fri) continuing past Friday's trailing divider as a diagonal wedge into
+   Saturday: the hatch's 45° lines are drawn across a bounding box and not clipped
+   to the column. A Saturday with hatch on it is a Saturday the user is told is
+   low-energy. This is §3.5's confinement rule applied to canvas.
+2. **A window label is never drawn half-covered.** Labels sit below blocks
+   (z-order above), so a block whose frame intersects the label's rect leaves a
+   sliced string — `Low energy` under `Errands` at 13:00 in items 13, 15 and 16.
+   The label is placed in the **leading day column the window spans in which its
+   rect intersects no block frame**, scanning in column order; if no such column
+   exists it is omitted for that span. The window is still drawn; the label is
+   recoverable from Windows mode and the window inspector. In Windows mode
+   (§13.3) the edited layer is the windows, so there labels are drawn **above**
+   the dimmed block layer and are never displaced.
+3. **The leading column's top-left corner is shared by stacking, never by
+   overprinting (closes G-025).** When the label's column is an inactive
+   Routines column (§13.5.3), the in-column note takes the corner and the label is
+   placed directly below the note's frame, `spacing.xs` under it. The note wins
+   the corner because it answers the question the pointer is about to ask in that
+   column (*why will this gesture do nothing?*); the label is a name, and names
+   can move down a line. The same stacking applies when both are pinned to the
+   top of the visible region. The label never moves into the gutter to escape
+   the note (rule above).
+
 Under **Increase Contrast**: the protected fill's 1.12:1 step disappears, so
 protected switches to a 1pt border in `color.window.protectedEdgeHC` on all four
 sides plus the fill; low-energy's hatch pitch tightens from 6pt to 4pt.
@@ -648,6 +704,23 @@ same size — two trays in one sidebar. Neither the sidebar nor any other chrome
 may introduce a symbol without checking it against §10.1 and against the kind
 glyphs in §2.1, §3.2 and §5.
 
+**Amended 2026-10-05 — what the row speaks (closes G-029).** One accessibility
+element, role button.
+
+| | Value |
+|---|---|
+| Label | `Needs attention` — the row's visible text |
+| Value | `1 conflict` / `16 conflicts` — the count with its noun |
+| Hint | none |
+
+VoiceOver reads it as "Needs attention, 16 conflicts, button". The noun is
+**`conflict`** for both kinds the count includes: a §14.6 template refusal is
+specified as "a conflict with no event on either side", so it is the same noun,
+and one count must mean one thing (`interactions.md` §10.1). Not `items` — that
+word could mean anything, and the row exists to say what kind of thing is
+waiting. The badge itself stays a bare number; the noun is spoken only, because
+the label beside it already names the row.
+
 ### 10.3 Today pill (day header)
 
 When a day column's date is today, the `dayHeaderDate` numeral sits on a filled
@@ -693,6 +766,23 @@ title, time range, kind, source, status, then conflict if present. Example:
 `"Datenmodellierung, 09:00 to 10:30, lecture, university timetable, conflicts with Training"`.
 Kind and status are spoken because they are carried visually by shape — they must
 not be dropped from the label on the assumption colour conveys them.
+
+**Amended 2026-10-05 — the conflict phrase for a protected window (closes
+G-030).** §11's example covers block against block. A block inside a `.protected`
+window speaks the verb §14.2 chose for exactly this asymmetry:
+
+| Conflict kind | Phrase |
+|---|---|
+| Another block | `conflicts with Training` — one phrase per partner, in partner start order |
+| A protected window with a label | `lands in Sleep, a protected window` |
+| A protected window with an empty label | `lands in a protected window` |
+
+Block phrases come first, then window phrases, joined with `, `. Never
+`conflicts with a protected window`: two blocks conflict with each other, a block
+lands in a window (§14.2), and the spoken label should not teach a symmetry the
+screen deliberately does not show. The parenthesised `(protected)` of §13.6.2's
+visible line is not spoken as punctuation; `, a protected window` is its spoken
+form.
 
 ---
 
@@ -797,6 +887,21 @@ when it is absent, so "range 15–180" is not enough on its own:
 - One named undo step per change: `Set Flexibility` for the segment, `Set Shift
   Range` for the stepper.
 
+**Amended 2026-10-05 — the rail sample and the stepper's text (closes G-032).**
+
+- **Sample height:** the segment title's resolved line height, vertically centred
+  on the title — as built. It scales with Dynamic Type through the control font.
+- **Sample colour: none of its own.** The sample is a **template image**, tinted by
+  the segmented control exactly as it tints the segment's title, in both the
+  selected and unselected state. The sample teaches the rail's *style* (solid,
+  inset, dotted); hue on the grid means source (§1), and a green bar inside a
+  blue selected segment measured as a dark mark on a saturated fill in the
+  2026-10-05 capture — legible only by luck. Template tinting is legible by
+  construction in every state the platform draws, including Increase Contrast.
+- **Stepper copy:** `± 30 min` — `±`, a space, the number, a space, `min`.
+  `blockMeta`, `color.text.primary`, monospaced digits, beside a native stepper.
+  No label word before it; the `Shiftable` segment directly above is the label.
+
 ### 13.3 Modes: blocks or windows
 
 Dragging on empty canvas has to mean one thing, and this window has two kinds of
@@ -834,6 +939,24 @@ Re-sync is destructive of the user's own edits, so it confirms: a popover
 anchored to the button, `size.resyncPopoverWidth`, listing the affected dates
 (`popoverRow` type, up to six then `+N`), primary action `Re-sync 3 instances`.
 It is **one undo step** — see `interactions.md` §11.2.
+
+**Amended 2026-10-05 — the Re-sync popover's geometry (closes G-034).**
+
+- It is a **system popover** (SwiftUI `.popover`, `NSPopover` underneath), arrow
+  edge `.bottom` preferred, so the arrow points up at the button. A system popover
+  is its own window: it is never clipped by the Routines window's edge and
+  repositions itself at the screen edge. The 2026-10-05 capture shows it cut off at
+  the window's trailing edge, which means it is being drawn as an in-window
+  overlay; that is a defect, not a geometry choice.
+- Insets `spacing.lg` horizontal, `spacing.md` vertical — the menu bar popover's
+  own family, as built.
+- Date rows `popoverRow`, `color.text.primary`, `spacing.xxs` apart. Date form
+  `Tue 6` (`shortStandaloneWeekdaySymbols` + day number).
+- The overflow row `+2 more` — **with** `more`, matching §15.2's `+N more` — in
+  `popoverRow` / `color.text.secondary`. Shown only beyond six rows.
+- The primary action sits `spacing.md` below the last row, is the native default
+  button (`↩` triggers it, `⎋` dismisses the popover), and is the only button.
+  Cancelling is dismissing.
 
 **Amended 2026-10-01.** This subsection specifies the *surfaces*. What actually
 makes an instance detached, what marks it, how re-materialisation treats it, and
@@ -908,6 +1031,26 @@ hue, which §13.1 already makes the one hue in this window.
 Window labels keep §7's rule unchanged: once, at the window's top edge, in the
 **leading** day column — whether or not that column is active. A `TimeWindow`
 carries its own `weekdays` and has nothing to do with the template's set.
+**Amended 2026-10-05:** when that leading column is inactive, §7's stacking rule 3
+puts the label directly below this column's note (closes G-025).
+
+**Amended 2026-10-05 — Increase Contrast (closes G-026).** Under Increase Contrast
+active columns' hour lines become `color.separator.strong` (§11). Inactive
+columns step up by the same one notch and use **`color.separator.hour`** for hour
+and half-hour lines both — the weight active columns have in the standard mode.
+Keeping `halfHour` literally would leave an Increase Contrast user, the person
+who asked for more structure, with an inactive column whose lines measure
+1.14:1 against canvas in light appearance (1.13:1 dark) beside active lines at
+3.25:1 — functionally no grid at all. `separator.hour` measures 1.28:1 / 1.31:1. The
+recess is a relative statement (inactive is one step lighter than active), and
+it survives the mode change only if both sides move together. The note (§13.5.3)
+and the missing header underline still carry the state on their own; the lines
+are the third, redundant channel, never the only one.
+
+| | Standard | Increase Contrast |
+|---|---|---|
+| Active column, hour lines | `color.separator.hour` | `color.separator.strong` |
+| Inactive column, hour and half-hour lines | `color.separator.halfHour` | `color.separator.hour` |
 
 #### 13.5.3 The in-column note
 
@@ -963,6 +1106,29 @@ Deactivation runs the same transition in reverse. It is not confirmed — nothin
 is destroyed (the blocks belong to the template, not the column) and `⌘Z` is one
 press away. What happens to instances **already materialised** on that weekday is
 §13.6.4's job, not this one's.
+
+**Amended 2026-10-05 — the last active weekday (closes G-027).** Removing it is
+**allowed**, exactly as built: `Remove Friday from Routine` leaves an empty
+`activeWeekdays`, every column shows its note with its own `Add <Day>` button,
+the template produces nothing, and one `⌘Z` restores the day. No confirmation
+and no special copy. Reasons:
+
+- A template with no days is a **paused routine** — a real thing a person does in
+  exam weeks or on holiday. Refusing it forces them to delete blocks they intend
+  to bring back.
+- Nothing is destroyed. The blocks belong to the template and the summary still
+  reads `Blocks 5`; future instances are withdrawn by §13.6.4 inside the same
+  undo step, exactly as for any other weekday.
+- The state is self-explaining: seven notes, seven adjacent remedies. A refusal
+  would need a reason surface this one does not.
+
+**A `TimeWindow` is the opposite case, and is refused.** A window with an empty
+`weekdays` set is drawn in no column, so it can never be selected or edited again
+— it would be an invisible object in the store. In the window inspector's toggle
+row the last remaining active toggle is therefore **disabled** (system disabled
+appearance), with help text `A window needs at least one day. Delete it instead.`
+The reason stands before the gesture, per §13.5.1's standard for a refusal, and
+the remedy (`⌫`) is the ordinary one. This replaces the build's silent refusal.
 
 #### 13.5.5 Scope: Blocks mode only
 
@@ -1047,6 +1213,36 @@ Per `(block, date)` pair inside the horizon (§13.6.5):
 An update carries the event's own `status` (`.done` / `.skipped`) forward
 unchanged. Status is a fact about a day, never a divergence from a routine.
 
+**Amended 2026-10-05 (closes G-033) — the full table over the three link states
+of §13.7.2.** "Detached" above means `routineLink == .detached`.
+
+| Pair state | Re-materialisation does |
+|---|---|
+| No event, no tombstone | create it `linked` — unless §13.6.1 refuses |
+| Event `linked` | update the four template-owned fields |
+| Event `detached` | leave it completely alone |
+| Event `released`, and the template **produces the pair again** | **rejoin:** set `routineLink` to `detached`; touch nothing else |
+| Event `released`, pair still not produced | leave it completely alone |
+| Tombstoned | leave it deleted |
+| Template no longer produces the pair | §13.6.4 |
+
+**Rejoin** is what happens when a weekday comes back (`Add Saturday to Routine`),
+a deleted block's delete is undone, or a protected window stops refusing the pair.
+The kept instance becomes **detached, not linked**: the user edited that day, and
+§13.7.1's own rule is that a deliberate edit is not silently re-adopted. It keeps
+its start, end, title, flexibility and status; it reappears in the `N instances
+edited` count; its inspector line returns to `Edited — differs from …` with
+`Revert to routine`; and Re-sync may now restore it. **The template never creates a
+second instance beside it** — the pair already has an event, keyed by the same
+`(sourceID, externalID)`, which is exactly what the "Event exists" rows test.
+
+Rejoin is recorded in the step that caused it when that step is a user action
+(the same fold as §13.6.4's withdrawal, so `⌘Z` on `Add Saturday to Routine`
+releases it again), and unrecorded when a background pass performs it (§13.6.5
+triggers are not user actions). It never writes to an instance before
+`startOfDay(today)`: a released instance in the past stays released, because
+§13.6.5 has no exceptions and a flag is a write.
+
 #### 13.6.4 Withdrawal: when the template stops producing a pair
 
 A weekday is deactivated, a block is deleted from the template, or §13.6.1
@@ -1060,6 +1256,10 @@ starts refusing a pair that it previously created. In every case:
   `.routine`-origin events, keep their `(sourceID, externalID)`, and §13.4's
   inspector line is replaced by `No longer part of Gym routine`, with no
   `Revert to routine` action, because there is nothing to revert to.
+  **Amended 2026-10-05 (G-033):** "stop being detached" means `routineLink`
+  becomes `.released` (§13.7.2), not `.linked`. A `.released` instance is never
+  withdrawn, never updated, never counted as edited and never reverted. If the
+  template later produces its pair again it rejoins as `.detached` (§13.6.3).
 - **Past instances are never touched**, detached or not. See §13.6.5.
 
 All of a single withdrawal is **one named undo step**, folded into the step that
@@ -1131,6 +1331,24 @@ cleared only by Re-sync (§13.7.3), `Revert to routine` (§13.4), or withdrawal
   is now" — and it is the only one that does not require a second copy of every
   template field per instance.
 
+**Amended 2026-10-05 — one field, three values (closes G-033).** "One persisted
+flag" is **one persisted field**, `routineLink`, with exactly three values. The
+build's shape is adopted:
+
+| Value | Meaning | Set by | Inspector line |
+|---|---|---|---|
+| `linked` | generated, untouched; re-materialisation updates it | creation; Re-sync; `Revert to routine` | none |
+| `detached` | the user changed a template-owned field; leave it alone | a §13.7.1 edit; rejoin (§13.6.3) | `Edited — differs from Gym routine` + `Revert to routine` |
+| `released` | its pair was withdrawn while it was detached; kept as the user's own | withdrawal (§13.6.4) | `No longer part of Gym routine` |
+
+A boolean cannot hold this. After withdrawal clears a two-valued flag, the kept
+instance is indistinguishable from an untouched future instance of a withdrawn
+pair — and §13.6.4 deletes exactly those, so the next pass of any trigger would
+delete the instance withdrawal was specified to keep. The third value is the
+memory that it was kept on purpose. Every transition is recorded in the step
+that causes it, so `⌘Z` restores the previous value exactly. Manual and
+hand-seeded events have no link value at all.
+
 The flag is **not** a block signal. `DECISIONS.md` 2026-09-10 settled that: every
 channel on the grid is spent, and detachment matters when reasoning about the
 routine, never when reading Tuesday.
@@ -1180,6 +1398,18 @@ new identity scheme.
 - Tombstones before `startOfDay(today)` are never consulted, because nothing
   materialises into the past (§13.6.5).
 
+**Amended 2026-10-05 — a tombstone's lifetime (closes G-031).** The "may be
+discarded" above is withdrawn. **A tombstone is removed only by undoing the delete
+that created it.** Deactivating the weekday, deleting the block, or any other
+template edit leaves it in place. So: delete Saturday 10's Gym, remove Saturday,
+add Saturday back — Saturday 10 has **no** Gym. The user deleted that day; an
+unrelated toggle must not bring it back, and the alternative would make the
+outcome of `Add Saturday` depend on what the user did to one Saturday weeks ago,
+which nothing on screen records. A user who does want that day back creates it,
+or undoes the delete. A tombstone whose day is before `startOfDay(today)` is
+inert and may be pruned silently — that is unobservable, so it is an
+implementation choice, not a behaviour.
+
 ---
 
 ## 14. Conflict resolution
@@ -1193,10 +1423,18 @@ The needs-attention row (§10.2) is a button. Activating it selects the first
 unresolved conflict and puts the inspector into conflict mode. There is no
 separate list view and no sheet.
 
+**Amended 2026-10-05.** Two things activation also does, both specified in
+`interactions.md` §10.1's 2026-10-05 amendment: it **brings the conflict into
+view** on the canvas (page to its day, scroll so it is visible), and it **focuses
+the recommended option** — or the only option — which previews it at once. A
+preview of a block scrolled out of sight is not a preview, and the 2026-10-05
+captures show exactly that: every main-window conflict frame has its affected
+block at or below the bottom edge of the viewport.
+
 ### 14.2 The collision header
 
 Top of the conflict panel: the two colliding blocks rendered as **real blocks**
-at the 16–27 density tier, stacked with `spacing.xs` between them and the word
+at the `.titleOnly` tier (18–27, §3.3), stacked with `spacing.xs` between them and the word
 `overlaps` between them in `inspectorLabel` / `color.text.secondary`. Same style
 resolver, same hue, same rail — so the thing in the panel is recognisably the
 thing on the grid.
@@ -1207,7 +1445,7 @@ Below them, the overlap itself: `13:00–14:30 · 45 min overlap`, `blockMeta`.
 G-024).** A protected-window collision has no second block to render, and a
 `TimeWindow` must not be drawn as one: a block means content, and §7 spends its
 whole argument on windows being canvas. The lower half of the header is instead a
-**window row**: full panel width, the same height the 16–27 tier gives the block
+**window row**: full panel width, the same height the `.titleOnly` tier gives the block
 above it, filled with the window's own §7 treatment — `color.window.protectedFill`
 with its `color.window.protectedEdge` lines at top and bottom — carrying two
 labels, `windowLabel` / `color.window.label` for the window's own label and
@@ -1221,6 +1459,22 @@ the whole point of the rule being broken.
 
 Under Increase Contrast the row takes §7's override (`color.window
 .protectedEdgeHC` on all four sides) for the same reason the grid does.
+
+**Amended 2026-10-05 — the window row's label placement (closes G-036).** As
+built: both labels on one baseline, leading inset `size.blockPadding`, trailing
+inset `size.blockPadding`, `spacing.sm` between the two labels, vertically centred
+in the row. When the pair does not fit on one line the second label truncates
+tail-first; the window's own label never truncates before it, because the label
+is the noun and `protected · 12:00–13:00` is recoverable from the window
+inspector.
+
+**Amended 2026-10-05 — the header's horizontal inset (spec side of DEVIATIONS
+B20).** The collision header, the overlap line, the option rows and the footer
+all sit inside the inspector's content inset — `spacing.xl` from **both** edges of
+the inspector (`layouts.md` §6). No element of the panel touches the inspector's
+edge. The 2026-10-05 captures show the collision blocks and the overlap line flush
+against the leading edge, and the ordinary inspector's labels losing their first
+letter (`tarts`); that is the build clipping its content, not a value to keep.
 
 ### 14.3 The option row
 
@@ -1247,6 +1501,43 @@ nothing and survives greyscale, which is exactly the §1 rule applied to chrome.
 Options are ordered by disturbance, least first. The recommended one is usually
 but not necessarily first — when it is not, the ordering still reads as a ranking
 because line 2 says why.
+
+**Amended 2026-10-05 — the selected row, and where the chip goes (closes G-038).**
+
+*Selected row.* `color.interactive.selectedRowFill` is a **solid** accent, and
+nothing in this file paired text with it. Measured: line 2's
+`color.text.secondary` on it is **1.41:1** light / **1.25:1** dark, and even
+line 1's `color.text.primary` is 3.81:1 / 2.52:1 — the selected row was the least
+readable thing in the panel at the moment it mattered most. Solid accent with
+white text is right for a one-line list row; it is wrong for a three-line card
+whose second line is the ranking's explanation. So the option row does **not**
+use `selectedRowFill`. A selected (focused) option row is:
+
+- fill **`color.interactive.selectedCardFill`** (new, `#E3EDFF` / `#1F3352`), a
+  low-chroma accent tint;
+- a `size.borderSelected` (2) inner border in `color.interactive.focusRing`,
+  following `radius.card` — **this border is what carries selection**; the tint
+  only reinforces it (fill against `canvasSunken` is 1.04:1 light, by design not
+  a carrier);
+- text colours **unchanged**: line 1 `color.text.primary` (14.75:1 / 11.36:1),
+  line 2 `color.text.secondary` (5.44:1 / 5.63:1). Selection never changes what
+  colour the words are, so no on-selected text token is needed.
+
+The rule binds both conflict panels (main inspector and Routines editor
+inspector) through the shared row. `selectedRowFill` keeps its job for list rows
+elsewhere.
+
+*The chip is line 3.* The three-line list above is normative and the build put
+the chip on line 1's trailing edge instead. Beside the chip at
+`size.editorInspectorWidth` a §14.6 title truncates
+(`Shift Errands 30 min later in the…`), and the title column stays narrow even
+on rows without a chip (`Remove Errands from` / `this routine`). The chip goes on
+**its own line below line 2**, leading-aligned with lines 1 and 2, `spacing.xs`
+above it. Line 1 then has the full row width and `conflictOptionTitle`'s two-line
+limit is enough for every title in §14.3.4 and §14.6 at both inspector widths.
+A title is never truncated: if a future title needs a third line at the
+narrowest width, that is a copy defect to fix in this file, not a truncation to
+accept.
 
 **Amended 2026-10-01 — the option catalogue, the cap, the ranking, the
 recommendation and the exact copy. Closes G-017.**
@@ -1353,8 +1644,20 @@ order and line 2 is the only place that disagreement is explained:
 user is deciding to skip something: the block goes back in the pool, it is not
 gone and it is not a mark against them.
 
-Durations are always `N min` below 60 and `N h MM` at or above it
-(`1 h 30`), monospaced digits throughout, times in 24-hour `HH:mm`.
+~~Durations are always `N min` below 60 and `N h MM` at or above it
+(`1 h 30`), monospaced digits throughout, times in 24-hour `HH:mm`.~~
+
+**Amended 2026-10-05 — the tables hold; the sentence was wrong (closes G-035).**
+Every duration in conflict copy — §14.2's overlap line, §14.3.4's tables and
+§14.6's table — is **`N min`, at every size**: `75 min later`, `all 90 min kept`,
+`135 min lost across Mon, Wed, Fri`. Monospaced digits throughout, times in
+24-hour `HH:mm`. The reason is §14.3's own: line 2 is "the ranking made legible",
+and a ranking is read by comparing numbers. `60 · 75 · 90` compares at a glance;
+`1 h 00 · 1 h 15 · 1 h 30` makes the reader convert, and a mixed column
+(`45 min` beside `1 h 15`) makes them convert twice. The tables were written with
+the right instinct and the sentence under them was a generic formatting rule
+pasted into the one place it does not fit. The build already matches; only its
+`// SPEC-GAP` marker goes.
 
 ### 14.4 Preview in place
 
@@ -1493,6 +1796,20 @@ table (§10.1); it must not be added to either.
 The empty state says what is true and stops. No praise, no "all done", no
 illustration.
 
+**Amended 2026-10-05 — colour in the live menu bar.** The status item is
+**template-rendered**: macOS draws a `MenuBarExtra` label in the menu bar's own
+tint (dark or light per wallpaper and appearance), and it flattens the label to
+one image plus one string (STATUS §48). The 2026-09-27 live crops show the late
+state in that tint, not red. The build must **not** force non-template rendering
+to get colour back — a fixed colour fights the menu bar's own appearance logic
+and can fail contrast against a light wallpaper. So the Colour column above
+applies to the popover and to offscreen renders only. In the live bar the three
+states are carried by **content**, which is why the rules above already make
+them self-sufficient: the late state by `clock.badge.exclamationmark` plus the
+`… ago` phrasing (the glyph is never dropped, for exactly this reason), the empty
+state by its words. Colour was always the redundant channel here; §1 forbids it
+being the only one.
+
 ### 15.2 The popover
 
 Width `size.popoverWidth` (300). This is where "legible from across the room"
@@ -1530,6 +1847,26 @@ lives, because a 22pt menu bar cannot carry it.
 The late popover always offers `Re-offer`, because the no-guilt rule means a
 missed item is put back in the queue rather than counted against you. `Re-offer`
 is the primary action in that state.
+
+**Amended 2026-10-05 (Phase 2 screenshot review).**
+
+- **The meta line names the source**, as built: `17:30 – 18:15 · Daily routine`,
+  `Started 12m ago · Daily routine`. The `· Gym` in the sketch and table above was
+  ambiguous (a place or a source) and is replaced. The source name is what §3.4
+  requires wherever hue is shown, and the rail is the popover's only hue. Location
+  joins the line in Phase 3 with the leave-by time and is not specified here.
+- **`Open` is always enabled.** It activates the main window, opening it if it is
+  closed, and selects the next item there. Every 2026-10-05 popover frame — and the
+  2026-09-27 live one — draws it disabled; a disabled `Open` in a popover whose
+  last-resort job is "take me to the app" is a dead end.
+- **`Re-offer` is drawn as the primary action** in the late state: the native
+  default / prominent button style (`.borderedProminent`, accent), leading. It takes **no** key
+  equivalent: `↩` in the popover already opens the focused item
+  (`interactions.md` §12), and that binding stands. The others stay `.bordered`.
+  The captures draw all four identically, so nothing on screen says which one
+  is primary.
+- `Done` / `Snooze` / `Open` keep `.bordered` in the normal state; there is no
+  primary there, because none of the three is the default answer to "what now".
 
 ---
 
@@ -1617,6 +1954,43 @@ directions.
 **Addition to the seeded events:** `Supervisor meeting`, `.manual`, 17:30–18:15,
 on the first Mon/Wed/Fri at or after today.
 
+**Amended 2026-10-05 — review fixtures must not depend on the weekday.** As
+first written, the count was 15 day conflicts when today is Mon/Wed/Fri and 13
+otherwise: on a template day the materialised `Training` (17:00–18:30) also
+overlaps §12 item 12's packing triple, which is seeded on today at 18:00. A
+review count that changes with the calendar is a count nobody can check. The
+§12 item 12 triple **moves** — it is a packing fixture with no time of its own,
+and the §17.1 conflict is the one whose times are load-bearing:
+
+| §12 item 12 fixture | Was | Now |
+|---|---|---|
+| `Group call`, `.manual`, pink | 18:00–19:30 | **13:00–14:30** |
+| `Code review`, `.manual`, blue | 18:15–19:00 | **13:15–14:00** |
+| `Notes write-up`, `.planned` `.droppable`, purple | 18:45–19:45 | **13:30–14:30** |
+
+Still three mutually overlapping blocks (common interval 13:30–14:00), still
+today. 13:00–14:30 is free of every routine instance on every weekday (Gym,
+Morning review, Training and Reading all lie outside it; Errands never
+materialises), touches `Check mail` (ends 13:00) and `Prep: relational algebra`
+(starts 14:30) without overlapping either — strict overlap only, so they are not
+packed with them — and sits on the `Low energy` window, which is a useful second
+check of §7's "present but recessive" under a full column.
+
+**Expected count, on every weekday and at every clock time:**
+
+| | Count |
+|---|---|
+| `Client call` × `Focus review` (today) | 1 |
+| The eleven `Fixture call N` × `Fixture review N` pairs (days 2–12) | 11 |
+| `Training` × `Supervisor meeting` (first Mon/Wed/Fri ≥ today) | 1 |
+| **Day conflicts** | **13** |
+| `Errands` × `Lunch` (template conflict, §14.6) | 1 |
+| **Needs-attention count** | **14** |
+
+`MockDataClockTests` pins 13 and 14 for a template weekday **and** a non-template
+weekday at every clock time it already sweeps. Any future fixture that changes
+either number amends this table in the same edit.
+
 #### Item 6 — two options and three
 
 - **Three options.** `Training` (17:00–18:30) × `Supervisor meeting`
@@ -1662,11 +2036,26 @@ measurement, so it is named rather than described:
 | late, full | 17:42 | `Gym` | 180 | glyph + `12m ago · Gym` |
 | late, clipped | 17:42 | `Statistik Übung Gruppe 4` | 180 | glyph + `12m ago · Stati…` |
 | empty | 23:40 | — | 180 | `Nothing left today` |
-| degraded | 17:10 | `Statistik Übung Gruppe 4` | **110** | `17:30` alone |
+| ~~degraded~~ | ~~17:10~~ | ~~`Statistik Übung Gruppe 4`~~ | ~~**110**~~ | ~~`17:30` alone~~ |
+| narrowed | 17:10 | `Statistik Übung Gruppe 4` | **110** | `17:30 · Statisti…` |
+| degraded | 17:10 | `Statistik Übung Gruppe 4` | **80** | `17:30` alone |
 
 The exact truncation point is whatever the measured font produces; what the
 capture is checking is that the **time is intact in every row** and that the
-110pt row shows no separator and no ellipsis (§15.1).
+80pt row shows no separator and no ellipsis (§15.1).
+
+**Amended 2026-10-05 — the fixture was wrong, not the token (closes G-037).** At
+`statusItem` size `17:30` measures 37.3pt and ` · ` 11.0pt, so at 110pt the title
+has 61.8pt — about twice `size.statusItemTitleMinWidth` (32). §15.1 shows the
+title there, and it should: 61.8pt is seven or eight characters, which is
+information. The token is the reasoned number ("about four characters plus an
+ellipsis"); 110 was an arithmetic slip in this table. Raising the token to make
+110 degrade (≥ 62) would throw away a readable seven-character title on every
+moderately crowded menu bar to satisfy a fixture. The degrade point is
+37.3 + 11.0 + 32 = **80.3pt**; the degraded row is captured at **80**, and 110
+stays as a second clipped row (`narrowed`) because it checks the truncation path
+at a width the 180pt rows do not reach. Both rows are already captured
+(`status-item-degraded-110-p2t47.png`, `status-item-degraded-80-p2t47.png`).
 
 #### Item 11 — popover rest-row overflow
 
@@ -1681,8 +2070,9 @@ Expected: rows `18:30` through `21:00`, then `+3 more`.
 
 The other three popover states: **normal** = the same fixture with only the first
 three rest rows; **late** = `now` 17:42 against the same next item, giving
-`Started 12m ago · Gym`; **empty** = `now` 23:40, no next item, rest section
-omitted entirely.
+`Started 12m ago · Daily routine` (amended 2026-10-05: the meta line names the
+source, §15.2); **empty** = `now` 23:40, no next item, rest section omitted
+entirely.
 
 #### Item 13 — inactive weekday columns
 
@@ -1692,3 +2082,44 @@ enough that all seven columns are above
 each show the green header underline. A second capture at
 `size.routineEditorMinWidth` (780) checks the note still fits inside
 `size.inactiveDayNoteMaxWidth`.
+Nothing selected (amended 2026-10-05: the wide capture had `Morning review`
+selected by a stray click; a selection is not part of this item).
+
+#### Item 1 — one block of each flexibility (amended 2026-10-05)
+
+The `Daily routine` template in Blocks mode, scrolled so `Gym` (07:00,
+`.shiftable`), `Morning review` (08:15, `.fixed`) and `Reading` (21:00,
+`.droppable`) are all in frame at once — a window tall enough, or two captures at
+two scroll positions of the same session, the second named `-evening`. Nothing
+selected. The 2026-09-24 frame predates §13.5's weekday treatment, the
+flexibility stepper and the §17.1 blocks, so it no longer shows the window as
+built.
+
+### 17.2 What counts as evidence
+
+Added 2026-10-05 (Phase 2 screenshot review). The captures are the only real
+check on spec against implementation (`DECISIONS.md`, Phase 1 process rules), so
+what a capture must show is part of the spec.
+
+1. **A frame shows the thing it is filed under, in the viewport.** A conflict
+   frame shows the affected block(s) whole, not at the bottom edge. A preview
+   frame shows the ghost and, where one exists, the dashed twin. Interactions
+   §10.1's scroll-into-view makes this automatic once built.
+2. **A frame shows the build as it is at review time.** A frame captured before
+   a change that alters what it shows is retired and recaptured, not annotated.
+   Copy changes count: a conflict row with pre-§14.3.4 copy is not evidence for
+   §14.3.4.
+3. **Offscreen renders of the real view are acceptable for items 10–12**, because
+   §17.1 pins clock times and widths that a live menu bar cannot be set to. They
+   are evidence of **layout, copy, truncation and degrade** only. They are not
+   evidence of what the live menu bar does with the label (template tinting,
+   §15.1; one image plus one string; the width the bar actually allocates, B15)
+   or of the popover's live chrome (material, arrow, enabled state of `Open`).
+   So items 10–12 additionally need **one live capture each** of the status
+   item (normal state, any time, any title) and of the popover (normal state),
+   from the current build, cropped from the real menu bar. Making room in a
+   crowded menu bar (quitting or hiding other status items for the capture) is
+   an acceptable capture step; it is not a product change.
+4. **No selection, hover or focus that the item did not ask for.**
+5. **Light or dark is free per frame, but a frame that measures a colour names
+   its appearance in INDEX.md.**

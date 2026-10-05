@@ -248,3 +248,56 @@ externalID); ⌘Z restores both.
 Re-materialisation updates untouched instances rather than only creating, or the template is not the baseline it
 claims to be. Withdrawal deletes future non-detached instances and keeps detached ones. Materialisation never
 writes to any day before startOfDay(today) — the one rule in §13.6 with no exception. Closes G-019, G-020, G-021.
+
+## 2026-10-05 — Detachment is one field with three values; a released instance rejoins as detached.
+`Event.routineLink`: linked / detached / released. A boolean cannot hold
+§13.6.4: once withdrawal clears it, the kept instance is indistinguishable
+from an untouched future instance of a withdrawn pair, and the next pass
+deletes it.
+
+When the template produces a released instance's pair again (weekday
+re-added, block delete undone, window no longer refusing), it becomes
+detached — edits kept, counted, re-syncable — and the template never creates
+a second instance beside it. The rejoin is folded into the causing undo step
+and is never written to the past.
+
+Rejected: staying released, because "No longer part of Gym routine" would
+then be false. Closes G-033.
+
+## 2026-10-05 — Conflict copy counts in minutes, always.
+`75 min later`, `all 90 min kept`, `135 min lost`. Line 2 is the ranking made
+legible, and a ranking is read by comparing numbers; `1 h 15` beside `45 min`
+makes the reader convert. The `N h MM` sentence in §14.3.4 was a generic rule
+in the one place it doesn't fit. Closes G-035.
+
+## 2026-10-05 — No text on solid accent in multi-line rows.
+A selected conflict option is a tinted card (`selectedCardFill`) with a 2pt
+focus-ring border carrying selection; the text keeps its normal colours.
+Solid `selectedRowFill` measured 1.41:1 for line 2 and 3.81:1 for the title.
+The Recommended chip is line 3, as §14.3 always said, so titles are never
+truncated. Closes G-038.
+
+## 2026-10-05 — The live status item is template-rendered; colour is not a carrier in the menu bar.
+macOS draws a MenuBarExtra label in the bar's own tint and flattens it to one
+image and one string. The late state is carried by the glyph and `… ago`, the
+empty state by its words. `semantic.now` applies in the popover. Do not force
+non-template rendering.
+
+## 2026-10-05 — Review evidence rules.
+A capture shows its subject in the viewport, from the build under review,
+with nothing selected that the item didn't ask for. Offscreen renders of the
+real view are accepted for layout and copy when the spec pins inputs a live
+surface can't be set to, plus one live capture per surface. Review fixtures
+must not depend on the weekday or the clock; §17.1 states the expected
+needs-attention count (14).
+
+## 2026-10-05 — A conflict is opened on its recommendation, in view, in one list.
+Activation — the row, ⌘⇧A, ‹ ›, or the advance after ↩ — scrolls the
+conflict into view and focuses the recommended option, which previews. The
+`1 of N` footer is required: N is the needs-attention count, one order for
+both kinds, no wrap. ↩ never opens the other window by itself.
+
+## 2026-10-05 — Deferred out of Phase 2, still normative.
+§7's scrolled-past window-label pinning, and §16's block-move transition in
+an open main window at the moment of a popover snooze. Neither affects Phase
+2's definition of done; both are logged as DEVIATIONS A-entries.

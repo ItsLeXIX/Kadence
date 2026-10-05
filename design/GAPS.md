@@ -1901,3 +1901,133 @@ as specified and the frames show the result. Not blocking.
 
 **Needed to close:** a text colour for rows on the selected fill, and a rule
 for long titles (wrap, or the chip on its own line).
+
+---
+
+## 2026-10-05 — Phase 2 screenshot review: G-025 to G-038 CLOSED
+
+Design agent, Phase 2 screenshot-review session. Every ruling below is written
+into the spec file named, **and** recorded here, per `CONTEXT.md`. Full reasoning
+lives in the spec text; this list is the index. `design/PHASE2-REVIEW.md` carries
+the verdict, the per-item table and the fix list. `tokens.json` is now 1.2.0.
+
+### G-025 — CLOSED. `components.md` §7 (2026-10-05 amendment, rule 3) and §13.5.2.
+The note and the window label share the inactive leading column's top-left
+corner by **stacking**: the note takes the corner, the label sits `spacing.xs`
+below the note's frame. Same when both are pinned. The label never escapes into
+the gutter. §7 also gains rule 2 (a label is never drawn half-covered by a block;
+it moves to the first spanned column where it is clear, else is omitted; in
+Windows mode labels draw above the dimmed block layer).
+
+### G-026 — CLOSED. `components.md` §13.5.2 (2026-10-05, Increase Contrast).
+Inactive columns step up one notch with the active ones: `color.separator.hour`
+for hour and half-hour lines under Increase Contrast (active: `separator.strong`).
+The build's literal `halfHour` reading is replaced.
+
+### G-027 — CLOSED. `components.md` §13.5.4 (2026-10-05).
+Removing a template's last active weekday is **allowed** as built (a paused
+routine; nothing destroyed; one `⌘Z`). The `// SPEC-GAP` placeholder becomes the
+spec. A `TimeWindow`'s last weekday is the opposite case and is **refused**: the
+last active toggle is disabled with help text
+`A window needs at least one day. Delete it instead.` This replaces the build's
+silent refusal.
+
+### G-028 — CLOSED. `layouts.md` §8.1 (2026-10-05, toggle row).
+The placeholder is adopted: `color.interactive.focusRing`, `size.borderSelected`,
+inset 1pt inside the toggle, `radius.chip`, only while the row has keyboard
+focus; the row stays one focus target. The same amendment fixes the clipped
+letters: the row moves under its label, seven `size.weekdayToggleSize` (24, new)
+squares `spacing.xs` apart, `veryShortStandaloneWeekdaySymbols`, on = accent /
+`text.onSolid`, off = `canvasSunken` / `text.secondary`, AX label = full weekday
+name.
+
+### G-029 — CLOSED. `components.md` §10.2 (2026-10-05).
+Label `Needs attention`; value `1 conflict` / `16 conflicts` (template refusals
+are conflicts too, §14.6); no hint. The badge stays a bare number.
+
+### G-030 — CLOSED. `components.md` §11 (2026-10-05).
+`lands in Sleep, a protected window`; `lands in a protected window` for an empty
+label; block phrases before window phrases. `conflicts with a protected window`
+is retired.
+
+### G-031 — CLOSED. `components.md` §13.7.4 (2026-10-05).
+A tombstone is removed only by undoing its own delete; "may be discarded" is
+withdrawn. The build's conservative placeholder is the spec. Past tombstones may
+be pruned silently (unobservable).
+
+### G-032 — CLOSED. `components.md` §13.2 (2026-10-05).
+Sample height = the segment title's resolved line height (as built). Sample
+colour: a **template image** tinted by the control like the title, in every
+state — not the template's rail hue. Stepper copy `± 30 min` in `blockMeta` /
+`text.primary`, no label word.
+
+### G-033 — CLOSED. `components.md` §13.7.2, §13.6.3, §13.6.4 (2026-10-05).
+The spec **adopts** one persisted field `routineLink` with three values
+(`linked` / `detached` / `released`). A `released` instance whose pair the
+template produces again **rejoins as `detached`**, keeping every edit; the
+template never creates a second instance beside it. Rejoin is folded into the
+causing user step (unrecorded in background passes) and never touches the past.
+This overturns the build's "stays released" placeholder.
+
+### G-034 — CLOSED. `components.md` §13.4 (2026-10-05).
+The popover's insets and row spacing are adopted as built. It must be a system
+popover (never clipped by the window — the capture shows it clipped). The
+overflow row reads `+N more` in `popoverRow` / `text.secondary`.
+
+### G-035 — CLOSED. `components.md` §14.3.4 (2026-10-05).
+The **tables** hold: every duration in conflict copy is `N min` at every size;
+the `N h MM` sentence is struck. The build already matches; only the
+`// SPEC-GAP` marker is removed.
+
+### G-036 — CLOSED. `components.md` §14.2 (2026-10-05).
+Adopted as built: `size.blockPadding` insets, `spacing.sm` between the labels,
+one baseline, vertically centred; the second label truncates first.
+
+### G-037 — CLOSED. `components.md` §17.1 item 10 (2026-10-05).
+The **fixture** was wrong; the token stays 32. The degraded row moves to 80pt;
+110pt stays as a `narrowed` row expecting `17:30 · Statisti…`. Both are already
+captured.
+
+### G-038 — CLOSED. `components.md` §14.3 (2026-10-05) and `tokens.json` 1.2.0.
+(1) A selected option row uses the new `color.interactive.selectedCardFill`
+(`#E3EDFF` / `#1F3352`) plus a 2pt `focusRing` inner border; text colours are
+unchanged (line 2 now 5.44:1 / 5.63:1, was 1.41:1 / 1.25:1 on
+`selectedRowFill`). (2) The `Recommended` chip is **line 3**, on its own line, as
+§14.3 always listed it; titles get the full row width and are never truncated.
+
+### Still open after this session
+
+- **G-016** — open deliberately (snooze destination is Phase 4 logic; the fixed
+  +15 placeholder stands). Unchanged.
+- **G-003** (contrast checker in the generator) — still deferred. Not in this
+  review's range and not a Phase 2 acceptance condition. Note for Parsa: the
+  G-038 failure would **not** have been caught by it, because the failing pair
+  was never declared; the checker guards declared pairs only. 1.2.0 declares
+  the selected-card pairs and records the barred `selectedRowFill` text pairing
+  in `$meta`.
+
+### New rulings with no prior GAPS entry (found in the screenshots)
+
+Written into the spec in the same pass; listed here so they are not mistaken
+for closures of filed gaps:
+
+- `components.md` §3.3 — on a shared `.compact` row the title keeps ≥ 44pt and
+  the trailing time is dropped whole rather than squeezing it (`Gym` → `G`).
+- `components.md` §7 rule 1 — window treatments (the low-energy hatch) are
+  clipped to their spans; the hatch currently spills into Saturday.
+- `components.md` §14.1 / `interactions.md` §10.1 — activating a conflict
+  scrolls it into view and focuses the recommended option.
+- `components.md` §15.1 — the live status item is template-rendered; colour
+  applies to the popover and to renders only.
+- `components.md` §15.2 — meta line names the source; `Open` always enabled;
+  `Re-offer` drawn prominent.
+- `components.md` §17.1 — §12 item 12's triple moves to 13:00–14:30; expected
+  count 13 day + 1 template = **14** on every weekday.
+- `components.md` §17.2 — what counts as capture evidence.
+- `layouts.md` §6 — inspector inset measured from its visible edges (B20); the
+  Source row shows the source's name, not `Green`.
+- `layouts.md` §8 — the Routines canvas never scrolls horizontally at any
+  permitted width (no work required).
+- `layouts.md` §10 — the `1 of N` footer completed and required (A32).
+- `interactions.md` §12 — popover keyboard table and `Open` required; key focus
+  on every open adopted; §16's cross-scene transition deferred.

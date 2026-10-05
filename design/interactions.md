@@ -331,6 +331,29 @@ if that was the last one (`components.md` §14.5).
   each by the start of what they affect. Two queues would make the count in the
   sidebar mean two different things.
 
+**Amended 2026-10-05 (Phase 2 screenshot review) — what activation does to focus
+and to the canvas.**
+
+- **Activation focuses the recommended option** — or the only option of a
+  single-option conflict — and so previews it immediately. This applies to the
+  needs-attention row, `⌘⇧A`, the footer's `‹`/`›` (`layouts.md` §10), and the
+  advance after `↩`. It replaces the build's P2-T45 judgement call (after apply
+  the next conflict previews its *top* row): "decisions come with defaults"
+  (`BRIEF-DESIGN`) means the default is what is shown first, so a keyboard user
+  can read the preview and press `↩` to accept the recommendation without
+  hunting for it. When the recommendation is row 1 nothing changes; when it is
+  row 2 (§17 item 7), focus lands on row 2. Nothing is written until `↩`, so
+  focusing it commits nothing.
+- **Activation brings the conflict into view.** If the occurrence's day is not
+  in the visible range, the canvas pages to the range containing it (same view,
+  never an auto-switch). Then, if the occurrence's frame is not wholly inside the
+  viewport, the grid scrolls so the earlier of the two colliding starts sits
+  one third from the top of the viewport (`layouts.md` §3.1's Today rule), using
+  `motion.paging` (instant under Reduce Motion). A preview the user cannot see
+  is not a preview. In the Routines window the same scroll rule applies to the
+  template block. Stepping with `‹`/`›` does the same. Abandoning the preview
+  (§10.2) does **not** scroll back.
+
 ### 10.2 Abandonment is unconditional
 
 **A pending preview is abandoned, never persisted, the moment focus leaves the
@@ -471,6 +494,31 @@ and skipped (§2) — the same action gets the same key wherever it appears.
 `Done` and `Snooze` do **not** close the popover. Both replace the action row in
 place with their result (`components.md` §16), because a surface that vanishes at
 the moment it has something to tell you cannot tell you where the block went.
+
+**Amended 2026-10-05 (Phase 2 screenshot review).** P2-T25/T26 built `Done`,
+`Snooze`, `Re-offer` and `⌥⌘↩` and logged the rest as out of scope; the review
+rules on what Phase 2 needs.
+
+- **Key focus: the popover takes key focus on every open**, click or keyboard.
+  The build's blunt rule is adopted and the click-vs-keyboard distinction above
+  is withdrawn. A `MenuBarExtra` window cannot reliably tell how it was opened,
+  and a popover that holds focus costs a mouse user nothing — `⎋` and clicking
+  outside both close it — while one that does not hold it makes every key in
+  this table dead.
+- **Required for Phase 2:** `Open` (button and `↩` on the NEXT item: activate the
+  main window, opening it if closed, page to the item's day and select it),
+  `⌘↩` (Done), `⎋` (close), and `↑`/`↓` between NEXT and the rest rows with `↩`
+  opening the focused row the same way. The brief's Phase 2 lists "Done / Snooze
+  / Open main window", and `BRIEF-DESIGN` asks for an app "fully usable without
+  the mouse"; a popover whose only keyboard path is `⌥⌘↩` is neither.
+- The focused rest row draws `color.interactive.hoverOverlay` behind its full
+  row width at `radius.chip` — the same treatment as a hovered row — so focus is
+  visible without a second focus ring inside a popover that already has one.
+- **Deferred, not required for Phase 2:** `components.md` §16's third bullet
+  (running the block-move transition in an open main window at the moment of a
+  popover snooze). It needs animation state shared across two scenes, and
+  nothing is lost without it: the popover's result row already says where the
+  block went, and the main window shows it there on its next render.
 
 ### 12.1 Motion in the popover
 

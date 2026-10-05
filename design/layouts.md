@@ -339,6 +339,26 @@ scheduled hours, and the first item — rather than an empty panel. Never a
 Section spacing `spacing.xl`, horizontal padding `spacing.xl`, label column
 width 84.
 
+**Amended 2026-10-05 (Phase 2 screenshot review, spec side of DEVIATIONS B20).**
+
+- **The horizontal padding is measured from the inspector's own visible edges**,
+  leading and trailing, after any divider. Every inspector element — labels,
+  values, the title row, the conflict panel (§10), buttons — starts at least
+  `spacing.xl` (16) inside the leading edge. Nothing is drawn at, under or past
+  that edge. The 2026-10-05 captures show the labels' first letters cut off
+  (`tarts`, `nds`, `ource`) and the conflict panel's blocks flush against the
+  edge, plus a full-height accent line on the inspector's leading edge in every
+  main-window frame since 2026-09-25. Both are the same fault: the content is
+  laid out wider than the region and clipped on the leading side. The focus
+  ring the inspector draws when it is the focused region (`interactions.md` §1)
+  is the **complete** standard system ring around the region, never one edge of
+  it.
+- **Row 4's "Source" is the source's name**, as the sidebar lists it — `Daily
+  routine`, `University timetable` — with its swatch (`components.md` §3.4:
+  "Inspector: Always, as swatch + name"). Never the palette slot: the 2026-10-05
+  capture reads `Source  Green`, which is a colour name standing in for a source
+  name, the exact confusion §1 exists to prevent.
+
 ---
 
 ## 7. What collapses first, restated
@@ -393,6 +413,17 @@ sense against each other (`components.md` §13.3).
 - **Collapse order**: the editor inspector collapses below 1040pt and returns as
   an overlay, exactly as §1.1 does for the main window. The canvas never
   collapses.
+- **Amended 2026-10-05 — the canvas never scrolls horizontally.** At every
+  permitted width the columns are `(canvas width − size.timeGutterWidth) / 7` and
+  that is ≥ 104pt: at the 780pt minimum the inspector is an overlay, so the
+  canvas is 780 wide (104 per column); at 1040 with the inspector docked it is
+  780 again. Both are above `size.routineEditorColumnMin` (84), so the
+  horizontal-scroll path is unreachable, and with it the question of the weekday
+  header (and its §13.5.2 underlines) scrolling out of step with the grid. The
+  header and the grid share one column-width computation and one horizontal
+  origin. If a future change makes the canvas narrower than 640pt, the header
+  must scroll with the grid in the same `ScrollView`, never in a sibling — but
+  no Phase 2 change does. No Phase 2 work is required by this paragraph.
 
 ### 8.1 Editor inspector
 
@@ -412,6 +443,35 @@ placeholder graphic.
   `dayHeaderWeekday` toggles, `←`/`→` to move, `space` to flip. This is the
   keyboard path for `components.md` §13.5.4, so the column note's `Add Sat`
   button is not the only way in. Same undo step names.
+- **Amended 2026-10-05 — the toggle row's geometry and its focused toggle
+  (closes G-028).** The 2026-10-05 captures clip `M` and `W` to `N` and `V`: the
+  row was squeezed into the space beside the 84pt label column. Ruled:
+  - The row sits **under** its `Weekdays` label, full content width (228pt at
+    `size.editorInspectorWidth` less two `spacing.xl` insets) — the same
+    placement the flexibility control already takes, for the same reason.
+  - Seven square toggles, `size.weekdayToggleSize` (24) each, `spacing.xs`
+    apart: 7 × 24 + 6 × 4 = 192pt. Radius `radius.chip`.
+  - Letter: `veryShortStandaloneWeekdaySymbols` (`M T W T F S S`) in
+    `dayHeaderWeekday`, centred. Repeated letters are disambiguated by position,
+    as on every calendar header; the accessibility label is the full weekday
+    name (`Monday`) and the value `in routine` / `not in routine` (time windows:
+    `on` / `off`).
+  - **On:** fill `color.interactive.accent`, letter `color.text.onSolid`
+    (4.56:1 / 6.93:1). **Off:** fill `color.surface.canvasSunken`, letter
+    `color.text.secondary` (5.69:1 / 8.01:1). The fill's value step separates on
+    from off without hue; the accessibility value carries it for VoiceOver.
+  - **The focused toggle** (`←`/`→` have moved to it, the row has keyboard
+    focus): a `size.borderSelected` stroke in `color.interactive.focusRing`,
+    **inset** 1pt inside the toggle's bounds, at `radius.chip` — the build's
+    placeholder, adopted. Inset rather than outset because the toggles are
+    `spacing.xs` apart and an outside ring would touch the neighbour. The
+    system focus ring stays on the row as a whole, per `interactions.md` §1:
+    the ring says *this region*, the inset stroke says *this item*. Shown only
+    while the row has keyboard focus; never on pointer hover.
+  - Each toggle is **not** its own `⇥` stop. `interactions.md` §1's model holds:
+    the row is one focus target with an internal focused item.
+  - The time-window inspector's row is the same component with the same
+    geometry; its last active toggle is disabled per `components.md` §13.5.4.
 - **The detached count reads `3 instances edited` / `1 instance edited`** — no
   "this week". `components.md` §13.7.3 scopes it from today forward through the
   materialisation horizon, which is not a week, and the popover lists the real
@@ -462,6 +522,58 @@ Top to bottom:
 
 When the inspector is collapsed and a conflict is activated from the sidebar, the
 inspector opens as an overlay. It does not force the window wider.
+
+**Amended 2026-10-05 — the footer, completed (spec side of DEVIATIONS A32).
+Required for Phase 2.** Without it there is no way to look at a later conflict
+without resolving the current one, and none to reach a template conflict while
+day conflicts remain — the 2026-10-05 captures needed a launch-argument test hook
+to get past that. The brief's "Needs your attention" is a list; the footer is
+what makes this panel one.
+
+- **Position:** the last element of the panel, `spacing.lg` below the last option
+  row, inside the inspector's content inset (§6).
+- **Content:** `‹` · `3 of 14` · `›`. The text is `blockMeta` /
+  `color.text.secondary`, monospaced digits, centred between the two buttons.
+  `‹` and `›` are native borderless buttons drawing `chevron.left` /
+  `chevron.right` at `size.blockGlyphSize` in `color.text.secondary`, hit
+  target at least 24 × 24. (These are chrome symbols for paging, not members of
+  either glyph vocabulary in `components.md` §10.1; `chevron.up` in §7 is the
+  precedent.)
+- **N is the needs-attention count** — day conflicts and template conflicts
+  together — and the order is `interactions.md` §10.1's `⌘⇧A` order (day
+  conflicts first, then template conflicts, each by the start of what they
+  affect). One list, one count, one order; the sidebar badge and the footer's N
+  are always the same number.
+- **Ends do not wrap.** `‹` is disabled on 1, `›` on N. Wrapping would let `›`
+  silently mean "back to the start", and a list of things needing attention
+  should end.
+- **Stepping onto a template conflict from the main window** routes exactly as
+  activating one does (`components.md` §14.6): the Routines window opens on it,
+  in conflict mode, and its own footer reads the same `k of N`. Stepping back
+  with `‹` from the first template conflict in the Routines window returns to the
+  main window's last day conflict.
+- **Stepping abandons the pending preview** (`interactions.md` §10.2) and focuses
+  the new conflict's recommended option, which previews (`interactions.md`
+  §10.1).
+- **After `↩` applies an option**, the conflict leaves the list and the panel
+  advances to the next conflict **of the same window's kind** — a day conflict in
+  the main window, a template conflict in the Routines window — with the footer
+  reading its new `k of N−1`. `↩` never opens the other window by itself:
+  crossing windows is always an explicit `‹`/`›` or a needs-attention
+  activation, because a window appearing as a side effect of applying an option
+  reads as something going wrong. When no conflict of this window's kind
+  remains, the panel closes (`components.md` §14.5) even if N is still above
+  zero; the sidebar count shows what remains. This adopts the build's P2-T46
+  judgement call ("applying a day conflict never advances into the template
+  queue").
+- **N = 1 still shows the footer** (`1 of 1`, both buttons disabled):
+  `components.md` §14.3.3 leans on it to say where the user is when a single-
+  option conflict has no chip.
+- **Keys:** `‹` `›` / `⌥←` `⌥→` with the panel focused, as `interactions.md` §2
+  already lists. Accessibility: the buttons are labelled `Previous conflict` /
+  `Next conflict`; the text is read as `Conflict 3 of 14`.
+- The Routines window's editor-inspector panel (§8.1) carries the identical
+  footer at `size.editorInspectorWidth`.
 
 **The panel is not modal.** The grid stays live underneath: you can scroll it,
 change view, and select other blocks. Doing any of those abandons the pending
