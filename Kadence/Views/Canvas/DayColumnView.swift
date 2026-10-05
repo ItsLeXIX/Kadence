@@ -16,7 +16,11 @@ struct DayColumnView: View {
     let geometry: TimeGeometry
     let now: Date
     /// §7 — the window label is drawn once, in the leading day column.
-    var showsWindowLabels: Bool = false
+    /// components.md §7 rules 2–3 (task P2-F06): the window labels this
+    /// column draws, placed by the canvas. Empty for most columns.
+    var windowLabels: [WindowLabelPlacement.Placed] = []
+    /// This column's index, the key it reports its block frames under.
+    var columnIndex: Int = 0
     let store: EventStore
     /// Every event id that is one half of a `ConflictEngine.detect` result
     /// (P2-T14). Additive to, and independent of, `conflictsWithProtectedWindow`
@@ -59,13 +63,9 @@ struct DayColumnView: View {
                 // 1. Grid lines.
                 HourLinesLayer(geometry: geometry)
 
-                // 2. Window labels — leading day column only, never the gutter.
-                if showsWindowLabels {
-                    WindowLabelsLayer(
-                        windows: fixtures.windows,
-                        day: day,
-                        geometry: geometry)
-                }
+                // 2. Window labels — below the blocks, placed by the canvas
+                // where no block covers them (§7 rule 2); never the gutter.
+                WindowLabelsLayer(labels: windowLabels)
 
                 // 3. Empty-grid interaction surface.
                 createSurface(width: width)
@@ -125,6 +125,11 @@ struct DayColumnView: View {
                 }
             }
             .frame(height: geometry.totalHeight, alignment: .top)
+            // §7 rule 2 (task P2-F06): report this column's block frames so
+            // the canvas can keep window labels out from under them.
+            .preference(
+                key: ColumnLabelInputsKey.self,
+                value: [columnIndex: ColumnLabelInputs(blockFrames: layout.blocks.map(\.frame))])
         }
         .frame(height: geometry.totalHeight)
     }

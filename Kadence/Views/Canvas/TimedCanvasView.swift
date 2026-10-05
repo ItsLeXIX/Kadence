@@ -32,6 +32,9 @@ struct TimedCanvasView: View {
 
     @Environment(CalendarState.self) private var state
     @State private var didInitialScroll = false
+    /// Every column's block frames, reported up through
+    /// `ColumnLabelInputsKey` — what §7 rule 2's label placement needs.
+    @State private var labelInputs: [Int: ColumnLabelInputs] = [:]
     /// `CanvasColumnLayout.systemScrollerReserve`, re-read when the user
     /// switches "Show scroll bars" (AppKit posts a notification; SwiftUI's
     /// `.onReceive` subscribes to it like a listener in Java).
@@ -124,9 +127,10 @@ struct TimedCanvasView: View {
                         fixtures: fixtures,
                         geometry: dayGeometry,
                         now: now,
-                        // §7 — the window label lives in the LEADING day column,
-                        // never the gutter. Only the first column draws it.
-                        showsWindowLabels: index == 0,
+                        // §7 rules 2–3 (task P2-F06): labels placed by
+                        // `windowLabelPlacement`, never in the gutter.
+                        windowLabels: placedLabels.filter { $0.columnIndex == index },
+                        columnIndex: index,
                         store: store,
                         conflictedEventIDs: conflictedEventIDs,
                         conflictPartnerTitles: conflictPartnerTitles)
@@ -157,6 +161,12 @@ struct TimedCanvasView: View {
                     .offset(y: CGFloat(hour) * hourHeight)
                     .id(hour)
             }
+        }
+        // Collect what the columns reported (see `ColumnLabelInputsKey`).
+        // Frames depend only on layout, never on where labels go, so this
+        // settles in one pass.
+        .onPreferenceChange(ColumnLabelInputsKey.self) { inputs in
+            labelInputs = inputs
         }
     }
 
@@ -194,6 +204,21 @@ struct TimedCanvasView: View {
         .frame(height: hourHeight * 24, alignment: .top)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// components.md §7 rules 2–3 (task P2-F06): one label per window span,
+    /// in the leading column whose label rect no block covers.
+    private var placedLabels: [WindowLabelPlacement.Placed] {
+        WindowLabelPlacement.place(
+            windows: fixtures.windows,
+            columns: days.indices.map { index in
+                WindowLabelPlacement.Column(
+                    day: days[index],
+                    blockFrames: labelInputs[index]?.blockFrames ?? [])
+            },
+            hourHeight: hourHeight,
+            showsPeakFocus: false,
+            avoidsBlocks: true)
     }
 
     /// The cursor time to print in the gutter, or nil when there is no cursor to

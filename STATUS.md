@@ -6595,3 +6595,60 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
   time gutter unpainted, against §7 rule 2. The hatch-spill entry itself is
   written (as resolved here) in P2-HK. Recapture of 1, 2 (via 14), 13, 14,
   15, 16 is item 20's.
+
+## 57. P2-F06 — window label placement (components.md §7 rules 2 and 3, amended 2026-10-05; G-025; PHASE2-REVIEW.md §6 item 6)
+
+### Before
+
+- Labels were drawn only in the canvas's first column (`index == 0` /
+  `weekdays.first`), for whichever windows had a span there, below the
+  blocks and with no check for what covered them — `Low energy` sliced under
+  `Errands`, and a window not spanning the first column went unlabelled.
+
+### Built
+
+- `Kadence/Layout/WindowLabelPlacement.swift` (new, pure). Per window, one
+  label per span top edge (spans with the same start across columns are one
+  span). Candidates in column order; §7 rule 3: if the column's note
+  intersects the label rect, the label moves to `note.maxY + spacing.xs`;
+  §7 rule 2: in Blocks mode a column whose label rect meets a block frame
+  is skipped, and if every column is covered the label is omitted. Windows
+  mode doesn't avoid blocks. Peak focus is labelled only where it is drawn.
+- Columns report their block frames (and, in the Routines window, the
+  inactive note's frame: measured with `onGeometryChange`, pinned where it
+  is drawn) through a new `ColumnLabelInputsKey` preference. `TimedCanvasView`
+  and `RoutinesCanvasView` collect them, place, and hand each column its
+  labels. `WindowLabelsLayer` now only draws placed labels.
+- Routines Windows mode draws the labels **above** the dimmed block layer;
+  Blocks mode and the main grid keep them below the blocks.
+
+### Tests
+
+- `WindowLabelPlacementTests` (8): `Low energy` at 13:00 with `Errands`
+  12:30–13:15 in Monday goes to Tuesday at the window's edge; stays leading
+  when nothing is in the way, or when a block misses the rect; omitted when
+  all five spanned columns are covered; Windows mode keeps the leading
+  column; a Sunday-first calendar with Sunday's note puts `Sleep`'s label
+  `spacing.xs` below the note, not intersecting it (and labels the 22:00
+  edge too); a note far above the label doesn't move it; peak focus only in
+  Windows mode.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 514
+  passed / 0 failed** (506 + 8).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Check captures** (scratch): Routines Blocks mode — `Low energy` drawn
+  whole in Tuesday; Windows mode — in Monday above the dimmed `Errands`;
+  main Week — in Monday (no block there).
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- None. There was no G-025 marker in code (the build had no stacking at
+  all). The label-slicing entry is written (as resolved here) in P2-HK.
+  §7's scrolled-past label pinning stays unbuilt: the review defers it,
+  and P2-HK logs it. Recapture of 13–16 is item 20's.

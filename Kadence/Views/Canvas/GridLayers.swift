@@ -134,41 +134,50 @@ struct BackgroundWindowsLayer<Window: TimeWindowRenderable>: View {
     }
 }
 
-/// The window label, drawn once at each window's top edge.
+/// The window labels one column draws, already placed by
+/// `WindowLabelPlacement` (components.md §7 rules 2–3, task P2-F06).
 ///
-/// components.md §7: in the **leading day column, never the gutter**. The first
-/// draft put it in the gutter and the 2026-09-09 screenshot showed both
-/// collisions that causes — a low-energy label overprinting `13:00` and a
-/// protected label overprinting `00:00`. The gutter now belongs to hour labels
-/// and the now time, and nothing else.
-struct WindowLabelsLayer<Window: TimeWindowRenderable>: View {
-    let windows: [Window]
-    let day: Date
-    let geometry: TimeGeometry
-    /// See `BackgroundWindowsLayer.showsPeakFocus` — same default, same
-    /// reasoning: `false` leaves every main-grid call site unchanged.
-    var showsPeakFocus: Bool = false
+/// components.md §7: in a **day column, never the gutter**. The first draft
+/// put it in the gutter and the 2026-09-09 screenshot showed both collisions
+/// that causes — a low-energy label overprinting `13:00` and a protected
+/// label overprinting `00:00`. Which column, and how far down, is decided by
+/// the canvas from every column's block frames; this view only draws.
+struct WindowLabelsLayer: View {
+    let labels: [WindowLabelPlacement.Placed]
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ForEach(labels, id: \.id) { label in
+            // `enumerated()` gives each label a stable position-based id;
+            // two windows may share a label text.
+            ForEach(Array(labels.enumerated()), id: \.offset) { _, label in
                 Text(label.text)
                     .typeStyle(.windowLabel)
                     .foregroundStyle(Tokens.Color.Window.label)
-                    .padding(.leading, Tokens.Spacing.xs)
-                    .offset(y: label.y + 1)
+                    .fixedSize()
+                    .offset(x: label.frame.minX, y: label.frame.minY)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
+}
 
-    private struct Label: Identifiable { let id = UUID(); let text: String; let y: CGFloat }
+/// What a column reports up to its canvas so the canvas can place window
+/// labels (§7 rule 2 needs every column's block frames; rule 3 the note's).
+struct ColumnLabelInputs: Equatable {
+    var blockFrames: [CGRect] = []
+    var noteFrame: CGRect? = nil
+}
 
-    private var labels: [Label] {
-        WindowSpanResolver.labels(in: windows, on: day, showsPeakFocus: showsPeakFocus)
-            .map { Label(text: $0.text, y: geometry.y(for: $0.start)) }
+/// A SwiftUI preference: a value a child view publishes that an ancestor
+/// collects with `.onPreferenceChange` — the reverse of the environment, and
+/// how one column's layout reaches the canvas that owns all seven. Keyed by
+/// column index; `reduce` merges siblings' dictionaries.
+struct ColumnLabelInputsKey: PreferenceKey {
+    static let defaultValue: [Int: ColumnLabelInputs] = [:]
+    static func reduce(value: inout [Int: ColumnLabelInputs], nextValue: () -> [Int: ColumnLabelInputs]) {
+        value.merge(nextValue()) { _, new in new }
     }
 }
 

@@ -712,6 +712,8 @@ private struct RoutinesCanvasView: View {
     /// of the visible region", which a view inside the scroll content can only
     /// do if it knows this number.
     @State private var scrollOffsetY: CGFloat = 0
+    /// Task P2-F06 — what each column reported for window-label placement.
+    @State private var labelInputs: [Int: ColumnLabelInputs] = [:]
 
     private let hourHeight = Tokens.Size.hourHeightWeek
 
@@ -760,6 +762,24 @@ private struct RoutinesCanvasView: View {
         }
     }
 
+    /// components.md §7 rules 2–3 (task P2-F06). Blocks mode: a label goes
+    /// in the leading column whose label rect no block covers, and under an
+    /// inactive column's note (G-025). Windows mode: windows are the edited
+    /// layer, so labels sit above the dimmed blocks and are never displaced.
+    private var placedLabels: [WindowLabelPlacement.Placed] {
+        WindowLabelPlacement.place(
+            windows: timeWindows,
+            columns: weekdays.indices.map { index in
+                WindowLabelPlacement.Column(
+                    day: RoutineWeekLayout.referenceDayStart(weekday: weekdays[index], now: Date()),
+                    blockFrames: labelInputs[index]?.blockFrames ?? [],
+                    noteFrame: labelInputs[index]?.noteFrame)
+            },
+            hourHeight: hourHeight,
+            showsPeakFocus: editorMode == .windows,
+            avoidsBlocks: editorMode == .blocks)
+    }
+
     private func gridBody(columnWidth: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 0) {
             TimeGutterView(
@@ -787,14 +807,11 @@ private struct RoutinesCanvasView: View {
                         activeWeekdays: template?.activeWeekdays ?? []
                     ).contains(weekday),
                     scrollOffsetY: scrollOffsetY,
-                    // components.md §7: the window label is drawn "once, at
-                    // the window's top edge, in the leading day column" —
-                    // same rule `TimedCanvasView.windowsBackdrop`/
-                    // `DayColumnView.showsWindowLabels` already apply on the
-                    // main grid (`index == 0`), just keyed to this window's
-                    // own leading (first-ordered) weekday instead of a
-                    // column index.
-                    showsWindowLabels: weekday == weekdays.first)
+                    // components.md §7 rules 2–3 (task P2-F06): the labels
+                    // this column draws, placed canvas-wide by
+                    // `placedLabels` — the same placement the main grid uses.
+                    windowLabels: placedLabels.filter { $0.columnIndex == weekdays.firstIndex(of: weekday) },
+                    columnIndex: weekdays.firstIndex(of: weekday) ?? 0)
                     .frame(width: columnWidth)
                     .overlay(alignment: .leading) {
                         Rectangle()
@@ -802,6 +819,10 @@ private struct RoutinesCanvasView: View {
                             .frame(width: Tokens.Size.hairline)
                     }
             }
+        }
+        // See `ColumnLabelInputsKey`: each column's block and note frames.
+        .onPreferenceChange(ColumnLabelInputsKey.self) { inputs in
+            labelInputs = inputs
         }
     }
 }
@@ -851,7 +872,11 @@ private struct RoutineDayColumnView: View {
     let showsDropPreview: Bool
     /// Vertical scroll offset of the canvas, for pinning the §13.5.3 note.
     let scrollOffsetY: CGFloat
-    let showsWindowLabels: Bool
+    /// Task P2-F06 — this column's placed window labels, and its index.
+    let windowLabels: [WindowLabelPlacement.Placed]
+    let columnIndex: Int
+    /// The §13.5.3 note's measured size, for §7 rule 3's stacking.
+    @State private var noteSize: CGSize = .zero
 
     /// In-flight create-drag, kept local so nothing is written until drop —
     /// same rule as `DayColumnView.DragSession`. Create stays per-column
@@ -980,12 +1005,11 @@ private struct RoutineDayColumnView: View {
                 // 2026-10-01: `canvasSunken` would hide protected windows).
                 HourLinesLayer(geometry: geometry, recessed: treatment.recessesHourLines)
 
-                if showsWindowLabels {
-                    WindowLabelsLayer(
-                        windows: timeWindows,
-                        day: referenceDayStart,
-                        geometry: geometry,
-                        showsPeakFocus: editorMode == .windows)
+                // §7 rule 2: in Blocks mode labels sit below the blocks
+                // (placed where none covers them). Windows mode draws them
+                // above the dimmed block layer instead — see below.
+                if editorMode == .blocks {
+                    WindowLabelsLayer(labels: windowLabels)
                 }
 
                 // Empty-grid tap deselects, matching the main grid's
@@ -1028,6 +1052,12 @@ private struct RoutineDayColumnView: View {
                 }
                 .opacity(editorMode == .windows ? Tokens.Opacity.editorInactiveLayer : 1)
                 .allowsHitTesting(editorMode == .blocks)
+
+                // §7 rule 2, Windows mode: "labels are drawn above the dimmed
+                // block layer and are never displaced."
+                if editorMode == .windows {
+                    WindowLabelsLayer(labels: windowLabels)
+                }
 
                 // components.md §14.6: "the previewed block in every active
                 // column at once" — §14.4's `previewed` twin at the proposed
@@ -1108,11 +1138,26 @@ private struct RoutineDayColumnView: View {
                     // Task P2-T39 — components.md §13.5.4: adds this weekday
                     // to the template, as one `Add Saturday to Routine` step.
                     InactiveDayNote(weekday: weekday, onAdd: { onAddWeekday(weekday) })
+                    // Task P2-F06: the note's real size, for §7 rule 3.
+                    // `onGeometryChange` reports the measured size whenever
+                    // it changes (wrapping, Dynamic Type).
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { noteSize = $0 }
                     .padding(.leading, Tokens.Spacing.xs)
                     .offset(y: max(scrollOffsetY, 0) + Tokens.Spacing.xs)
                 }
             }
             .frame(height: geometry.totalHeight, alignment: .top)
+            // §7 rules 2–3 (task P2-F06): report block frames and, on an
+            // inactive column, the note's frame — where it is drawn above.
+            .preference(
+                key: ColumnLabelInputsKey.self,
+                value: [columnIndex: ColumnLabelInputs(
+                    blockFrames: layout.blocks.map(\.frame),
+                    noteFrame: treatment.showsInactiveNote
+                        ? CGRect(origin: CGPoint(x: Tokens.Spacing.xs,
+                                                 y: max(scrollOffsetY, 0) + Tokens.Spacing.xs),
+                                 size: noteSize)
+                        : nil)])
             // Task P2-T39 — components.md §13.5.4: when this column's weekday
             // is activated, "every block in the template appears in the
             // column at once, over `motion.viewChange` (0.16, easeInOut,
