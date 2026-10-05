@@ -5785,3 +5785,85 @@ no path through the store, including undoing and redoing every step, leaves
   drawn in the template's hue, as on the grid. Not specified (G-032).
 
 **Next:** P2-T43, detachment.
+
+## 44. P2-T43 — detachment flag and its two surfaces (components.md §13.4, §13.7.1, §13.7.2; GAPS G-019, G-021)
+
+### Built
+
+- **The flag** (`Event.routineLink`, persisted raw string, default
+  `linked`): `linked` / `detached` / `released`. It is three-valued because
+  §13.6.4 keeps a detached instance on withdrawal but says it "stops being
+  detached", and a two-valued flag would let the next pass delete it
+  (**GAPS G-033**, DEVIATIONS **C8**). `EventSnapshot` carries it, so delete
+  + undo keeps it.
+- **What detaches (§13.7.1):** `EventStore.linkChange(forTemplateFieldEditOf:)`
+  turns a `linked` materialised instance into `detached`. `move`, `resize`,
+  `snooze`, `retitle` and the new `setFlexibility` record the old and new
+  link in their own step, so `⌘Z` re-links. `toggleDone`, `toggleSkipped`,
+  `markSkipped` (the `.skipToday` apply) and `setNotes` don't touch it.
+  Conflict apply follows from this: `.shiftLater` uses `move` and `.shorten`
+  uses `resize`, so both detach; `.skipToday` doesn't. Manual and hand-seeded
+  events never get a link. An instance edited back to the template's values
+  stays detached.
+- **The P2-T41 seam replaced:** `RoutineDetachment.isDetached` is
+  `routineLink != .linked`. `materialize` leaves detached and released
+  instances alone. `withdraw` releases detached ones (recorded in the
+  causing step via `EventStore.release`, unrecorded in the background) and
+  never touches released ones. DEVIATIONS **A31** resolved.
+- **Main-grid inspector** (`InspectorView`, fed by `MainWindow`):
+  `RoutineInstance.status(of:in:)` gives `.edited(routineName:)` →
+  `Edited — differs from <template name>` (split at the dash into
+  `inspectorLabel` / `inspectorValue`) with a native `Revert to routine`
+  button; or `.released` → `No longer part of <template name>`, with no
+  action.
+- **`Revert to routine`** (`RoutineInstance.revert` →
+  `EventStore.revertToRoutine`): writes the template's **current** title,
+  start/end (the pair's own day) and flexibility, sets `linked`, and leaves
+  status alone. One step, **`Revert Instance to Routine`**. Inside a larger
+  step it joins that step instead, ready for Re-sync (P2-T44).
+
+### Tests
+
+New `KadenceTests/DetachmentTests.swift`, 14 tests:
+
+- The four-field table: move, resize, retitle, flexibility and snooze
+  detach; done, undone, skipped, unskipped, `markSkipped` and notes don't.
+- Through the real `CalendarState.applyFocusedConflictOption`: `.skipToday`
+  doesn't detach, `.shorten` does.
+- Delete leaves a tombstone, not detachment. Edited-back stays detached.
+  Undo re-links. Manual and hand-seeded events are never linked.
+- A template edit updates linked instances and leaves the detached one where
+  the user put it. Withdrawal keeps and releases a detached instance, later
+  passes keep it, its status reads `released`, and the release undoes with
+  `Remove Monday from Routine`. A released instance can't be reverted.
+- Revert writes the template's **current** values after the template
+  changed, keeps `.done`, is named `Revert Instance to Routine`, and `⌘Z`
+  restores the edited values and `detached`. Exact copy for both lines. A
+  linked instance has no line and nothing to revert. The flag survives
+  delete + undo.
+
+The P2-T41 tests that pass their own `isDetached` closure still pass
+unchanged.
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  435 passed / 0 failed** (§43: 421; +14). One run failed first on a
+  test-only artefact: the test calendar had no locale, so weekday symbols
+  came out as `Mon`. Fixed by setting `en_US_POSIX`, as the other suites do.
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **`check-routines-window.sh`: PASS. `check-conflict-apply-return.sh`:
+  PASS** (+1200 s). The script's `Focus review` is a hand-seeded fixture,
+  so its `.shorten` doesn't detach anything.
+- **Not verified live:** the inspector line and the Revert button. No
+  sanctioned script edits a materialised instance on the main grid; they are
+  covered by the unit tests above and get captured with P2-T48.
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-033**. DEVIATIONS **C8**, four P2-T43 judgement calls under C;
+  **A31** resolved.
+
+**Next:** P2-T44, Re-sync.

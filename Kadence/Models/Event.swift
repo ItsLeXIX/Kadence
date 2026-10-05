@@ -62,6 +62,19 @@ final class Event {
     /// Blocks the user from dragging this event (interactions.md §4).
     var isLocked: Bool = false
 
+    /// components.md §13.7.2 (task P2-T43): how a materialised routine
+    /// instance relates to its template. Meaningless for every other event,
+    /// which stays `.linked`. Stored as a raw string like the fields above;
+    /// the default lets SwiftData add the column to an existing store.
+    private var routineLinkRaw: String = RoutineLink.linked.rawValue
+    var routineLink: RoutineLink {
+        get { RoutineLink(rawValue: routineLinkRaw) ?? .linked }
+        set { routineLinkRaw = newValue.rawValue }
+    }
+
+    /// §13.7.1: the user changed a template-owned field on this day.
+    var isDetached: Bool { routineLink == .detached }
+
     init(
         title: String,
         start: Date,
@@ -129,4 +142,21 @@ extension Event {
     }
 
     func isPast(now: Date) -> Bool { end <= now }
+}
+
+/// components.md §13.7.2's flag, as one persisted field with three values
+/// (task P2-T43).
+///
+/// - `linked`: generated and untouched; re-materialisation keeps it current
+///   (§13.6.3 row 2).
+/// - `detached`: one of the four template-owned fields (start, end, title,
+///   flexibility) was edited on the main grid (§13.7.1). Re-materialisation
+///   leaves it alone; Re-sync and `Revert to routine` set it back to
+///   `linked`.
+/// - `released`: a detached instance that §13.6.4's withdrawal kept. "They
+///   stop being detached … become ordinary `.routine`-origin events" — but
+///   a later pass must still not withdraw them as if they were untouched,
+///   which a two-valued flag can't express. SPEC-GAP (design/GAPS.md G-033).
+enum RoutineLink: String, Codable, Sendable {
+    case linked, detached, released
 }

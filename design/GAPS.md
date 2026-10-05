@@ -1749,3 +1749,35 @@ own `RailView` in the template's `color.source.<slot>.rail`; the stepper reads
 macOS), so the segments themselves invent nothing. Not blocking.
 
 **Needed to close:** the sample's height and colour, and the stepper's copy.
+
+---
+
+## 2026-10-05 — G-033 — a detached instance kept by withdrawal: one flag can't hold it, and its pair can come back
+
+**Where it bit:** task P2-T43, `Event.routineLink` (`Kadence/Models/Event.swift`)
+and `RoutineEngine.withdraw`.
+
+**What the spec says.** `components.md` §13.7.2: "One persisted flag … cleared
+only by Re-sync, `Revert to routine`, or withdrawal." §13.6.4: detached
+instances of a withdrawn pair "are kept, and they stop being detached … become
+ordinary `.routine`-origin events, keep their `(sourceID, externalID)`", with
+the inspector line `No longer part of Gym routine`.
+
+**What is missing.** (1) Once its flag is cleared, a kept instance looks exactly
+like an untouched one, and §13.6.4 itself says future non-detached instances of
+a withdrawn pair are deleted. The next pass (any trigger) would delete the
+instance withdrawal just kept. The "No longer part of" line also needs to know
+it was kept. A two-valued flag can't express it. (2) If the pair is produced
+again (the weekday reactivated, the block's delete undone), nothing says whether
+the kept instance rejoins the routine (and gets updated to the template) or
+stays an ordinary event.
+
+**What was built instead of guessing.** (1) The flag is one persisted field
+with three values: `linked`, `detached`, `released`. Withdrawal turns
+`detached` into `released`, in the same undo step. `released` is never
+withdrawn, updated, counted as detached, or reverted. (2) A released instance
+stays released when its pair comes back, so re-materialisation leaves it alone.
+Marked `// SPEC-GAP (design/GAPS.md G-033)` in `Event.swift` and
+`RoutineEngine.swift`. Not blocking.
+
+**Needed to close:** confirm the three-valued field, and rule on (2).

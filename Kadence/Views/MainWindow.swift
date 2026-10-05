@@ -289,7 +289,11 @@ struct MainWindow: View {
             store: store,
             conflict: activeConflict,
             selectedConflictOptionID: state.selectedConflictOptionID,
-            onSelectConflictOption: { state.selectedConflictOptionID = $0 })
+            onSelectConflictOption: { state.selectedConflictOptionID = $0 },
+            routineStatus: selectedEvent.flatMap { RoutineInstance.status(of: $0, in: context) },
+            onRevertToRoutine: {
+                if let selectedEvent { RoutineInstance.revert(selectedEvent, store: store) }
+            })
     }
 
     /// The conflict `state.selectedConflictID` names, if it still exists in

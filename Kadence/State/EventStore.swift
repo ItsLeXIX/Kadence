@@ -150,6 +150,67 @@ struct EventStore {
         }
     }
 
+    // MARK: Detachment (components.md §13.7.1, task P2-T43)
+
+    /// The link before and after an edit to one of the four template-owned
+    /// fields (start, end, title, flexibility). A materialised instance that
+    /// is `.linked` becomes `.detached`; anything else keeps its link
+    /// (a `.released` instance is an ordinary event now, and a non-routine
+    /// event has no template). `move`, `resize`, `snooze`, `retitle` and
+    /// `setFlexibility` record both values in their own step, so `⌘Z` on the
+    /// edit also re-links the instance. Done/skipped, notes and lock never
+    /// call this: status is a fact about a day, not a divergence.
+    static func linkChange(forTemplateFieldEditOf event: Event) -> (old: RoutineLink, new: RoutineLink) {
+        let old = event.routineLink
+        let isInstance = RoutineTombstones.pair(of: event) != nil
+        return (old, isInstance && old == .linked ? .detached : old)
+    }
+
+    /// Change flexibility (a template-owned field, so it detaches). No
+    /// main-grid control calls this yet; it exists so §13.7.1's table has
+    /// one write per row and the rule is tested.
+    func setFlexibility(_ event: Event, to new: Flexibility) {
+        let id = event.id
+        let old = event.flexibility
+        guard new != old else { return }
+        let (oldLink, newLink) = Self.linkChange(forTemplateFieldEditOf: event)
+        undo.perform("Set Flexibility",
+                     redo: { edit(id) { $0.flexibility = new; $0.routineLink = newLink } },
+                     undo: { edit(id) { $0.flexibility = old; $0.routineLink = oldLink } })
+    }
+
+    /// `Revert to routine` (§13.4, §13.7.3 last paragraph): writes the
+    /// template's **current** values into the four fields and links the
+    /// instance again, leaving `status` alone. One step, named
+    /// `Revert Instance to Routine`. Inside a larger step (Re-sync, P2-T44)
+    /// it joins that step instead.
+    func revertToRoutine(_ event: Event, values: RoutineValues) {
+        let id = event.id
+        let oldValues = RoutineValues(event)
+        let oldLink = event.routineLink
+        guard oldValues != values || oldLink != .linked else { return }
+        undo.perform("Revert Instance to Routine",
+                     redo: { edit(id) { write(values, to: $0); $0.routineLink = .linked } },
+                     undo: { edit(id) { write(oldValues, to: $0); $0.routineLink = oldLink } })
+    }
+
+    /// §13.6.4: a detached instance kept by a withdrawal "stops being
+    /// detached". Recorded, so it joins the withdrawal's step.
+    func release(_ id: UUID) {
+        guard let event = event(id), event.routineLink != .released else { return }
+        let old = event.routineLink
+        undo.perform("Release Routine Instance",
+                     redo: { edit(id) { $0.routineLink = .released } },
+                     undo: { edit(id) { $0.routineLink = old } })
+    }
+
+    /// The same with no undo step, for the background pass. One save.
+    func releaseUnrecorded(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        for id in ids { event(id)?.routineLink = .released }
+        try? context.save()
+    }
+
     // MARK: Routine instances (components.md §13.6.3 / §13.6.4, task P2-T41)
 
     /// The four template-owned fields (§13.7.1) of a routine instance.
@@ -235,9 +296,10 @@ struct EventStore {
         let oldEnd = event.end
         let newStart = oldStart.addingTimeInterval(offset)
         let newEnd = oldEnd.addingTimeInterval(offset)
+        let (oldLink, newLink) = Self.linkChange(forTemplateFieldEditOf: event)
         undo.perform("Move Event",
-                     redo: { edit(id) { $0.start = newStart; $0.end = newEnd } },
-                     undo: { edit(id) { $0.start = oldStart; $0.end = oldEnd } })
+                     redo: { edit(id) { $0.start = newStart; $0.end = newEnd; $0.routineLink = newLink } },
+                     undo: { edit(id) { $0.start = oldStart; $0.end = oldEnd; $0.routineLink = oldLink } })
     }
 
     func move(_ event: Event, toStart newStart: Date) {
@@ -272,9 +334,11 @@ struct EventStore {
         let oldEnd = event.end
         let newStart = oldStart.addingTimeInterval(Self.snoozeOffset)
         let newEnd = oldEnd.addingTimeInterval(Self.snoozeOffset)
+        // A snooze moves the start, a template-owned field (§13.7.1).
+        let (oldLink, newLink) = Self.linkChange(forTemplateFieldEditOf: event)
         undo.perform("Snooze",
-                     redo: { edit(id) { $0.start = newStart; $0.end = newEnd } },
-                     undo: { edit(id) { $0.start = oldStart; $0.end = oldEnd } })
+                     redo: { edit(id) { $0.start = newStart; $0.end = newEnd; $0.routineLink = newLink } },
+                     undo: { edit(id) { $0.start = oldStart; $0.end = oldEnd; $0.routineLink = oldLink } })
         return newStart
     }
 
@@ -294,9 +358,10 @@ struct EventStore {
 
         let finalStart = start
         let finalEnd = end
+        let (oldLink, newLink) = Self.linkChange(forTemplateFieldEditOf: event)
         undo.perform("Resize Event",
-                     redo: { edit(id) { $0.start = finalStart; $0.end = finalEnd } },
-                     undo: { edit(id) { $0.start = oldStart; $0.end = oldEnd } })
+                     redo: { edit(id) { $0.start = finalStart; $0.end = finalEnd; $0.routineLink = newLink } },
+                     undo: { edit(id) { $0.start = oldStart; $0.end = oldEnd; $0.routineLink = oldLink } })
     }
 
     @discardableResult
@@ -326,9 +391,10 @@ struct EventStore {
         guard !trimmed.isEmpty, trimmed != event.title else { return }
         let id = event.id
         let old = event.title
+        let (oldLink, newLink) = Self.linkChange(forTemplateFieldEditOf: event)
         undo.perform(name,
-                     redo: { edit(id) { $0.title = trimmed } },
-                     undo: { edit(id) { $0.title = old } })
+                     redo: { edit(id) { $0.title = trimmed; $0.routineLink = newLink } },
+                     undo: { edit(id) { $0.title = old; $0.routineLink = oldLink } })
     }
 
     func setNotes(_ event: Event, to notes: String) {
@@ -404,6 +470,7 @@ struct EventSnapshot: Sendable {
     var externalID: String?
     var notes: String
     var isLocked: Bool
+    var routineLink: RoutineLink
     var locationName: String?
     var locationAddress: String?
 
@@ -422,6 +489,7 @@ struct EventSnapshot: Sendable {
         externalID = event.externalID
         notes = event.notes
         isLocked = event.isLocked
+        routineLink = event.routineLink
         locationName = event.location?.name
         locationAddress = event.location?.address
     }
@@ -443,6 +511,7 @@ struct EventSnapshot: Sendable {
             notes: notes,
             isLocked: isLocked)
         event.id = id
+        event.routineLink = routineLink
         return event
     }
 }

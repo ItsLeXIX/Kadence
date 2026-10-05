@@ -710,9 +710,16 @@ removed; `increaseContrast` parameter, GAPS G-003).
 
 ## C — invented design values
 
-*(Updated 2026-10-05, task P2-T42.)* Two invented design values and four
-placeholders (two behavioural, two accessibility strings), all marked
+*(Updated 2026-10-05, task P2-T43.)* Two invented design values and five
+placeholders (three behavioural, two accessibility strings), all marked
 `// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
+
+- **C8 — the detachment flag has three values, and a released instance stays
+  released (GAPS G-033).** *(new 2026-10-05, task P2-T43.)* §13.7.2 says
+  "one persisted flag". It is one persisted field, `Event.routineLink`, with
+  `linked` / `detached` / `released`, because §13.6.4's kept-and-no-longer-
+  detached instance must survive the next withdrawal pass. A released
+  instance whose pair is produced again is left alone.
 
 - **C7 — the flexibility control's rail-sample height and colour, and the
   stepper's text (GAPS G-032).** *(new 2026-10-05, task P2-T42.)* The sample
@@ -812,6 +819,21 @@ P2-T42 judgement calls that need no marker, because no value was invented:
 - **Stored values between steps are kept.** Only clamping is specified, so
   a stored 20 shows and stays 20 until the stepper moves it. The stepper
   adds or subtracts 15 and then clamps, so 20 goes to 35 or 15.
+
+P2-T43 judgement calls that need no marker, because no value was invented:
+
+- **Snooze detaches.** §13.7.1's table doesn't list it, but it changes the
+  start, one of the four template-owned fields.
+- **`EventStore.setFlexibility` exists with no main-grid control.** §13.7.1
+  lists "Change flexibility", and there is no main-grid flexibility control
+  yet. The write exists so the rule is in one place and tested.
+- **Undoing a detaching edit re-links the instance.** The flag is recorded
+  in the edit's own step, so `⌘Z` on the move returns the instance to
+  exactly the state before it, `linked` included.
+- **`No longer part of <routine>` is one `inspectorValue` run.** It has no
+  dash to split a label off at, unlike `Edited — differs from …`, which is
+  split like §13.6.2's `Will not run —` line. `Revert to routine` is a native
+  button like the inspector's Done/Skip.
 
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind
@@ -1306,9 +1328,11 @@ P2-T42 judgement calls that need no marker, because no value was invented:
   that row doesn't route to the Routines window. The canvas `conflicted`
   presentation and the inspector `Will not run …` line are built. Marked
   `// P2-T46` in `RoutineInspectorView.blockDetails`.
-- **A31 — components.md §13.7.1 / §13.6.3 row 3. Until P2-T43, every
+- ~~**A31 — components.md §13.7.1 / §13.6.3 row 3. Until P2-T43, every
   materialised instance counts as undetached, so a main-grid edit to one is
-  overwritten by the next materialisation pass.** *(new 2026-10-05, task
+  overwritten by the next materialisation pass.**~~ **Resolved 2026-10-05,
+  task P2-T43:** the seam reads the persisted `Event.routineLink`, and move,
+  resize, retitle, flexibility and snooze set it. *(was:)* *(new 2026-10-05, task
   P2-T41. Temporary, by the brief's design.)* §13.6.3 now updates untouched
   instances, and `RoutineDetachment.isDetached` (the single `// P2-T43` seam)
   returns `false` for everything, because there is no detached flag yet. So

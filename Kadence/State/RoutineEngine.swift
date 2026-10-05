@@ -191,6 +191,7 @@ enum RoutineEngine {
         let todayStart = calendar.startOfDay(for: today)
         let blocksByID = Dictionary(template.blocks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var withdrawn: [UUID] = []
+        var released: [UUID] = []
 
         for event in instancesByExternalID(sourceID: template.id.uuidString, in: store.context).values {
             guard let pair = parse(externalID: event.externalID, calendar: calendar),
@@ -208,21 +209,26 @@ enum RoutineEngine {
             }()
             guard !stillProduced else { continue }
 
+            // A `.released` instance is an ordinary event already: kept.
+            if event.routineLink == .released { continue }
             if isDetached(event) {
-                // P2-T43: a kept detached instance "stops being detached"
-                // (§13.6.4), so the flag is cleared here, in the same step.
+                // §13.6.4: kept, and it "stops being detached" — released,
+                // in the same step as the rest of the withdrawal.
+                released.append(event.id)
                 continue
             }
             withdrawn.append(event.id)
         }
 
-        guard !withdrawn.isEmpty else { return 0 }
+        guard !withdrawn.isEmpty || !released.isEmpty else { return 0 }
         if recordsUndo {
             // Sorted only so the order of the recorded changes doesn't depend
             // on dictionary order.
             for id in withdrawn.sorted(by: { $0.uuidString < $1.uuidString }) { store.withdraw(id) }
+            for id in released.sorted(by: { $0.uuidString < $1.uuidString }) { store.release(id) }
         } else {
             store.withdrawUnrecorded(withdrawn)
+            store.releaseUnrecorded(released)
         }
         return withdrawn.count
     }
@@ -281,20 +287,90 @@ enum RoutineEngine {
     }
 }
 
-// MARK: - Detachment seam (task P2-T41 → P2-T43)
+// MARK: - An instance and its template (task P2-T43)
 
-/// Is this materialised instance detached (components.md §13.7.1)? The one
-/// place `materialize` and `withdraw` ask: it is their `isDetached`
-/// parameter's default. (Tests pass their own closure to exercise §13.6.3's
-/// "detached → leave alone" row before the flag exists.) Detachment doesn't exist yet: there
-/// is no persisted flag, so every instance counts as untouched, and a
-/// main-grid edit to a routine instance is overwritten by the next
-/// materialisation pass (DEVIATIONS.md A31).
+/// What the main-grid inspector says about a selected routine instance
+/// (components.md §13.4 / §13.6.4), and what `Revert to routine` writes.
+@MainActor
+enum RoutineInstance {
+
+    /// The inspector line's two forms. `nil` for anything else (a linked
+    /// instance, a non-routine event, a hand-seeded `.routine` fixture).
+    enum Status: Equatable {
+        /// `Edited — differs from <routine>`, with `Revert to routine`.
+        case edited(routineName: String)
+        /// `No longer part of <routine>`, no action (§13.6.4).
+        case released(routineName: String)
+    }
+
+    static func template(of event: Event, in context: ModelContext) -> RoutineTemplate? {
+        guard RoutineTombstones.pair(of: event) != nil,
+              let sourceID = event.sourceID, let id = UUID(uuidString: sourceID)
+        else { return nil }
+        var descriptor = FetchDescriptor<RoutineTemplate>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
+    static func status(of event: Event, in context: ModelContext) -> Status? {
+        guard let template = template(of: event, in: context) else { return nil }
+        switch event.routineLink {
+        case .linked: return nil
+        case .detached: return .edited(routineName: template.name)
+        case .released: return .released(routineName: template.name)
+        }
+    }
+
+    /// The template's **current** values for this instance's pair
+    /// (§13.7.2: "read live from the `RoutineBlock`"): its block's title,
+    /// start and duration on the pair's own day, and flexibility. `nil` if
+    /// the block no longer exists.
+    static func templateValues(
+        for event: Event, in context: ModelContext, calendar: Calendar = .current
+    ) -> EventStore.RoutineValues? {
+        guard let template = template(of: event, in: context),
+              let pair = RoutineEngine.parse(externalID: event.externalID, calendar: calendar),
+              let block = template.blocks.first(where: { $0.id == pair.blockID }),
+              let start = calendar.date(byAdding: .minute, value: block.startMinutes, to: pair.day)
+        else { return nil }
+        return EventStore.RoutineValues(
+            title: block.title, start: start, end: start.addingTimeInterval(block.duration),
+            flexibility: block.flexibility)
+    }
+
+    /// `Revert to routine`: one step, `Revert Instance to Routine`. Only a
+    /// detached instance whose block still exists can be reverted.
+    @discardableResult
+    static func revert(_ event: Event, store: EventStore, calendar: Calendar = .current) -> Bool {
+        guard event.routineLink == .detached,
+              let values = templateValues(for: event, in: store.context, calendar: calendar)
+        else { return false }
+        store.revertToRoutine(event, values: values)
+        return true
+    }
+
+    /// components.md §13.4's exact copy, split at the dash into the
+    /// inspector's label and value the way §13.6.2's `Will not run —` line is.
+    static let editedLabel = "Edited —"
+    static func editedValue(routineName: String) -> String { "differs from \(routineName)" }
+    static let revertActionTitle = "Revert to routine"
+    /// §13.6.4's exact copy.
+    static func releasedLine(routineName: String) -> String { "No longer part of \(routineName)" }
+}
+
+// MARK: - Detachment (task P2-T41 seam, filled by P2-T43)
+
+/// Should re-materialisation leave this instance alone (components.md
+/// §13.6.3 row 3)? The one place `materialize` and `withdraw` ask: it is
+/// their `isDetached` parameter's default. Task P2-T43 replaced the P2-T41
+/// seam (which said `false` for everything) with the persisted flag. A
+/// `.released` instance (§13.6.4) is left alone too: it is no longer the
+/// template's to update. SPEC-GAP (design/GAPS.md G-033) for what happens
+/// when its pair is produced again.
 @MainActor
 enum RoutineDetachment {
     static func isDetached(_ event: Event) -> Bool {
-        // P2-T43: read the persisted detached flag.
-        false
+        event.routineLink != .linked
     }
 }
 

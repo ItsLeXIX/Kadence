@@ -23,6 +23,10 @@ struct InspectorView: View {
     var conflict: Conflict? = nil
     var selectedConflictOptionID: UUID? = nil
     var onSelectConflictOption: (UUID) -> Void = { _ in }
+    /// components.md §13.4 / §13.6.4 (task P2-T43): the selected routine
+    /// instance's relation to its template. `nil` hides the line.
+    var routineStatus: RoutineInstance.Status? = nil
+    var onRevertToRoutine: () -> Void = {}
 
     var body: some View {
         ScrollView {
@@ -77,6 +81,14 @@ struct InspectorView: View {
         field("Source", event.sourceKey.displayName)
         field("Origin", event.origin.rawValue)
 
+        // §13.4: "one line, `inspectorLabel` / `inspectorValue`, reading
+        // `Edited — differs from Gym routine`, with a `Revert to routine`
+        // action." Detachment is never a block signal; this line is the only
+        // place the main window shows it.
+        if let routineStatus {
+            routineStatusLine(routineStatus)
+        }
+
         VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             label("Status")
             HStack(spacing: Tokens.Spacing.sm) {
@@ -101,6 +113,38 @@ struct InspectorView: View {
                 .scrollContentBackground(.hidden)
                 .background(Tokens.Color.Surface.canvas)
                 .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    private func routineStatusLine(_ status: RoutineInstance.Status) -> some View {
+        switch status {
+        case .edited(let name):
+            VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+                // Split at the dash, the same way the Routines inspector's
+                // `Will not run —` line is (DEVIATIONS.md C, P2-T40).
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text(RoutineInstance.editedLabel + " ")
+                        .typeStyle(.inspectorLabel)
+                        .foregroundStyle(Tokens.Color.Text.secondary)
+                    Text(RoutineInstance.editedValue(routineName: name))
+                        .typeStyle(.inspectorValue)
+                        .foregroundStyle(Tokens.Color.Text.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+                // A native button, like the Done/Skip buttons above it.
+                Button(RoutineInstance.revertActionTitle, action: onRevertToRoutine)
+            }
+        case .released(let name):
+            // §13.6.4: no `Revert to routine`, "because there is nothing to
+            // revert to". One `inspectorValue` run: the sentence has no dash
+            // to split a label off at.
+            Text(RoutineInstance.releasedLine(routineName: name))
+                .typeStyle(.inspectorValue)
+                .foregroundStyle(Tokens.Color.Text.primary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
