@@ -48,6 +48,19 @@ struct BackgroundWindowsLayer<Window: TimeWindowRenderable>: View {
                 peakFocusSpan(span)
             }
         }
+        // components.md §7 rule 1 (amended 2026-10-05): a window paints only
+        // inside its own spans — this layer is one day column (or the gutter
+        // strip), so nothing it draws may leave that rect. The hatch is
+        // confined by `HatchPattern` itself; this clip is the backstop for
+        // fill and edge lines, so no treatment reaches a neighbouring day.
+        //
+        // The frame comes first and is load-bearing: each span is placed
+        // with `.offset(y:)`, which moves drawing but not layout, so the
+        // ZStack on its own is only as tall as one span. Clipping that would
+        // erase every window below the first span's height. Filling the
+        // proposed size (the caller's column × 24h) makes the clip the column.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .clipped()
     }
 
     private struct Span: Identifiable {

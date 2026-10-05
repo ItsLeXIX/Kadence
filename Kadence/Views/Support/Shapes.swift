@@ -16,12 +16,27 @@ struct HatchPattern: Shape {
 
     nonisolated func path(in rect: CGRect) -> Path {
         var path = Path()
-        guard pitch > 0 else { return path }
-        // Sweep far enough that the 45° lines cover the whole rect.
+        guard pitch > 0, rect.width > 0, rect.height > 0 else { return path }
+        // Each line runs at 45° from the bottom edge up-and-right. Line `x`
+        // is the set of points (minX + x + t, maxY − t) for t in 0…height.
+        //
+        // components.md §7 rule 1 (amended 2026-10-05) and §3.5: the hatch
+        // paints only inside its own rect. The old sweep drew every line for
+        // its full length, so lines starting near the trailing edge ran up to
+        // `rect.height` past it — and SwiftUI does not clip a shape to its
+        // frame. That overhang was the `Low energy` wedge drawn into
+        // Saturday. Each segment is now cut to the t-range whose x lies
+        // inside the rect, so the shape itself is confined.
+        // (`Path.intersection` was tried first; on stroked outlines it merges
+        // them into one solid region, which turned the hatch into a fill.)
         var x = -rect.height
         while x < rect.width {
-            path.move(to: CGPoint(x: rect.minX + x, y: rect.maxY))
-            path.addLine(to: CGPoint(x: rect.minX + x + rect.height, y: rect.minY))
+            let tStart = max(0, -x)
+            let tEnd = min(rect.height, rect.width - x)
+            if tEnd > tStart {
+                path.move(to: CGPoint(x: rect.minX + x + tStart, y: rect.maxY - tStart))
+                path.addLine(to: CGPoint(x: rect.minX + x + tEnd, y: rect.maxY - tEnd))
+            }
             x += pitch
         }
         return path.strokedPath(StrokeStyle(lineWidth: lineWidth))

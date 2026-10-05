@@ -6539,3 +6539,59 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 
 - None. The title/time squeeze entry is written (as resolved here) in
   P2-HK. Recapture of 1, 5, 8, 13 is item 20's.
+
+## 56. P2-F05 — window treatments clipped to their spans (components.md §7 rule 1, amended 2026-10-05; PHASE2-REVIEW.md §6 item 5)
+
+### Diagnosis
+
+- `HatchPattern` swept its 45° lines across the rect and drew each for its
+  full length, so lines starting near the trailing edge ended up to the
+  span's **height** past it (66pt for `Low energy`'s 90 min in Week).
+  Nothing clipped them: SwiftUI does not clip a shape to its frame. That is
+  the wedge in Saturday on the main grid and the Routines canvas alike.
+
+### Built
+
+- `Shapes.swift`: each hatch segment is cut to the part whose x lies inside
+  the rect, so the shape itself is confined (centre-lines end on the edges).
+  `Path.intersection` was tried first: it merged the stroked outlines into
+  one region and the hatch rendered as a flat fill. Caught in the check
+  capture, and the render test now guards against it.
+- `GridLayers.swift`: `BackgroundWindowsLayer` fills its proposed frame
+  (one day column, or the gutter strip) and clips to it, the backstop for
+  fill, edges and the hatch's ½pt stroke overhang. The frame must come
+  first: spans are placed with `.offset`, which moves drawing but not
+  layout, so clipping the bare ZStack erased every window (caught by the
+  render test's "Friday must carry the hatch" guard on the first run).
+- One layer serves both canvases, so the main Week grid and the Routines
+  canvas are fixed together.
+
+### Tests
+
+- `WindowTreatmentClipTests` (3 + parameterised): the hatch's bounds stay
+  within its rect ± ½ line width for spans up to 1056pt tall, and still
+  cover its width; `Low energy`'s spans are Mon–Fri only in both the main
+  fixture and the Routines model; a Friday + Saturday render of the shared
+  layer at 104pt and 126pt columns has hatch in Friday, **zero** inked
+  pixels in Saturday, and a Friday band under 60% inked (a hatch, not a
+  fill).
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 506
+  passed / 0 failed** (503 + 3).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Check captures** (scratch): main Week at 1500 and Routines Windows mode
+  at 1400 — the hatch stops at Friday's trailing divider in both; Saturday
+  is clean.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B22** (new, out of scope): the Routines canvas leaves its
+  time gutter unpainted, against §7 rule 2. The hatch-spill entry itself is
+  written (as resolved here) in P2-HK. Recapture of 1, 2 (via 14), 13, 14,
+  15, 16 is item 20's.

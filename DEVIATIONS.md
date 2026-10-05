@@ -1660,6 +1660,16 @@ Still open, all re-checked against the current spec text this session:
   for the grid. The grid's focus is still shown by its other §1 signals.
   The sidebar's ring is unchanged.
 
+- **B22 — components.md §7 rule 2. The Routines canvas does not paint window
+  treatments into its time gutter.** *(new 2026-10-06, found during task
+  P2-F05; not in that fix's scope.)* §7 says protected and low-energy windows
+  span the full column width including the gutter, and §7 rule 1
+  (2026-10-05) counts the gutter strip as part of each span. The main Week
+  grid does this (`TimedCanvasView.windowsBackdrop` gives the gutter the
+  leading day's windows); the Routines window's `BackgroundWindowsLayer`s
+  are per day column only, so `Lunch` and `Low energy` stop at the gutter's
+  edge there.
+
 ---
 
 ## Resolved — retired by a spec ruling
