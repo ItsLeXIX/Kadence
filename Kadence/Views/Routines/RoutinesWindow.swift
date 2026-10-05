@@ -1879,7 +1879,6 @@ private struct RoutineInspectorView: View {
             FlexibilityControl(
                 flexibility: block.flexibility,
                 shiftableMinutes: block.shiftableMinutes,
-                railColor: template?.sourceKey.rail ?? SourceKey.graphite.rail,
                 onSetFlexibility: { onSetFlexibility(block.id, $0) },
                 onSetShiftRange: { onSetShiftRange(block.id, $0) })
         }

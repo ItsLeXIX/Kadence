@@ -17,9 +17,6 @@ import AppKit
 struct FlexibilityControl: View {
     let flexibility: Flexibility
     let shiftableMinutes: Int?
-    /// The template's rail colour: the sample is the grid's own rail, so it
-    /// is drawn in the hue the grid draws it in.
-    let railColor: Color
     let onSetFlexibility: (Flexibility) -> Void
     let onSetShiftRange: (Int) -> Void
 
@@ -41,7 +38,8 @@ struct FlexibilityControl: View {
             RailSegmentedControl(
                 segments: Self.segments.map { segment in
                     RailSegmentedControl.Segment(
-                        value: segment.0, title: segment.2, image: railSample(segment.1))
+                        value: segment.0, title: segment.2,
+                        image: Self.railSample(segment.1, scale: displayScale))
                 },
                 selection: flexibility,
                 onSelect: onSetFlexibility)
@@ -61,10 +59,11 @@ struct FlexibilityControl: View {
                     in: ShiftRangeRule.range,
                     step: ShiftRangeRule.step
                 ) {
-                    // SPEC-GAP (design/GAPS.md G-032): §13.2 gives the type
-                    // (`blockMeta`) but not the stepper's text. `± 30 min`
-                    // is the placeholder.
-                    Text("± \(ShiftRangeRule.displayed(shiftableMinutes)) min")
+                    // components.md §13.2 (amended 2026-10-05, G-032):
+                    // `± 30 min`, `blockMeta`, `text.primary`, monospaced
+                    // digits, no label word — the `Shiftable` segment above
+                    // is the label.
+                    Text(Self.stepperText(shiftableMinutes))
                         .typeStyle(.blockMeta)
                         .foregroundStyle(Tokens.Color.Text.primary)
                         .monospacedDigit()
@@ -73,28 +72,36 @@ struct FlexibilityControl: View {
         }
     }
 
+    /// `± 30 min` — `±`, a space, the number, a space, `min` (§13.2).
+    static func stepperText(_ minutes: Int?) -> String {
+        "± \(ShiftRangeRule.displayed(minutes)) min"
+    }
+
     /// The rail sample as an image, because a native segmented control can
     /// only draw an image and a title in each segment, not an arbitrary
     /// SwiftUI view. `ImageRenderer` draws `RailView` (the grid's own rail
     /// drawing) offscreen at the display's scale.
     ///
-    /// SPEC-GAP (design/GAPS.md G-032): §13.2 gives the sample's width (3pt,
-    /// `size.blockRailWidth`) but not its height. The placeholder is the line
-    /// height of the segment's own title (the system control font), so the
-    /// sample is as tall as the word beside it. With `.inset`'s `spacing.xs`
-    /// inset at each end the bar is still visible.
+    /// components.md §13.2 (amended 2026-10-05, closes G-032):
+    /// - height: the segment title's line height (the system control font),
+    ///   so the sample is as tall as the word beside it;
+    /// - colour: **none of its own**. It is a TEMPLATE image — AppKit uses
+    ///   only its alpha and tints it exactly as it tints the segment's title,
+    ///   selected or not, Increase Contrast included. It is drawn in black
+    ///   only so the alpha is solid; the black never shows.
     @MainActor
-    private func railSample(_ style: RailStyle) -> NSImage {
-        let height = Self.sampleHeight
+    static func railSample(_ style: RailStyle, scale: CGFloat) -> NSImage {
         let renderer = ImageRenderer(content:
-            RailView(style: style, color: railColor)
-                .frame(width: Tokens.Size.blockRailWidth, height: height, alignment: .leading))
-        renderer.scale = displayScale
-        return renderer.nsImage ?? NSImage()
+            RailView(style: style, color: .black)
+                .frame(width: Tokens.Size.blockRailWidth, height: sampleHeight, alignment: .leading))
+        renderer.scale = scale
+        let image = renderer.nsImage ?? NSImage()
+        image.isTemplate = true
+        return image
     }
 
-    /// See `railSample`'s SPEC-GAP.
-    private static var sampleHeight: CGFloat {
+    /// The segment title's line height — see `railSample`.
+    static var sampleHeight: CGFloat {
         let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
         return ceil(font.ascender - font.descender + font.leading)
     }

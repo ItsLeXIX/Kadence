@@ -6738,3 +6738,45 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 - DEVIATIONS **C2** and **C3** move to "Resolved — retired by a spec
   ruling"; C3 is marked partly overturned (the window half). Recapture of 4
   and 14 is item 20's.
+
+## 60. P2-F09 — flexibility rail sample as a template image (components.md §13.2, amended 2026-10-05; G-032; PHASE2-REVIEW.md §6 item 9)
+
+### Built (`FlexibilityControl.swift`)
+
+- `railSample(_:scale:)` (now `static`) renders `RailView` in black for its
+  alpha only and sets `NSImage.isTemplate`, so `NSSegmentedControl` tints it
+  exactly as it tints the segment's title, selected or not (and under
+  Increase Contrast). The `railColor` parameter (template's rail hue) is
+  removed from the control and its call site.
+- Height stays the title's line height (`sampleHeight`, now `static`); the
+  stepper copy is `stepperText(_:)`, `± 30 min`. Both `SPEC-GAP` markers are
+  replaced by §13.2 references.
+
+### Tests
+
+- `FlexibilitySampleTests` (2, one parameterised): every segment's sample
+  (solid / inset / dotted) is a template image, 3pt × title line height;
+  the stepper reads `± 30 min`, `± 30 min` for a missing value, `± 90 min`.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 526
+  passed / 0 failed** (524 + 2).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Check capture** (scratch, `Gym` selected in the Routines window): the
+  three samples are drawn in the title colour, white in the selected
+  `Shiftable` segment; `± 30 min` beside the stepper.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+- Capture tooling note (not shipped): my scratch helper's clicks silently
+  never fired under zsh (an unquoted `$XY` isn't word-split, so the helper
+  got one argument and exited). The app was fine, as the routines script
+  showed. Fixed in the helper; checked by reading `AXSelected` after the
+  click.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **C7** → "Resolved — retired by a spec ruling", marked partly
+  overturned (the colour). Recapture of 15 is item 20's.

@@ -734,11 +734,6 @@ placeholders (three behavioural, two accessibility strings), all marked
   detached instance must survive the next withdrawal pass. A released
   instance whose pair is produced again is left alone.
 
-- **C7 — the flexibility control's rail-sample height and colour, and the
-  stepper's text (GAPS G-032).** *(new 2026-10-05, task P2-T42.)* The sample
-  is the segment title's line height, in the template's rail colour; the
-  stepper reads `± 30 min`. §13.2 gives the sample's width and the
-  stepper's type only.
 
 - **C5 — the spoken phrase for a block inside a protected window (GAPS
   G-030).** *(new 2026-10-05, task P2-T41.)* `BlockConflict.protectedWindow`
@@ -1725,6 +1720,12 @@ stays on record. Moved here by task P2-T38, 2026-10-01.
   with an empty `activeWeekdays`, every column goes inactive with its
   `Add <Day>` button, and `⌘Z` restores it. This is a behaviour, not a visual
   value, but it is the same kind of placeholder, so it is listed here.
+
+- ~~**C7 — the flexibility control's rail-sample height and colour, and the
+  stepper's text (GAPS G-032).**~~ **Resolved by `design/GAPS.md` G-032 — CLOSED (2026-10-05), written into `components.md` §13.2; retired by task P2-F09. Partly overturned:** the height (title line height) and the stepper copy (`± 30 min`) stand as built. The colour does not: the sample is now a **template image** with no colour of its own, tinted by the segmented control like its title, selected or not. Both `SPEC-GAP` markers are gone. *Original entry:* *(new 2026-10-05, task P2-T42.)* The sample
+  is the segment title's line height, in the template's rail colour; the
+  stepper reads `± 30 min`. §13.2 gives the sample's width and the
+  stepper's type only.
 
 ## Not a deviation — worth stating
 

@@ -11,6 +11,7 @@
 import Testing
 import Foundation
 import SwiftData
+import AppKit
 @testable import Kadence
 
 @MainActor
@@ -185,5 +186,29 @@ struct ShiftRangeRepairTests {
             undo.redo()
             #expect(!ShiftRangeRule.needsRepair(flexibility: block.flexibility, stored: block.shiftableMinutes))
         }
+    }
+}
+
+/// Task P2-F09 (PHASE2-REVIEW.md §6 item 9; components.md §13.2, amended
+/// 2026-10-05; G-032): the rail sample is a template image tinted by the
+/// segmented control like its title, and the stepper reads `± 30 min`.
+@Suite("Flexibility control — rail sample and stepper copy (P2-F09)")
+@MainActor
+struct FlexibilitySampleTests {
+
+    @Test("Every segment's rail sample is a template image, title-line tall, 3pt wide",
+          arguments: [RailStyle.solid, .inset, .dotted])
+    func templateImage(_ style: RailStyle) {
+        let image = FlexibilityControl.railSample(style, scale: 2)
+        #expect(image.isTemplate)
+        #expect(image.size.width == Tokens.Size.blockRailWidth)
+        #expect(image.size.height == FlexibilityControl.sampleHeight)
+    }
+
+    @Test("Stepper copy is `± N min`, and a missing value reads 30")
+    func stepperText() {
+        #expect(FlexibilityControl.stepperText(30) == "± 30 min")
+        #expect(FlexibilityControl.stepperText(nil) == "± 30 min")
+        #expect(FlexibilityControl.stepperText(90) == "± 90 min")
     }
 }
