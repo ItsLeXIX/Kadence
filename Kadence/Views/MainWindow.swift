@@ -227,9 +227,17 @@ struct MainWindow: View {
                 : .easeInOut(duration: Tokens.Motion.ViewChange.duration),
             value: state.mode)
         .focusable()
+        // Task P2-F02 (layouts.md §6, amended 2026-10-05: "the complete
+        // standard system ring around the region, never one edge of it").
+        // AppKit draws this region's ring around the detail column's hosting
+        // rect, which on macOS 26 runs under the floating sidebar and the
+        // toolbar to the window's own edges, so only its trailing edge ever
+        // shows — the full-height accent line beside the inspector in every
+        // 2026-10-05 frame. A complete system ring can't be had here without
+        // drawing a custom one (an invented value), so it is absent.
+        // DEVIATIONS B21, GAPS G-039.
+        .focusEffectDisabled()
         .focused($focusedRegion, equals: .grid)
-        // §1 — "the focused region draws the standard system focus ring on its
-        // container", so the ring is deliberately NOT disabled here.
         .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
         .onKeyPress(action: handleKey)
         // components.md §14.4 — "while any preview is active the calendar
@@ -262,6 +270,10 @@ struct MainWindow: View {
     private var inspector: some View {
         inspectorBody
             .focusable()
+            // Task P2-F02: the inspector's ring had the same one-edge fault
+            // (its leading edge only; the other three sit on the window's
+            // edges). layouts.md §6: complete or absent — absent.
+            .focusEffectDisabled()
             .focused($focusedRegion, equals: .inspector)
             .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
             // interactions.md §10.1/§10.2 — ↑/↓ move+preview between conflict

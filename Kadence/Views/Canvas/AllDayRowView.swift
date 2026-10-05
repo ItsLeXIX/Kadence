@@ -12,6 +12,8 @@ struct AllDayRowView: View {
     let days: [Date]
     let fixtures: MockFixtures
     let now: Date
+    /// Task P2-F02: see `DayHeaderRow.trailingReserve`.
+    var trailingReserve: CGFloat = 0
 
     @Environment(CalendarState.self) private var state
 
@@ -63,6 +65,7 @@ struct AllDayRowView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, Tokens.Spacing.xxs)
                 }
+                Color.clear.frame(width: trailingReserve)
             }
             .frame(height: height, alignment: .top)
             .padding(.vertical, Tokens.Spacing.xxs)

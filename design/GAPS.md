@@ -2031,3 +2031,31 @@ for closures of filed gaps:
 - `layouts.md` §10 — the `1 of N` footer completed and required (A32).
 - `interactions.md` §12 — popover keyboard table and `Open` required; key focus
   on every open adopted; §16's cross-scene transition deferred.
+
+---
+
+## 2026-10-05 — G-039 — the main window's region focus rings show as one edge
+
+**Where it bit:** task P2-F02 (DEVIATIONS B20/B21). The "full-height accent line
+on the inspector's leading edge" in every 2026-10-05 main-window frame.
+
+**What the spec says.** `interactions.md` §1: the focused region draws the
+standard system focus ring on its container. `layouts.md` §6 (2026-10-05): the
+inspector's ring is the complete standard ring around the region, never one
+edge of it.
+
+**What is missing.** On macOS 26 AppKit draws both the grid's and the
+inspector's rings around their hosting rects, which reach the window's own
+edges (the detail column runs under the floating sidebar and the toolbar).
+Three edges fall on the window border; the one visible edge is the line at the
+canvas/inspector boundary. A complete ring would have to be drawn by hand, and
+no inset, colour or width is specified for a custom ring.
+
+**What was built instead of guessing.** Absent, which layouts.md §6 allows for
+the inspector: `.focusEffectDisabled()` on the grid and on the inspector. The
+grid's focus is still shown by its own §1 signals (the time cursor in the
+column and the gutter, the selection ring). The sidebar's ring is unaffected.
+
+**Needed to close:** confirm "absent" for the grid region, or specify a drawn
+region ring (inset, width, colour) for regions whose system ring cannot be
+complete.

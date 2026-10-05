@@ -6401,3 +6401,57 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 
 - None opened. The P2-T48 judgement call "the conflict count now depends on
   the weekday" is struck through as resolved.
+
+## 53. P2-F02 — inspector inset (layouts.md §6 and components.md §14.2, amended 2026-10-05; PHASE2-REVIEW.md §6 item 2)
+
+### Diagnosis
+
+- `InspectorView`'s `spacing.xl` padding was there all along. The canvas
+  was drawn **over** it: with legacy scrollers ("Show scroll bars: Always"),
+  `ScrollView(.vertical)` with fixed-width content grows by the scroller's
+  width instead of squeezing the content. Measured live: GeometryReader
+  939pt, scroll view 956pt. The 17pt overflow (scroller and the canvas's
+  focus ring) covered the inspector's leading edge: `tarts`, flush
+  collision blocks.
+- The full-height accent line was the grid's system focus ring (and in
+  other frames, the inspector's own). On macOS 26 both are drawn around
+  hosting rects that reach the window edges, so only one edge ever shows.
+
+### Built
+
+- `Kadence/Layout/CanvasColumnLayout.swift`: pure column arithmetic that
+  reserves `NSScroller`'s legacy width (0 for overlay) before dividing.
+  `TimedCanvasView` uses it and re-reads the reserve on
+  `preferredScrollerStyleDidChangeNotification`. `DayHeaderRow` and
+  `AllDayRowView` leave the same trailing reserve so their columns line up.
+- `MainWindow`: `.focusEffectDisabled()` on the grid and on the main
+  inspector. layouts.md §6 says the ring is complete or absent, and here it
+  is absent. DEVIATIONS **B21**, GAPS **G-039**.
+
+### Tests
+
+- `CanvasColumnLayoutTests` (5): content + reserve == slot for reserves
+  0/15/17, the old arithmetic overflowed by exactly the reserve, Week's
+  floor vs Day, never negative, reserve per scroller style.
+- `Scripts/check-inspector-inset.sh` (new, live, 1500pt window): canvas
+  ends at or before the inspector edge; every inspector text and button is
+  at least 16pt inside both edges; no accent column at the boundary in a
+  window capture. Run with a block selected and in conflict mode.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 493
+  passed / 0 failed** (488 + 5).
+- `generate-tokens --check`: up to date.
+- `check-inspector-inset.sh`: **PASS**. Canvas ends at 1213, inspector
+  edge 1214; conflict mode's first element at edge + 16; no edge line.
+- `check-routines-window.sh`: **PASS**. `check-conflict-apply-return.sh`:
+  **PASS** (+1200 s).
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-039** (open): confirm "absent" for the grid's region ring, or
+  specify a drawn ring.
+- DEVIATIONS **B20** closed; **B21** opened.
+- Recapture of 5, 6, 7, 8, 17 and 18 is left to item 20, per the review.

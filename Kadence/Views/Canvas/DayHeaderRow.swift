@@ -10,6 +10,10 @@ struct DayHeaderRow: View {
     let days: [Date]
     let events: [Event]
     let now: Date
+    /// Task P2-F02: the grid's legacy-scroller width (`CanvasColumnLayout`),
+    /// left empty at the trailing end so these columns line up with the
+    /// grid's, which are divided after the same reserve.
+    var trailingReserve: CGFloat = 0
 
     private var isWeek: Bool { days.count > 1 }
 
@@ -24,6 +28,7 @@ struct DayHeaderRow: View {
                             ? Tokens.Color.Surface.canvasAlt
                             : Tokens.Color.Surface.canvas)
             }
+            Color.clear.frame(width: trailingReserve)
         }
         .frame(height: Tokens.Size.dayHeaderHeight)
         .overlay(alignment: .bottom) {

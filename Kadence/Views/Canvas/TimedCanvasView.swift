@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct TimedCanvasView: View {
     let days: [Date]
@@ -31,24 +32,35 @@ struct TimedCanvasView: View {
 
     @Environment(CalendarState.self) private var state
     @State private var didInitialScroll = false
+    /// `CanvasColumnLayout.systemScrollerReserve`, re-read when the user
+    /// switches "Show scroll bars" (AppKit posts a notification; SwiftUI's
+    /// `.onReceive` subscribes to it like a listener in Java).
+    @State private var scrollerReserve = CanvasColumnLayout.systemScrollerReserve
 
     private var isWeek: Bool { days.count > 1 }
 
     var body: some View {
         VStack(spacing: 0) {
-            DayHeaderRow(days: days, events: events, now: now)
+            DayHeaderRow(days: days, events: events, now: now, trailingReserve: scrollerReserve)
 
-            AllDayRowView(days: days, fixtures: fixtures, now: now)
+            AllDayRowView(days: days, fixtures: fixtures, now: now, trailingReserve: scrollerReserve)
                 .focusable(AllDayRowView.isVisible(days: days, fixtures: fixtures))
                 .focused(focusedRegion, equals: .allDayRow)
                 .onKeyPress(keys: [.tab]) { onTab($0) }
 
 
             GeometryReader { proxy in
-                let available = proxy.size.width - Tokens.Size.timeGutterWidth
-                let naturalWidth = available / CGFloat(days.count)
-                let columnWidth = max(naturalWidth, isWeek ? Tokens.Size.dayColumnMin : naturalWidth)
-                let needsHorizontalScroll = columnWidth > naturalWidth
+                // Task P2-F02 (B20): the legacy scroller's width is reserved
+                // before the columns are divided, or the scroll view grows by
+                // it and paints over the inspector (`CanvasColumnLayout`).
+                let layout = CanvasColumnLayout.columnWidth(
+                    totalWidth: proxy.size.width,
+                    gutterWidth: Tokens.Size.timeGutterWidth,
+                    dayCount: days.count,
+                    columnMin: isWeek ? Tokens.Size.dayColumnMin : nil,
+                    scrollerReserve: scrollerReserve)
+                let columnWidth = layout.width
+                let needsHorizontalScroll = layout.needsHorizontalScroll
 
                 ScrollViewReader { vertical in
                     ScrollView(.vertical) {
@@ -72,6 +84,9 @@ struct TimedCanvasView: View {
             }
         }
         .background(Tokens.Color.Surface.canvas)
+        .onReceive(NotificationCenter.default.publisher(for: NSScroller.preferredScrollerStyleDidChangeNotification)) { _ in
+            scrollerReserve = CanvasColumnLayout.systemScrollerReserve
+        }
     }
 
     @ViewBuilder

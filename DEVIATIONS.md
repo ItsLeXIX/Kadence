@@ -1625,14 +1625,40 @@ Still open, all re-checked against the current spec text this session:
   event at its new time (`00:05 – 01:35`). Snooze's destination policy is
   unchanged.
 
-- **B20 — layouts.md §6 / §10. The main window's inspector content is
-  clipped at its leading edge.** *(new 2026-10-05, seen in task P2-T48's
-  captures, not investigated: out of scope.)* In
+- ~~**B20 — layouts.md §6 / §10. The main window's inspector content is
+  clipped at its leading edge.**~~ **Closed 2026-10-06, task P2-F02.**
+  *(was: new 2026-10-05, seen in task P2-T48's captures, not investigated.)*
+  The inspector's padding was right; the canvas was drawn over it. With
+  "Show scroll bars: Always" (legacy scrollers), `ScrollView(.vertical)`
+  sizes itself to its fixed-width content **plus** the scroller, so the
+  canvas came out 17pt wider than its slot (measured live: proxy 939pt,
+  scroll view 956pt) and painted the scroller, and its own focus ring, over
+  the inspector's leading 17pt. Fixed by `CanvasColumnLayout`: the scroller's
+  system width (`NSScroller.scrollerWidth`, 0 for overlay) is reserved
+  before the columns are divided, and re-read on
+  `preferredScrollerStyleDidChangeNotification`; the day header and all-day
+  row reserve the same width so their columns stay aligned. Tests:
+  `CanvasColumnLayoutTests`; live: `Scripts/check-inspector-inset.sh` (first
+  label at edge + 16 in conflict mode, canvas ends at or before the
+  inspector's edge, no edge line, selected and conflict). *Original entry:* In
   `detached-instance-inspector-p2t48.png` the field labels lose their first
   letter (`tarts`), and in the conflict-panel shots the collision blocks
   start flush against the inspector's edge. The `spacing.xl` padding
   `InspectorView` applies doesn't show on the leading side. The Routines
   window's editor inspector is unaffected.
+
+- **B21 — interactions.md §1 / layouts.md §6. The grid's and the main
+  inspector's region focus rings are disabled.** *(new 2026-10-06, task
+  P2-F02; GAPS G-039.)* On macOS 26 AppKit draws both rings around their
+  hosting rects, which reach the window's own edges (the detail column runs
+  under the floating sidebar and the toolbar), so the only edge that shows is
+  the full-height accent line at the canvas/inspector boundary. layouts.md §6
+  (2026-10-05) allows the inspector's ring to be complete or absent; a
+  complete one would need a hand-drawn ring with no specified inset, width or
+  colour, so both are absent (`.focusEffectDisabled()` in `MainWindow`).
+  §1 says the focused region draws the system ring, so this is a deviation
+  for the grid. The grid's focus is still shown by its other §1 signals.
+  The sidebar's ring is unchanged.
 
 ---
 
