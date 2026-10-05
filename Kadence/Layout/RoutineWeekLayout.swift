@@ -27,13 +27,17 @@ struct RoutineBlockSnapshot: Identifiable, Equatable, Sendable {
     var startMinutes: Int
     var duration: TimeInterval
     var flexibility: Flexibility
+    /// Task P2-T42: the ± minutes the inspector's stepper shows
+    /// (components.md §13.2). Defaulted so existing call sites are unchanged.
+    var shiftableMinutes: Int? = nil
 }
 
 extension RoutineBlock {
     var snapshot: RoutineBlockSnapshot {
         RoutineBlockSnapshot(
             id: id, title: title, startMinutes: startMinutes,
-            duration: duration, flexibility: flexibility)
+            duration: duration, flexibility: flexibility,
+            shiftableMinutes: shiftableMinutes)
     }
 }
 

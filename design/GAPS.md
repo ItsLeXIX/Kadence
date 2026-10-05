@@ -1724,3 +1724,28 @@ materialises before today. Not blocking.
 
 **Needed to close:** whether withdrawal (or reactivation) clears the pair's
 tombstone.
+
+---
+
+## 2026-10-05 — G-032 — §13.2's rail sample height and the stepper's text
+
+**Where it bit:** task P2-T42, `FlexibilityControl`
+(`Kadence/Views/Routines/FlexibilityControl.swift`).
+
+**What the spec says.** `components.md` §13.2: each segment shows "a 3pt rail
+sample in the segment's leading edge drawn in that rail style", and
+`.shiftable` "reveals a stepper for its ± minutes, `blockMeta` type".
+
+**What is missing.** (1) The sample's height (only its 3pt width is given), and
+its colour. (2) The stepper's visible text: the type is given, the words are
+not.
+
+**What was built instead of guessing.** Placeholders, marked
+`// SPEC-GAP (design/GAPS.md G-032)`: the sample is as tall as the segment's
+own title line (the system control font's line height), drawn by the grid's
+own `RailView` in the template's `color.source.<slot>.rail`; the stepper reads
+`± 30 min` in `blockMeta`. The segmented control is a native
+`NSSegmentedControl` (SwiftUI's segmented `Picker` drops segment images on
+macOS), so the segments themselves invent nothing. Not blocking.
+
+**Needed to close:** the sample's height and colour, and the stepper's copy.

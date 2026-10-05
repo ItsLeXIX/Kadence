@@ -710,9 +710,15 @@ removed; `increaseContrast` parameter, GAPS G-003).
 
 ## C — invented design values
 
-*(Updated 2026-10-05, task P2-T41.)* One invented design value and four
+*(Updated 2026-10-05, task P2-T42.)* Two invented design values and four
 placeholders (two behavioural, two accessibility strings), all marked
 `// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
+
+- **C7 — the flexibility control's rail-sample height and colour, and the
+  stepper's text (GAPS G-032).** *(new 2026-10-05, task P2-T42.)* The sample
+  is the segment title's line height, in the template's rail colour; the
+  stepper reads `± 30 min`. §13.2 gives the sample's width and the
+  stepper's type only.
 
 - **C5 — the spoken phrase for a block inside a protected window (GAPS
   G-030).** *(new 2026-10-05, task P2-T41.)* `BlockConflict.protectedWindow`
@@ -794,6 +800,18 @@ P2-T41 judgement calls that need no marker, because no value was invented:
 - **"Materialised instance" means `origin == .routine` with both ids set.**
   Only those get tombstones and updates. Hand-seeded `.routine` fixtures
   (no ids) and Phase 3 imports (`.imported`) are never touched.
+
+P2-T42 judgement calls that need no marker, because no value was invented:
+
+- **The flexibility control sits under its label**, not beside it: the three
+  segments don't fit next to the inspector's 84pt label column.
+- **The nil repair records no undo step.** §13.2 says a `.shiftable` block
+  with no value "writes 30 on first display". It runs at launch (both
+  windows) and when the inspector first shows a block. A `⌘Z` that put the
+  defect back would be worse than none.
+- **Stored values between steps are kept.** Only clamping is specified, so
+  a stored 20 shows and stays 20 until the stepper moves it. The stepper
+  adds or subtracts 15 and then clamps, so 20 goes to 35 or 15.
 
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind

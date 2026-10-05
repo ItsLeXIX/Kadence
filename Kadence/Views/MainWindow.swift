@@ -109,6 +109,10 @@ struct MainWindow: View {
             fixtures = MockData.seedAllIfNeeded(context) {
                 RoutineMaterialization.run(context: context, undo: undoStack, visibleEnd: visibleEnd)
             }
+            // components.md §13.2 (task P2-T42): no `.shiftable` routine block
+            // survives launch without a ± value. Same call the Routines window
+            // makes; whichever window opens first does it.
+            RoutineBlockStore(context: context, undo: undoStack).repairShiftRanges()
             isMaterializationReady = true
         }
         // §13.6.5's other two triggers: a template/block/window edit, and a

@@ -674,6 +674,57 @@ struct RoutineBlockStore {
         try? context.save()
     }
 
+    // MARK: Flexibility (task P2-T42, components.md §13.2)
+
+    /// The inspector's three-segment control. One step, `Set Flexibility`.
+    /// Entering `.shiftable` with no stored ± value also writes 30 in the
+    /// same step; switching away keeps the number (`ShiftRangeRule`). The
+    /// background pass then updates the untouched instances (§13.6.3), so
+    /// that isn't part of this step.
+    func setFlexibility(_ block: RoutineBlock, to new: Flexibility) {
+        let id = block.id
+        let oldFlexibility = block.flexibility
+        guard new != oldFlexibility else { return }
+        let oldMinutes = block.shiftableMinutes
+        let newMinutes = ShiftRangeRule.storedValue(afterSwitchingTo: new, current: oldMinutes)
+        undo.perform("Set Flexibility",
+                     redo: { edit(id) { $0.flexibility = new; $0.shiftableMinutes = newMinutes } },
+                     undo: { edit(id) { $0.flexibility = oldFlexibility; $0.shiftableMinutes = oldMinutes } })
+    }
+
+    /// The ± stepper. One step, `Set Shift Range`. Clamped to 15–180, and a
+    /// change that clamps to the stored value records nothing.
+    func setShiftRange(_ block: RoutineBlock, to minutes: Int) {
+        let id = block.id
+        let old = block.shiftableMinutes
+        let new = ShiftRangeRule.clamped(minutes)
+        guard new != old else { return }
+        undo.perform("Set Shift Range",
+                     redo: { edit(id) { $0.shiftableMinutes = new } },
+                     undo: { edit(id) { $0.shiftableMinutes = old } })
+    }
+
+    /// "A `.shiftable` block with no ± value is a defect, not a state. It
+    /// renders the stepper at 30 and writes 30 on first display" (§13.2).
+    /// Writes 30 into every such block (or only `blockID`'s), with **no undo
+    /// step**: a repair of a defect is not something the user did, and a
+    /// `⌘Z` that put the defect back would be worse than none. Called from
+    /// both windows' launch `.task` and when the inspector first shows a
+    /// block. Returns how many blocks were repaired.
+    @discardableResult
+    func repairShiftRanges(blockID: UUID? = nil) -> Int {
+        let blocks = (try? context.fetch(FetchDescriptor<RoutineBlock>())) ?? []
+        var repaired = 0
+        for block in blocks where blockID == nil || block.id == blockID {
+            if ShiftRangeRule.needsRepair(flexibility: block.flexibility, stored: block.shiftableMinutes) {
+                block.shiftableMinutes = ShiftRangeRule.defaultOnEntry
+                repaired += 1
+            }
+        }
+        if repaired > 0 { try? context.save() }
+        return repaired
+    }
+
     // MARK: Create (task P2-T12)
 
     /// Turns a draft (title + minutes-since-midnight + duration) into a

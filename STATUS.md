@@ -5717,3 +5717,71 @@ also asserts the moved instance is updated back (row 2).
   belongs to.
 
 **Next:** P2-T42, the flexibility stepper.
+
+## 43. P2-T42 — flexibility stepper (components.md §13.2 with its 2026-10-01 amendment; GAPS G-022)
+
+### Built
+
+- **`ShiftRangeRule`** (new, pure, `Kadence/Layout/FlexibilityRules.swift`):
+  range 15–180, step 15, default 30 on entry; `clamped`, `displayed` (nil →
+  30, out of range → clamped), `storedValue(afterSwitchingTo:current:)`
+  (entering Shiftable with nil writes 30; switching away keeps the number),
+  and `needsRepair`.
+- **`RoutineBlockStore`**: `setFlexibility` (one step, `Set Flexibility`,
+  which writes 30 in the same step when entering Shiftable with no value),
+  `setShiftRange` (one step, `Set Shift Range`, clamped, and a write that
+  clamps to the stored value records nothing), and `repairShiftRanges(blockID:)`
+  (§13.2's "a `.shiftable` block with no ± value is a defect, not a state …
+  writes 30 on first display"). The repair is unrecorded and runs in both
+  windows' launch `.task` and when the inspector first shows a block
+  (`.task(id:)`).
+- **`FlexibilityControl`** (new, `Kadence/Views/Routines/FlexibilityControl.swift`)
+  replaces the read-only Flexibility text in the Routines inspector: three
+  segments, Fixed / Shiftable / Droppable, each with a 3pt rail sample drawn
+  by the grid's own `RailView` (solid / inset / dotted) in the template's rail
+  colour. The `± N min` stepper shows only for Shiftable. It is a native
+  `NSSegmentedControl` (`RailSegmentedControl`, an `NSViewRepresentable`).
+  The first build used SwiftUI's segmented `Picker`, and a live capture showed
+  it **drops the segment images on macOS** and overflowed the inspector beside
+  the 84pt label column. The control now sits under its label. A second
+  capture (scratchpad only) shows all three samples and the stepper at
+  `± 30 min` for Gym.
+- `RoutineBlockSnapshot` carries `shiftableMinutes` (defaulted).
+- Flexibility changes re-materialise through the existing fingerprint
+  (title and flexibility were added in P2-T41), so untouched instances follow.
+
+### Tests
+
+New `KadenceTests/FlexibilityControlTests.swift`, 13 tests: entry default 30,
+entry keeps an existing value, switching to Fixed/Droppable keeps the number
+and never invents one, clamping at seven values, `displayed`, the repair
+predicate, `Set Flexibility` with undo/redo exactness, the Shiftable →
+Droppable → Shiftable round trip, no step for the current segment,
+`Set Shift Range` per change with clamping and a no-op at the bound, the
+repair (all blocks and one block, with no undo step and idempotent), and that
+no path through the store, including undoing and redoing every step, leaves
+`.shiftable` with nil.
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  421 passed / 0 failed** (§42: 408; +13).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **`check-routines-window.sh`: PASS** (twice, the second with `--keep`
+  for the inspector capture; the app was quit afterwards).
+- **`check-conflict-apply-return.sh`: PASS** (+1200 s).
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-032** (rail sample height/colour, stepper text). DEVIATIONS
+  **C7**, plus three P2-T42 judgement calls under C.
+
+### Ambiguities
+
+- Whether the nil repair should be an undo step: built as no step (see C).
+- §13.2 says the segments "teach the grid's own vocabulary"; the sample is
+  drawn in the template's hue, as on the grid. Not specified (G-032).
+
+**Next:** P2-T43, detachment.

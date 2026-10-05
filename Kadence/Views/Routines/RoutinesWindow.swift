@@ -65,8 +65,6 @@
 //  `.setWeekdays` / `.setLabel`) instead of always falling through to
 //  `RoutineInspectorView`. Still explicitly out of scope, left for
 //  follow-up tasks:
-//    - the flexibility control's interactive stepper (components.md §13.2) —
-//      the inspector still shows flexibility as read-only text;
 //    - detached-instance tracking and Re-sync (components.md §13.4,
 //      interactions.md §11.2) — always zero right now, so per the existing
 //      zero-state rule (§10.2) it is omitted entirely rather than stubbed;
@@ -201,6 +199,11 @@ struct RoutinesWindow: View {
         templateStore.setWeekday(weekday, active: active, in: selectedTemplate)
     }
 
+    /// A block of the selected template, by id.
+    private func block(_ id: UUID) -> RoutineBlock? {
+        selectedTemplate?.blocks.first { $0.id == id }
+    }
+
     private var selectedTemplate: RoutineTemplate? {
         if let selectedTemplateID, let match = templates.first(where: { $0.id == selectedTemplateID }) {
             return match
@@ -298,6 +301,9 @@ struct RoutinesWindow: View {
             MockData.seedAllIfNeeded(context) {
                 RoutineMaterialization.run(context: context, undo: undoStack, visibleEnd: visibleEnd)
             }
+            // components.md §13.2 (task P2-T42): no `.shiftable` block
+            // survives launch without a ± value.
+            store.repairShiftRanges()
             isMaterializationReady = true
             canvasFocused = true
         }
@@ -391,7 +397,14 @@ struct RoutinesWindow: View {
                 template: selectedTemplate,
                 selectedBlock: selectedBlockSnapshot,
                 timeWindows: timeWindows,
-                onSetWeekday: setWeekday)
+                onSetWeekday: setWeekday,
+                onSetFlexibility: { id, flexibility in
+                    if let block = block(id) { store.setFlexibility(block, to: flexibility) }
+                },
+                onSetShiftRange: { id, minutes in
+                    if let block = block(id) { store.setShiftRange(block, to: minutes) }
+                },
+                onRepairShiftRange: { id in store.repairShiftRanges(blockID: id) })
         }
     }
 
@@ -1553,6 +1566,10 @@ private struct RoutineInspectorView: View {
     /// Task P2-T39 — `(weekday, active)`: the toggle row's write
     /// (components.md §13.5.4 via `RoutinesWindow.setWeekday`).
     let onSetWeekday: (Int, Bool) -> Void
+    /// Task P2-T42 — components.md §13.2's writes, by block id.
+    let onSetFlexibility: (UUID, Flexibility) -> Void
+    let onSetShiftRange: (UUID, Int) -> Void
+    let onRepairShiftRange: (UUID) -> Void
 
     private var orderedWeekdays: [Int] {
         RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)
@@ -1591,12 +1608,23 @@ private struct RoutineInspectorView: View {
 
         field("Start", timeOfDay(block.startMinutes))
         field("Duration", durationText(block.duration))
-        // components.md §13.2's interactive three-segment flexibility control
-        // (Fixed / Shiftable / Droppable with a rail-style sample and, for
-        // `.shiftable`, a ± minutes stepper) is explicitly out of scope for
-        // this task. Read-only text stands in for it, per the task's own
-        // "your call" — this is the value it reads, not a design decision.
-        field("Flexibility", block.flexibility.rawValue.capitalized)
+        // components.md §13.2 (task P2-T42): the three-segment control with
+        // rail samples, and the ± stepper for `.shiftable`.
+        // Label above, control below: the three segments don't fit beside
+        // the 84pt label column at the inspector's width.
+        VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+            label("Flexibility")
+            FlexibilityControl(
+                flexibility: block.flexibility,
+                shiftableMinutes: block.shiftableMinutes,
+                railColor: template?.sourceKey.rail ?? SourceKey.graphite.rail,
+                onSetFlexibility: { onSetFlexibility(block.id, $0) },
+                onSetShiftRange: { onSetShiftRange(block.id, $0) })
+        }
+        // "writes 30 on first display" (§13.2): a `.shiftable` block with no
+        // ± value is repaired the moment the inspector shows it. `.task(id:)`
+        // runs once per selected block, not once per redraw.
+        .task(id: block.id) { onRepairShiftRange(block.id) }
 
         // components.md §13.6.2 (task P2-T40): one line per protected window
         // that refuses this block, naming the window and the colliding
