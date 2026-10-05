@@ -75,9 +75,9 @@ struct Conflict: Identifiable {
     let overlapStart: Date
     let overlapEnd: Date
 
-    /// 2–3 options in the common case (see `ConflictEngine.makeOptions`'s own
-    /// doc comment for the one documented exception), ordered by ascending
-    /// disturbance, with exactly one `isRecommended == true`.
+    /// 1–3 options (§14.3.1's catalogue), ordered by ascending disturbance
+    /// then kind order. Two or three carry exactly one `isRecommended`; a
+    /// single option carries none (§14.3.3).
     let options: [ConflictOption]
 }
 
@@ -149,8 +149,9 @@ struct ConflictOption: Identifiable, Equatable {
     ///   reading of the brief's own ranked examples.
     let disturbanceMinutes: Int
 
-    /// Exactly one option per `Conflict` has this `true` — the least-
-    /// disturbance option, per `ConflictEngine.finalize`'s own doc comment.
+    /// components.md §14.3.3: exactly one option carries the chip when there
+    /// are two or three, chosen by the preservation rule (not necessarily the
+    /// first row); a single-option conflict has none (task P2-T45).
     let isRecommended: Bool
 }
 
@@ -321,49 +322,32 @@ enum ConflictEngine {
 
     // MARK: - Option generation
 
-    /// Item 2's per-flexibility switch, plus item 3's always-present skip
-    /// fallback. Both are folded into one call per case rather than "primary
-    /// option, then unconditionally append a second skip" — for `.droppable`,
-    /// the flexibility-derived option already *is* "skip today", so a second,
-    /// literally-identical skip option would be a meaningless duplicate; this
-    /// reading (skip appears once per conflict, however it got there) is what
-    /// "so every conflict has at least 2 options even when the flexibility-
-    /// derived one is unavailable" is read to mean — the fallback exists to
-    /// backfill a case where the derived option is something *other than*
-    /// skip and unavailable, not to double up when it already is skip.
+    /// components.md §14.3.1's catalogue (task P2-T45, closes G-017 in
+    /// code): exactly three kinds, each added when it is available.
     ///
-    /// One documented consequence: a `.droppable` conflict, and the rare
-    /// `.shiftable`/`.fixed` conflict where the derived option doesn't fit
-    /// (shift exceeds the block's range, or shortening would go below the
-    /// 15-minute floor), end up with exactly 1 option rather than 2–3. That
-    /// option is still always marked `isRecommended` — see `finalize` — so
-    /// "at least one recommended, never more than one" holds unconditionally;
-    /// only the "2–3 typically" shape is what narrows in that edge case, and
-    /// "do not let the option list go to zero" (item 3's own, firmer
-    /// requirement) always holds.
+    /// - `shiftLater`: `.shiftable` only, when the smallest 15-minute-stepped
+    ///   later shift that clears the collision is within the block's ±.
+    /// - `shorten`: **any** flexibility, when the larger remainder is ≥ 15
+    ///   min. Before P2-T45 this was gated behind `.fixed`, which no spec
+    ///   asked for, so `.droppable` got one option and `.shiftable` never
+    ///   reached three.
+    /// - `skipToday`: always, and never removed (§14.3.2).
+    ///
+    /// No `shiftEarlier` at day level (§14.3.1). The cap is three, which the
+    /// catalogue can't exceed, so nothing is ever dropped.
     private static func makeOptions(
         routineEvent: Event, otherInterval: Interval, routineBlocks: [RoutineBlock]
     ) -> [ConflictOption] {
         var raw: [RawOption] = []
-
-        switch routineEvent.flexibility {
-        case .shiftable:
-            if let shift = shiftLaterOption(routineEvent: routineEvent, otherInterval: otherInterval, routineBlocks: routineBlocks) {
-                raw.append(shift)
-            }
-            raw.append(skipOption(for: routineEvent))
-
-        case .droppable:
-            raw.append(skipOption(for: routineEvent))
-
-        case .fixed:
-            if let shorten = shortenOption(routineEvent: routineEvent, otherInterval: otherInterval) {
-                raw.append(shorten)
-            }
-            raw.append(skipOption(for: routineEvent))
+        if routineEvent.flexibility == .shiftable,
+           let shift = shiftLaterOption(routineEvent: routineEvent, otherInterval: otherInterval, routineBlocks: routineBlocks) {
+            raw.append(shift)
         }
-
-        return finalize(raw)
+        if let shorten = shortenOption(routineEvent: routineEvent, otherInterval: otherInterval) {
+            raw.append(shorten)
+        }
+        raw.append(skipOption(for: routineEvent))
+        return finalize(raw, occurrenceMinutes: Int((routineEvent.duration / 60).rounded()))
     }
 
     /// Minimal 15-minute-incremented later shift that clears the overlap
@@ -441,26 +425,63 @@ enum ConflictEngine {
         return RawOption(kind: .skipToday, newStart: nil, newEnd: nil, skipsOccurrence: true, disturbanceMinutes: minutes)
     }
 
-    /// Sorts ascending by disturbance and marks index 0 `isRecommended` —
-    /// "least disturbance first" (components.md §14.3) as the documented
-    /// engineering default the task brief explicitly allows, since the spec
-    /// does not mandate a different tie-break. Assigning `id: UUID()` here
-    /// (rather than earlier) is what lets `RawOption` stay a plain
-    /// comparison-only value with no identity of its own until an option
-    /// survives into the final, ordered list.
-    private static func finalize(_ raw: [RawOption]) -> [ConflictOption] {
-        raw.sorted { $0.disturbanceMinutes < $1.disturbanceMinutes }
-            .enumerated()
-            .map { index, option in
-                ConflictOption(
-                    id: UUID(),
-                    kind: option.kind,
-                    newStart: option.newStart,
-                    newEnd: option.newEnd,
-                    skipsOccurrence: option.skipsOccurrence,
-                    disturbanceMinutes: option.disturbanceMinutes,
-                    isRecommended: index == 0)
-            }
+    /// Display order and the recommendation, which are deliberately two
+    /// different rules (components.md §14.3.2 / §14.3.3):
+    ///
+    /// - **Order:** ascending `disturbanceMinutes`, ties broken by kind order
+    ///   (`ConflictOptionKind.allCases`: shiftLater, shorten, skipToday).
+    /// - **Recommendation:** the first kind that preserves the occurrence
+    ///   proportionately — `recommendedKind` below. It can be the second or
+    ///   third row.
+    /// - **A single option carries no recommendation at all** — "a
+    ///   recommendation among one is noise".
+    ///
+    /// `id: UUID()` is assigned here, once an option survives into the final
+    /// list.
+    private static func finalize(_ raw: [RawOption], occurrenceMinutes: Int) -> [ConflictOption] {
+        let recommended = raw.count > 1 ? recommendedKind(raw, occurrenceMinutes: occurrenceMinutes) : nil
+        return displayOrder(raw).map { option in
+            ConflictOption(
+                id: UUID(),
+                kind: option.kind,
+                newStart: option.newStart,
+                newEnd: option.newEnd,
+                skipsOccurrence: option.skipsOccurrence,
+                disturbanceMinutes: option.disturbanceMinutes,
+                isRecommended: option.kind == recommended)
+        }
+    }
+
+    /// Ascending disturbance, then kind order (§14.3.2).
+    private static func displayOrder(_ raw: [RawOption]) -> [RawOption] {
+        let rank = { (kind: ConflictOptionKind) in ConflictOptionKind.allCases.firstIndex(of: kind) ?? 0 }
+        return raw.sorted {
+            $0.disturbanceMinutes != $1.disturbanceMinutes
+                ? $0.disturbanceMinutes < $1.disturbanceMinutes
+                : rank($0.kind) < rank($1.kind)
+        }
+    }
+
+    /// §14.3.3, first that qualifies:
+    /// 1. `shiftLater` if its minutes ≤ the occurrence's own duration;
+    /// 2. `shorten` if it keeps ≥ half the original duration;
+    /// 3. `skipToday` otherwise.
+    /// `internal` (not `private`) only so tests can pin the rule directly.
+    static func recommendedKind(
+        shiftMinutes: Int?, shortenTrimmedMinutes: Int?, occurrenceMinutes: Int
+    ) -> ConflictOptionKind {
+        if let shiftMinutes, shiftMinutes <= occurrenceMinutes { return .shiftLater }
+        if let trimmed = shortenTrimmedMinutes, (occurrenceMinutes - trimmed) * 2 >= occurrenceMinutes {
+            return .shorten
+        }
+        return .skipToday
+    }
+
+    private static func recommendedKind(_ raw: [RawOption], occurrenceMinutes: Int) -> ConflictOptionKind {
+        recommendedKind(
+            shiftMinutes: raw.first { $0.kind == .shiftLater }?.disturbanceMinutes,
+            shortenTrimmedMinutes: raw.first { $0.kind == .shorten }?.disturbanceMinutes,
+            occurrenceMinutes: occurrenceMinutes)
     }
 
     // MARK: - RoutineBlock lookup

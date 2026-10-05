@@ -687,6 +687,12 @@ changed is the *content* of three Phase 1 sections, plus three stale entries:
 
 ## D — spec contradictions
 
+- **D5 — components.md §14.3.4: the exact-copy tables vs the duration rule
+  under them (GAPS G-035).** *(new 2026-10-05, task P2-T45.)* The tables say
+  `75 min later`, `90 min → 30 min · 60 min lost`; the sentence says `N h MM`
+  at or above 60. The tables are built, through one formatter function, so
+  either ruling is a one-line change.
+
 - ~~**D4 — components.md §3.1 vs §3.3. The 11–15pt density tier cannot be drawn.**~~
   **Closed 2026-09-11** — ruled by `design/GAPS.md` G-011 — CLOSED (task P2-T04)
   and implemented in code by task P2-T05 (see STATUS.md §1.7). *(was: new
@@ -848,6 +854,15 @@ P2-T44 judgement calls that need no marker, because no value was invented:
   start, which a detaching move may have changed.
 - **"Today" for the scope is `CalendarState.now`**, the same clock the main
   window uses.
+
+P2-T45 judgement calls that need no marker, because no value was invented:
+
+- **After an apply, the next conflict previews its top row**, not its
+  recommended one. interactions.md §10.1 says only "advances to the next
+  unresolved conflict". Before P2-T45 the two were always the same row.
+- **The shorten title names the kept duration** (`Shorten Training to 30
+  min`), from §14.3.4's table, so it is `duration − trimmed`. The
+  disturbance number is the trimmed minutes.
 
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind

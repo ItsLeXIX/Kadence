@@ -5920,3 +5920,66 @@ and an empty Re-sync records nothing.
 - GAPS **G-034**. DEVIATIONS **C9**, three P2-T44 judgement calls under C.
 
 **Next:** P2-T45, conflict options catalogue and ranking.
+
+## 46. P2-T45 — conflict options: catalogue and ranking (components.md §14.3.1–§14.3.4; GAPS G-017 closed in code)
+
+### Built (`ConflictEngine.swift`, `ConflictOptionFormatting.swift`)
+
+- **Catalogue (§14.3.1):** `shiftLater` (`.shiftable` only, smallest
+  15-minute-stepped shift within ±), `shorten` for **any** flexibility
+  (larger remainder ≥ 15 min; the old `.fixed`-only gate is gone),
+  `skipToday` always. No `shiftEarlier`. `ConflictOptionKind.allCases` is
+  the kind order. The cap of three can't be exceeded, so nothing is dropped.
+- **Display order (§14.3.2):** ascending `disturbanceMinutes`, ties by kind
+  order.
+- **Recommendation (§14.3.3):** `ConflictEngine.recommendedKind`: shiftLater
+  if its minutes ≤ the occurrence's duration; else shorten if it keeps ≥
+  half; else skipToday. It can be the second or third row. **A
+  single-option conflict has no recommended option**, so the panel shows no
+  chip (`ConflictPanelView` already keys the chip on `isRecommended`).
+- **Copy (§14.3.4), exactly the tables:** `Shift Training 75 min later` /
+  `17:00 → 18:15 · all 90 min kept`; `Shorten Training to 30 min` /
+  `90 min → 30 min · 60 min lost`; `Skip Training today` /
+  `Does not run today · 90 min lost · re-offered`. **The tables contradict
+  the sentence under them** (`N h MM` at or above 60). The tables are built,
+  through one function: SPEC-GAP **G-035**, DEVIATIONS **D5**.
+- `Scripts/check-conflict-apply-return.sh`'s comments and messages use the
+  new title (`Shorten Focus review to 40 min`). Its text match
+  (`shorten focus review`) and verdict are unchanged.
+
+### Tests
+
+- New `KadenceTests/ConflictCatalogueTests.swift`, 12 test functions: kind
+  catalogue; §17 item 7's fixture (60 · 75 · 90, second recommended); a
+  3-option conflict; `.droppable` gets two; shorten offered for
+  `.shiftable` when the shift doesn't fit; the 15-minute remainder floor;
+  the kind-order tie-break (30 · 30 · 60 → shiftLater before shorten); a
+  single option has no chip; the recommendation table (six cases including
+  "exactly half" and "equal to duration"); recommended-not-first; all six
+  copy strings word for word; applying the recommended second-row option
+  and undoing it.
+- **Updated to the new rules:** `ConflictRankingTests.optionsSortedAscendingByDisturbance`
+  (now `[shorten 40, skip 60, shift 75]` with the skip recommended),
+  `ConflictOptionTests.droppableProducesSkipOption` (now shorten + skip,
+  shorten recommended), `ConflictOptionRowContentTests` (three rows; the
+  single-option case is now a `.fixed` occurrence inside the other event,
+  with no chip; exact shift title and delta), and `ConflictApplyTests`
+  (wording: after apply the next conflict previews its top option, which is
+  no longer necessarily the recommended one).
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  455 passed / 0 failed** (§45: 443; +12).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **`check-routines-window.sh`: PASS. `check-conflict-apply-return.sh`:
+  PASS** (+1200 s). Live AX row: `shorten focus review to 40 min,
+  recommended, 60 min → 40 min · 20 min lost`.
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-035**. DEVIATIONS **D5**, two P2-T45 judgement calls under C.
+
+**Next:** P2-T46, template conflicts.

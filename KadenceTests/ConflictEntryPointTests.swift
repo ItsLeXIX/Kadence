@@ -221,7 +221,7 @@ struct ConflictActivationTests {
 @MainActor
 struct ConflictOptionRowContentTests {
 
-    @Test("Row count matches the conflict's option count, and exactly one row is marked Recommended")
+    @Test("Row count matches the conflict's option count, order is preserved, and exactly one row is marked Recommended")
     func rowCountAndRecommendedFlagMatchTheConflict() throws {
         let context = try makeContext()
         let block = makeBlock(flexibility: .shiftable, shiftableMinutes: 180)
@@ -235,20 +235,21 @@ struct ConflictOptionRowContentTests {
         let rows = ConflictOptionFormatting.rows(for: conflict)
 
         #expect(rows.count == conflict.options.count)
-        #expect(rows.count >= 2)
+        #expect(rows.count == 3)
         #expect(rows.filter(\.isRecommended).count == 1)
-        // Ordering is preserved 1:1 — least disturbance first, same as
-        // `conflict.options` (ConflictEngine.finalize already sorts it).
+        // Ordering is preserved 1:1 from `conflict.options`.
         #expect(rows.map(\.id) == conflict.options.map(\.id))
-        #expect(rows.first?.isRecommended == true)
+        #expect(rows.map(\.isRecommended) == conflict.options.map(\.isRecommended))
     }
 
-    @Test("A droppable conflict's single option is still marked Recommended — the panel never shows zero rows")
-    func singleOptionConflictStillShowsARecommendedRow() throws {
+    @Test("A single-option conflict carries no Recommended chip at all (§14.3.3); the panel still shows its row")
+    func singleOptionConflictHasNoChip() throws {
         let context = try makeContext()
-        let block = makeBlock(flexibility: .droppable)
-        let routine = makeRoutineEvent(block: block, title: "Nap", start: time(13), end: time(13, 30))
-        let manual = makeManualEvent(start: time(13, 15), end: time(14))
+        // `.fixed`, wholly inside the other event: no remainder to keep,
+        // cannot shift — `skipToday` stands alone (§14.3.3's reachable case).
+        let block = makeBlock(flexibility: .fixed)
+        let routine = makeRoutineEvent(block: block, title: "Nap", start: time(13, 15), end: time(13, 45))
+        let manual = makeManualEvent(start: time(13), end: time(14))
         try insert(context, [block, routine, manual])
 
         let conflicts = ConflictEngine.detect(events: [routine, manual], routineBlocks: [block])
@@ -257,12 +258,12 @@ struct ConflictOptionRowContentTests {
         let rows = ConflictOptionFormatting.rows(for: conflict)
 
         #expect(rows.count == 1)
-        #expect(rows[0].isRecommended == true)
-        #expect(!rows[0].title.isEmpty)
-        #expect(!rows[0].delta.isEmpty)
+        #expect(conflict.options.first?.kind == .skipToday)
+        #expect(rows[0].isRecommended == false)
+        #expect(rows[0].title == "Skip Nap today")
     }
 
-    @Test("Titles are imperative and name the routine event; shift/shorten deltas name its new time range")
+    @Test("Titles are imperative and name the routine event; the shift delta names old and new start")
     func titlesAndDeltasNameTheRoutineEvent() throws {
         let context = try makeContext()
         let block = makeBlock(flexibility: .shiftable, shiftableMinutes: 180)
@@ -277,9 +278,9 @@ struct ConflictOptionRowContentTests {
         let title = ConflictOptionFormatting.title(for: shift, conflict: conflict)
         let delta = ConflictOptionFormatting.delta(for: shift, conflict: conflict)
 
-        #expect(title.contains("Training"))
-        #expect(title.contains("\(shift.disturbanceMinutes)"))
-        #expect(delta.contains("Training"))
-        #expect(delta.contains("10:15"), "the new start time should be legible in the disturbance line")
+        // §14.3.4: imperative title naming the routine event; line 2 reads
+        // old start → new start and what is kept.
+        #expect(title == "Shift Training 75 min later")
+        #expect(delta == "09:00 → 10:15 · all 60 min kept")
     }
 }

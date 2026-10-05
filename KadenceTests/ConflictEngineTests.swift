@@ -223,7 +223,11 @@ struct ConflictOptionTests {
         #expect(skip.skipsOccurrence == true)
         #expect(skip.newStart == nil)
         #expect(skip.newEnd == nil)
-        #expect(skip.isRecommended == true)
+        // P2-T45 (§14.3.1): `.droppable` now also gets `shorten` (keeps 30 of
+        // 60, i.e. half, so §14.3.3 recommends it over the skip).
+        #expect(conflict.options.map(\.kind) == [.shorten, .skipToday])
+        #expect(skip.isRecommended == false)
+        #expect(conflict.options.first { $0.kind == .shorten }?.isRecommended == true)
     }
 
     @Test(".fixed produces a shorten-to-fit option when it clears the 15-minute floor")
@@ -299,7 +303,7 @@ struct ConflictRankingTests {
         }
     }
 
-    @Test("Options are ordered by ascending disturbance, and the first is the recommended one")
+    @Test("Options are ordered by ascending disturbance; the recommendation follows §14.3.3, here the second row")
     func optionsSortedAscendingByDisturbance() throws {
         let context = try makeContext()
         let block = makeBlock(flexibility: .shiftable, shiftableMinutes: 180)
@@ -310,11 +314,12 @@ struct ConflictRankingTests {
         let conflicts = ConflictEngine.detect(events: [routine, manual], routineBlocks: [block])
         let conflict = try #require(conflicts.first)
 
-        #expect(conflict.options.count >= 2)
+        // shorten trims 40 (keeps 20 of 60), skip costs 60, shift moves 75.
+        #expect(conflict.options.map(\.kind) == [.shorten, .skipToday, .shiftLater])
         let disturbances = conflict.options.map(\.disturbanceMinutes)
-        #expect(disturbances == disturbances.sorted())
-        #expect(conflict.options.first?.isRecommended == true)
-        #expect(conflict.options.dropFirst().allSatisfy { $0.isRecommended == false })
+        #expect(disturbances == [40, 60, 75])
+        // 75 > 60 is a disproportionate shift; 20 < 30 is less than half.
+        #expect(conflict.options.map(\.isRecommended) == [false, true, false])
     }
 }
 

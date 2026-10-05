@@ -17,8 +17,8 @@
 //      §10.1's own words) that fully reverts every moved block on one
 //      `UndoStack.undo()`.
 //  (c) after apply, the panel advances to the next unresolved conflict (by
-//      `ConflictOrdering`'s stable rule) and previews its first (==
-//      recommended) option, when one exists.
+//      `ConflictOrdering`'s stable rule) and previews its first (the
+//      top) option, when one exists.
 //  (d) after applying the last conflict, the inspector returns to normal
 //      (`selectedConflictID == nil`) and `state.conflicts` — the same list
 //      that governs the needs-attention row's count (see
@@ -183,7 +183,7 @@ struct ApplyShiftAndShortenTests {
 @MainActor
 struct ApplyAdvanceTests {
 
-    @Test("Two conflicts: applying the first previews the second's first (recommended) option")
+    @Test("Two conflicts: applying the first previews the second's first (top) option")
     func advancesToNextConflictsFirstOption() throws {
         let context = try makeContext()
         let undo = UndoStack()
@@ -222,7 +222,7 @@ struct ApplyAdvanceTests {
         let refreshedSecond = try #require(state.conflicts.first { $0.id == secondConflict.id })
         #expect(
             state.selectedConflictOptionID == refreshedSecond.options.first?.id,
-            "previews the next conflict's first (== recommended) option immediately")
+            "previews the next conflict's top option immediately; since P2-T45 that is not necessarily the recommended one (§14.3.3)")
         #expect(state.conflicts.count == 1, "the resolved conflict has dropped out of the refreshed list")
     }
 

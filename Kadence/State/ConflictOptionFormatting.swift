@@ -11,48 +11,58 @@
 //  than inline string-building inside `ConflictPanelView`, the same shape as
 //  `ConflictOrdering`.
 //
-//  The exact wording is this task's own judgement call, not an invented
-//  design token: §14.3 gives two worked examples for illustration, not a
-//  template with placeholders, and no file under `design/` specifies a
-//  literal format string for either line. What §14.3 *requires*, and what
-//  these functions guarantee, is the shape: the title is imperative and
-//  names the routine event (plus, for shift/shorten, the minute figure);
-//  the disturbance line always makes the ranking legible — the routine
-//  event's new time range for shift/shorten, or how many minutes are freed
-//  for skip.
+//  Task P2-T45: the copy is now components.md §14.3.4's exact tables.
+//  Every minute figure goes through `minutes(_:)`. SPEC-GAP (design/GAPS.md
+//  G-035): §14.3.4's tables write `90 min`, `75 min later` and `60 min lost`,
+//  but the sentence under them says durations at or above 60 read `N h MM`
+//  (`1 h 30`). The tables are followed; a ruling for the sentence changes
+//  `minutes(_:)` alone.
 //
 
 import Foundation
 
 enum ConflictOptionFormatting {
-    /// components.md §14.3, line 1 — "imperative and concrete".
+    /// The one place a minute figure becomes text. See the header's SPEC-GAP.
+    static func minutes(_ value: Int) -> String { "\(value) min" }
+
+    /// components.md §14.3.4, line 1 — imperative, no trailing period:
+    /// `Shift Training 75 min later` / `Shorten Training to 30 min` /
+    /// `Skip Training today`.
     static func title(for option: ConflictOption, conflict: Conflict) -> String {
         let name = conflict.routineEvent.title
         switch option.kind {
         case .shiftLater:
-            return "Shift \(name) \(option.disturbanceMinutes) min later"
+            return "Shift \(name) \(minutes(option.disturbanceMinutes)) later"
         case .shorten:
-            return "Shorten \(name) by \(option.disturbanceMinutes) min"
+            return "Shorten \(name) to \(minutes(occurrenceMinutes(conflict) - option.disturbanceMinutes))"
         case .skipToday:
-            return "Skip today's \(name)"
+            return "Skip \(name) today"
         }
     }
 
-    /// components.md §14.3, line 2 — "the ranking made legible", required on
-    /// every row.
+    /// components.md §14.3.4, line 2 — the ranking's number and what it
+    /// costs: `17:00 → 18:15 · all 90 min kept` /
+    /// `90 min → 30 min · 60 min lost` /
+    /// `Does not run today · 90 min lost · re-offered`.
     static func delta(for option: ConflictOption, conflict: Conflict) -> String {
         let time = BlockFormatters.time
-        let name = conflict.routineEvent.title
+        let total = occurrenceMinutes(conflict)
         switch option.kind {
         case .shiftLater:
-            guard let newStart = option.newStart, let newEnd = option.newEnd else { return "" }
-            return "\(name) \(time.string(from: newStart))–\(time.string(from: newEnd)) · nothing else moves"
+            guard let newStart = option.newStart else { return "" }
+            return "\(time.string(from: conflict.routineEvent.start)) → \(time.string(from: newStart))"
+                + " · all \(minutes(total)) kept"
         case .shorten:
-            guard let newStart = option.newStart, let newEnd = option.newEnd else { return "" }
-            return "\(name) now \(time.string(from: newStart))–\(time.string(from: newEnd))"
+            return "\(minutes(total)) → \(minutes(total - option.disturbanceMinutes))"
+                + " · \(minutes(option.disturbanceMinutes)) lost"
         case .skipToday:
-            return "Frees \(option.disturbanceMinutes) min · today's occurrence only"
+            return "Does not run today · \(minutes(option.disturbanceMinutes)) lost · re-offered"
         }
+    }
+
+    /// The occurrence's own duration in whole minutes.
+    private static func occurrenceMinutes(_ conflict: Conflict) -> Int {
+        Int((conflict.routineEvent.duration / 60).rounded())
     }
 
     /// One row's worth of already-formatted content, in the same order

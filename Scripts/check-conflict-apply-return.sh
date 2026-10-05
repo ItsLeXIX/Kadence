@@ -36,9 +36,10 @@
 #
 # Fixture: MockData.swift's "Client call" (manual, 19:50–20:20 today) /
 # "Focus review" (routine, .fixed, 20:00–21:00 today) pair, added by P2-T29.
-# `ConflictEngine` gives this pair exactly two ranked options — "Shorten
-# Focus review by 20 min" (recommended, disturbance 20) first, "Skip today's
-# Focus review" (disturbance 60) second. The app is launched with
+# `ConflictEngine` gives this pair exactly two ranked options (§14.3.4 copy
+# since P2-T45) — "Shorten Focus review to 40 min" (recommended: it keeps
+# 40 of 60, at least half; disturbance 20) first, "Skip Focus review today"
+# (disturbance 60) second. The app is launched with
 # `-KadenceConflictUnderTest "Focus review"` (P2-T41), so activating the
 # needs-attention row opens THIS pair explicitly. Before that the script
 # relied on it sorting first, which failed whenever a clock-dependent fixture
@@ -356,7 +357,7 @@ read -r OPT_X OPT_Y < "$WORK/plan2.txt"
 # rank") AND it is a real click INTO the inspector panel, which is this app's
 # own established way (DEVIATIONS.md's P2-T16 note) to give the inspector
 # real SwiftUI focus — the exact thing this defect needed and never got.
-echo "clicking recommended option (\"Shorten Focus review by 20 min\") at $OPT_X,$OPT_Y …"
+echo "clicking recommended option (\"Shorten Focus review to 40 min\") at $OPT_X,$OPT_Y …"
 "$WORK/khid" click "$OPT_X" "$OPT_Y"
 sleep 2
 

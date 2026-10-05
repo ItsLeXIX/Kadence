@@ -1806,3 +1806,27 @@ calendar's short weekday symbol and the day, as in interactions.md §11.2's
 Not blocking.
 
 **Needed to close:** the `+N` row's style and the popover's insets.
+
+---
+
+## 2026-10-05 — G-035 — §14.3.4's copy tables contradict its own duration rule
+
+**Where it bit:** task P2-T45, `ConflictOptionFormatting`
+(`Kadence/State/ConflictOptionFormatting.swift`).
+
+**What the spec says.** `components.md` §14.3.4's exact-copy tables read
+`Shift Training 75 min later`, `17:00 → 18:15 · all 90 min kept`,
+`90 min → 30 min · 60 min lost` and `Does not run today · 90 min lost ·
+re-offered`. The sentence directly under them: "Durations are always `N min`
+below 60 and `N h MM` at or above it (`1 h 30`)."
+
+**What is missing.** Both can't hold: by the sentence, the tables would read
+`1 h 15 later`, `all 1 h 30 kept`, `1 h 30 → 30 min · 1 h 00 lost`.
+
+**What was built instead of guessing.** The tables, word for word, because
+they are labelled exact copy and the brief asked for exact copy. Every minute
+figure goes through one function (`ConflictOptionFormatting.minutes`), marked
+`// SPEC-GAP (design/GAPS.md G-035)`, so a ruling for the sentence is a
+one-line change plus the copy tests. Not blocking.
+
+**Needed to close:** which one holds.
