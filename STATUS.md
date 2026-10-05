@@ -6357,3 +6357,47 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 6. **Housekeeping:** P2-T46's DEVIATIONS changes are in P2-T47's commit
    (no amend, per the rules). `secondary_with_popover.png` (§39) is still
    awaiting your delete decision.
+
+## 52. P2-F01 — weekday-independent review fixtures (components.md §17.1, amended 2026-10-05; PHASE2-REVIEW.md §6 item 1)
+
+### Built (`MockData.swift`)
+
+- §12 item 12's packing triple moves from 18:00–19:45 to **13:00–14:30**:
+  `Group call` 13:00–14:30, `Code review` 13:15–14:00, `Notes write-up`
+  13:30–14:30, still today, still mutually overlapping (13:30–14:00). At
+  18:00 they met the template's Training on a Mon/Wed/Fri today, so the
+  count was 15 + 1 on those days and 13 + 1 otherwise.
+- Expected count now **13 day + 1 template = 14** on every weekday at every
+  clock time.
+- **Tokens.swift regenerated** from tokens.json 1.2.0 (`selectedCardFill`,
+  `weekdayToggleSize`). The review gives this to fix 13, but the run's rules
+  need `generate-tokens --check` green at the end of every task, and
+  1.2.0 was already committed. Generated, not hand-edited; nothing uses the
+  new tokens yet.
+
+### Tests
+
+- `MockDataClockTests.stableAcrossClock`: 13 day conflicts and
+  `CalendarState.needsAttentionCount == 14` (the property the sidebar
+  draws) on Monday 5 and **Wednesday 7** (template days, new) and Thursday
+  8 (not) at every swept clock time; the triple is three mutually
+  overlapping events today, and none of them is in a conflict.
+- `MockDataMaterializationTests.seededStore`: 13 on both weekdays.
+- No test count change (parameterised arguments count as one test).
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 488
+  passed / 0 failed**.
+- `generate-tokens --check`: up to date (after the regeneration above).
+- **Pre-flight:** unlocked, no full-screen window.
+- `check-routines-window.sh`: **PASS**. `check-conflict-apply-return.sh`:
+  **PASS** (+1200 s); the live row read `needs attention … 14` on a Monday.
+  The script matches the row by identifier and doesn't assert the number,
+  so it needed no change.
+
+### New GAPS / DEVIATIONS
+
+- None opened. The P2-T48 judgement call "the conflict count now depends on
+  the weekday" is struck through as resolved.

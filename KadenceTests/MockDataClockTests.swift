@@ -32,8 +32,8 @@ private func seeded(at now: Date) throws -> (events: [Event], blocks: [RoutineBl
     return (events, blocks)
 }
 
-/// Monday 5 Oct 2026 (a template day: Gym, Morning review, Reading run)
-/// and Thursday 8 Oct (not), at the clock times that used to collide plus
+/// Monday 5 and Wednesday 7 Oct 2026 (template days: Gym, Morning review,
+/// Training, Reading run) and Thursday 8 Oct (not), at the clock times that used to collide plus
 /// ordinary ones. 16:50 put Journal inside Training; 19:45 and 20:00 inside
 /// Focus review; 20:50 inside Reading on Mondays.
 @MainActor
@@ -48,6 +48,7 @@ struct MockDataClockTests {
     @Test("Conflict count and the Client call / Focus review pair are the same at every clock time of a day",
           arguments: [
               "5 7:00", "5 12:00", "5 16:50", "5 19:45", "5 20:00", "5 20:50", "5 23:30",
+              "7 7:00", "7 13:10", "7 17:00", "7 23:30",
               "8 7:00", "8 12:00", "8 16:50", "8 20:00", "8 23:30",
           ])
     func stableAcrossClock(_ label: String) throws {
@@ -61,11 +62,12 @@ struct MockDataClockTests {
         let (events, blocks) = try seeded(at: now)
         let conflicts = MainWindow.sortedConflicts(events: events, routineBlocks: blocks)
 
-        // P2-T48's §17.1 fixtures add Training × Supervisor meeting on the
-        // first Mon/Wed/Fri, and on a Mon/Wed/Fri "today" the template's
-        // Training (17:00–18:30) also meets today's Group call and Code
-        // review. So the count depends on the WEEKDAY, never on the clock.
-        #expect(conflicts.count == (parts[0] == 5 ? 15 : 13))
+        // components.md §17.1 (amended 2026-10-05, task P2-F01): 13 day
+        // conflicts on EVERY weekday — Client call × Focus review, the eleven
+        // Fixture pairs, Training × Supervisor meeting. Before P2-F01 the
+        // Group call / Code review / Notes write-up triple sat at 18:00 and
+        // also met the template's Training on a Mon/Wed/Fri today (15).
+        #expect(conflicts.count == 13)
         let titles = conflicts.map { Set([$0.routineEvent.title, $0.otherEvent.title]) }
         #expect(titles.contains(["Client call", "Focus review"]))
         #expect(titles.contains(["Training", "Supervisor meeting"]))
@@ -81,9 +83,29 @@ struct MockDataClockTests {
         #expect(journal.duration == MockData.journalDuration)
 
         // The template conflict (Errands × Lunch) is there at every clock time too.
-        #expect(TemplateConflictEngine.detect(
+        let templateConflicts = TemplateConflictEngine.detect(
             templates: try seededTemplates(at: now), windows: try seededWindows(at: now),
-            orderedWeekdays: RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)).count == 1)
+            orderedWeekdays: RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday))
+        #expect(templateConflicts.count == 1)
+
+        // §17.1's expected needs-attention count: 13 + 1 = 14, read through
+        // the same property the sidebar row draws.
+        let state = CalendarState()
+        state.conflicts = conflicts
+        state.templateConflicts = templateConflicts
+        #expect(state.needsAttentionCount == 14)
+
+        // The §12 item 12 triple still packs: three mutually overlapping blocks
+        // today (common interval 13:30–14:00), and none of them is in a conflict.
+        let triple = ["Group call", "Code review", "Notes write-up"].compactMap { title in
+            events.first { $0.title == title }
+        }
+        #expect(triple.count == 3)
+        for a in triple { for b in triple where a !== b {
+            #expect(a.start < b.end && b.start < a.end, "\(a.title) overlaps \(b.title)")
+        } }
+        #expect(triple.allSatisfy { Calendar.current.isDate($0.start, inSameDayAs: now) })
+        #expect(!titles.contains { !$0.isDisjoint(with: ["Group call", "Code review", "Notes write-up"]) })
 
         // The script's explicit hook finds the same pair.
         let underTest = CalendarState.conflictUnderTest(in: conflicts, title: "Focus review")

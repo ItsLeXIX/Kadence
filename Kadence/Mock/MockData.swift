@@ -151,17 +151,24 @@ enum MockData {
             origin: .manual, sourceKey: .amber))
 
         // 12. Three mutually overlapping blocks, to exercise column packing in Day.
+        //     Task P2-F01 (components.md §17.1, amended 2026-10-05): moved from
+        //     18:00–19:45 to 13:00–14:30. At 18:00 they overlapped the
+        //     template's Training (17:00–18:30) whenever today was Mon/Wed/Fri,
+        //     so the conflict count changed with the weekday. 13:00–14:30 is
+        //     free of every routine instance on every weekday; it touches
+        //     `Check mail` (ends 13:00) and `Prep: relational algebra`
+        //     (starts 14:30) without overlapping either.
         events.append(Event(
             title: "Group call",
-            start: at(18), end: at(19, 30),
+            start: at(13), end: at(14, 30),
             origin: .manual, sourceKey: .pink))
         events.append(Event(
             title: "Code review",
-            start: at(18, 15), end: at(19),
+            start: at(13, 15), end: at(14),
             origin: .manual, sourceKey: .blue))
         events.append(Event(
             title: "Notes write-up",
-            start: at(18, 45), end: at(19, 45),
+            start: at(13, 30), end: at(14, 30),
             origin: .planned, flexibility: .droppable, sourceKey: .purple))
 
         // 13. Six mutually overlapping blocks tomorrow, to exercise cascade in Week.

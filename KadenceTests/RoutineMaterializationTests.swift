@@ -500,10 +500,10 @@ struct MockDataMaterializationTests {
         // The P2-T29 / P2-T32 conflict fixtures are unchanged.
         #expect(events.filter { $0.title == "Focus review" }.count == 1)
         #expect(events.filter { $0.title == "Client call" }.count == 1)
-        // P2-T48: §17.1's Training × Supervisor meeting, plus (on a Mon/Wed/Fri
-        // today) Training × Group call and × Code review.
+        // §17.1 (amended 2026-10-05, P2-F01): 13 day conflicts on every
+        // weekday, Training × Supervisor meeting among them.
         #expect(MainWindow.sortedConflicts(events: events, routineBlocks: try context.fetch(FetchDescriptor<RoutineBlock>())).count
-                == (dayOfMonth == 5 ? 15 : 13))
+                == 13)
         // Errands never materialises: Lunch refuses it on every active day.
         #expect(!events.contains { $0.title == "Errands" })
         // §12 item 14's skipped state is on exactly one template Gym instance.

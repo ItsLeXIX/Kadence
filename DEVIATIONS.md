@@ -909,10 +909,13 @@ P2-T48 judgement calls that need no marker, because no value was invented:
 - **The hand-seeded `Training` event is gone**, because the template now
   produces it (the same reason P2-T40 removed Morning review / Reading /
   Gym).
-- **The conflict count now depends on the weekday.** On a Mon/Wed/Fri
+- ~~**The conflict count now depends on the weekday.** On a Mon/Wed/Fri
   "today", the template's Training (17:00–18:30) also overlaps today's
   Phase 1 `Group call` and `Code review`, giving 15 day conflicts; on other
-  days 13. It is still stable across clock times (`MockDataClockTests`).
+  days 13. It is still stable across clock times (`MockDataClockTests`).~~
+  **Resolved 2026-10-05, task P2-F01** — components.md §17.1's amendment
+  moved the §12 item 12 triple to 13:00–14:30: 13 day conflicts + 1
+  template conflict = **14** on every weekday and clock time.
 - **`-KadenceConflictUnderTest` also matches a template conflict by block
   title**, for item 16's capture (A32).
 
