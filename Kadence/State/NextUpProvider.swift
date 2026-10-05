@@ -54,6 +54,31 @@ enum NextUpProvider {
         return Result(next: next, isLate: next.start <= now, restOfToday: Array(today.dropFirst()))
     }
 
+    /// components.md §16 (task P2-T49): while a snooze confirmation is held,
+    /// NEXT stays the snoozed event, at its new time, even when the snooze
+    /// moved it past midnight and so out of "today".
+    ///
+    /// Without this, a cross-midnight snooze made the snoozed block stop
+    /// being NEXT the moment it moved, so the result row (`Moved to tomorrow
+    /// 00:05`) and the NEXT block above it described different things —
+    /// `screenshots/2/snooze-next-day.png` shows the row naming the new time
+    /// beside the block's old `23:50 – 01:20`. §16: the confirmation "must show
+    /// where the block landed"; "the confirmation and the movement are the
+    /// same event seen from two places".
+    ///
+    /// `pinned` is the confirmation's event id and the start it expects. If
+    /// that event no longer starts there (an undo put it back), the pin no
+    /// longer applies and `result` is returned unchanged. The pinned event is
+    /// never late (it was just moved later) and is removed from the rest.
+    static func pinning(_ result: Result, events: [Event], to pinned: (id: UUID, start: Date)?) -> Result {
+        guard let pinned,
+              let event = events.first(where: { $0.id == pinned.id && $0.start == pinned.start })
+        else { return result }
+        var rest = result.restOfToday.filter { $0.id != event.id }
+        if let previous = result.next, previous.id != event.id { rest.insert(previous, at: 0) }
+        return Result(next: event, isLate: false, restOfToday: rest)
+    }
+
     /// What "REST OF TODAY" actually renders (components.md §15.2): at most
     /// `cap` rows, then a `+N more` line once there are more than that.
     struct RestDisplay {

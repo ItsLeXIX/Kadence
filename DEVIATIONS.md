@@ -1593,6 +1593,18 @@ Still open, all re-checked against the current spec text this session:
   `no 'Shorten Focus review' option row found` (observed at 16:43). It also
   adds a 13th conflict to the sidebar count.
 
+- ~~**B19 — components.md §16. After a snooze across midnight the popover's
+  NEXT block and its result row describe different things.**~~ *(found and
+  resolved 2026-10-05, task P2-T49.)* `screenshots/2/snooze-next-day.png`:
+  `Moved to tomorrow 00:05` under a block reading `23:50 – 01:20`. The row
+  was right (G-016's +15 minutes, day named per §16). The block was wrong:
+  `NextUpProvider` only treats events that start today as NEXT, so the
+  snoozed block dropped out of NEXT as soon as it crossed midnight, while §16
+  says the confirmation shows "where the block landed". Fixed by
+  `NextUpProvider.pinning`: while the confirmation holds, NEXT is the snoozed
+  event at its new time (`00:05 – 01:35`). Snooze's destination policy is
+  unchanged.
+
 ---
 
 ## Resolved — retired by a spec ruling

@@ -6155,3 +6155,59 @@ then passed twice in a row.
   judgement calls under C; plus P2-T46's carried entries (above).
 
 **Next:** P2-T49 (snooze across midnight), then P2-T48.
+
+## 49. P2-T49 — snooze across midnight (components.md §16; GAPS G-016)
+
+### Diagnosis
+
+`screenshots/2/snooze-next-day.png`: `Prep: relational algebra` reading
+`23:50 – 01:20` above `Moved to tomorrow 00:05`. Reproduced in a unit test
+with the same shape (23:50–01:20, snoozed by G-016's fixed 15 minutes):
+
+- **The row half is right.** `EventStore.snooze` moves it to 00:05–01:35
+  tomorrow, duration kept, and `MenuBarFormatting.snoozeResult` says
+  `Moved to tomorrow 00:05`: §16's "across a day boundary it names the day",
+  and G-016's placeholder, which stays.
+- **The block half is wrong.** `NextUpProvider.evaluate` only treats events
+  that **start today** as NEXT. The moment the snooze crosses midnight the
+  snoozed block stops being NEXT. The popover's result row is keyed to NEXT,
+  so the two halves of the popover stop describing the same event, against
+  §16's "must show where the block landed" and "the confirmation and the
+  movement are the same event seen from two places". The test
+  `reproducesTheMismatch` pins this.
+- The exact 23:50 frame wasn't reproduced. With this code a plain
+  cross-midnight snooze makes the row vanish rather than sit under the old
+  time, so the capture was most likely taken mid-update or from a hand-edited
+  store (`0d81c96` was a hand capture). Either way, the rule it exposed is the
+  one above.
+
+### Fix
+
+`NextUpProvider.pinning(_:events:to:)` (pure): while a snooze confirmation is
+held, NEXT is the snoozed event at the start the confirmation expects, never
+late, removed from REST OF TODAY (the displaced NEXT goes back to the top of
+the rest). If an undo moved it back, the pin doesn't match and the plain
+result is used. `MenuBarPopoverView.result` applies it with its
+`snoozeConfirmation`. Destination policy untouched (+15 min, G-016).
+
+### Tests
+
+New `KadenceTests/SnoozeMidnightTests.swift`, 5 tests: the row is right
+(00:05 tomorrow, duration kept, exact copy), the mismatch reproduced without
+the pin, the pinned NEXT reads `00:05 – 01:35` and names the same start as
+the row, undo releases the pin (back at 23:50), and a same-day snooze is
+unchanged (`Moved to 17:45`).
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  482 passed / 0 failed** (§48: 477; +5).
+- `generate-tokens --check`: up to date. **Pre-flight:** unlocked, no full
+  screen.
+- **`check-routines-window.sh`: PASS. `check-conflict-apply-return.sh`:
+  PASS.**
+- DEVIATIONS **B19** opened and resolved; INDEX.md notes it under item 12.
+  The re-capture is P2-T48's.
+
+**Next:** P2-T48, fixtures and the remaining captures.

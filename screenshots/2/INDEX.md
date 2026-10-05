@@ -872,3 +872,12 @@ was built; GAPS **G-037** asks which one to change. The extra 80pt row
 
 The Batch 7 crops (`status-item-{normal,late,empty}.png`, real menu bar)
 predate this change and are kept.
+
+### P2-T49 note on `snooze-next-day.png` (2026-10-05)
+
+The mismatch flagged in Batch 7 was real. The row (`Moved to tomorrow 00:05`)
+is right. The block above it was not: a snooze past midnight took the event
+out of "today", so it stopped being NEXT and the popover paired the row with a
+block that didn't show the new time. Fixed in P2-T49 (`NextUpProvider.pinning`,
+DEVIATIONS B19). This image predates the fix and is kept. P2-T48 re-captures
+item 12.

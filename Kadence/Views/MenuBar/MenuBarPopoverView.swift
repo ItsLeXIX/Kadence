@@ -72,7 +72,12 @@ struct MenuBarPopoverView: View {
     private var store: EventStore { EventStore(context: context, undo: undoStack) }
 
     private var result: NextUpProvider.Result {
-        NextUpProvider.evaluate(events: events, now: now)
+        // Task P2-T49: a held snooze confirmation keeps its event as NEXT,
+        // at the time it landed, even across midnight (§16).
+        NextUpProvider.pinning(
+            NextUpProvider.evaluate(events: events, now: now),
+            events: events,
+            to: snoozeConfirmation.map { ($0.eventID, $0.expectedStart) })
     }
 
     var body: some View {
