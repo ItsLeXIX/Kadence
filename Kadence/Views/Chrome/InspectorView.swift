@@ -78,7 +78,10 @@ struct InspectorView: View {
             }
         }
 
-        field("Source", event.sourceKey.displayName)
+        // layouts.md §6 row 4 (amended 2026-10-05) and components.md §3.4:
+        // swatch + the source's NAME as the sidebar lists it. The palette
+        // slot's `displayName` (`Green`) is a colour word, never a source name.
+        sourceField(for: event.sourceKey)
         field("Origin", event.origin.rawValue)
 
         // §13.4: "one line, `inspectorLabel` / `inspectorValue`, reading
@@ -177,6 +180,30 @@ struct InspectorView: View {
                 .foregroundStyle(Tokens.Color.Text.primary)
             Spacer(minLength: 0)
         }
+    }
+
+    /// The Source row's value text. `static` so a test can check it without
+    /// rendering a view (Swift's equivalent of a pure helper method).
+    static func sourceRowName(for key: SourceKey) -> String {
+        SourceCatalog.name(for: key)
+    }
+
+    /// Same label/value grid as `field(_:_:)`, with the sidebar's swatch
+    /// leading the value.
+    private func sourceField(for key: SourceKey) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+            label("Source")
+            HStack(alignment: .center, spacing: Tokens.Spacing.sm) {
+                SourceSwatch(key: key, symbol: SourceCatalog.symbol(for: key), isOn: true)
+                Text(Self.sourceRowName(for: key))
+                    .typeStyle(.inspectorValue)
+                    .foregroundStyle(Tokens.Color.Text.primary)
+            }
+            Spacer(minLength: 0)
+        }
+        // One VoiceOver element reading "Source, Daily routine"; the
+        // swatch is already accessibilityHidden.
+        .accessibilityElement(children: .combine)
     }
 
     private func label(_ text: String) -> some View {

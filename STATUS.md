@@ -6455,3 +6455,36 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
   specify a drawn ring.
 - DEVIATIONS **B20** closed; **B21** opened.
 - Recapture of 5, 6, 7, 8, 17 and 18 is left to item 20, per the review.
+
+## 54. P2-F03 — inspector Source row names the source (layouts.md §6 row 4 and components.md §3.4, amended 2026-10-05; PHASE2-REVIEW.md §6 item 3)
+
+### Built (`InspectorView.swift`)
+
+- Row 4 read `event.sourceKey.displayName` — the palette slot's colour word
+  (`Source  Green`). It now reads `SourceCatalog.name(for:)`, the name the
+  sidebar lists (`Daily routine`, `University timetable`), led by the
+  sidebar's `SourceSwatch` at the sidebar's `spacing.sm` gap. The row is one
+  VoiceOver element (`Source, Daily routine`).
+- `InspectorView.sourceRowName(for:)` is the pure value the row draws, so
+  the test needs no view.
+
+### Tests
+
+- `InspectorSourceRowTests` (3): a materialised `Daily routine` instance
+  reads `Daily routine`; an imported lecture reads `University timetable`;
+  no `SourceKey` ever yields a palette colour word (parameterised).
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 496
+  passed / 0 failed** (493 + 3).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- None. The `Source  Green` DEVIATIONS entry the review asks for is written
+  (as resolved by this commit) in P2-HK. Recapture of item 5 is item 20's.
