@@ -881,3 +881,71 @@ out of "today", so it stopped being NEXT and the popover paired the row with a
 block that didn't show the new time. Fixed in P2-T49 (`NextUpProvider.pinning`,
 DEVIATIONS B19). This image predates the fix and is kept. P2-T48 re-captures
 item 12.
+
+## Batch 9 — §17.1 fixtures and the remaining items (task P2-T48, 2026-10-05)
+
+**Method.** Two methods:
+
+- **Live**: `Scripts/capture-p2t48.sh`, the same method as earlier batches.
+  A fresh store each run (MockData reseeds relative to today, Mon 5 Oct
+  2026). Real HID clicks and keys go only to Kadence, which is checked as
+  frontmost before every event. The tree is read through the AX API.
+  Captures are `screencapture -l` of the window's own id. Four runs: plain;
+  `-KadenceConflictUnderTest "Supervisor meeting"`;
+  `-KadenceConflictUnderTest "Errands"`; and a store edited between launches
+  (Training ±15, Supervisor meeting 16:45–18:45). The launch argument is a
+  test hook (`CalendarState.conflictUnderTest`). It opens the named conflict
+  through the real needs-attention row, because with 15 day conflicts
+  there's no other way to reach a particular one (the `1 of N` footer isn't
+  built, DEVIATIONS A32).
+- **Rendered offscreen** (items 11 and 12): §17.1 pins `now` to 17:10, 17:42
+  and 23:40, and here the status item is hidden off the visible menu bar,
+  so its popover can't be opened. `KadenceTests/PopoverCaptureTests.swift`
+  renders the real `MenuBarPopoverView` against an in-memory store holding
+  the fixture (`initialNow`/`initialSnooze`), with the content asserted in
+  the same test.
+
+### Every §17 item
+
+| § 17 item | File(s) | Notes |
+|---|---|---|
+| 1 | `routine-template-flexibility.png` (batch 1) | predates Training/Errands |
+| 2 | `routine-windows-all-three-kinds.png` (batch 1) | predates Lunch |
+| 3 | `routine-blocks-mode-inactive-windows.png`, `routine-windows-mode-inactive-blocks.png` (batch 1) | |
+| 4 | `resync-popover-p2t48.png` | `3 instances edited` + Re-sync popover: Mon 5, Wed 7, Fri 9, `Re-sync 3 instances` |
+| 5 | `detached-instance-inspector-p2t48.png` | three Morning reviews moved with ⌥↓; Fri's selected: `Edited — differs from Daily routine` + `Revert to routine` |
+| 6 | `conflict-panel-two-options.png` (batch 2) · `conflict-panel-three-options-p2t48.png` | three rows 60 · 75 · 90 |
+| 7 | `conflict-panel-three-options-p2t48.png` | `Recommended` on row 2 (`Shift Training 75 min later`) |
+| 8 | `conflict-panel-preview-active.png` (batch 3) · `template-conflict-preview-p2t48.png` | the second is the Routines canvas: ghosts and dashed twins in Mon/Wed/Fri, canvas border |
+| 9 | `needs-attention-count-{0,1,12}.png` (batch 4) | counts from before P2-T48; the fixtures now give 16 (15 day + 1 template), visible in item 5's shot |
+| 10 | `status-item-*-p2t47.png` (batch 8) · batch 7 crops | see G-037 for the 110pt row |
+| 11 | `popover-{normal,late,empty,overflow}-p2t48.png` | overflow: six rows then `+3 more`; late: `Started 12m ago · Daily routine` (§17.1 writes `· Gym`, but the meta line names the source, §15.2) |
+| 12 | `snooze-{same-day,next-day}-p2t48.png` | after P2-T49: next-day block reads `00:05 – 01:35` above `Moved to tomorrow 00:05` |
+| 13 | `inactive-weekdays-wide-p2t48.png` · `inactive-weekdays-780-p2t48.png` | Tue/Thu/Sat/Sun notes + Add; underlines Mon/Wed/Fri; at 780 the notes fit and the inspector overlays (layouts §8) |
+| 14 | `inactive-weekdays-windows-mode-p2t48.png` | none of §13.5's treatment |
+| 15 | `routine-refusal-errands-p2t48.png` | Errands `conflicted` in Mon/Wed/Fri only; `Will not run — inside Lunch (protected) on Mon, Wed, Fri` |
+| 16 | `template-conflict-panel-p2t48.png` | reached from the needs-attention row; window row, `lands in`, three rows, shiftEarlier capped out, row 1 recommended |
+| 17 | `conflict-single-option-p2t48.png` | `Skip Training today` alone, no chip |
+| 18 | `conflict-skip-today-preview-p2t48.png` | skip row focused: Monday's Training dimmed (bottom of the frame), no dashed twin, canvas border |
+
+**Nothing in §17 is uncaptured.** Caveats: items 10–12 are offscreen renders,
+not menu-bar crops (reasons above), and items 1, 2 and 9's images predate the
+§17.1 fixtures.
+
+### For the design review — seen in these frames, not fixed
+
+- **Inspector content clipped at its leading edge** in the main window
+  (`Starts` → `tarts` in item 5; the collision blocks in 6/7/17 start flush
+  against the edge). DEVIATIONS B20.
+- **A selected option row's line 2 is nearly unreadable**:
+  `color.text.secondary` on `color.interactive.selectedRowFill` (items 18 and
+  the template preview). GAPS G-038.
+- **Long template option titles truncate** at the editor inspector's width
+  beside the chip: `Shift Errands 30 min later in the…` (item 16). G-038.
+- **Weekday toggles clip their letters** (`M`, `W`) in the Routines
+  inspector (items 4, 14). From P2-T39.
+- **`Morning review` runs into its block's edge** at 780pt (item 13, narrow).
+- **Item 13 (wide) has Morning review selected**: the capture's click to
+  close the Re-sync popover landed on it. It doesn't affect the columns.
+- **`resync-popover-p2t48.png`**: the popover is clipped at the window's
+  right edge.

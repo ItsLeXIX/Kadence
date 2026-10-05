@@ -204,6 +204,22 @@ struct TemplateConflictRoutingTests {
         #expect(state.selectedConflictID == nil, "never shown in the main window")
     }
 
+    @Test("The launch-argument test hook can name a template conflict by its block title (P2-T48 captures)")
+    func hookReachesTemplateConflict() throws {
+        let (context, _) = try makeStore()
+        fixture(context)
+        let templateConflicts = detect(context)
+        let routine = Event(title: "Gym", start: today.addingTimeInterval(3600), end: today.addingTimeInterval(7200), origin: .routine)
+        let meeting = Event(title: "Call", start: today.addingTimeInterval(5400), end: today.addingTimeInterval(9000))
+        context.insert(routine)
+        context.insert(meeting)
+        let day = ConflictEngine.detect(events: [routine, meeting], routineBlocks: [])
+        #expect(CalendarState.needsAttentionTarget(day: day, template: templateConflicts, preferring: "Errands")
+                == .template(templateConflicts[0].id), "named, a template conflict wins over the day queue")
+        #expect(CalendarState.needsAttentionTarget(day: day, template: templateConflicts, preferring: "Call")
+                == .day(day[0].id))
+    }
+
     @Test("Routing: day conflicts come first; nothing at all routes nowhere")
     func dayFirst() throws {
         let (context, _) = try makeStore()

@@ -899,6 +899,23 @@ P2-T47 judgement calls that need no marker, because no value was invented:
   one text, and a second `Text` was dropped live.
 - **No space before the ellipsis** when the cut falls after a word.
 
+P2-T48 judgement calls that need no marker, because no value was invented:
+
+- **Lunch is seeded as a persisted `TimeWindow` only**, as §17.1 says ("the
+  `TimeWindow` seed"). The main grid's display-only window list
+  (`MockData.timeWindows`) stays the Sleep/Low-energy pair, so Lunch isn't
+  drawn on the main grid and doesn't mark the main grid's 12:30 Stand-up
+  `conflicted`.
+- **The hand-seeded `Training` event is gone**, because the template now
+  produces it (the same reason P2-T40 removed Morning review / Reading /
+  Gym).
+- **The conflict count now depends on the weekday.** On a Mon/Wed/Fri
+  "today", the template's Training (17:00–18:30) also overlaps today's
+  Phase 1 `Group call` and `Code review`, giving 15 day conflicts; on other
+  days 13. It is still stable across clock times (`MockDataClockTests`).
+- **`-KadenceConflictUnderTest` also matches a template conflict by block
+  title**, for item 16's capture (A32).
+
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind
   fallback, and the code implements it: the symbol moved off `SourceKey` onto
@@ -1604,6 +1621,15 @@ Still open, all re-checked against the current spec text this session:
   `NextUpProvider.pinning`: while the confirmation holds, NEXT is the snoozed
   event at its new time (`00:05 – 01:35`). Snooze's destination policy is
   unchanged.
+
+- **B20 — layouts.md §6 / §10. The main window's inspector content is
+  clipped at its leading edge.** *(new 2026-10-05, seen in task P2-T48's
+  captures, not investigated: out of scope.)* In
+  `detached-instance-inspector-p2t48.png` the field labels lose their first
+  letter (`tarts`), and in the conflict-panel shots the collision blocks
+  start flush against the inspector's edge. The `spacing.xl` padding
+  `InspectorView` applies doesn't show on the leading side. The Routines
+  window's editor inspector is unaffected.
 
 ---
 

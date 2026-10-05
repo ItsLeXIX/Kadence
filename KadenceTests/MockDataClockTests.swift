@@ -36,11 +36,16 @@ private func seeded(at now: Date) throws -> (events: [Event], blocks: [RoutineBl
 /// and Thursday 8 Oct (not), at the clock times that used to collide plus
 /// ordinary ones. 16:50 put Journal inside Training; 19:45 and 20:00 inside
 /// Focus review; 20:50 inside Reading on Mondays.
+@MainActor
+private func seededTemplates(at now: Date) throws -> [RoutineTemplate] { MockData.makeRoutineTemplates() }
+@MainActor
+private func seededWindows(at now: Date) throws -> [TimeWindow] { MockData.makeTimeWindows() }
+
 @Suite("MockData — conflicts don't depend on the seeding clock (P2-T41, B18)")
 @MainActor
 struct MockDataClockTests {
 
-    @Test("Conflict count, the Client call / Focus review pair, and its first place are the same at every clock time",
+    @Test("Conflict count and the Client call / Focus review pair are the same at every clock time of a day",
           arguments: [
               "5 7:00", "5 12:00", "5 16:50", "5 19:45", "5 20:00", "5 20:50", "5 23:30",
               "8 7:00", "8 12:00", "8 16:50", "8 20:00", "8 23:30",
@@ -56,10 +61,17 @@ struct MockDataClockTests {
         let (events, blocks) = try seeded(at: now)
         let conflicts = MainWindow.sortedConflicts(events: events, routineBlocks: blocks)
 
-        #expect(conflicts.count == 12)
+        // P2-T48's §17.1 fixtures add Training × Supervisor meeting on the
+        // first Mon/Wed/Fri, and on a Mon/Wed/Fri "today" the template's
+        // Training (17:00–18:30) also meets today's Group call and Code
+        // review. So the count depends on the WEEKDAY, never on the clock.
+        #expect(conflicts.count == (parts[0] == 5 ? 15 : 13))
         let titles = conflicts.map { Set([$0.routineEvent.title, $0.otherEvent.title]) }
         #expect(titles.contains(["Client call", "Focus review"]))
-        #expect(titles.first == ["Client call", "Focus review"], "the pair sorts first at \(label)")
+        #expect(titles.contains(["Training", "Supervisor meeting"]))
+        // Which conflict sorts FIRST is no longer pinned: Training's three
+        // conflicts tie at 17:00 and are broken by id. That is why the script
+        // selects its pair explicitly (`-KadenceConflictUnderTest`).
         #expect(!titles.contains { $0.contains("Journal") }, "Journal is never in a conflict")
 
         // Journal still serves P2-T34's purpose: it starts after `now`, at
@@ -67,6 +79,11 @@ struct MockDataClockTests {
         let journal = try #require(events.first { $0.title == "Journal" })
         #expect(journal.start >= now.addingTimeInterval(MockData.journalLead))
         #expect(journal.duration == MockData.journalDuration)
+
+        // The template conflict (Errands × Lunch) is there at every clock time too.
+        #expect(TemplateConflictEngine.detect(
+            templates: try seededTemplates(at: now), windows: try seededWindows(at: now),
+            orderedWeekdays: RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)).count == 1)
 
         // The script's explicit hook finds the same pair.
         let underTest = CalendarState.conflictUnderTest(in: conflicts, title: "Focus review")

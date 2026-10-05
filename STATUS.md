@@ -6211,3 +6211,70 @@ unchanged (`Moved to 17:45`).
   The re-capture is P2-T48's.
 
 **Next:** P2-T48, fixtures and the remaining captures.
+
+## 50. P2-T48 — §17.1 fixtures and the remaining captures (components.md §17, §17.1)
+
+### Fixtures (`MockData.swift`)
+
+- `Daily routine` gains **Training** (17:00, 90 min, `.shiftable` ±90) and
+  **Errands** (12:30, 45 min, `.shiftable` ±90). The hand-seeded `Training`
+  event is removed, because the template produces it.
+- Persisted `TimeWindow` seed gains **Lunch** (`.protected`, Mon/Wed/Fri,
+  12:00–13:00). Errands never materialises (Lunch refuses it on every active
+  day); it is the one template conflict.
+- **Supervisor meeting** (`.manual`, 17:30–18:15) on the first Mon/Wed/Fri at
+  or after today (`daysToFirstTemplateDay`).
+- Effect: 15 day conflicts when today is Mon/Wed/Fri (Training also
+  overlaps today's `Group call` and `Code review`), 13 otherwise, plus 1
+  template conflict. The live sidebar showed **16**. Updated:
+  `MockDataClockTests` (count per weekday, stable across clock times; the
+  Client call/Focus review and Training/Supervisor pairs present; no longer
+  "first", since Training's three conflicts tie at 17:00 and are broken by
+  id), `MockDataMaterializationTests`, and `TimeWindowSeedingTests` (four
+  windows, Lunch asserted).
+
+### Capture seams (test hooks, inert otherwise)
+
+- `MenuBarPopoverView(initialNow:initialSnooze:)` seeds the popover's clock
+  and result row (defaults unchanged).
+- `-KadenceConflictUnderTest` also matches a template conflict by block
+  title, so item 16 is reached through the real needs-attention row while
+  15 day conflicts are ahead of it (no `1 of N` footer, A32). Tested
+  (`hookReachesTemplateConflict`).
+
+### Captures (`screenshots/2/*-p2t48.png`, INDEX.md Batch 9)
+
+- **Live**, `Scripts/capture-p2t48.sh` (new; fresh store, real HID input to
+  Kadence only with a frontmost check before every event, AX-API lookups,
+  window-id captures): items **4, 5, 6/7, 13** (wide and 780), **14, 15, 16**
+  (+ its preview), **17, 18**. The first run picked the wrong windows (it
+  told the windows apart by width, and the Routines window had the main
+  window's width, so a popover's own window was taken for it); the script
+  now gives the Routines window 1400pt and picks by exact width. A frame
+  from that first run is not committed.
+- **Rendered**, `KadenceTests/PopoverCaptureTests.swift`: items **11**
+  (normal, late, empty, overflow = six rows then `+3 more`) and **12**
+  (same-day `Moved to 17:45`; next-day with P2-T49's fix, block
+  `00:05 – 01:35` above `Moved to tomorrow 00:05`).
+- **Every §17 item now has a file** (INDEX.md's table). Items 1, 2 and 9's
+  images predate these fixtures.
+- **Flagged for the design review, not fixed** (INDEX.md): inspector content
+  clipped at its leading edge (DEVIATIONS **B20**); a selected option row's
+  line 2 nearly unreadable and long template titles truncated (GAPS
+  **G-038**); weekday toggles clip their letters (P2-T39); `Morning review`
+  runs into its block edge at 780pt; item 13 (wide) has a block selected;
+  the Re-sync popover is clipped at the window's right edge.
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  488 passed / 0 failed** (§49: 482; +6: five popover renders, one hook test).
+- `generate-tokens --check`: up to date. **Pre-flight** before every UI run:
+  unlocked, no full-screen window.
+- **`check-routines-window.sh`: PASS. `check-conflict-apply-return.sh`:
+  PASS** (count now 16, +1200 s).
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-038**. DEVIATIONS **B20**, four P2-T48 judgement calls under C.

@@ -481,7 +481,7 @@ struct MockDataMaterializationTests {
 
     /// Uses `Calendar.current`, because `MockData.makeEvents` and the app's
     /// own run do. 12:00 on a Monday (template day) and on a Thursday (not).
-    @Test("Seeding + the launch pass: no duplicates, the 12 conflicts survive, Gym carries 'skipped'",
+    @Test("Seeding + the launch pass: no duplicates, the conflict fixtures survive, Gym carries 'skipped'",
           arguments: [5, 8])
     func seededStore(dayOfMonth: Int) throws {
         let (_, context, undo) = try makeStore()
@@ -493,14 +493,19 @@ struct MockDataMaterializationTests {
         let events = allEvents(context)
 
         // No hand-seeded copy of a template block remains.
-        let templateTitles: Set<String> = ["Gym", "Morning review", "Reading"]
+        let templateTitles: Set<String> = ["Gym", "Morning review", "Reading", "Training", "Errands"]
         #expect(events.filter { templateTitles.contains($0.title) }.allSatisfy { $0.externalID?.contains("#") == true })
         let keys = events.compactMap { event in event.externalID.map { "\(event.sourceID ?? "")|\($0)" } }
         #expect(Set(keys).count == keys.count)
         // The P2-T29 / P2-T32 conflict fixtures are unchanged.
         #expect(events.filter { $0.title == "Focus review" }.count == 1)
         #expect(events.filter { $0.title == "Client call" }.count == 1)
-        #expect(MainWindow.sortedConflicts(events: events, routineBlocks: try context.fetch(FetchDescriptor<RoutineBlock>())).count == 12)
+        // P2-T48: §17.1's Training × Supervisor meeting, plus (on a Mon/Wed/Fri
+        // today) Training × Group call and × Code review.
+        #expect(MainWindow.sortedConflicts(events: events, routineBlocks: try context.fetch(FetchDescriptor<RoutineBlock>())).count
+                == (dayOfMonth == 5 ? 15 : 13))
+        // Errands never materialises: Lunch refuses it on every active day.
+        #expect(!events.contains { $0.title == "Errands" })
         // §12 item 14's skipped state is on exactly one template Gym instance.
         let skippedGyms = events.filter { $0.title == "Gym" && $0.status == .skipped }
         #expect(skippedGyms.count == 1)

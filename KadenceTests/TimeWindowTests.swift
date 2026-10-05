@@ -85,7 +85,8 @@ struct TimeWindowSeedingTests {
     @Test("makeTimeWindows describes the same Sleep/Low-energy pair as the display-only TimeWindowFixture array, plus a peak-focus window")
     func makeTimeWindowsMatchesFixtures() {
         let windows = MockData.makeTimeWindows()
-        #expect(windows.count == 3)
+        // P2-T48 added §17.1's Lunch (persisted only; see below).
+        #expect(windows.count == 4)
         #expect(MockData.timeWindows.count == 2)
 
         let sleep = windows.first { $0.label == "Sleep" }
@@ -109,6 +110,15 @@ struct TimeWindowSeedingTests {
         #expect(peakFocus?.label == "Deep work")
         #expect(peakFocus?.weekdays == [2, 3, 4, 5, 6])
         #expect(peakFocus?.startMinutes == 15 * 60)
+
+        // components.md §17.1 (task P2-T48): Lunch, protected, Mon/Wed/Fri
+        // 12:00–13:00. Persisted only, like Deep work: the main grid's
+        // display list stays the Sleep/Low-energy pair.
+        let lunch = windows.first { $0.label == "Lunch" }
+        #expect(lunch?.kind == .protected)
+        #expect(lunch?.weekdays == [2, 4, 6])
+        #expect(lunch?.startMinutes == 12 * 60)
+        #expect(lunch?.endMinutes == 13 * 60)
         #expect(peakFocus?.endMinutes == 17 * 60)
 
         // Chosen (per this task's own header comment) to sit clear of the
@@ -124,10 +134,10 @@ struct TimeWindowSeedingTests {
 
         MockData.seedTimeWindowsIfNeeded(context)
         let firstPass = try context.fetch(FetchDescriptor<TimeWindow>())
-        #expect(firstPass.count == 3)
+        #expect(firstPass.count == 4)
 
         MockData.seedTimeWindowsIfNeeded(context)
         let secondPass = try context.fetch(FetchDescriptor<TimeWindow>())
-        #expect(secondPass.count == 3)
+        #expect(secondPass.count == 4)
     }
 }

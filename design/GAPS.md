@@ -1876,3 +1876,28 @@ degrade (`screenshots/2/INDEX.md`, Batch 8). No SPEC-GAP marker, since no value
 was invented. Not blocking.
 
 **Needed to close:** change the fixture's width (to about 80) or the token.
+
+---
+
+## 2026-10-05 — G-038 — a selected conflict option row: line 2 contrast and long titles
+
+**Where it bit:** task P2-T48's captures (`screenshots/2/conflict-skip-today-preview-p2t48.png`,
+`template-conflict-preview-p2t48.png`, `template-conflict-panel-p2t48.png`).
+
+**What the spec says.** `components.md` §14.3: rows on `color.surface.canvasSunken`,
+selected fill `color.interactive.selectedRowFill`; line 2 in
+`conflictOptionDelta` / `color.text.secondary`. §14.6 gives template titles
+such as `Shift Errands 30 min later in the routine`.
+
+**What is missing.** (1) On the selected fill (rendered as the accent blue
+here), `color.text.secondary` line 2 is close to illegible. No on-selected
+text colour is specified. (2) In the editor inspector, a §14.6 title beside
+the `Recommended` chip runs past `conflictOptionTitle`'s line limit and
+truncates (`Shift Errands 30 min later in the…`), so the imperative copy
+isn't fully readable.
+
+**What was built instead of guessing.** Nothing changed. The tokens are used
+as specified and the frames show the result. Not blocking.
+
+**Needed to close:** a text colour for rows on the selected fill, and a rule
+for long titles (wrap, or the chip on its own line).

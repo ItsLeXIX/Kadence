@@ -117,7 +117,12 @@ final class CalendarState {
     static func needsAttentionTarget(
         day: [Conflict], template: [TemplateConflict], preferring title: String? = conflictUnderTestTitle
     ) -> NeedsAttentionTarget? {
-        if let first = conflictUnderTest(in: day, title: title) ?? day.first { return .day(first.id) }
+        if let first = conflictUnderTest(in: day, title: title) { return .day(first.id) }
+        // The test hook also reaches a template conflict by its block's
+        // title (P2-T48's capture of §17 item 16, which can't otherwise be
+        // reached while day conflicts remain; DEVIATIONS A32).
+        if let title, let match = template.first(where: { $0.blockTitle == title }) { return .template(match.id) }
+        if let first = day.first { return .day(first.id) }
         if let first = template.first { return .template(first.id) }
         return nil
     }

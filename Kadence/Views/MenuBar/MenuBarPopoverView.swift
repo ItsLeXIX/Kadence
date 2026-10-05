@@ -62,6 +62,19 @@ struct MenuBarPopoverView: View {
         let text: String
     }
     @State private var snoozeConfirmation: SnoozeConfirmation?
+
+    /// Task P2-T48: the popover's starting clock and snooze state. Defaults
+    /// are a normal open (the real clock, no result row). §17.1 pins items 11
+    /// and 12 to fixed times (`now` = 17:10, 17:42, 23:40), which the real
+    /// menu bar can't be set to, so `KadenceTests/PopoverCaptureTests.swift`
+    /// renders this same view with them. Swift note: `State(initialValue:)`
+    /// is how an initializer seeds an `@State` property.
+    init(initialNow: Date = Date(), initialSnooze: (eventID: UUID, start: Date, text: String)? = nil) {
+        _now = State(initialValue: initialNow)
+        _snoozeConfirmation = State(initialValue: initialSnooze.map {
+            SnoozeConfirmation(eventID: $0.eventID, expectedStart: $0.start, text: $0.text)
+        })
+    }
     @State private var isPointerInside = false
     @State private var revertTask: Task<Void, Never>?
     /// See the `.focused($isKeyFocused)`/`.onAppear` pair below for why this

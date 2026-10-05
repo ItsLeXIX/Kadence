@@ -117,13 +117,22 @@ enum MockData {
         //     are no longer hand-seeded here. The "Daily routine" template
         //     (`makeRoutineTemplates`) produces both, plus "Gym" (.shiftable),
         //     through `RoutineEngine.materialize` on Mon/Wed/Fri. Seeding them
-        //     here as well would put two of each on those days. "Training"
-        //     stays: no template produces it, so it is still a hand-seeded
-        //     `.routine` event with no `(sourceID, externalID)`.
+        //     here as well would put two of each on those days. Task P2-T48:
+        //     "Training" is now a template block too (components.md §17.1:
+        //     17:00, 90 min, `.shiftable` ±90), so its hand-seeded copy is
+        //     gone for the same reason. The materialised one is what §17 items
+        //     6, 7 and 17 need: `ConflictEngine` finds its ± through the
+        //     `externalID`, which a hand-seeded event doesn't have.
+
+        // §17.1 (task P2-T48): `Supervisor meeting`, `.manual`, 17:30–18:15,
+        // on the first Mon/Wed/Fri at or after today. Against the template's
+        // Training (17:00–18:30) it is §17 items 6/7's three-option conflict,
+        // with the recommendation on row 2.
         events.append(Event(
-            title: "Training",
-            start: at(17), end: at(17, 45),
-            origin: .routine, flexibility: .shiftable, sourceKey: .green))
+            title: "Supervisor meeting",
+            start: at(17, 30, plusDays: daysToFirstTemplateDay(from: day, calendar: calendar)),
+            end: at(18, 15, plusDays: daysToFirstTemplateDay(from: day, calendar: calendar)),
+            origin: .manual, sourceKey: .graphite))
 
         // 6. Planned study session, 90 min, purple.
         events.append(Event(
@@ -275,6 +284,18 @@ enum MockData {
             origin: .manual, sourceKey: .graphite))
 
         return events
+    }
+
+    /// Days from `day` to the first Mon/Wed/Fri at or after it (0 if `day`
+    /// is one): §17.1's "on the first Mon/Wed/Fri at or after today". The
+    /// days are the `Daily routine` template's own active weekdays.
+    @MainActor
+    static func daysToFirstTemplateDay(from day: Date, calendar: Calendar) -> Int {
+        let active = makeRoutineTemplates().first?.activeWeekdays ?? [2, 4, 6]
+        return (0..<7).first { offset in
+            guard let candidate = calendar.date(byAdding: .day, value: offset, to: day) else { return false }
+            return active.contains(calendar.component(.weekday, from: candidate))
+        } ?? 0
     }
 
     /// Journal's length: 15 minutes, as P2-T34 seeded it (`now + 4 … now + 19`).
@@ -435,13 +456,21 @@ enum MockData {
         let reading = RoutineBlock(
             title: "Reading", startMinutes: 21 * 60, duration: 30 * 60,
             flexibility: .droppable)
+        // components.md §17.1 (task P2-T48): Training serves §17 items 6, 7
+        // and 17; Errands, against the Lunch window below, items 15 and 16.
+        let training = RoutineBlock(
+            title: "Training", startMinutes: 17 * 60, duration: 90 * 60,
+            flexibility: .shiftable, shiftableMinutes: 90)
+        let errands = RoutineBlock(
+            title: "Errands", startMinutes: 12 * 60 + 30, duration: 45 * 60,
+            flexibility: .shiftable, shiftableMinutes: 90)
 
         // Calendar's weekday convention (1 = Sunday ... 7 = Saturday, per
         // `RoutineTemplate.activeWeekdays`'s own doc comment): 2/4/6 = Mon/Wed/Fri.
         let template = RoutineTemplate(
             name: "Daily routine",
             activeWeekdays: [2, 4, 6],
-            blocks: [gym, review, reading],
+            blocks: [gym, review, reading, training, errands],
             sourceKey: .green)
         return [template]
     }
@@ -502,6 +531,15 @@ enum MockData {
                 endMinutes: 17 * 60,
                 kind: .peakFocus,
                 label: "Deep work"),
+            // components.md §17.1 (task P2-T48): a bounded daytime protected
+            // window, the only fixture in which a protected collision has a
+            // way out in both directions (§17 items 15, 16).
+            TimeWindow(
+                weekdays: [2, 4, 6],
+                startMinutes: 12 * 60,
+                endMinutes: 13 * 60,
+                kind: .protected,
+                label: "Lunch"),
         ]
     }
 

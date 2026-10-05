@@ -1,0 +1,143 @@
+//
+//  PopoverCaptureTests.swift
+//  KadenceTests
+//
+//  Task P2-T48: components.md §17 items 11 (popover normal / late / empty /
+//  rest-row overflow) and 12 (the snooze result row, same-day and next-day),
+//  with §17.1's exact fixtures. §17.1 pins `now` (17:10, 17:42, 23:40), which
+//  the real menu bar can't be set to, and in this environment the status item
+//  is hidden off the visible menu bar, so its popover can't be opened. So the
+//  real `MenuBarPopoverView` is rendered offscreen against an in-memory store
+//  holding the fixture. The NextUpProvider assertions check the content the
+//  render shows. With `KADENCE_CAPTURE_DIR` set (passed to the runner as
+//  `TEST_RUNNER_KADENCE_CAPTURE_DIR`), each render is written as a PNG to the
+//  sandboxed host's temp directory (`kadence-captures`).
+//
+
+import Testing
+import Foundation
+import SwiftUI
+import SwiftData
+import AppKit
+@testable import Kadence
+
+private func at(_ hour: Int, _ minute: Int, day: Int = 5) -> Date {
+    Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour, minute: minute))!
+}
+
+/// §17.1 item 11's rest of today, nine rows.
+private let restRows: [(String, Int, Int)] = [
+    ("Code review", 18, 30), ("Dinner", 19, 0), ("Reading", 19, 30), ("Mail triage", 20, 0),
+    ("Stretching", 20, 30), ("Journal", 21, 0), ("Plan tomorrow", 21, 30), ("Tidy desk", 22, 0),
+    ("Water plants", 22, 30),
+]
+
+@MainActor
+private func container(restCount: Int, next: Bool = true) throws -> ModelContainer {
+    let container = try ModelContainer(
+        for: Schema(KadenceSchema.models),
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let context = container.mainContext
+    if next {
+        context.insert(Event(title: "Training", start: at(17, 30), end: at(18, 15),
+                             origin: .routine, flexibility: .shiftable, sourceKey: .green))
+    }
+    for (title, hour, minute) in restRows.prefix(restCount) {
+        context.insert(Event(title: title, start: at(hour, minute), end: at(hour, minute + 25), sourceKey: .graphite))
+    }
+    try context.save()
+    return container
+}
+
+@MainActor
+private func render(_ name: String, container: ModelContainer, now: Date,
+                    snooze: (eventID: UUID, start: Date, text: String)? = nil) throws {
+    let view = MenuBarPopoverView(initialNow: now, initialSnooze: snooze)
+        .modelContainer(container)
+        .environment(UndoStack())
+        .environment(\.colorScheme, .light)
+    let renderer = ImageRenderer(content: view)
+    renderer.scale = 2
+    let image = try #require(renderer.nsImage, "\(name) rendered")
+    #expect(image.size.width > 0)
+    guard ProcessInfo.processInfo.environment["KADENCE_CAPTURE_DIR"].map({ !$0.isEmpty }) == true else { return }
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent("kadence-captures")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    if let tiff = image.tiffRepresentation,
+       let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
+        try png.write(to: directory.appendingPathComponent("\(name)-p2t48.png"))
+    }
+}
+
+@Suite("§17 items 11 and 12 — the popover, rendered from §17.1's fixtures")
+@MainActor
+struct PopoverCaptureTests {
+
+    @Test("Item 11, overflow: nine rest rows → six rows, then +3 more")
+    func overflow() throws {
+        let c = try container(restCount: 9)
+        let result = NextUpProvider.evaluate(events: try c.mainContext.fetch(FetchDescriptor<Event>()), now: at(17, 10))
+        #expect(result.next?.title == "Training")
+        let rest = NextUpProvider.restDisplay(result.restOfToday)
+        #expect(rest.rows.map(\.title) == ["Code review", "Dinner", "Reading", "Mail triage", "Stretching", "Journal"])
+        #expect(rest.moreCount == 3)
+        try render("popover-overflow", container: c, now: at(17, 10))
+    }
+
+    @Test("Item 11, normal: three rest rows, no +N")
+    func normal() throws {
+        let c = try container(restCount: 3)
+        let result = NextUpProvider.evaluate(events: try c.mainContext.fetch(FetchDescriptor<Event>()), now: at(17, 10))
+        #expect(NextUpProvider.restDisplay(result.restOfToday).moreCount == 0)
+        try render("popover-normal", container: c, now: at(17, 10))
+    }
+
+    @Test("Item 11, late: 17:42 against the same next item reads 'Started 12m ago'")
+    func late() throws {
+        let c = try container(restCount: 3)
+        let events = try c.mainContext.fetch(FetchDescriptor<Event>())
+        let result = NextUpProvider.evaluate(events: events, now: at(17, 42))
+        #expect(result.isLate)
+        let next = try #require(result.next)
+        #expect(MenuBarFormatting.nextMeta(for: next, now: at(17, 42), isLate: true).hasPrefix("Started 12m ago · "))
+        try render("popover-late", container: c, now: at(17, 42))
+    }
+
+    @Test("Item 11, empty: 23:40, no next item")
+    func empty() throws {
+        let c = try container(restCount: 0, next: false)
+        #expect(NextUpProvider.evaluate(events: try c.mainContext.fetch(FetchDescriptor<Event>()), now: at(23, 40)).next == nil)
+        try render("popover-empty", container: c, now: at(23, 40))
+    }
+
+    @Test("Item 12: the snooze result row, same-day and next-day, after P2-T49")
+    func snoozeRows() throws {
+        // Same-day: Training 17:30 snoozed at 17:10 by G-016's 15 minutes.
+        let same = try container(restCount: 3)
+        let training = try #require(try same.mainContext.fetch(FetchDescriptor<Event>()).first { $0.title == "Training" })
+        let sameOld = training.start
+        let sameNew = EventStore(context: same.mainContext, undo: UndoStack()).snooze(training)
+        let sameText = MenuBarFormatting.snoozeResult(oldStart: sameOld, newStart: sameNew)
+        #expect(sameText == "Moved to 17:45")
+        try render("snooze-same-day", container: same, now: at(17, 10), snooze: (training.id, sameNew, sameText))
+
+        // Next-day: the capture's own `Prep: relational algebra`, 23:50–01:20,
+        // snoozed at 23:45 — the row and the block now name the same 00:05.
+        let next = try ModelContainer(
+            for: Schema(KadenceSchema.models),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let prep = Event(title: "Prep: relational algebra", start: at(23, 50), end: at(1, 20, day: 6),
+                         origin: .planned, flexibility: .droppable, sourceKey: .purple)
+        next.mainContext.insert(prep)
+        try next.mainContext.save()
+        let nextOld = prep.start
+        let nextNew = EventStore(context: next.mainContext, undo: UndoStack()).snooze(prep)
+        let nextText = MenuBarFormatting.snoozeResult(oldStart: nextOld, newStart: nextNew)
+        #expect(nextText == "Moved to tomorrow 00:05")
+        let pinned = NextUpProvider.pinning(
+            NextUpProvider.evaluate(events: [prep], now: at(23, 45)), events: [prep], to: (prep.id, nextNew))
+        #expect(MenuBarFormatting.nextMeta(for: try #require(pinned.next), now: at(23, 45), isLate: false)
+                .hasPrefix("00:05 – 01:35"))
+        try render("snooze-next-day", container: next, now: at(23, 45), snooze: (prep.id, nextNew, nextText))
+    }
+}
