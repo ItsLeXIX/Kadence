@@ -32,6 +32,13 @@ struct SidebarView: View {
                         Spacer()
                         countBadge(state.conflicts.count)
                     }
+                    // §14.1: "The needs-attention row is a button" — the whole
+                    // row, not just what it draws. A `.plain` button
+                    // hit-tests only its label's drawn pixels, so the
+                    // `Spacer()` gap between the text and the badge ignored
+                    // clicks (DEVIATIONS.md B17). `.contentShape` declares
+                    // the hit area explicitly: the HStack's full rectangle.
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .frame(height: 24)
@@ -50,6 +57,10 @@ struct SidebarView: View {
                 // count is a placeholder; the spec may want e.g. a noun with it.
                 .accessibilityLabel("Needs attention")
                 .accessibilityValue("\(state.conflicts.count)")
+                // Not spoken by VoiceOver. A stable handle for
+                // `Scripts/check-conflict-apply-return.sh`, which reads the
+                // tree through the AX API (task P2-T41).
+                .accessibilityIdentifier("needs-attention-row")
             }
 
             Section {

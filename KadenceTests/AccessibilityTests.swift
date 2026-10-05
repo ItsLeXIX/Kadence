@@ -80,8 +80,35 @@ struct AccessibilityLabelTests {
 
     @Test("A conflicted block says so, last")
     func conflictIsSpokenLast() {
-        let label = sampleModel().accessibilityLabel(presentation: .conflicted)
-        #expect(label.hasSuffix("conflicts with a protected window"))
+        var model = sampleModel()
+        model.conflicts = [.event(title: "Training")]
+        let label = model.accessibilityLabel(presentation: .conflicted)
+        // components.md §11's own example, word for word.
+        #expect(label == "Datenmodellierung, 09:00 to 10:30, lecture, University timetable, conflicts with Training")
+    }
+
+    @Test("Block-vs-block and block-in-protected-window are spoken differently (P2-T41)")
+    func conflictKindsDiffer() {
+        var withEvent = sampleModel()
+        withEvent.conflicts = [.event(title: "Training")]
+        var inWindow = sampleModel()
+        inWindow.conflicts = [.protectedWindow(label: "Lunch")]
+
+        let eventLabel = withEvent.accessibilityLabel(presentation: .conflicted)
+        let windowLabel = inWindow.accessibilityLabel(presentation: .conflicted)
+        #expect(eventLabel != windowLabel)
+        #expect(eventLabel.hasSuffix("conflicts with Training"))
+        #expect(!eventLabel.contains("protected window"),
+                "an event-vs-event conflict must not claim a protected window")
+        // The SPEC-GAP placeholder (GAPS G-030) for the window kind.
+        #expect(windowLabel.hasSuffix("conflicts with a protected window"))
+    }
+
+    @Test("Conflict phrases are spoken only while the block is presented as conflicted")
+    func conflictNeedsPresentation() {
+        var model = sampleModel()
+        model.conflicts = [.event(title: "Training")]
+        #expect(!model.accessibilityLabel(presentation: []).contains("conflicts"))
     }
 
     @Test("Every block kind has a spoken name — none fall back to a raw case")

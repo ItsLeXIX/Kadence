@@ -25,7 +25,7 @@ import SwiftData
 @MainActor
 private func makeStore() throws -> (EventStore, ModelContext, UndoStack) {
     let container = try ModelContainer(
-        for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self,
+        for: Schema(KadenceSchema.models),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let context = ModelContext(container)
     let undo = UndoStack()
@@ -319,15 +319,12 @@ struct MaterializePriorityFlexibilityTests {
 
 // MARK: - App schema registration (P2-T09)
 
-/// `KadenceApp.init` builds its real `ModelContainer` with a fixed type list —
-/// `Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self` — and
-/// `emptyFallback()` mirrors it for the in-memory last resort. Neither is
-/// reachable from a test target, so this suite hard-codes the same literal
-/// list rather than reflecting on `KadenceApp` (SwiftUI `App` types expose no
-/// API to inspect a live `Scene`'s `.modelContainer(_:)`). If a future change
-/// drops `RoutineTemplate` or `RoutineBlock` from either call in
-/// `KadenceApp.swift`, this test does not catch that by construction — but it
-/// does catch the underlying regression this task exists to prevent: a
+/// `KadenceApp.init` builds its real `ModelContainer` from
+/// `KadenceSchema.models` (task P2-T41 moved the type list there, so the app
+/// and every test container share one list), and `emptyFallback()` uses the
+/// same list for the in-memory last resort. This suite builds its container
+/// from that same list. It catches the regression this task exists to
+/// prevent: a
 /// `RoutineTemplate`/`RoutineBlock` pair that cannot round-trip through a
 /// container built the same way the app's own container is.
 @Suite("KadenceApp schema — RoutineTemplate/RoutineBlock round-trip")
@@ -336,10 +333,10 @@ struct AppSchemaRegistrationTests {
 
     @Test("A RoutineTemplate with a nested RoutineBlock saves and fetches back through the app's own schema list")
     func routineTemplateRoundTripsThroughAppSchema() throws {
-        // Mirrors `KadenceApp.init`'s primary `ModelContainer(for:)` call and
-        // `emptyFallback()`'s type list exactly — same four types, same order.
+        // The same `KadenceSchema.models` list `KadenceApp.init` and
+        // `emptyFallback()` use.
         let container = try ModelContainer(
-            for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self,
+            for: Schema(KadenceSchema.models),
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let writeContext = ModelContext(container)
 

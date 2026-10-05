@@ -195,7 +195,7 @@ struct SeededTemplateLayoutTests {
 @MainActor
 private func makeRoutineBlockStore() throws -> (RoutineBlockStore, ModelContext, UndoStack) {
     let container = try ModelContainer(
-        for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self,
+        for: Schema(KadenceSchema.models),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let context = ModelContext(container)
     let undo = UndoStack()

@@ -22,6 +22,8 @@ struct TimedCanvasView: View {
     /// also renders `.conflicted`, alongside (not replacing) the Phase 1
     /// protected-window placeholder.
     var conflictedEventIDs: Set<UUID> = []
+    /// See `DayColumnView.conflictPartnerTitles` (task P2-T41).
+    var conflictPartnerTitles: [UUID: [String]] = [:]
     /// interactions.md §1 — the all-day row is its own ⇥ stop, and it lives here
     /// rather than in MainWindow, so the focus binding is passed down.
     var focusedRegion: FocusState<CalendarState.FocusRegion?>.Binding
@@ -111,7 +113,8 @@ struct TimedCanvasView: View {
                         // never the gutter. Only the first column draws it.
                         showsWindowLabels: index == 0,
                         store: store,
-                        conflictedEventIDs: conflictedEventIDs)
+                        conflictedEventIDs: conflictedEventIDs,
+                        conflictPartnerTitles: conflictPartnerTitles)
                         .frame(width: columnWidth)
                         // Weekend tint has to be behind the blocks but IN FRONT of
                         // nothing — the window backdrop is below it, so the tint is

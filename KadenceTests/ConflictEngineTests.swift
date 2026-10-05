@@ -22,7 +22,7 @@ import SwiftData
 @MainActor
 private func makeContext() throws -> ModelContext {
     let container = try ModelContainer(
-        for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self,
+        for: Schema(KadenceSchema.models),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     return ModelContext(container)
 }

@@ -25,7 +25,7 @@ import SwiftData
 @MainActor
 private func makeStore() throws -> (EventStore, ModelContext, UndoStack) {
     let container = try ModelContainer(
-        for: Event.self, Place.self,
+        for: Schema(KadenceSchema.models),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let context = ModelContext(container)
     let undo = UndoStack()

@@ -32,7 +32,7 @@ import SwiftData
 @MainActor
 private func makeTimeWindowStore() throws -> (TimeWindowStore, ModelContext, UndoStack) {
     let container = try ModelContainer(
-        for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self, TimeWindow.self,
+        for: Schema(KadenceSchema.models),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let context = ModelContext(container)
     let undo = UndoStack()

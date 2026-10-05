@@ -1668,3 +1668,59 @@ button". No new words were invented. Not blocking.
 **Needed to close:** the row's spoken label and value. For example, whether the
 count carries a noun (`12 conflicts`, `12 items`), and whether P2-T46's
 template conflicts (§13.6.2) change that noun.
+
+---
+
+## 2026-10-05 — G-030 — §11's VoiceOver conflict phrase has no form for a block inside a protected window
+
+**Where it bit:** task P2-T41, `GridBlockModel.accessibilityLabel`
+(`Kadence/Views/Blocks/BlockModels.swift`). Since P2-T14 it appended
+`conflicts with a protected window` to **every** conflicted block, including
+main-grid block-vs-block conflicts such as `Client call` / `Focus review`.
+
+**What the spec says.** `components.md` §11: "Label order: title, time range,
+kind, source, status, then conflict if present", with one example —
+`… university timetable, conflicts with Training` — the other block's title.
+§14.2 (G-024) says a block **lands in** a window, deliberately not "overlaps".
+
+**What is missing.** The spoken phrase for the other kind of conflict: a block
+inside a `.protected` window (the Routines window's §13.6.2 refusal
+presentation, and the main grid's Phase 1 protected-window `conflicted`).
+`conflicts with Sleep`, `lands in Sleep (protected)`, or something else.
+
+**What was built instead of guessing.** Block-vs-block now speaks §11's form,
+`conflicts with <other title>` (one phrase per partner). The protected-window
+kind keeps the string the build already spoke, `conflicts with a protected
+window`, marked `// SPEC-GAP (design/GAPS.md G-030)`. The window's label is
+already carried (`BlockConflict.protectedWindow(label:)`), so a ruling that
+names the window needs no model change. Not blocking.
+
+**Needed to close:** the spoken phrase for a block in a protected window.
+
+---
+
+## 2026-10-05 — G-031 — when a tombstone stops applying
+
+**Where it bit:** task P2-T41, `RoutineTombstone` / `RoutineEngine.materialize`.
+
+**What the spec says.** `components.md` §13.7.4: "Deleting the block from the
+template, or deactivating the weekday, makes the tombstone irrelevant and it
+**may** be discarded." and "Tombstones before `startOfDay(today)` are never
+consulted."
+
+**What is missing.** "May" leaves the observable case open. Delete Saturday
+10's Gym, deactivate Saturday, then reactivate it: if the tombstone was
+discarded on deactivation, Saturday 10 gets a fresh Gym; if it was kept, it
+stays deleted. The same question applies to deleting a block and undoing that
+delete. Nothing says whether a tombstone is ever cleared other than by `⌘Z` on
+its own delete.
+
+**What was built instead of guessing.** Tombstones are kept until the delete
+that made them is undone, and never discarded otherwise, marked
+`// SPEC-GAP (design/GAPS.md G-031)` in `RoutineTombstone.swift`. This is the
+conservative reading: a day the user deleted is never brought back by an
+unrelated template edit. Past tombstones are inert, since nothing
+materialises before today. Not blocking.
+
+**Needed to close:** whether withdrawal (or reactivation) clears the pair's
+tombstone.

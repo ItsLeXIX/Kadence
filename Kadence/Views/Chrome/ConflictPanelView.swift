@@ -76,8 +76,12 @@ struct ConflictPanelView: View {
     }
 
     private func collisionBlock(for event: Event) -> some View {
-        GridBlockView(
-            model: GridBlockModel(event: event, now: now),
+        // §11: the spoken label names the other half of THIS conflict.
+        var model = GridBlockModel(event: event, now: now)
+        let other = event.id == conflict.routineEvent.id ? conflict.otherEvent : conflict.routineEvent
+        model.conflicts = [.event(title: other.title)]
+        return GridBlockView(
+            model: model,
             // Same style resolver, same hue, same rail as the grid — and the
             // grid already carries `.conflicted` for both these events
             // (P2-T14's wiring), so the panel matching that presentation is

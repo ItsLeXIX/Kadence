@@ -20,7 +20,7 @@ import SwiftData
 @MainActor
 private func makeStore() throws -> (EventStore, ModelContext, UndoStack) {
     let container = try ModelContainer(
-        for: Event.self, Place.self,
+        for: Schema(KadenceSchema.models),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let context = ModelContext(container)
     let undo = UndoStack()
@@ -172,7 +172,7 @@ struct UntitledSweepTests {
     @Test("Events with no title are removed from a store written by an older build")
     func sweep() throws {
         let container = try ModelContainer(
-            for: Event.self, Place.self,
+            for: Schema(KadenceSchema.models),
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = ModelContext(container)
 
@@ -193,7 +193,7 @@ struct UntitledSweepTests {
     @Test("The sweep leaves a healthy store alone")
     func sweepIsANoOpWhenClean() throws {
         let container = try ModelContainer(
-            for: Event.self, Place.self,
+            for: Schema(KadenceSchema.models),
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let context = ModelContext(container)
         context.insert(Event(title: "Lecture", start: start, end: start.addingTimeInterval(3600)))

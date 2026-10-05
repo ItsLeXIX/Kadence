@@ -33,7 +33,7 @@ private let draftStart = Calendar(identifier: .gregorian)
 @MainActor
 private func makeStore() throws -> EventStore {
     let container = try ModelContainer(
-        for: Event.self, Place.self,
+        for: Schema(KadenceSchema.models),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     return EventStore(context: ModelContext(container), undo: UndoStack())
 }

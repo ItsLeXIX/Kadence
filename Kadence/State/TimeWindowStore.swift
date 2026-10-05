@@ -84,6 +84,26 @@ import SwiftData
 struct TimeWindowStore {
     let context: ModelContext
     let undo: UndoStack
+    /// P2-T41: "today" for components.md §13.6.4's withdrawal. A closure,
+    /// read at the moment of the edit, so tests can pin it.
+    var now: () -> Date = { Date() }
+    var calendar: Calendar = .current
+
+    /// One named step for an edit that can change what a protected window
+    /// covers. §13.6.4: when an edit makes §13.6.1 start refusing a pair it
+    /// previously created (a window moved, widened, re-kinded to
+    /// `.protected`, given another weekday, or created over an instance),
+    /// that pair's future, non-detached instances are withdrawn **in the same
+    /// step**, so one `⌘Z` restores the window and the instances together.
+    /// An edit that stops a refusal withdraws nothing; the background pass
+    /// creates the freed pairs.
+    private func record(_ name: String, redo: @escaping () -> Void, undo inverse: @escaping () -> Void) {
+        undo.perform(name) { group in
+            group.perform(redo: redo, undo: inverse)
+            RoutineEngine.withdrawAll(store: EventStore(context: context, undo: undo),
+                                      today: now(), calendar: calendar)
+        }
+    }
 
     // MARK: Resolving
 
@@ -116,7 +136,7 @@ struct TimeWindowStore {
         let newStart = ((oldStart + delta) % 1440 + 1440) % 1440
         let newEnd = ((oldEnd + delta) % 1440 + 1440) % 1440
 
-        undo.perform("Move Time Window",
+        record("Move Time Window",
                      redo: { edit(id) { $0.startMinutes = newStart; $0.endMinutes = newEnd } },
                      undo: { edit(id) { $0.startMinutes = oldStart; $0.endMinutes = oldEnd } })
     }
@@ -181,7 +201,7 @@ struct TimeWindowStore {
 
         let finalStart = start
         let finalEnd = end
-        undo.perform("Resize Time Window",
+        record("Resize Time Window",
                      redo: { edit(id) { $0.startMinutes = finalStart; $0.endMinutes = finalEnd } },
                      undo: { edit(id) { $0.startMinutes = oldStart; $0.endMinutes = oldEnd } })
     }
@@ -196,7 +216,7 @@ struct TimeWindowStore {
     func delete(_ window: TimeWindow) {
         let snapshot = TimeWindowRestoreSnapshot(window)
         let id = window.id
-        undo.perform("Delete Time Window",
+        record("Delete Time Window",
                      redo: { removeWindow(id) },
                      undo: { insertWindow(snapshot) })
     }
@@ -271,7 +291,7 @@ struct TimeWindowStore {
             id: id, weekdays: weekdays, startMinutes: start, endMinutes: end,
             kind: kind, label: label)
 
-        undo.perform("Create Time Window",
+        record("Create Time Window",
                      redo: { insertWindow(snapshot) },
                      undo: { removeWindow(id) })
         return window(id)
@@ -287,7 +307,7 @@ struct TimeWindowStore {
         let id = window.id
         let oldKind = window.kind
         guard newKind != oldKind else { return }
-        undo.perform("Set Time Window Kind",
+        record("Set Time Window Kind",
                      redo: { edit(id) { $0.kind = newKind } },
                      undo: { edit(id) { $0.kind = oldKind } })
     }
@@ -305,7 +325,7 @@ struct TimeWindowStore {
         let id = window.id
         let oldWeekdays = window.weekdays
         guard newWeekdays != oldWeekdays else { return }
-        undo.perform("Set Time Window Weekdays",
+        record("Set Time Window Weekdays",
                      redo: { edit(id) { $0.weekdays = newWeekdays } },
                      undo: { edit(id) { $0.weekdays = oldWeekdays } })
     }

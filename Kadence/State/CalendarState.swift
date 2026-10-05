@@ -106,6 +106,22 @@ final class CalendarState {
     /// `moveSelectedConflictOption(by:)`/`abandonConflictPreview()` below.
     var selectedConflictOptionID: UUID?
 
+    /// Test hook, not a product behaviour (task P2-T41). Launching with
+    /// `-KadenceConflictUnderTest "Focus review"` makes the needs-attention
+    /// row open the conflict involving an event with that title instead of
+    /// the first one. macOS puts `-Key value` launch arguments into
+    /// `UserDefaults`' argument domain, so no parsing is needed here.
+    /// `Scripts/check-conflict-apply-return.sh` uses it so it tests the pair
+    /// it means to, whatever else sorts first. Unset (every normal launch
+    /// and every unit test), it changes nothing.
+    static let conflictUnderTestTitle: String? =
+        UserDefaults.standard.string(forKey: "KadenceConflictUnderTest")
+
+    static func conflictUnderTest(in conflicts: [Conflict], title: String? = conflictUnderTestTitle) -> Conflict? {
+        guard let title else { return nil }
+        return conflicts.first { $0.routineEvent.title == title || $0.otherEvent.title == title }
+    }
+
     /// components.md §14.1 / interactions.md §10.1's first sentence:
     /// activating the needs-attention row (or `⌘⇧A`) selects the first
     /// unresolved conflict and puts the inspector into conflict mode. A
@@ -113,7 +129,7 @@ final class CalendarState {
     /// §10.2's row "hidden entirely at zero" and the shortcut "global, when
     /// the count is non-zero" both hold trivially at the call site.
     func activateNeedsAttention() {
-        guard let first = conflicts.first else { return }
+        guard let first = Self.conflictUnderTest(in: conflicts) ?? conflicts.first else { return }
         selectedConflictID = first.id
         selectedConflictOptionID = nil
         selectedEventID = nil

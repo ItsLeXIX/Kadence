@@ -5532,3 +5532,188 @@ changed. Existing `ConflictEngineTests` are untouched and pass.
 **Next:** P2-T41 (update/withdrawal table; folding materialisation into the
 causing step, B16). Tombstones (A29) need a task. Then B17 and the script's
 reader, so `check-conflict-apply-return.sh` can PASS on its own.
+
+## 42. P2-T41 — three small fixes; re-materialisation, withdrawal and tombstones (components.md §11, §13.6.3, §13.6.4, §13.6.5, §13.7.4, §14.1; interactions.md §9, §11.1.1)
+
+### Part 1 — three small fixes
+
+- **(a) B17, the needs-attention row's dead click area.** `SidebarView`'s
+  row label gets `.contentShape(Rectangle())`, so the whole row is the
+  button (§14.1), including the `Spacer()` gap. Verified live: the script's
+  real HID click at the row's centre opened the conflict panel.
+  DEVIATIONS B17 resolved. The row also gets
+  `.accessibilityIdentifier("needs-attention-row")` (not spoken).
+- **(b) Conflict wording per kind** (`BlockModels.swift`). New
+  `BlockConflict` enum (`.event(title:)`, `.protectedWindow(label:)`) on
+  `GridBlockModel.conflicts`. Block-vs-block speaks §11's own form,
+  `conflicts with Training`, once per partner. §11 has no form for a block in
+  a protected window, so that kind keeps the old string
+  (`conflicts with a protected window`), marked SPEC-GAP, **GAPS G-030**,
+  DEVIATIONS C5. Filled in at every call site that knows the partner: the
+  main grid (`MainWindow.conflictPartnerTitles` → `TimedCanvasView` →
+  `DayColumnView`, plus the Phase 1 protected-window check), the conflict
+  panel's collision blocks, and the Routines window (refusing windows).
+  Seen live in the AX tree: `training, 17:00 to 17:45, routine block, daily
+  routine, conflicts with journal`.
+- **(c) `check-conflict-apply-return.sh`'s reader.** `query()` now runs a
+  small compiled Swift reader (`AXUIElementCopyAttributeValue`, the API
+  VoiceOver reads) instead of System Events, keeping the old
+  `role~title~desc~value~x~y~w~h` lines. `AXIdentifier` is appended to the
+  description, and the row is matched by identifier first, then by text.
+  The HID click, the HID Return and the sqlite `+1200 s` verdict are
+  unchanged.
+
+### Part 2 — re-materialisation and withdrawal
+
+- **§13.6.3's table** (`RoutineEngine.materialize`). One fetch of the
+  template's instances (keyed by `externalID`) and of its tombstones, then
+  per pair: no event and no tombstone → create unless refused; exists and
+  not detached → update title/start/end/flexibility (status carried
+  forward); detached → leave alone; tombstoned → leave deleted. An existing
+  pair that is now refused isn't updated; withdrawal removes it. The return
+  value is still "new events created".
+- **§13.6.4 withdrawal** (`RoutineEngine.withdraw`, `withdrawAll`). Future
+  instances (pair day ≥ `startOfDay(today)`) whose pair the template no
+  longer produces (weekday inactive, block gone, or now refused) are deleted
+  via the new `EventStore.withdraw`, which records the delete with no
+  tombstone. Detached ones are kept.
+- **Same undo step as its cause.** The `// P2-T41` marker in
+  `RoutineTemplateStore.setWeekday` is filled: the withdrawal runs inside the
+  `Remove Saturday from Routine` step, so one `⌘Z` restores the weekday and
+  the instances (same ids and statuses), and `⌘⇧Z` removes them again. The
+  same fold is in `RoutineBlockStore.delete/move/resize` and in every
+  `TimeWindowStore` step except `Set Time Window Label` (a private
+  `record(_:redo:undo:)` helper). Both stores gained `now`/`calendar`
+  properties with defaults, so tests can pin "today".
+- **Background pass** (`RoutineMaterialization.run`) now withdraws and then
+  materialises each template, all unrecorded. So undoing `Add Saturday to
+  Routine` takes the instances off again on the next pass, and redo puts
+  them back. Still no undo step from a background run. The `Fingerprint`
+  now includes block title and flexibility, because an update writes them.
+- **The P2-T43 seam.** `RoutineDetachment.isDetached(_:)` returns `false`
+  (`// P2-T43`). It is the default for `materialize`/`withdraw`'s new
+  `isDetached:` parameter, so tests can exercise the "detached" rows now.
+  Consequence until P2-T43: a main-grid edit to a materialised instance is
+  overwritten by the next pass. DEVIATIONS **A31**.
+
+### Part 3 — tombstones
+
+- New `@Model RoutineTombstone(sourceID, externalID)` and `RoutineTombstones`
+  helper (`Kadence/Models/RoutineTombstone.swift`). `EventStore.delete` of a
+  materialised instance (`origin == .routine`, both ids set) writes one in
+  the **same** step. Undo replays in reverse, so the tombstone goes and the
+  original row comes back with its id. `materialize` never recreates a
+  tombstoned pair.
+- Tombstones are never discarded except by undoing their delete (§13.7.4
+  says withdrawal "may" discard): SPEC-GAP, **GAPS G-031**, DEVIATIONS C6.
+- **Schema.** The model list moved to `KadenceSchema.models` (same file).
+  `KadenceApp` (both containers) and every test container now build from it.
+  That's the mechanical part of the 19 changed test files: inserting a type
+  the container doesn't know is a crash, and `EventStore.delete` now inserts
+  one.
+- DEVIATIONS **A28** and **A29** resolved, **B16** narrowed.
+
+### Tests
+
+New `KadenceTests/RoutineRematerializationTests.swift`, 19 tests in 4 suites:
+
+- **Per-pair table:** row 1 create; row 2 update of all four fields in
+  place (same ids); row 2 carries done/skipped; row 3 detached left alone
+  (seam overridden); row 4 tombstoned not recreated; row 5 withdrawal;
+  refused-existing is withdrawn, never updated into the window.
+- **Withdrawal + undo:** weekday off (one step named `Remove Saturday from
+  Routine`; undo restores ids, times and a skipped status exactly; redo
+  removes again); block deleted (same, `Delete Routine Block`); newly
+  protected by `Create Time Window` and by `Set Time Window Kind`; detached
+  kept; activation records only the weekday, the background pass creates
+  the instances and withdraws them after `⌘Z`.
+- **Background and past:** a run that creates, updates and withdraws records
+  nothing; past instances are never created, updated or withdrawn.
+- **Tombstones:** keyed by the pair; survive repeated triggers and a
+  template edit; `⌘Z` restores exactly one instance, the original id, and
+  removes the tombstone, and `⌘⇧Z` reverses that; manual and hand-seeded
+  events leave none.
+
+`AccessibilityTests`: `conflictIsSpokenLast` now asserts §11's example
+string word for word; new `conflictKindsDiffer` and
+`conflictNeedsPresentation`. `RoutineMaterializationTests.idempotentByIdentity`
+also asserts the moved instance is updated back (row 2).
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`. The only app warning is
+  the existing `MonthGridView.swift:153`.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  408 passed / 0 failed** (§41: 385; +23 new test functions). 466
+  `' passed on'` lines (§41: 432). Two earlier runs in this task stalled
+  after `Testing started completed` inside Xcode's runtime-profile download
+  (`XCTHRuntimeProfileGenerationCoordinator._download` → `open()`, the
+  STATUS §30 stall) and never wrote a summary. Killed with
+  `NSUnbufferedIO=YES` set, so no stdout was lost; the unique `passed on`
+  names counted 406 then, which is the same method as xcresult (the final
+  run, which didn't stall, gives 408 both ways).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** `CGSSessionScreenIsLocked = 0`, no window `AXFullScreen`,
+  Terminal frontmost.
+- **`check-routines-window.sh`: PASS** (9 blocks, click selected Gym,
+  inspector changed).
+- **`check-conflict-apply-return.sh`: PASS, its first end-to-end PASS.**
+  Run at 17:10. The row was found by its identifier (`needs attention
+  id:needs-attention-row 12`), and the real HID click at its centre (158,
+  138) opened the panel, which confirms B17 live. The option row was
+  `shorten focus review by 20 min, recommended, …`. After the real HID
+  Return, `Focus review`'s `ZSTART` went from 812916000 to 812917200,
+  exactly +1200 s.
+- **How it got there: a time-of-day flake, fixed in this task.** The first
+  run (16:43) failed at `no 'Shorten Focus review' option row found`. The
+  panel had opened `Training` / `Journal`. `MockData` seeds `Journal` at
+  `now + 4 min` (P2-T34, for the status item), and seeded between about
+  16:41 and 17:45 it overlapped `Training`. That made a 13th conflict which
+  sorted first. It could also overlap `Focus review` or `Reading` in the
+  evening. Fixed in both places:
+  - `MockData.journalStart`: Journal still starts at least 4 minutes after
+    `now`, but is pushed past every interval a conflict could involve
+    (hand-seeded `.routine` events, anything overlapping one, and today's
+    and tomorrow's template blocks). It never creates or joins a conflict.
+    The P2-T34 purpose (a soon-upcoming manual item for the status item)
+    still holds: it is always after `now`.
+  - The script now launches with `-KadenceConflictUnderTest "Focus review"`.
+    `CalendarState.conflictUnderTest` makes the needs-attention row open the
+    conflict involving that title. It's a launch-argument test hook, read
+    from `UserDefaults`' argument domain, and inert on a normal launch and in
+    every unit test. So the script selects its pair explicitly instead of
+    relying on sort order.
+  - New `KadenceTests/MockDataClockTests.swift`: seeds at 12 clock times
+    (07:00, 12:00, 16:50, 19:45, 20:00, 20:50, 23:30 on a template Monday;
+    07:00, 12:00, 16:50, 20:00, 23:30 on a Thursday). At every one: 12
+    conflicts, the `Client call` / `Focus review` pair present **and
+    first**, Journal in no conflict and still ≥ `now + 4 min`, and the hook
+    finding the pair. Plus a pure test of `journalStart`'s push rule.
+  - DEVIATIONS **B18** opened and resolved in this task.
+- **Environment note.** In the first run, the script's `rm -f` of the app's
+  sandboxed store (`~/Library/Containers/XIX.Kadence/…/default.store`)
+  blocked for about 14 minutes before completing. The xcodebuild stall above
+  is also blocked in `open()`. Both look like macOS container-access
+  protection. Nothing was clicked outside Kadence. The second run's `rm` was
+  immediate.
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-030** (spoken phrase for a block in a protected window),
+  **G-031** (tombstone lifetime).
+- DEVIATIONS: **C5**, **C6**, P2-T41 judgement calls under C, **A31**
+  (temporary: main-grid edits are overwritten until P2-T43), **B18**
+  (opened and resolved). Resolved: **A28** (except detachment, which is
+  A31), **A29**, **B17**. Narrowed: **B16**.
+
+### Ambiguities
+
+- §13.6.4 lists three withdrawal causes. Block move/resize and every
+  time-window edit can cause the third (newly refused), so they fold the
+  withdrawal in too.
+- §13.7.4's "may be discarded" (G-031).
+- "Today" for withdrawal is the pair's own day from its `externalID`, not
+  the event's current start. A moved instance is still judged by the day it
+  belongs to.
+
+**Next:** P2-T42, the flexibility stepper.

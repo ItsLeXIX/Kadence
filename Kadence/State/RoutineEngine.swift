@@ -8,18 +8,16 @@
 //
 //  As of task P2-T40 it has call sites (`RoutineMaterialization.run`, below,
 //  driven by the triggers in components.md §13.6.5), never writes before
-//  today, and refuses pairs inside a `.protected` window (§13.6.1). It still
-//  only ever *creates*. Updating untouched instances to the template's current
-//  values (§13.6.3), withdrawing pairs the template no longer produces
-//  (§13.6.4), and tombstones for deleted instances (§13.7.4) are later work,
-//  starting with P2-T41.
+//  today, and refuses pairs inside a `.protected` window (§13.6.1). As of
+//  P2-T41 it implements §13.6.3's whole per-pair table (create / update /
+//  leave detached / leave tombstoned) and §13.6.4's withdrawal.
 //
 //  Each materialized event gets a `(sourceID, externalID)` pair —
 //  `(template.id.uuidString, "<block.id>#<yyyy-MM-dd>")` — which is exactly
 //  the identity `Event.swift`'s doc comment describes as "stable across
 //  re-sync, so importing twice updates instead of duplicating". Here that
 //  means: calling `materialize` again over an overlapping range creates
-//  nothing new for a date/block pair that already exists.
+//  nothing new for a date/block pair that already exists; it updates it.
 //  `ConflictEngine.routineBlock(for:in:)` reverses the same `externalID` to
 //  find a routine event's block and its ± minutes.
 //
@@ -39,21 +37,33 @@ import SwiftData
 @MainActor
 enum RoutineEngine {
 
-    /// Create one `Event` per `(active weekday × block)` pair in `range`,
-    /// skipping any pair that already has a materialized event.
+    /// components.md §13.6.3's per-pair table, over every `(active weekday ×
+    /// block)` pair in `range`:
     ///
-    /// Three rules from components.md §13.6 (task P2-T40):
+    /// | Pair state                         | Does                                   |
+    /// |------------------------------------|----------------------------------------|
+    /// | no event, no tombstone             | create, unless §13.6.1 refuses         |
+    /// | event exists, not detached         | update title/start/end/flexibility     |
+    /// | event exists, detached (§13.7)     | leave it completely alone              |
+    /// | no event, tombstoned (§13.7.4)     | leave it deleted                       |
+    /// | template no longer produces it     | §13.6.4 — `withdraw`, below            |
+    ///
+    /// An update carries `status` forward unchanged. A pair that exists but
+    /// is now refused is not updated here; `withdraw` deletes it.
+    ///
+    /// Two more rules from §13.6:
     ///
     /// - **The past is never written (§13.6.5).** Days before
-    ///   `startOfDay(today)` are skipped, whatever `range` asks for.
+    ///   `startOfDay(today)` are skipped, whatever `range` asks for. So
+    ///   tombstones before today are never consulted either.
     /// - **Protected windows refuse (§13.6.1).** A pair whose interval
     ///   strictly overlaps a `.protected` span in `timeWindows` gets no event.
     ///   It is not trimmed and not shifted. `ProtectedWindowRule` below makes
     ///   that decision, and the Routines window's `conflicted` presentation
     ///   uses the same rule, so the canvas and the calendar can't disagree.
-    /// - **Idempotent.** A pair is keyed by `(sourceID, externalID)`, and a
-    ///   pair that already has an event is left alone. Updating it to the
-    ///   template's current values is §13.6.3, task P2-T41.
+    ///
+    /// Idempotent: with the same inputs a second call creates and updates
+    /// nothing.
     ///
     /// Undo: with `recordsUndo == true` (the default), the whole call is one
     /// named step, or it joins the step that is already open if called
@@ -62,8 +72,8 @@ enum RoutineEngine {
     /// visible-range change and an edit are not the user asking for these
     /// events, so they put nothing on the Edit menu.
     ///
-    /// - Returns: the number of *new* events created. Re-running with the same
-    ///   inputs returns 0 and leaves the store unchanged.
+    /// - Returns: the number of *new* events created (updates are not
+    ///   counted). Re-running with the same inputs returns 0.
     @discardableResult
     static func materialize(
         template: RoutineTemplate,
@@ -72,13 +82,21 @@ enum RoutineEngine {
         today: Date = Date(),
         recordsUndo: Bool = true,
         store: EventStore,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        isDetached: @MainActor (Event) -> Bool = RoutineDetachment.isDetached
     ) -> Int {
         guard !template.blocks.isEmpty, !template.activeWeekdays.isEmpty else { return 0 }
 
         let context = store.context
         let sourceID = template.id.uuidString
+        // One fetch each instead of one per pair. A dictionary keyed by
+        // `externalID` is the in-memory form of the `(sourceID, externalID)`
+        // identity: `sourceID` is fixed for this template.
+        let existing = instancesByExternalID(sourceID: sourceID, in: context)
+        let tombstoned = RoutineTombstones.externalIDs(sourceID: sourceID, in: context)
+
         var created: [EventSnapshot] = []
+        var updated: [(id: UUID, values: EventStore.RoutineValues)] = []
 
         // §13.6.5: start at today if `range` reaches into the past.
         var day = Swift.max(calendar.startOfDay(for: range.start), calendar.startOfDay(for: today))
@@ -90,12 +108,9 @@ enum RoutineEngine {
 
                 for block in template.blocks {
                     let externalID = "\(block.id.uuidString)#\(key)"
-
-                    guard !eventExists(sourceID: sourceID, externalID: externalID, in: context) else {
-                        continue
-                    }
-                    // §13.6.1: refuse. `continue` skips this pair only, so
-                    // the same block still materialises on its other days.
+                    // §13.6.1: refuse. Skips this pair only, so the same
+                    // block still materialises on its other days. An
+                    // existing instance of a refused pair is `withdraw`'s.
                     guard !ProtectedWindowRule.refuses(
                         startMinutes: block.startMinutes, duration: block.duration,
                         weekday: weekday, windows: timeWindows)
@@ -103,16 +118,31 @@ enum RoutineEngine {
                     guard let blockStart = calendar.date(
                         byAdding: .minute, value: block.startMinutes, to: day)
                     else { continue }
-
-                    created.append(EventSnapshot(Event(
+                    let values = EventStore.RoutineValues(
                         title: block.title,
                         start: blockStart,
                         end: blockStart.addingTimeInterval(block.duration),
-                        origin: .routine,
-                        flexibility: block.flexibility,
-                        sourceKey: template.sourceKey,
-                        sourceID: sourceID,
-                        externalID: externalID)))
+                        flexibility: block.flexibility)
+
+                    if let event = existing[externalID] {
+                        // Row 3: detached → leave alone. Row 2: update.
+                        if isDetached(event) { continue }
+                        if EventStore.RoutineValues(event) != values {
+                            updated.append((event.id, values))
+                        }
+                    } else if !tombstoned.contains(externalID) {
+                        // Row 1: create. (Row 4, tombstoned, falls through
+                        // to nothing.)
+                        created.append(EventSnapshot(Event(
+                            title: values.title,
+                            start: values.start,
+                            end: values.end,
+                            origin: .routine,
+                            flexibility: values.flexibility,
+                            sourceKey: template.sourceKey,
+                            sourceID: sourceID,
+                            externalID: externalID)))
+                    }
                 }
             }
 
@@ -120,25 +150,113 @@ enum RoutineEngine {
             day = next
         }
 
-        guard !created.isEmpty else { return 0 }
+        guard !created.isEmpty || !updated.isEmpty else { return 0 }
         if recordsUndo {
             store.transaction("Materialize \(template.name)") {
                 for snapshot in created { store.insertMaterialized(snapshot) }
+                for update in updated { store.updateRoutineInstance(update.id, to: update.values) }
             }
         } else {
             store.insertUnrecorded(created)
+            store.updateRoutineInstancesUnrecorded(updated)
         }
         return created.count
     }
 
+    /// components.md §13.6.4: deletes every future, non-detached instance of
+    /// `template` whose pair the template no longer produces, because its
+    /// weekday was deactivated, its block was deleted, or §13.6.1 now refuses
+    /// it. Detached instances are kept. Past instances (pair day before
+    /// `startOfDay(today)`) are never touched (§13.6.5).
+    ///
+    /// Not bounded by the horizon: an instance created while the visible
+    /// range reached further out is still withdrawn.
+    ///
+    /// With `recordsUndo == true` each deletion is recorded and joins the
+    /// open step, which is how `Remove Saturday from Routine` and `Delete
+    /// Routine Block` undo their withdrawals in the same `⌘Z`. Withdrawal
+    /// leaves no tombstone (`EventStore.withdraw`).
+    ///
+    /// - Returns: the number of instances deleted.
+    @discardableResult
+    static func withdraw(
+        template: RoutineTemplate,
+        timeWindows: [TimeWindow] = [],
+        today: Date = Date(),
+        recordsUndo: Bool = true,
+        store: EventStore,
+        calendar: Calendar = .current,
+        isDetached: @MainActor (Event) -> Bool = RoutineDetachment.isDetached
+    ) -> Int {
+        let todayStart = calendar.startOfDay(for: today)
+        let blocksByID = Dictionary(template.blocks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var withdrawn: [UUID] = []
+
+        for event in instancesByExternalID(sourceID: template.id.uuidString, in: store.context).values {
+            guard let pair = parse(externalID: event.externalID, calendar: calendar),
+                  pair.day >= todayStart
+            else { continue }
+
+            let weekday = calendar.component(.weekday, from: pair.day)
+            let stillProduced: Bool = {
+                guard template.activeWeekdays.contains(weekday),
+                      let block = blocksByID[pair.blockID]
+                else { return false }
+                return !ProtectedWindowRule.refuses(
+                    startMinutes: block.startMinutes, duration: block.duration,
+                    weekday: weekday, windows: timeWindows)
+            }()
+            guard !stillProduced else { continue }
+
+            if isDetached(event) {
+                // P2-T43: a kept detached instance "stops being detached"
+                // (§13.6.4), so the flag is cleared here, in the same step.
+                continue
+            }
+            withdrawn.append(event.id)
+        }
+
+        guard !withdrawn.isEmpty else { return 0 }
+        if recordsUndo {
+            // Sorted only so the order of the recorded changes doesn't depend
+            // on dictionary order.
+            for id in withdrawn.sorted(by: { $0.uuidString < $1.uuidString }) { store.withdraw(id) }
+        } else {
+            store.withdrawUnrecorded(withdrawn)
+        }
+        return withdrawn.count
+    }
+
+    /// `withdraw` for every template in the store, against every window in
+    /// the store, recorded. The store-level edits that can stop a pair being
+    /// produced (`RoutineTemplateStore.setWeekday`, `RoutineBlockStore`'s
+    /// delete/move/resize, every `TimeWindowStore` edit) call this inside
+    /// their own step.
+    @discardableResult
+    static func withdrawAll(store: EventStore, today: Date, calendar: Calendar) -> Int {
+        let context = store.context
+        let templates = (try? context.fetch(FetchDescriptor<RoutineTemplate>())) ?? []
+        let windows = (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? []
+        return templates.reduce(0) { total, template in
+            total + withdraw(template: template, timeWindows: windows, today: today,
+                             recordsUndo: true, store: store, calendar: calendar)
+        }
+    }
+
     // MARK: - Identity
 
-    private static func eventExists(sourceID: String, externalID: String, in context: ModelContext) -> Bool {
-        var descriptor = FetchDescriptor<Event>(predicate: #Predicate { event in
-            event.sourceID == sourceID && event.externalID == externalID
-        })
-        descriptor.fetchLimit = 1
-        return !((try? context.fetch(descriptor)) ?? []).isEmpty
+    /// Every materialised instance of one template, keyed by `externalID`.
+    /// If a store somehow holds two rows for one pair, the first wins here
+    /// and the second is left alone rather than crashing the dictionary.
+    private static func instancesByExternalID(sourceID: String, in context: ModelContext) -> [String: Event] {
+        let descriptor = FetchDescriptor<Event>(predicate: #Predicate { $0.sourceID == sourceID })
+        let events = ((try? context.fetch(descriptor)) ?? []).filter { $0.origin == .routine }
+        var byID: [String: Event] = [:]
+        for event in events {
+            guard let externalID = event.externalID, byID[externalID] == nil else { continue }
+            byID[externalID] = event
+        }
+        return byID
     }
 
     /// `yyyy-MM-dd` of `date`, read through `calendar`'s own components rather
@@ -147,6 +265,36 @@ enum RoutineEngine {
     private static func dayKey(_ date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+    }
+
+    /// The inverse of the `"<block id>#yyyy-MM-dd"` key: which block, and
+    /// the start of which day in `calendar`. `nil` for anything else.
+    static func parse(externalID: String?, calendar: Calendar) -> (blockID: UUID, day: Date)? {
+        guard let externalID else { return nil }
+        let parts = externalID.split(separator: "#")
+        guard parts.count == 2, let blockID = UUID(uuidString: String(parts[0])) else { return nil }
+        let ymd = parts[1].split(separator: "-").compactMap { Int($0) }
+        guard ymd.count == 3,
+              let day = calendar.date(from: DateComponents(year: ymd[0], month: ymd[1], day: ymd[2]))
+        else { return nil }
+        return (blockID, calendar.startOfDay(for: day))
+    }
+}
+
+// MARK: - Detachment seam (task P2-T41 → P2-T43)
+
+/// Is this materialised instance detached (components.md §13.7.1)? The one
+/// place `materialize` and `withdraw` ask: it is their `isDetached`
+/// parameter's default. (Tests pass their own closure to exercise §13.6.3's
+/// "detached → leave alone" row before the flag exists.) Detachment doesn't exist yet: there
+/// is no persisted flag, so every instance counts as untouched, and a
+/// main-grid edit to a routine instance is overwritten by the next
+/// materialisation pass (DEVIATIONS.md A31).
+@MainActor
+enum RoutineDetachment {
+    static func isDetached(_ event: Event) -> Bool {
+        // P2-T43: read the persisted detached flag.
+        false
     }
 }
 
@@ -294,9 +442,9 @@ enum RoutineMaterialization {
         return DateInterval(start: start, end: end)
     }
 
-    /// Materialise every template in `context` over the horizon, refusing
-    /// pairs in every `.protected` window in `context`. Writes are not
-    /// recorded as an undo step (see `RoutineEngine.materialize`'s doc
+    /// Withdraw (§13.6.4) and then materialise (§13.6.3) every template in
+    /// `context` over the horizon, refusing pairs in every `.protected`
+    /// window in `context`. Writes are not recorded as an undo step (see `RoutineEngine.materialize`'s doc
     /// comment). Idempotent, so a trigger that fires twice, or two windows
     /// each firing it for the same edit, creates nothing the second time.
     @discardableResult
@@ -313,7 +461,16 @@ enum RoutineMaterialization {
         let store = EventStore(context: context, undo: undo)
 
         return templates.reduce(0) { total, template in
-            total + RoutineEngine.materialize(
+            // §13.6.4 first, then §13.6.3. Withdrawal here is what makes an
+            // undo of an edit that ADDED pairs (`Add Saturday to Routine`,
+            // `Create Routine Block`) take the instances back off the
+            // calendar: the undo restores the template, and this pass then
+            // withdraws what the template no longer produces. Redo restores
+            // the template, and this pass creates them again.
+            RoutineEngine.withdraw(
+                template: template, timeWindows: windows, today: today,
+                recordsUndo: false, store: store, calendar: calendar)
+            return total + RoutineEngine.materialize(
                 template: template, into: range, timeWindows: windows,
                 today: today, recordsUndo: false, store: store, calendar: calendar)
         }
@@ -330,6 +487,10 @@ enum RoutineMaterialization {
             let id: UUID
             let startMinutes: Int
             let duration: TimeInterval
+            // P2-T41: an update (§13.6.3) also writes title and flexibility,
+            // so a change to either has to trigger a pass too.
+            let title: String
+            let flexibility: Flexibility
         }
         struct Template: Hashable {
             let id: UUID
@@ -353,7 +514,8 @@ enum RoutineMaterialization {
                     id: template.id,
                     activeWeekdays: template.activeWeekdays,
                     blocks: template.blocks.map {
-                        Block(id: $0.id, startMinutes: $0.startMinutes, duration: $0.duration)
+                        Block(id: $0.id, startMinutes: $0.startMinutes, duration: $0.duration,
+                              title: $0.title, flexibility: $0.flexibility)
                     })
             }
             self.windows = windows.map {
@@ -400,6 +562,17 @@ enum RoutineMaterialization {
 struct RoutineBlockStore {
     let context: ModelContext
     let undo: UndoStack
+    /// P2-T41: "today" for §13.6.4's withdrawal, which must not touch the
+    /// past. A closure (read at the moment of the edit), so tests can pin it.
+    var now: () -> Date = { Date() }
+    var calendar: Calendar = .current
+
+    /// §13.6.4: anything this edit stopped the template producing is
+    /// withdrawn in the same step. Called inside each step's `perform` body.
+    private func withdrawUnproduced() {
+        RoutineEngine.withdrawAll(store: EventStore(context: context, undo: undo),
+                                  today: now(), calendar: calendar)
+    }
 
     // MARK: Resolving
 
@@ -429,9 +602,13 @@ struct RoutineBlockStore {
         guard clamped != block.startMinutes else { return }
         let id = block.id
         let old = block.startMinutes
-        undo.perform("Move Routine Block",
-                     redo: { edit(id) { $0.startMinutes = clamped } },
-                     undo: { edit(id) { $0.startMinutes = old } })
+        // The block form of `perform`, so a withdrawal (a move into a
+        // protected window) joins this step.
+        undo.perform("Move Routine Block") { group in
+            group.perform(redo: { edit(id) { $0.startMinutes = clamped } },
+                          undo: { edit(id) { $0.startMinutes = old } })
+            withdrawUnproduced()
+        }
     }
 
     // MARK: Resize
@@ -453,9 +630,11 @@ struct RoutineBlockStore {
         let finalStart = start
         let finalDuration = TimeInterval((end - start) * 60)
         let oldDuration = block.duration
-        undo.perform("Resize Routine Block",
-                     redo: { edit(id) { $0.startMinutes = finalStart; $0.duration = finalDuration } },
-                     undo: { edit(id) { $0.startMinutes = oldStart; $0.duration = oldDuration } })
+        undo.perform("Resize Routine Block") { group in
+            group.perform(redo: { edit(id) { $0.startMinutes = finalStart; $0.duration = finalDuration } },
+                          undo: { edit(id) { $0.startMinutes = oldStart; $0.duration = oldDuration } })
+            withdrawUnproduced()
+        }
     }
 
     // MARK: Delete
@@ -469,9 +648,13 @@ struct RoutineBlockStore {
         let snapshot = RoutineBlockRestoreSnapshot(block)
         let id = block.id
         let templateID = template.id
-        undo.perform("Delete Routine Block",
-                     redo: { removeBlock(id, templateID: templateID) },
-                     undo: { insertBlock(snapshot, templateID: templateID) })
+        // §13.6.4: the block's future instances go in the same step, so one
+        // `⌘Z` brings back the block and its instances together.
+        undo.perform("Delete Routine Block") { group in
+            group.perform(redo: { removeBlock(id, templateID: templateID) },
+                          undo: { insertBlock(snapshot, templateID: templateID) })
+            withdrawUnproduced()
+        }
     }
 
     private func removeBlock(_ id: UUID, templateID: UUID) {
@@ -573,7 +756,8 @@ struct RoutineTemplateStore {
     /// The whole old and new sets are captured, not "insert"/"remove", so
     /// undo restores the set exactly even if it is replayed out of step with
     /// some other edit.
-    func setWeekday(_ weekday: Int, active: Bool, in template: RoutineTemplate, calendar: Calendar = .current) {
+    func setWeekday(_ weekday: Int, active: Bool, in template: RoutineTemplate,
+                    today: Date = Date(), calendar: Calendar = .current) {
         let old = template.activeWeekdays
         let new = RoutineWeekdayActivation.applying(weekday, active: active, to: old)
         guard new != old else { return }
@@ -593,13 +777,21 @@ struct RoutineTemplateStore {
             group.perform(
                 redo: { setActiveWeekdays(new, templateID: templateID) },
                 undo: { setActiveWeekdays(old, templateID: templateID) })
-            // P2-T41: on deactivation, withdraw this weekday's future,
-            // non-detached instances here (components.md §13.6.4), through
-            // `EventStore` on the same `UndoStack`, so they join this step and
-            // one `⌘Z` restores both the weekday and the instances. Since
-            // P2-T40, activation creates the new day's instances through the
-            // background trigger (`RoutineMaterializationTriggers`), outside
-            // this step. Until P2-T41 they stay put when this step is undone.
+            // components.md §13.6.4 / interactions.md §11.1.1 (P2-T41): on
+            // deactivation, this weekday's future, non-detached instances are
+            // withdrawn here, through `EventStore` on the same `UndoStack`, so
+            // they join this step and one `⌘Z` restores both the weekday and
+            // the instances. On activation there is nothing to withdraw; the
+            // new day's instances come from the background pass
+            // (`RoutineMaterializationTriggers`), which adds no step, and
+            // which withdraws them again if this step is undone.
+            if let template = self.template(templateID) {
+                let windows = (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? []
+                RoutineEngine.withdraw(
+                    template: template, timeWindows: windows, today: today,
+                    recordsUndo: true, store: EventStore(context: context, undo: undo),
+                    calendar: calendar)
+            }
         }
     }
 }

@@ -970,7 +970,14 @@ private struct RoutineDayColumnView: View {
             // routine block is movable exactly like an ordinary event.
             // `GridBlockView` already draws its hover resize handles once
             // `isMovable` is true — no new chrome needed here.
-            isMovable: true)
+            isMovable: true,
+            // §11 / §13.6.2: here `.conflicted` always means "lands in a
+            // protected window on this column's weekday", so the spoken
+            // label names that kind (task P2-T41).
+            conflicts: ProtectedWindowRule.refusingWindows(
+                startMinutes: block.startMinutes, duration: block.duration,
+                weekday: weekday, windows: timeWindows)
+                .map { .protectedWindow(label: $0.label) })
         let isSelected = selection?.blockID == block.id && selection?.weekday == weekday
 
         GridBlockView(

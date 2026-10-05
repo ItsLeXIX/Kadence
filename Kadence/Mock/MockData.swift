@@ -258,12 +258,73 @@ enum MockData {
         //     method — reaching the actual Normal/Late/Empty states also
         //     needs every *other* today event's `status` toggled to `.done`,
         //     done directly against the ephemeral SQLite store, never here.
+        //
+        //     Task P2-T41: `now + 4` alone collided with routine fixtures at
+        //     some times of day (`Training` if seeded 16:41–17:45, `Focus
+        //     review` / `Reading` in the evening). That conflict then sorted
+        //     first, and what the needs-attention row opened depended on the
+        //     clock (DEVIATIONS.md B18). `journalStart` keeps "a few minutes
+        //     after `now`" but skips forward past anything a conflict could
+        //     involve, so Journal never creates or joins one.
+        let journalStart = journalStart(
+            now: now,
+            busy: conflictBusyIntervals(events: events, now: now, calendar: calendar))
         events.append(Event(
             title: "Journal",
-            start: now.addingTimeInterval(4 * 60), end: now.addingTimeInterval(19 * 60),
+            start: journalStart, end: journalStart.addingTimeInterval(journalDuration),
             origin: .manual, sourceKey: .graphite))
 
         return events
+    }
+
+    /// Journal's length: 15 minutes, as P2-T34 seeded it (`now + 4 … now + 19`).
+    static let journalDuration: TimeInterval = 15 * 60
+    /// "A few minutes after seeding" (P2-T34): the earliest Journal may start.
+    static let journalLead: TimeInterval = 4 * 60
+
+    /// The earliest start at or after `now + journalLead` where a
+    /// `journalDuration` block overlaps none of `busy`. Each overlap pushes
+    /// the candidate to the end of the interval it hit, so the loop always
+    /// moves forward and ends after at most `busy.count` pushes.
+    static func journalStart(now: Date, busy: [DateInterval]) -> Date {
+        var start = now.addingTimeInterval(journalLead)
+        while let hit = busy.first(where: {
+            $0.start < start.addingTimeInterval(journalDuration) && start < $0.end
+        }) {
+            start = hit.end
+        }
+        return start
+    }
+
+    /// Everything a manual Journal could form a conflict with, or join one
+    /// through: every hand-seeded `.routine` event, every event that overlaps
+    /// one (a conflict fixture's other half, e.g. `Client call`), and the
+    /// routine template's blocks on today and tomorrow (the instances the
+    /// launch pass will materialise; tomorrow because a late-evening Journal
+    /// can run past midnight). `ConflictEngine` only pairs a `.routine`
+    /// event with something else, so this is the whole set.
+    @MainActor
+    static func conflictBusyIntervals(events: [Event], now: Date, calendar: Calendar) -> [DateInterval] {
+        let routine = events.filter { $0.origin == .routine }
+        var busy = routine.map { DateInterval(start: $0.start, end: $0.end) }
+        for event in events where event.origin != .routine {
+            if routine.contains(where: { $0.start < event.end && event.start < $0.end }) {
+                busy.append(DateInterval(start: event.start, end: event.end))
+            }
+        }
+        let today = calendar.startOfDay(for: now)
+        for template in makeRoutineTemplates() {
+            for offset in 0...1 {
+                guard let day = calendar.date(byAdding: .day, value: offset, to: today),
+                      template.activeWeekdays.contains(calendar.component(.weekday, from: day))
+                else { continue }
+                for block in template.blocks {
+                    let start = day.addingTimeInterval(TimeInterval(block.startMinutes * 60))
+                    busy.append(DateInterval(start: start, duration: block.duration))
+                }
+            }
+        }
+        return busy
     }
 
     // MARK: Seeding everything + the launch pass (task P2-T40)

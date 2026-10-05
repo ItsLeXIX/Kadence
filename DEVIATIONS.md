@@ -710,9 +710,19 @@ removed; `increaseContrast` parameter, GAPS G-003).
 
 ## C — invented design values
 
-*(Updated 2026-10-01, task P2-T40.)* One invented design value and two
-placeholders (one behavioural, one accessibility string), all marked
+*(Updated 2026-10-05, task P2-T41.)* One invented design value and four
+placeholders (two behavioural, two accessibility strings), all marked
 `// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
+
+- **C5 — the spoken phrase for a block inside a protected window (GAPS
+  G-030).** *(new 2026-10-05, task P2-T41.)* `BlockConflict.protectedWindow`
+  speaks `conflicts with a protected window`, the string every conflicted
+  block used to speak. Block-vs-block conflicts now use §11's own
+  `conflicts with <title>`. §11 gives no form for the window kind.
+- **C6 — tombstones are never discarded (GAPS G-031).** *(new 2026-10-05,
+  task P2-T41.)* §13.7.4 says withdrawal "may" discard a tombstone. The
+  placeholder keeps it, so reactivating a weekday doesn't bring back a day
+  the user deleted. Only `⌘Z` on the delete removes it.
 
 - **C4 — the needs-attention row's accessibility label and value (GAPS
   G-029).** *(new 2026-10-01, task P2-T40.)* `SidebarView` gives the row
@@ -763,6 +773,27 @@ P2-T40 judgement calls that need no marker, because no value was invented:
   midnight (G-013), so the block and the window's spans on that weekday are
   enough, and it can't drift on a DST day. The canvas and `materialize` use
   the same function (`ProtectedWindowRule`), so they can't disagree.
+
+P2-T41 judgement calls that need no marker, because no value was invented:
+
+- **Withdrawal is folded into more steps than §13.6.4 lists.** §13.6.4 names
+  three causes (weekday off, block deleted, newly refused). The third can be
+  caused by a routine-block move or resize as well as any time-window edit,
+  so `Move/Resize Routine Block` and every `TimeWindowStore` step except
+  `Set Time Window Label` run the same withdrawal inside their own step.
+- **The background pass withdraws too, unrecorded.** That is what makes
+  undoing an edit that *added* pairs (`Add Saturday to Routine`) take the
+  instances off again. It records nothing (§13.6.5 triggers are not user
+  actions; see B16).
+- **Withdrawal isn't bounded by the horizon**, only by `startOfDay(today)`:
+  an instance created while the visible range reached further out is still
+  withdrawn.
+- **A withdrawal is a delete without a tombstone.** §13.7.4's tombstone
+  records a day the user deleted. Withdrawal is the routine no longer
+  containing it.
+- **"Materialised instance" means `origin == .routine` with both ids set.**
+  Only those get tombstones and updates. Hand-seeded `.routine` fixtures
+  (no ids) and Phase 3 imports (`.imported`) are never touched.
 
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind
@@ -1223,8 +1254,12 @@ P2-T40 judgement calls that need no marker, because no value was invented:
   `STATUS.md` §36) — the code fix and the full `KadenceTests` suite are
   green independent of that.
 
-- **A28 — components.md §13.6.3 / §13.6.4 / §13.7. Materialisation only
-  creates.** *(new 2026-10-01, task P2-T40.)* `materialize` now has call
+- ~~**A28 — components.md §13.6.3 / §13.6.4 / §13.7. Materialisation only
+  creates.**~~ **Resolved 2026-10-05, task P2-T41**, except the detachment
+  flag, which is P2-T43's (see A31). `materialize` implements §13.6.3's
+  whole table (create / update / leave detached / leave tombstoned) and
+  `RoutineEngine.withdraw` implements §13.6.4, folded into the causing step
+  for weekday-off, block delete/move/resize and every time-window edit. *(was:)* *(new 2026-10-01, task P2-T40.)* `materialize` now has call
   sites (launch, template/block/window edits, visible-range changes), but it
   never updates an existing instance to the template's current values,
   never withdraws instances the template stopped producing, and has no
@@ -1234,8 +1269,12 @@ P2-T40 judgement calls that need no marker, because no value was invented:
   instances while one that starts a refusal removes none. P2-T41 is the
   update/withdrawal table. Tombstones (§13.7.4) are not scheduled in any
   task this file knows of.
-- **A29 — components.md §13.7.4. A deleted materialised instance comes back,
-  and undoing its delete can then duplicate it.** *(new 2026-10-01, task
+- ~~**A29 — components.md §13.7.4. A deleted materialised instance comes back,
+  and undoing its delete can then duplicate it.**~~ **Resolved 2026-10-05,
+  task P2-T41.** `EventStore.delete` leaves a `RoutineTombstone` keyed by
+  `(sourceID, externalID)` in the delete's own step; `materialize` never
+  recreates a tombstoned pair; `⌘Z` restores the one original row and
+  removes the tombstone (pinned by `TombstoneTests`). *(was:)* *(new 2026-10-01, task
   P2-T40. This is a consequence of A28 that only exists now that
   `materialize` has call sites.)* `⌫` on a routine instance removes the row.
   The next trigger (paging the calendar, any routine edit, relaunch) finds no
@@ -1249,6 +1288,18 @@ P2-T40 judgement calls that need no marker, because no value was invented:
   that row doesn't route to the Routines window. The canvas `conflicted`
   presentation and the inspector `Will not run …` line are built. Marked
   `// P2-T46` in `RoutineInspectorView.blockDetails`.
+- **A31 — components.md §13.7.1 / §13.6.3 row 3. Until P2-T43, every
+  materialised instance counts as undetached, so a main-grid edit to one is
+  overwritten by the next materialisation pass.** *(new 2026-10-05, task
+  P2-T41. Temporary, by the brief's design.)* §13.6.3 now updates untouched
+  instances, and `RoutineDetachment.isDetached` (the single `// P2-T43` seam)
+  returns `false` for everything, because there is no detached flag yet. So
+  moving `Gym` on Wednesday's column holds only until the next trigger
+  (paging, any routine edit, relaunch), which moves it back to the template's
+  time. Status edits (done/skipped) are unaffected: an update carries status
+  forward. Hand-seeded `.routine` fixtures (`Training`, `Focus review`, …)
+  have no `(sourceID, externalID)` and are never touched. P2-T43 replaces the
+  seam.
 
 ---
 
@@ -1360,7 +1411,16 @@ Still open, all re-checked against the current spec text this session:
   committed crops are tight to the text, so they neither confirm nor rule out
   the empty padding. *Still open*, same task as B14.
 - **B16 — components.md §13.6.4 / §14.6 / interactions.md §11.2. Background
-  materialisation is not part of the edit that caused it.** *(new
+  materialisation is not part of the edit that caused it.** *(Narrowed
+  2026-10-05, task P2-T41.)* Withdrawal now IS part of its causing step
+  (`Remove Saturday from Routine`, `Delete Routine Block`, block move/resize,
+  every time-window edit), so `⌘Z` restores template and instances together.
+  Creates and updates still come from the background pass. Its cost is
+  gone: the background pass now also withdraws, so undoing `Add Saturday to
+  Routine` or `Create Routine Block` takes the instances back off the
+  calendar on the next pass, and redo brings them back (new ids).
+  `Resolve Routine Conflict` (§14.6) re-materialising inside its own step is
+  still P2-T46's. *(Original text:)* *(new
   2026-10-01, task P2-T40.)* The spec folds materialisation into the
   causing step (`Remove Saturday from Routine` undoes the deletions;
   `Resolve Routine Conflict` re-materialises inside its step). The P2-T40
@@ -1374,8 +1434,11 @@ Still open, all re-checked against the current spec text this session:
   still joins an open step when called inside one (pinned by
   `MaterializationHorizonTests.joinsOpenStep`), so P2-T41 and P2-T46 can call
   it inside their steps.
-- **B17 — components.md §14.1, "The needs-attention row is a button". Only
-  its drawn text and badge are clickable.** *(new 2026-10-01, found by task
+- ~~**B17 — components.md §14.1, "The needs-attention row is a button". Only
+  its drawn text and badge are clickable.**~~ **Resolved 2026-10-05, task
+  P2-T41:** `.contentShape(Rectangle())` on the label. A real HID click at the
+  row's centre (the Spacer gap) opened the conflict panel in
+  `check-conflict-apply-return.sh`'s run. *(was:)* *(new 2026-10-01, found by task
   P2-T40, not fixed: out of scope.)* The row is a `.plain` `Button` whose
   label is `HStack { Text; Spacer(); badge }`. A `.plain` button only
   hit-tests what it draws, so the `Spacer` gap between `Needs attention` and
@@ -1385,6 +1448,28 @@ Still open, all re-checked against the current spec text this session:
   panel. This is where `Scripts/check-conflict-apply-return.sh` fails next,
   because it clicks the row's centre. The likely fix is a `contentShape` on
   the label, so the whole row is the target.
+
+- ~~**B18 — test fixture, not a spec value. `MockData`'s `Journal` fixture
+  collides with routine fixtures depending on what time the store is
+  seeded.**~~ **Resolved 2026-10-05, task P2-T41**, in both places.
+  `MockData.journalStart` still starts Journal at least 4 minutes after
+  `now` (P2-T34's purpose) but pushes it past every interval a conflict
+  could involve (hand-seeded `.routine` events, anything overlapping one,
+  and today's and tomorrow's template blocks), so it never creates or joins
+  a conflict. And the script launches with
+  `-KadenceConflictUnderTest "Focus review"`
+  (`CalendarState.conflictUnderTest`, a launch-argument test hook that is
+  inert otherwise), so it opens that pair explicitly instead of relying on
+  it sorting first. `MockDataClockTests` seeds at 12 clock times on a
+  template and a non-template day and pins the count (12), the pair, and its
+  first place. *(was:)* `Journal` is seeded at `now + 4 … now + 19` minutes (P2-T34, for
+  the status item). Seeded between about 16:41 and 17:45 it overlaps
+  `Training` (17:00–17:45, `.routine`), and between about 19:41 and 21:26 it
+  overlaps `Focus review` or `Reading`. That conflict then sorts first, so
+  the needs-attention row opens it instead of `Focus review` /
+  `Client call`, and `Scripts/check-conflict-apply-return.sh` fails at
+  `no 'Shorten Focus review' option row found` (observed at 16:43). It also
+  adds a 13th conflict to the sidebar count.
 
 ---
 

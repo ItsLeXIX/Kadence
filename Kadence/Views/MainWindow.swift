@@ -166,6 +166,7 @@ struct MainWindow: View {
     private var canvas: some View {
         let visible = events.filter { state.isVisible($0) }
         let conflictedIDs = conflictedEventIDs
+        let partnerTitles = Self.conflictPartnerTitles(events: events, routineBlocks: routineBlocks)
 
         Group {
             switch state.mode {
@@ -185,6 +186,7 @@ struct MainWindow: View {
                     now: state.now,
                     store: store,
                     conflictedEventIDs: conflictedIDs,
+                    conflictPartnerTitles: partnerTitles,
                     focusedRegion: $focusedRegion,
                     onTab: cycleFocus)
             case .day:
@@ -196,6 +198,7 @@ struct MainWindow: View {
                     now: state.now,
                     store: store,
                     conflictedEventIDs: conflictedIDs,
+                    conflictPartnerTitles: partnerTitles,
                     focusedRegion: $focusedRegion,
                     onTab: cycleFocus)
             }
@@ -334,6 +337,19 @@ struct MainWindow: View {
             ids.insert(conflict.otherEvent.id)
         }
         return ids
+    }
+
+    /// For each event in a conflict, the titles of the events it collides
+    /// with, in `sortedConflicts` order — §11's "conflicts with Training"
+    /// (task P2-T41).
+    @MainActor
+    static func conflictPartnerTitles(events: [Event], routineBlocks: [RoutineBlock]) -> [UUID: [String]] {
+        var titles: [UUID: [String]] = [:]
+        for conflict in sortedConflicts(events: events, routineBlocks: routineBlocks) {
+            titles[conflict.routineEvent.id, default: []].append(conflict.otherEvent.title)
+            titles[conflict.otherEvent.id, default: []].append(conflict.routineEvent.title)
+        }
+        return titles
     }
 
     /// `ConflictEngine.detect`'s result, in `ConflictOrdering`'s stable order

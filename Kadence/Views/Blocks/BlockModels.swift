@@ -24,6 +24,10 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
     var sourceName: String
     var glyphOverride: String?
     var isMovable: Bool
+    /// What this block conflicts with, for the spoken label (§11). Only read
+    /// when the presentation is `.conflicted`. Empty by default; the call
+    /// sites that know the other half fill it in.
+    var conflicts: [BlockConflict] = []
 
     /// `HH:mm-HH:mm`, 24-hour, monospaced digits (components.md §3.1).
     func timeRange(formatter: DateFormatter) -> String {
@@ -60,7 +64,7 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
         case .scheduled: break
         }
         if presentation.contains(.conflicted) {
-            parts.append("conflicts with a protected window")
+            parts.append(contentsOf: conflicts.map(\.spokenPhrase))
         }
         return parts.joined(separator: ", ")
     }
@@ -73,6 +77,34 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
         case .travelBand: "travel"
         case .deadlineAllDay: "deadline"
         case .examAllDay: "exam"
+        }
+    }
+}
+
+/// The other half of a conflict, as §11's VoiceOver label speaks it. Two
+/// kinds, because a block can collide with another block or land in a
+/// protected window, and the label must not say one when it means the other
+/// (task P2-T41; before it, every conflicted block said "protected window").
+enum BlockConflict: Equatable, Sendable {
+    /// Another event or block, by its title.
+    case event(title: String)
+    /// A `.protected` time window, by its label.
+    case protectedWindow(label: String)
+
+    var spokenPhrase: String {
+        switch self {
+        case .event(let title):
+            // components.md §11's own example:
+            // "Datenmodellierung, 09:00 to 10:30, lecture, university
+            // timetable, conflicts with Training".
+            return "conflicts with \(title)"
+        case .protectedWindow:
+            // SPEC-GAP (design/GAPS.md G-030): §11 only gives the
+            // block-vs-block form. The wording for a block inside a
+            // protected window is unspecified; this is the string the build
+            // already spoke, kept as the placeholder. The window's label is
+            // carried so the ruling can use it without a model change.
+            return "conflicts with a protected window"
         }
     }
 }

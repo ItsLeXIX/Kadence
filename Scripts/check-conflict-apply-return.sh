@@ -38,10 +38,11 @@
 # "Focus review" (routine, .fixed, 20:00–21:00 today) pair, added by P2-T29.
 # `ConflictEngine` gives this pair exactly two ranked options — "Shorten
 # Focus review by 20 min" (recommended, disturbance 20) first, "Skip today's
-# Focus review" (disturbance 60) second — and `ConflictOrdering` guarantees
-# it sorts first among ALL of MockData's conflicts (it starts today; every
-# other seeded conflict starts 2+ days out), so activating the needs-attention
-# row always previews-then-applies THIS pair, deterministically.
+# Focus review" (disturbance 60) second. The app is launched with
+# `-KadenceConflictUnderTest "Focus review"` (P2-T41), so activating the
+# needs-attention row opens THIS pair explicitly. Before that the script
+# relied on it sorting first, which failed whenever a clock-dependent fixture
+# conflict started earlier (DEVIATIONS.md B18).
 # `ConflictEngine.shortenOption` keeps "Focus review"'s back half — new
 # start 20:20, new end 21:00 (`CalendarState.applyFocusedConflictOption`'s
 # `.shorten` case calls `EventStore.resize`) — a +1200-second (20-minute)
@@ -169,7 +170,13 @@ rm -f "$STORE" "$STORE-wal" "$STORE-shm"
 # -ApplePersistenceIgnoreState YES: see check-accessibility.sh for why —
 # suppresses this Mac's window-restoration flake so the main window is the
 # only one that can ever appear.
-open -n "$APP" --args -ApplePersistenceIgnoreState YES
+# -KadenceConflictUnderTest (P2-T41): the needs-attention row opens THE
+# "Client call"/"Focus review" conflict explicitly, instead of trusting it to
+# sort first. It used not to whenever another fixture conflict started
+# earlier — e.g. "Journal" seeded 16:41–17:45 overlapped "Training"
+# (DEVIATIONS.md B18) — which made this check pass or fail by time of day.
+# See CalendarState.conflictUnderTest.
+open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceConflictUnderTest "Focus review"
 sleep 9
 
 TARGET=""
@@ -204,63 +211,58 @@ fi
 echo "baseline 'Focus review' ZSTART: $BEFORE_START"
 
 # ------------------------------------------------------------------ the query
-cat > "$WORK/query.applescript" <<'EOF'
-on collect(el, depth)
-  set acc to {}
-  if depth > 16 then return acc
-  tell application "System Events"
-    set kids to {}
-    try
-      set kids to UI elements of el
-    end try
-    repeat with c in kids
-      try
-        set rl to ""
-        try
-          set rl to (role of c) as string
-        end try
-        set ttl to ""
-        try
-          set ttl to (title of c) as string
-        end try
-        set dsc to ""
-        try
-          set dsc to (value of attribute "AXDescription" of c) as string
-        end try
-        set val to ""
-        try
-          set val to (value of c) as string
-        end try
-        set blob to rl & "~" & ttl & "~" & dsc & "~" & val
-        if blob is not "~~~" then
-          try
-            set p to position of c
-            set sz to size of c
-            set end of acc to blob & "~" & (item 1 of p as string) & "~" & ¬
-              (item 2 of p as string) & "~" & (item 1 of sz as string) & "~" & (item 2 of sz as string)
-          end try
-        end if
-      end try
-      try
-        set acc to acc & my collect(c, depth + 1)
-      end try
-    end repeat
-  end tell
-  return acc
-end collect
-tell application "System Events"
-  tell (first process whose unix id is (system attribute "KADENCE_PID") as integer)
-    set found to my collect(window 1, 0)
-    set out to ""
-    repeat with f in found
-      set out to out & (f as string) & linefeed
-    end repeat
-    return out
-  end tell
-end tell
-EOF
+# P2-T41: read the tree through the Accessibility API directly, not System
+# Events. On macOS 26.6 a SwiftUI button's attribute list carries
+# `AXAttributedDescription` but not `AXDescription`, so System Events'
+# `value of attribute "AXDescription"` throws and the old AppleScript reader
+# saw an empty name for the needs-attention row and every option row
+# (STATUS.md §41). `AXUIElementCopyAttributeValue` — what VoiceOver itself
+# reads — still returns the description. The output format is unchanged
+# (role~title~desc~value~x~y~w~h, one element per line), so the lookups
+# below are the same text matches as before. `AXIdentifier` is appended to
+# the description field so the needs-attention row can also be found by its
+# `accessibilityIdentifier` ("needs-attention-row", SidebarView.swift).
+# Only the reading changed: the clicks are still real HID events, the key is
+# still a real HID Return, and the verdict is still the sqlite +1200 s check.
+cat > "$WORK/axq.swift" <<'SWIFT'
+import ApplicationServices
+import Foundation
+let pid = pid_t(CommandLine.arguments[1])!
+let app = AXUIElementCreateApplication(pid)
+func attr(_ e: AXUIElement, _ a: String) -> AnyObject? {
+    var v: AnyObject?
+    AXUIElementCopyAttributeValue(e, a as CFString, &v)
+    return v
+}
+func str(_ o: AnyObject?) -> String {
+    guard let o else { return "" }
+    return "\(o)".replacingOccurrences(of: "~", with: " ").replacingOccurrences(of: "\n", with: " ")
+}
+func walk(_ e: AXUIElement, _ depth: Int) {
+    if depth > 16 { return }
+    for c in (attr(e, "AXChildren") as? [AXUIElement]) ?? [] {
+        var p = CGPoint.zero, s = CGSize.zero
+        if let pv = attr(c, "AXPosition") { AXValueGetValue(pv as! AXValue, .cgPoint, &p) }
+        if let sv = attr(c, "AXSize") { AXValueGetValue(sv as! AXValue, .cgSize, &s) }
+        let role = str(attr(c, "AXRole")), title = str(attr(c, "AXTitle"))
+        var desc = str(attr(c, "AXDescription"))
+        let ident = str(attr(c, "AXIdentifier"))
+        if !ident.isEmpty { desc += " id:" + ident }
+        let raw = attr(c, "AXValue")
+        let val = (raw is String || raw is NSNumber) ? str(raw) : ""
+        if !(title + desc + val).isEmpty {
+            print("\(role)~\(title)~\(desc)~\(val)~\(Int(p.x))~\(Int(p.y))~\(Int(s.width))~\(Int(s.height))")
+        }
+        walk(c, depth + 1)
+    }
+}
+if let w = (attr(app, "AXWindows") as? [AXUIElement])?.first { walk(w, 0) }
+SWIFT
+swiftc -O "$WORK/axq.swift" -o "$WORK/axq" 2>"$WORK/swiftc-axq.log" || {
+  echo "FAIL: could not compile the AX reader — see $WORK/swiftc-axq.log"
+  cat "$WORK/swiftc-axq.log"; exit 1; }
 
-query() { KADENCE_PID="$TARGET" osascript "$WORK/query.applescript"; }
+query() { "$WORK/axq" "$TARGET"; }
 
 # --------------------------------------------------- find + click needs-attention
 query > "$WORK/baseline.txt"
@@ -283,7 +285,10 @@ def rows(path):
         yield dict(role=role, title=title, desc=desc, val=val, x=x, y=y, w=w, h=h,
                     blob=(title + " " + desc + " " + val).lower())
 
-hits = [r for r in rows(src) if "needs attention" in r["blob"]]
+hits = [r for r in rows(src)
+        if "id:needs-attention-row" in r["blob"] or "needs attention" in r["blob"]]
+# Prefer the button itself (identifier) over any text child.
+hits.sort(key=lambda r: "id:needs-attention-row" not in r["blob"])
 if not hits:
     print("FAIL: no 'Needs attention' element found in the sidebar.")
     print("      Either state.conflicts is empty (MockData's P2-T29/P2-T32")

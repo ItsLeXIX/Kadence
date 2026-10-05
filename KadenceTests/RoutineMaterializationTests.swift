@@ -20,7 +20,7 @@ import SwiftData
 @MainActor
 private func makeStore() throws -> (EventStore, ModelContext, UndoStack) {
     let container = try ModelContainer(
-        for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self, TimeWindow.self,
+        for: Schema(KadenceSchema.models),
         configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     let context = ModelContext(container)
     let undo = UndoStack()
@@ -261,7 +261,11 @@ struct MaterializationHorizonTests {
         #expect(materialize(template, store: store) == 2)
         // Moving an instance changes its time but not its identity, so the
         // next pass must not see an "empty" 07:00 slot and fill it again.
+        // Since P2-T41 (§13.6.3 row 2) the pass instead UPDATES the
+        // non-detached instance back to the template's 07:00.
         let first = try #require(allEvents(context).first)
+        let firstID = first.id
+        let templateStart = first.start
         first.start = first.start.addingTimeInterval(3600)
         first.end = first.end.addingTimeInterval(3600)
         try context.save()
@@ -270,6 +274,7 @@ struct MaterializationHorizonTests {
         #expect(allEvents(context).count == 2)
         let keys = allEvents(context).map { "\($0.sourceID ?? "")|\($0.externalID ?? "")" }
         #expect(Set(keys).count == keys.count)
+        #expect(allEvents(context).first { $0.id == firstID }?.start == templateStart)
     }
 
     @Test("Horizon: today through today + 28 when the visible range ends sooner")

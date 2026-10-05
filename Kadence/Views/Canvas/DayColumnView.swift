@@ -23,6 +23,10 @@ struct DayColumnView: View {
     /// below — that Phase 1 placeholder stays as-is; this is the real-engine
     /// half of `.conflicted`.
     var conflictedEventIDs: Set<UUID> = []
+    /// For each conflicted event id, the titles of the events it collides
+    /// with (task P2-T41), so §11's spoken label can say
+    /// "conflicts with Training" instead of a generic phrase.
+    var conflictPartnerTitles: [UUID: [String]] = [:]
 
     @Environment(CalendarState.self) private var state
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -199,7 +203,7 @@ struct DayColumnView: View {
 
     @ViewBuilder
     private func blockStack(event: Event, laidOut: LaidOutBlock) -> some View {
-        let model = GridBlockModel(event: event, now: now)
+        let model = blockModel(for: event)
         let band = fixtures.travel(forEvent: event.id)
         let trueBandHeight = band.map { geometry.height(from: $0.departAt, to: event.start) } ?? 0
         // components.md §4, two cases. A short band no longer grows upward out of
@@ -284,6 +288,15 @@ struct DayColumnView: View {
             value: laidOut.frame)
     }
 
+    /// Plain helper, not `@ViewBuilder`: a `@ViewBuilder` body can't hold a
+    /// statement that mutates a value (same reason as `presentation` below).
+    private func blockModel(for event: Event) -> GridBlockModel {
+        var model = GridBlockModel(event: event, now: now)
+        model.conflicts = (conflictPartnerTitles[event.id] ?? []).map { .event(title: $0) }
+            + protectedWindowLabels(event).map { .protectedWindow(label: $0) }
+        return model
+    }
+
     private func presentation(for event: Event, laidOut: LaidOutBlock) -> Presentation {
         var presentation: Presentation = []
         if state.selectedEventID == event.id { presentation.insert(.selected) }
@@ -299,10 +312,18 @@ struct DayColumnView: View {
     /// a protected window is a conflict the spec asks to be *rendered*, so it is
     /// derived here rather than stored.
     private func conflictsWithProtectedWindow(_ event: Event) -> Bool {
+        !protectedWindowLabels(event).isEmpty
+    }
+
+    /// Labels of the protected windows `event` overlaps on this day, for
+    /// both the `.conflicted` presentation and the spoken label.
+    private func protectedWindowLabels(_ event: Event) -> [String] {
         fixtures.windows
             .filter { $0.kind == .protected }
-            .flatMap { $0.spans(on: day) }
-            .contains { span in event.start < span.end && span.start < event.end }
+            .filter { window in
+                window.spans(on: day).contains { span in event.start < span.end && span.start < event.end }
+            }
+            .map(\.label)
     }
 
     // MARK: Gestures

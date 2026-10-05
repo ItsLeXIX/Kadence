@@ -14,8 +14,10 @@ struct KadenceApp: App {
     /// or `RoutineEngine.materialize`'s `EventStore` (built on this same
     /// container) can never persist or fetch one outside of a test's own
     /// hand-built container. Task P2-T18 (`Kadence/Models/TimeWindow.swift`)
-    /// added a fifth, `TimeWindow`, the same way. SwiftData builds the schema
-    /// from this list; there is no .xcdatamodeld any more.
+    /// added a fifth, `TimeWindow`, the same way, and P2-T41 a sixth,
+    /// `RoutineTombstone`. The list now lives in `KadenceSchema.models`
+    /// (`RoutineTombstone.swift`), shared with the tests. SwiftData builds the
+    /// schema from it; there is no .xcdatamodeld any more.
     let container: ModelContainer
 
     @State private var calendar = CalendarState()
@@ -26,14 +28,14 @@ struct KadenceApp: App {
     init() {
         do {
             container = try ModelContainer(
-                for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self, TimeWindow.self)
+                for: Schema(KadenceSchema.models))
         } catch {
             // BRIEF-PRODUCT.md: errors surface in the UI, never as a crash.
             // An unopenable store is unrecoverable at launch, so fall back to
             // an in-memory one and let the UI say so rather than trapping.
             let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
             container = (try? ModelContainer(
-                for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self, TimeWindow.self,
+                for: Schema(KadenceSchema.models),
                 configurations: configuration))
                 ?? ModelContainer.emptyFallback()
             StoreHealth.shared.failedToOpenPersistentStore = true
@@ -113,7 +115,7 @@ private extension ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         do {
             return try ModelContainer(
-                for: Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self, TimeWindow.self,
+                for: Schema(KadenceSchema.models),
                 configurations: configuration)
         } catch {
             fatalError("SwiftData could not create even an in-memory store: \(error)")

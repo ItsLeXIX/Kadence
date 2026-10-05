@@ -131,12 +131,101 @@ struct EventStore {
 
     // MARK: Mutate
 
+    /// `⌫` (interactions.md §5). For a materialised routine instance this
+    /// also leaves a tombstone (components.md §13.7.4, task P2-T41), in the
+    /// SAME step, so one `⌘Z` restores the instance and removes the
+    /// tombstone together. Undo replays changes in reverse, so the tombstone
+    /// goes first and the event comes back second.
     func delete(_ event: Event) {
         let snapshot = EventSnapshot(event)
         let id = event.id
-        undo.perform("Delete Event",
+        let pair = RoutineTombstones.pair(of: event)
+        undo.perform("Delete Event") { group in
+            group.perform(redo: { remove(id) }, undo: { insert(snapshot) })
+            if let pair {
+                group.perform(
+                    redo: { RoutineTombstones.insert(pair, in: context) },
+                    undo: { RoutineTombstones.remove(pair, in: context) })
+            }
+        }
+    }
+
+    // MARK: Routine instances (components.md §13.6.3 / §13.6.4, task P2-T41)
+
+    /// The four template-owned fields (§13.7.1) of a routine instance.
+    /// `status` is deliberately not here: "An update carries the event's own
+    /// `status` forward unchanged" (§13.6.3).
+    struct RoutineValues: Equatable, Sendable {
+        var title: String
+        var start: Date
+        var end: Date
+        var flexibility: Flexibility
+
+        @MainActor
+        init(_ event: Event) {
+            title = event.title
+            start = event.start
+            end = event.end
+            flexibility = event.flexibility
+        }
+
+        init(title: String, start: Date, end: Date, flexibility: Flexibility) {
+            self.title = title
+            self.start = start
+            self.end = end
+            self.flexibility = flexibility
+        }
+    }
+
+    private func write(_ values: RoutineValues, to event: Event) {
+        event.title = values.title
+        event.start = values.start
+        event.end = values.end
+        event.flexibility = values.flexibility
+    }
+
+    /// Re-materialisation's update, as a recorded change. It joins the step
+    /// that is open (it is only called inside one), so its own name is never
+    /// shown.
+    func updateRoutineInstance(_ id: UUID, to values: RoutineValues) {
+        guard let event = event(id) else { return }
+        let old = RoutineValues(event)
+        guard old != values else { return }
+        undo.perform("Update Routine Instance",
+                     redo: { edit(id) { write(values, to: $0) } },
+                     undo: { edit(id) { write(old, to: $0) } })
+    }
+
+    /// The same update with no undo step, for the background pass (see
+    /// `insertUnrecorded`). One save for the batch.
+    func updateRoutineInstancesUnrecorded(_ updates: [(id: UUID, values: RoutineValues)]) {
+        guard !updates.isEmpty else { return }
+        for update in updates {
+            if let event = event(update.id) { write(update.values, to: event) }
+        }
+        try? context.save()
+    }
+
+    /// §13.6.4 withdrawal: the template stopped producing this instance's
+    /// pair. Unlike `delete`, it leaves **no tombstone**: the user didn't
+    /// delete this day, the routine stopped containing it. Recorded, so it
+    /// joins the step that caused the withdrawal (`Remove Saturday from
+    /// Routine`, `Delete Routine Block`, a time-window edit).
+    func withdraw(_ id: UUID) {
+        guard let event = event(id) else { return }
+        let snapshot = EventSnapshot(event)
+        undo.perform("Withdraw Routine Instance",
                      redo: { remove(id) },
                      undo: { insert(snapshot) })
+    }
+
+    /// Withdrawal with no undo step, for the background pass. One save.
+    func withdrawUnrecorded(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        for id in ids {
+            if let event = event(id) { context.delete(event) }
+        }
+        try? context.save()
     }
 
     func move(_ event: Event, by offset: TimeInterval) {
