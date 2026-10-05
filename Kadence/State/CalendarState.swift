@@ -88,6 +88,40 @@ final class CalendarState {
     /// follow-up task's job.
     var conflicts: [Conflict] = []
 
+    /// components.md §14.6 (task P2-T46): routine blocks a protected window
+    /// refuses. Kept up to date by `MainWindow` from the live templates and
+    /// windows, beside `conflicts`.
+    var templateConflicts: [TemplateConflict] = []
+
+    /// §13.6.2's third surface: the needs-attention count covers both kinds.
+    /// "Two queues would make the count in the sidebar mean two different
+    /// things" (interactions.md §10.1).
+    var needsAttentionCount: Int { conflicts.count + templateConflicts.count }
+
+    /// A request for the Routines window to open a template conflict
+    /// (§14.6: "opens the Routines window … selects the template, selects the
+    /// block, and puts the editor inspector into conflict mode"). Set by
+    /// `activateNeedsAttention`; the Routines window consumes it and sets it
+    /// back to `nil`.
+    var pendingTemplateConflictID: String?
+
+    /// Where activating the needs-attention row (or `⌘⇧A`) goes.
+    enum NeedsAttentionTarget: Equatable {
+        case day(String)
+        case template(String)
+    }
+
+    /// interactions.md §10.1 (amended): "`⌘⇧A` orders both kinds together,
+    /// day conflicts before template conflicts, each by the start of what
+    /// they affect." Both lists already arrive in that order.
+    static func needsAttentionTarget(
+        day: [Conflict], template: [TemplateConflict], preferring title: String? = conflictUnderTestTitle
+    ) -> NeedsAttentionTarget? {
+        if let first = conflictUnderTest(in: day, title: title) ?? day.first { return .day(first.id) }
+        if let first = template.first { return .template(first.id) }
+        return nil
+    }
+
     /// Which conflict the inspector's conflict-mode panel is showing, if any.
     /// `nil` means the inspector shows its ordinary event-details/day-summary
     /// content. Set by `activateNeedsAttention()`. Deliberately NOT cleared by
@@ -128,13 +162,21 @@ final class CalendarState {
     /// no-op when there is nothing to select — the same guard that makes
     /// §10.2's row "hidden entirely at zero" and the shortcut "global, when
     /// the count is non-zero" both hold trivially at the call site.
-    func activateNeedsAttention() {
-        guard let first = Self.conflictUnderTest(in: conflicts) ?? conflicts.first else { return }
-        selectedConflictID = first.id
+    @discardableResult
+    func activateNeedsAttention() -> NeedsAttentionTarget? {
+        let target = Self.needsAttentionTarget(day: conflicts, template: templateConflicts)
+        guard case .day(let id)? = target else {
+            // §14.6: a template conflict is never shown in the main window.
+            // The caller opens the Routines window; this records which one.
+            if case .template(let id)? = target { pendingTemplateConflictID = id }
+            return target
+        }
+        selectedConflictID = id
         selectedConflictOptionID = nil
         selectedEventID = nil
         userSetInspectorVisibility = true
         isInspectorVisible = true
+        return target
     }
 
     /// interactions.md §10.1 — "`↑`/`↓` move between options. Moving focus

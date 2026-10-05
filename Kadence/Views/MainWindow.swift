@@ -22,6 +22,11 @@ struct MainWindow: View {
     /// `shiftableMinutes` range by reversing `RoutineEngine`'s own
     /// `externalID` scheme — see `ConflictEngine.routineBlock(for:in:)`).
     @Query private var routineBlocks: [RoutineBlock]
+    /// Task P2-T46 — templates and windows, for the template conflicts
+    /// (components.md §14.6) the needs-attention count includes.
+    @Query private var templates: [RoutineTemplate]
+    @Query private var timeWindows: [TimeWindow]
+    @Environment(\.openWindow) private var openWindow
     @State private var fixtures = MockFixtures()
     @State private var didSeed = false
     /// Set once the launch `.task` has seeded and run the first
@@ -95,6 +100,10 @@ struct MainWindow: View {
             // both are watched.
             .onChange(of: events, initial: true) { _, _ in refreshConflicts() }
             .onChange(of: routineBlocks, initial: true) { _, _ in refreshConflicts() }
+            // Task P2-T46: the fingerprint covers every template, block and
+            // window field a refusal depends on.
+            .onChange(of: RoutineMaterialization.Fingerprint(templates: templates, windows: timeWindows),
+                      initial: true) { _, _ in refreshTemplateConflicts() }
         }
         .frame(
             minWidth: Tokens.Size.windowMinWidth,
@@ -130,7 +139,9 @@ struct MainWindow: View {
         // `⌘⇧A`, posted by `KadenceCommands` (which has no query of its own
         // onto live events/routine blocks).
         .onReceive(NotificationCenter.default.publisher(for: .kadenceGoToFirstConflict)) { _ in
-            state.activateNeedsAttention()
+            // §14.6 / interactions.md §10.1: a template conflict opens the
+            // Routines window instead of the main inspector.
+            if case .template? = state.activateNeedsAttention() { openWindow(id: "routines") }
         }
     }
 
@@ -380,6 +391,13 @@ struct MainWindow: View {
     /// the supported place to feed a query result into stored state.
     private func refreshConflicts() {
         state.conflicts = Self.sortedConflicts(events: events, routineBlocks: routineBlocks)
+    }
+
+    /// components.md §13.6.2 / §14.6 (task P2-T46).
+    private func refreshTemplateConflicts() {
+        state.templateConflicts = TemplateConflictEngine.detect(
+            templates: templates, windows: timeWindows,
+            orderedWeekdays: RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday))
     }
 
     // MARK: Sidebar visibility

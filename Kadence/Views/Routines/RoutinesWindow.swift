@@ -169,6 +169,11 @@ struct RoutinesWindow: View {
     /// weekday-disambiguation to carry the way a `RoutineBlock` needs.
     @State private var windowSelection: UUID?
     @State private var editorMode: RoutinesEditorMode = .blocks
+    /// Task P2-T46 — components.md §14.6 / layouts.md §8.1's conflict mode:
+    /// which template conflict the editor inspector shows, and which of its
+    /// options is focused (and so previewed on the canvas).
+    @State private var routineConflictID: String?
+    @State private var routineConflictOptionID: String?
     @State private var didSeed = false
     /// Task P2-T40 — see `MainWindow.isMaterializationReady`.
     @State private var isMaterializationReady = false
@@ -284,6 +289,8 @@ struct RoutinesWindow: View {
             .focusable()
             .focused($canvasFocused)
             .onKeyPress(keys: [.delete]) { _ in handleDelete() }
+            // Task P2-T46: the conflict panel's keys (interactions.md §10.1).
+            .onKeyPress(keys: [.upArrow, .downArrow, .escape, .return]) { press in handleConflictKey(press) }
             // interactions.md §11.1: "Switching between Blocks and Windows
             // mode: ⌘[ / ⌘], or the mode control." Window-scoped, the same
             // way `⌫` above is — not routed through `KadenceCommands`
@@ -324,11 +331,28 @@ struct RoutinesWindow: View {
         // visible range, read from the shared `CalendarState`.
         .materializesRoutines(isReady: isMaterializationReady, visibleEnd: calendarState.visibleInterval.end)
         .onChange(of: selectedTemplateID) { _, _ in
+            // Task P2-T46: `enterConflictMode` selects a template and a block
+            // together; keep the block if it belongs to the new template.
+            if let selection, selectedTemplate?.blocks.contains(where: { $0.id == selection.blockID }) == true {
+                return
+            }
             selection = nil
             windowSelection = nil
         }
         .onChange(of: selection) { _, newValue in
             if newValue != nil { canvasFocused = true }
+            // Selecting another block (or nothing) leaves conflict mode: the
+            // inspector shows what is selected (§10.2 — the panel never traps).
+            if let conflict = activeRoutineConflict, newValue?.blockID != conflict.blockID {
+                routineConflictID = nil
+                routineConflictOptionID = nil
+            }
+        }
+        // §14.6: the needs-attention row / `⌘⇧A` asked for a template
+        // conflict. `initial: true` covers the window being opened by that
+        // very request.
+        .onChange(of: calendarState.pendingTemplateConflictID, initial: true) { _, _ in
+            openPendingTemplateConflict()
         }
         // interactions.md §11.1: "The current selection is dropped on mode
         // change." One `onChange` covers both the mode control and the
@@ -339,6 +363,8 @@ struct RoutinesWindow: View {
         .onChange(of: editorMode) { _, _ in
             selection = nil
             windowSelection = nil
+            routineConflictID = nil
+            routineConflictOptionID = nil
         }
     }
 
@@ -382,7 +408,102 @@ struct RoutinesWindow: View {
                 timeWindows: timeWindows,
                 timeWindowStore: timeWindowStore,
                 windowSelection: $windowSelection,
-                onAddWeekday: { setWeekday($0, active: true) })
+                onAddWeekday: { setWeekday($0, active: true) },
+                conflictPreview: conflictPreview)
+        }
+    }
+
+    // MARK: Template conflicts (components.md §14.6, task P2-T46)
+
+    /// Every template conflict, from the same queries the canvas draws.
+    private var templateConflicts: [TemplateConflict] {
+        TemplateConflictEngine.detect(templates: templates, windows: timeWindows, orderedWeekdays: orderedWeekdays)
+    }
+
+    private var activeRoutineConflict: TemplateConflict? {
+        guard let routineConflictID else { return nil }
+        return templateConflicts.first { $0.id == routineConflictID }
+    }
+
+    private var focusedRoutineConflictOption: TemplateConflictOption? {
+        guard let routineConflictOptionID else { return nil }
+        return activeRoutineConflict?.options.first { $0.id == routineConflictOptionID }
+    }
+
+    private var conflictPreview: RoutineConflictPreview? {
+        guard let conflict = activeRoutineConflict, let option = focusedRoutineConflictOption else { return nil }
+        return RoutineConflictPreview(
+            blockID: conflict.blockID, startMinutes: option.newStartMinutes, durationMinutes: option.newDurationMinutes)
+    }
+
+    /// §14.6: "opens the Routines window …, selects the template, selects
+    /// the block, and puts the editor inspector into conflict mode."
+    /// Consumes `CalendarState.pendingTemplateConflictID`.
+    private func openPendingTemplateConflict() {
+        guard let id = calendarState.pendingTemplateConflictID else { return }
+        calendarState.pendingTemplateConflictID = nil
+        guard let conflict = templateConflicts.first(where: { $0.id == id }) else { return }
+        enterConflictMode(conflict)
+    }
+
+    private func enterConflictMode(_ conflict: TemplateConflict) {
+        selectedTemplateID = conflict.templateID
+        editorMode = .blocks
+        windowSelection = nil
+        selection = RoutineBlockSelection(blockID: conflict.blockID, weekday: conflict.weekdays.first ?? 2)
+        routineConflictID = conflict.id
+        // Nothing focused yet, as in the main window: activating is not
+        // itself a preview.
+        routineConflictOptionID = nil
+        canvasFocused = true
+    }
+
+    /// interactions.md §10.1 in the Routines window: `↑`/`↓` move and
+    /// preview, `⎋` abandons, `↩` applies. Returns `.ignored` outside
+    /// conflict mode so the window's other keys behave as before.
+    private func handleConflictKey(_ press: KeyPress) -> KeyPress.Result {
+        guard let conflict = activeRoutineConflict else { return .ignored }
+        let ids = conflict.options.map(\.id)
+        switch press.key {
+        case .upArrow, .downArrow:
+            let step = press.key == .upArrow ? -1 : 1
+            let current = routineConflictOptionID.flatMap { ids.firstIndex(of: $0) }
+            let next = current.map { min(max($0 + step, 0), ids.count - 1) } ?? 0
+            routineConflictOptionID = ids.isEmpty ? nil : ids[next]
+            return .handled
+        case .escape:
+            // §10.2: ⎋ reverts the pending preview. With nothing previewed,
+            // it leaves conflict mode for the ordinary inspector.
+            if routineConflictOptionID != nil { routineConflictOptionID = nil } else { routineConflictID = nil }
+            return .handled
+        case .return:
+            guard focusedRoutineConflictOption != nil else { return .ignored }
+            applyFocusedRoutineConflictOption()
+            return .handled
+        default:
+            return .ignored
+        }
+    }
+
+    /// `↩`: one `Resolve Routine Conflict` step, then advance to the next
+    /// template conflict, or back to the ordinary inspector (§14.5).
+    private func applyFocusedRoutineConflictOption() {
+        guard let conflict = activeRoutineConflict, let option = focusedRoutineConflictOption else { return }
+        TemplateConflictResolver.apply(
+            option, of: conflict, context: context, undo: undoStack,
+            today: calendarState.now, visibleEnd: calendarState.visibleInterval.end)
+        routineConflictOptionID = nil
+        // Recompute from a fresh fetch: the queries refresh on the next
+        // render, and the panel must not advance onto a stale list.
+        let fresh = TemplateConflictEngine.detect(
+            templates: (try? context.fetch(FetchDescriptor<RoutineTemplate>())) ?? [],
+            windows: (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? [],
+            orderedWeekdays: orderedWeekdays)
+        if let next = fresh.first {
+            enterConflictMode(next)
+            routineConflictOptionID = next.options.first?.id
+        } else {
+            routineConflictID = nil
         }
     }
 
@@ -401,7 +522,20 @@ struct RoutinesWindow: View {
     /// `DraftBlockView` rather than one being mutated across drafts.
     @ViewBuilder
     private var inspector: some View {
-        if let selectedWindow {
+        if let conflict = activeRoutineConflict {
+            // layouts.md §8.1: "A template conflict replaces the inspector's
+            // contents with §10's panel."
+            ScrollView {
+                TemplateConflictPanelView(
+                    conflict: conflict,
+                    template: selectedTemplate,
+                    selectedOptionID: routineConflictOptionID,
+                    onSelectOption: { routineConflictOptionID = $0; canvasFocused = true })
+                    .padding(Tokens.Spacing.xl)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(Tokens.Color.Surface.inspector)
+        } else if let selectedWindow {
             TimeWindowInspectorView(window: selectedWindow, store: timeWindowStore)
                 .id(selectedWindow.id)
         } else {
@@ -470,6 +604,15 @@ struct RoutinesWindow: View {
 /// ambiguous. Window-scoped state, not `CalendarState` (interactions.md's
 /// selection model belongs to the main-grid window; this is a separate
 /// window with its own selection).
+/// Task P2-T46 — what the Routines canvas previews for a focused template
+/// conflict option: the block, and its proposed start/duration in minutes
+/// (`nil` for `remove`, which only dims the block).
+struct RoutineConflictPreview: Equatable {
+    var blockID: UUID
+    var startMinutes: Int?
+    var durationMinutes: Int?
+}
+
 struct RoutineBlockSelection: Equatable {
     var blockID: UUID
     var weekday: Int
@@ -553,6 +696,9 @@ private struct RoutinesCanvasView: View {
     @Binding var windowSelection: UUID?
     /// Task P2-T39 — the `Add <Day>` button's action (components.md §13.5.4).
     let onAddWeekday: (Int) -> Void
+    /// Task P2-T46 — the focused template-conflict option's preview
+    /// (components.md §14.6 → §14.4), or `nil`.
+    var conflictPreview: RoutineConflictPreview? = nil
 
     /// Task P2-T38 — the one in-flight block move/resize, owned HERE rather
     /// than by each column. interactions.md §11.1: "The drop preview appears
@@ -601,6 +747,17 @@ private struct RoutinesCanvasView: View {
             .modifier(HorizontalScrollIfNeeded(isEnabled: needsHorizontalScroll))
         }
         .background(Tokens.Color.Surface.canvas)
+        // §14.4 via §14.6: while a template option is previewed, the
+        // Routines canvas carries the same inset accent border the main
+        // canvas does. Same drawing as `MainWindow.canvas`'s overlay.
+        .overlay {
+            if conflictPreview != nil {
+                Rectangle()
+                    .strokeBorder(Tokens.Color.Interactive.accent, lineWidth: Tokens.Size.previewCanvasBorder)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
     }
 
     private func gridBody(columnWidth: CGFloat) -> some View {
@@ -624,6 +781,7 @@ private struct RoutinesCanvasView: View {
                     windowSelection: $windowSelection,
                     blockDrag: $blockDrag,
                     onAddWeekday: onAddWeekday,
+                    conflictPreview: conflictPreview,
                     showsDropPreview: RoutineBlockDrag.previewWeekdays(
                         orderedWeekdays: weekdays,
                         activeWeekdays: template?.activeWeekdays ?? []
@@ -686,6 +844,8 @@ private struct RoutineDayColumnView: View {
     @Binding var blockDrag: RoutineBlockDrag?
     /// Task P2-T39 — the note's `Add <Day>` action (components.md §13.5.4).
     let onAddWeekday: (Int) -> Void
+    /// Task P2-T46 — see `RoutinesCanvasView.conflictPreview`.
+    let conflictPreview: RoutineConflictPreview?
     /// Whether this column draws `blockDrag`'s drop preview — true for every
     /// active column, false for an inactive one (interactions.md §11.1).
     let showsDropPreview: Bool
@@ -869,6 +1029,15 @@ private struct RoutineDayColumnView: View {
                 .opacity(editorMode == .windows ? Tokens.Opacity.editorInactiveLayer : 1)
                 .allowsHitTesting(editorMode == .blocks)
 
+                // components.md §14.6: "the previewed block in every active
+                // column at once" — §14.4's `previewed` twin at the proposed
+                // frame, in the same columns a drag preview uses
+                // (`showsDropPreview`). `remove` proposes no frame, so it is
+                // the ghost alone (§14.4's destination-less rule).
+                if showsDropPreview, let twin = conflictTwin(width: proxy.size.width, geometry: geometry) {
+                    twin
+                }
+
                 // interactions.md §4 — "same drop preview" as the main grid's
                 // move/resize (the outline only; the main grid itself has no
                 // time badge yet — DEVIATIONS.md A15 — so there is nothing
@@ -1021,7 +1190,8 @@ private struct RoutineDayColumnView: View {
             // column that draws this block, because `blockDrag` is shared
             // (interactions.md §11.1: "with the origin ghost at
             // `opacity.blockDragOrigin` in each of them too").
-            .opacity(blockDrag?.blockID == block.id ? Tokens.Opacity.blockDragOrigin : 1)
+            .opacity(blockDrag?.blockID == block.id || conflictPreview?.blockID == block.id
+                     ? Tokens.Opacity.blockDragOrigin : 1)
             // interactions.md §8 — open-hand cursor for a draggable block.
             .cursor(.openHand)
             .onHover { hovering in
@@ -1472,6 +1642,33 @@ private struct RoutineDayColumnView: View {
             height: max(geometry.height(from: start, to: end), Tokens.Size.blockMinRenderedHeight))
     }
 
+    /// The §14.4 `previewed` twin for a focused template option, or `nil`
+    /// when there is no preview, it is for another template's block, or the
+    /// option proposes no frame (`remove`). Same model shape as `blockView`.
+    private func conflictTwin(width: CGFloat, geometry: TimeGeometry) -> AnyView? {
+        guard let preview = conflictPreview,
+              let startMinutes = preview.startMinutes, let duration = preview.durationMinutes,
+              let block = blocks.first(where: { $0.id == preview.blockID })
+        else { return nil }
+        let inset = Tokens.Spacing.xxs
+        let start = referenceDayStart.addingTimeInterval(TimeInterval(startMinutes * 60))
+        let end = start.addingTimeInterval(TimeInterval(duration * 60))
+        let height = max(geometry.height(from: start, to: end), Tokens.Size.blockMinRenderedHeight)
+        let model = GridBlockModel(
+            id: block.id, title: block.title, start: start, end: end, locationName: nil,
+            kind: .routineTimed, flexibility: block.flexibility, status: .scheduled,
+            source: template?.sourceKey ?? .graphite, sourceName: template?.name ?? "Routine",
+            glyphOverride: nil, isMovable: false)
+        // `AnyView` erases the concrete view type so this helper can return
+        // "a view or nothing" from ordinary (non-builder) code.
+        return AnyView(
+            GridBlockView(model: model, presentation: [.previewed], renderedHeight: height)
+                .frame(width: width - 2 * inset, height: height, alignment: .topLeading)
+                .offset(x: inset, y: geometry.y(for: start))
+                // interactions.md §10.3: previewed blocks are not editable.
+                .allowsHitTesting(false))
+    }
+
     private func dropPreview(_ rect: CGRect) -> some View {
         RoundedRectangle(cornerRadius: Tokens.Radius.block, style: .continuous)
             .strokeBorder(
@@ -1655,9 +1852,9 @@ private struct RoutineInspectorView: View {
                 refusalLine(refusal)
             }
         }
-        // P2-T46: the needs-attention count entry for these refusals, and
-        // routing from that row into this window (§13.6.2's third surface,
-        // §14.6).
+        // §13.6.2's third surface (the needs-attention count) and §14.6's
+        // routing into this window's conflict mode are built (task P2-T46):
+        // `CalendarState.templateConflicts`, `RoutinesWindow.openPendingTemplateConflict`.
     }
 
     private func refusals(for block: RoutineBlockSnapshot, in template: RoutineTemplate) -> [ProtectedWindowRule.Refusal] {

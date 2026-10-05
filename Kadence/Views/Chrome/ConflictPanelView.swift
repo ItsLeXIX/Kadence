@@ -41,7 +41,7 @@ struct ConflictPanelView: View {
     /// exact point size — any height in that band resolves to the same
     /// tier and content set, so the specific value is this task's own call,
     /// not an invented token. Midpoint of the band.
-    private static let collisionBlockHeight: CGFloat = 22
+    static let collisionBlockHeight: CGFloat = 22
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.xl) {
@@ -109,22 +109,37 @@ struct ConflictPanelView: View {
     }
 
     private func optionRow(_ row: ConflictOptionRowContent) -> some View {
-        let isSelected = row.id == selectedOptionID
+        ConflictOptionRowView(
+            title: row.title, delta: row.delta, isRecommended: row.isRecommended,
+            isSelected: row.id == selectedOptionID,
+            action: { onSelectOption(row.id) })
+    }
+}
 
-        return Button {
-            onSelectOption(row.id)
-        } label: {
+/// One §14.3 option row: title, disturbance line, and the `Recommended` chip
+/// on the recommended option only. Shared by the day panel and the template
+/// panel (§14.6: "same row geometry, same chip"); task P2-T46 moved it here
+/// out of `ConflictPanelView` unchanged.
+struct ConflictOptionRowView: View {
+    let title: String
+    let delta: String
+    let isRecommended: Bool
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
             VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
                 HStack(alignment: .top, spacing: Tokens.Spacing.sm) {
-                    Text(row.title)
+                    Text(title)
                         .typeStyle(.conflictOptionTitle)
                         .foregroundStyle(Tokens.Color.Text.primary)
                     Spacer(minLength: Tokens.Spacing.sm)
-                    if row.isRecommended {
+                    if isRecommended {
                         recommendedChip
                     }
                 }
-                Text(row.delta)
+                Text(delta)
                     .typeStyle(.conflictOptionDelta)
                     .foregroundStyle(Tokens.Color.Text.secondary)
             }

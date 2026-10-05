@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Environment(CalendarState.self) private var state
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         @Bindable var state = state
@@ -21,16 +22,19 @@ struct SidebarView: View {
             // would." §14.1 — "The needs-attention row (§10.2) is a button.
             // Activating it selects the first unresolved conflict and puts
             // the inspector into conflict mode."
-            if !state.conflicts.isEmpty {
+            // Task P2-T46: the count includes template conflicts (§13.6.2's
+            // third surface), and activating one opens the Routines window
+            // (§14.6), because none of its options apply to a day.
+            if state.needsAttentionCount > 0 {
                 Button {
-                    state.activateNeedsAttention()
+                    if case .template? = state.activateNeedsAttention() { openWindow(id: "routines") }
                 } label: {
                     HStack {
                         Text("Needs attention")
                             .typeStyle(.sidebarItem)
                             .foregroundStyle(Tokens.Color.Text.primary)
                         Spacer()
-                        countBadge(state.conflicts.count)
+                        countBadge(state.needsAttentionCount)
                     }
                     // §14.1: "The needs-attention row is a button" — the whole
                     // row, not just what it draws. A `.plain` button
@@ -56,7 +60,7 @@ struct SidebarView: View {
                 // nor §11 gives this row's spoken label or value. The bare
                 // count is a placeholder; the spec may want e.g. a noun with it.
                 .accessibilityLabel("Needs attention")
-                .accessibilityValue("\(state.conflicts.count)")
+                .accessibilityValue("\(state.needsAttentionCount)")
                 // Not spoken by VoiceOver. A stable handle for
                 // `Scripts/check-conflict-apply-return.sh`, which reads the
                 // tree through the AX API (task P2-T41).

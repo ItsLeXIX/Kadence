@@ -5983,3 +5983,93 @@ and an empty Re-sync records nothing.
 - GAPS **G-035**. DEVIATIONS **D5**, two P2-T45 judgement calls under C.
 
 **Next:** P2-T46, template conflicts.
+
+## 47. P2-T46 — template conflicts: header, panel, routing (components.md §14.2 window row, §14.6; interactions.md §10.1 additions; layouts.md §8.1 conflict mode; GAPS G-023, G-024)
+
+### Built
+
+- **`TemplateConflictEngine`** (new, pure, `Kadence/State/TemplateConflictEngine.swift`):
+  - `detect`: one `TemplateConflict` per (block, protected window) that
+    refuses the block on at least one active weekday (`ProtectedWindowRule`,
+    the same rule the canvas and `materialize` use). It carries the
+    colliding weekdays in column order and the overlap, and is ordered by
+    block start.
+  - The §14.6 catalogue: `shiftLater` / `shiftEarlier` (smallest 15-minute
+    step clearing every protected span on every active weekday, inside
+    `0…1440`), `shorten` (larger remainder ≥ 15), `remove` (duration ×
+    refused weekdays). Cap three with `remove` always kept and the other two
+    slots to the lowest disturbance, then display order with the kind-order
+    tie-break.
+  - Recommendation: a proportionate shift in either direction, else a
+    shorten keeping half, else `remove`. A lone `remove` has no chip.
+  - Copy: §14.6's table word for word, the overlap line
+    (`12:30–13:00 · 30 min · Mon, Wed, Fri`), the window row's
+    `protected · 12:00–13:00`, and `lands in`. Minute figures share
+    `ConflictOptionFormatting.minutes` (G-035).
+- **`TemplateConflictResolver.apply`**: one `Resolve Routine Conflict` step.
+  It shifts or shortens through `RoutineBlockStore.move`/`resize` and
+  removes through `delete`; their §13.6.4 withdrawals join the step. Then it
+  re-materialises the template, recorded, **inside the same step** (§14.6),
+  so `⌘Z` restores the block and the calendar together.
+- **Count and routing:** `CalendarState.templateConflicts` (kept current by
+  `MainWindow` from its new template/window queries, via the materialisation
+  fingerprint), `needsAttentionCount` (day + template; the sidebar row,
+  badge, AX value and `⌘⇧A`'s enabled state use it), and
+  `needsAttentionTarget` (day conflicts first). `activateNeedsAttention()`
+  now returns the target. For a template conflict it sets
+  `pendingTemplateConflictID` and leaves the main inspector alone; the
+  sidebar row and the `⌘⇧A` handler then `openWindow(id: "routines")`.
+- **Routines window conflict mode** (layouts.md §8.1): it consumes the
+  request (`onChange(…, initial: true)`, so a window opened by the request
+  sees it), selects the template and the block, switches to Blocks, and
+  replaces the editor inspector with **`TemplateConflictPanelView`**: the
+  routine block as a real `conflicted` block, `lands in`, **§14.2's window
+  row** (protected fill, top/bottom edges, four-sided `protectedEdgeHC`
+  under Increase Contrast, no hue/rail/glyph/radius), the overlap line, and
+  the option rows. Keys: `↑`/`↓` move and preview, `⎋` reverts the preview
+  (or leaves conflict mode when nothing is previewed), `↩` applies and
+  advances. **Preview** on the Routines canvas: the block ghosts at
+  `opacity.blockDragOrigin` in every column, a `previewed` twin at the
+  proposed frame in every active column (none for `remove`), and the
+  `size.previewCanvasBorder` accent border on the canvas.
+- The option row moved, unchanged, into a shared `ConflictOptionRowView`.
+  The last `// P2-T46` marker is gone. DEVIATIONS **A30** resolved.
+
+### Tests
+
+New `KadenceTests/TemplateConflictTests.swift`, 14 tests:
+
+- Detection: Errands × Lunch → one conflict on Mon/Wed/Fri with the exact
+  overlap, window and `lands in` copy; touching and low-energy are not
+  conflicts; only active weekdays are named.
+- Catalogue: the cap and tie-break (shiftLater 30 / shorten 30 /
+  shiftEarlier 75 dropped / remove 135, shiftLater recommended); copy for
+  all four kinds word for word; `shiftEarlier` kept when later is costlier,
+  with `remove` recommended as the second row; options clear a second
+  protected window too; a lone `remove` has no chip; the recommendation rule.
+- Counting (day + template); routing to the Routines window request without
+  touching the main inspector; day conflicts first; nothing → nil.
+- Apply: `shiftLater` moves the block, creates the freed instances inside
+  the step, one `Resolve Routine Conflict` step, undo and redo exact;
+  `shorten` keeps the back 15 min; `remove` deletes the block; both undo.
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  469 passed / 0 failed** (§46: 455; +14).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **`check-routines-window.sh`: PASS. `check-conflict-apply-return.sh`:
+  PASS** (count 12, +1200 s).
+- **Not verified live:** routing, the panel, the window row and the Routines
+  preview. The mock store has no template conflict until P2-T48 adds §17.1's
+  `Lunch` × `Errands`; §17 items 15/16 capture them there.
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-036**. DEVIATIONS **C10**; **A32** (the `1 of N` footer isn't
+  built, noticed and out of scope); six P2-T46 judgement calls under C;
+  **A30** resolved.
+
+**Next:** P2-T47, the status-item degrade rule.

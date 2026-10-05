@@ -86,7 +86,7 @@ struct KadenceCommands: Commands {
                 NotificationCenter.default.post(name: .kadenceGoToFirstConflict, object: nil)
             }
             .keyboardShortcut("a", modifiers: [.command, .shift])
-            .disabled(calendar.conflicts.isEmpty)
+            .disabled(calendar.needsAttentionCount == 0)
         }
 
         // layouts.md §8 — "Opened with ⌘⌥R or Window ▸ Routines." Placed in

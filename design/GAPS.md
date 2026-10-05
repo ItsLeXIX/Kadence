@@ -1830,3 +1830,25 @@ figure goes through one function (`ConflictOptionFormatting.minutes`), marked
 one-line change plus the copy tests. Not blocking.
 
 **Needed to close:** which one holds.
+
+---
+
+## 2026-10-05 — G-036 — §14.2's window row: label inset and spacing
+
+**Where it bit:** task P2-T46, `TemplateConflictPanelView.windowRow`
+(`Kadence/Views/Routines/TemplateConflictPanelView.swift`).
+
+**What the spec says.** `components.md` §14.2 (amended): full panel width, the
+16–27 tier's height, `color.window.protectedFill` with `protectedEdge` lines at
+top and bottom, two labels (`windowLabel` / `color.window.label` and
+`blockMeta` / `color.text.secondary`), no hue, rail, glyph or radius.
+
+**What is missing.** Where the two labels sit inside the slab: the leading
+inset and the gap between them.
+
+**What was built instead of guessing.** Placeholder, marked
+`// SPEC-GAP (design/GAPS.md G-036)`: leading/trailing inset `size.blockPadding`
+(the block above it uses the same), `spacing.sm` between the labels, both on
+one baseline. Not blocking.
+
+**Needed to close:** the row's label inset and gap.
