@@ -16,7 +16,8 @@
 //
 //  What this file still does NOT do: apply an option with `↩`, or anything
 //  else `EventStore`/`UndoStack`-shaped. Selecting a row (`onSelectOption`)
-//  still only highlights it here (`color.interactive.selectedRowFill`) — as
+//  still only highlights it here (`ConflictOptionRowStyle`: a tinted card with
+//  a focus-ring border since P2-F13, never solid `selectedRowFill`) — as
 //  of P2-T16, changing `selectedConflictOptionID` (this view's
 //  `onSelectOption` callback target) ALSO drives a live canvas preview and
 //  its `⎋`/focus-loss abandonment, and as of P2-T17, pressing `↩` while that
@@ -120,6 +121,50 @@ struct ConflictPanelView: View {
 /// on the recommended option only. Shared by the day panel and the template
 /// panel (§14.6: "same row geometry, same chip"); task P2-T46 moved it here
 /// out of `ConflictPanelView` unchanged.
+/// components.md §14.3 (amended 2026-10-05, closes G-038 (1)) — how an option
+/// row is drawn, as token names so a test can check it without comparing
+/// `Color`s. A focused row is a tinted CARD: `selectedCardFill` plus a
+/// `size.borderSelected` inner border in `focusRing` at `radius.card`, the
+/// border carrying selection. Text colours never change. Solid
+/// `selectedRowFill` is barred here: line 2 measured 1.41:1 on it.
+struct ConflictOptionRowStyle: Equatable, Sendable {
+    enum Fill: Equatable, Sendable { case canvasSunken, selectedCardFill }
+    enum TextColor: Equatable, Sendable { case primary, secondary }
+
+    var fill: Fill
+    /// The inner border's width, or `nil` for none. Its colour is always
+    /// `interactive.focusRing`.
+    var borderWidth: CGFloat?
+    var titleColor: TextColor
+    var deltaColor: TextColor
+
+    static func resolve(isFocused: Bool) -> ConflictOptionRowStyle {
+        ConflictOptionRowStyle(
+            fill: isFocused ? .selectedCardFill : .canvasSunken,
+            borderWidth: isFocused ? Tokens.Size.borderSelected : nil,
+            titleColor: .primary,
+            deltaColor: .secondary)
+    }
+}
+
+extension ConflictOptionRowStyle.Fill {
+    var color: Color {
+        switch self {
+        case .canvasSunken: Tokens.Color.Surface.canvasSunken
+        case .selectedCardFill: Tokens.Color.Interactive.selectedCardFill
+        }
+    }
+}
+
+extension ConflictOptionRowStyle.TextColor {
+    var color: Color {
+        switch self {
+        case .primary: Tokens.Color.Text.primary
+        case .secondary: Tokens.Color.Text.secondary
+        }
+    }
+}
+
 struct ConflictOptionRowView: View {
     let title: String
     let delta: String
@@ -127,13 +172,16 @@ struct ConflictOptionRowView: View {
     let isSelected: Bool
     let action: () -> Void
 
+    private var style: ConflictOptionRowStyle { .resolve(isFocused: isSelected) }
+
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
         Button(action: action) {
             VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
                 HStack(alignment: .top, spacing: Tokens.Spacing.sm) {
                     Text(title)
                         .typeStyle(.conflictOptionTitle)
-                        .foregroundStyle(Tokens.Color.Text.primary)
+                        .foregroundStyle(style.titleColor.color)
                     Spacer(minLength: Tokens.Spacing.sm)
                     if isRecommended {
                         recommendedChip
@@ -141,14 +189,20 @@ struct ConflictOptionRowView: View {
                 }
                 Text(delta)
                     .typeStyle(.conflictOptionDelta)
-                    .foregroundStyle(Tokens.Color.Text.secondary)
+                    .foregroundStyle(style.deltaColor.color)
             }
             .padding(Tokens.Spacing.sm)
             .frame(minHeight: Tokens.Size.conflictOptionRowMinHeight, alignment: .topLeading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                    .fill(isSelected ? Tokens.Color.Interactive.selectedRowFill : Tokens.Color.Surface.canvasSunken))
+            .background(shape.fill(style.fill.color))
+            .overlay {
+                // INNER border (`strokeBorder` strokes inside the shape), so
+                // the 2pt never bleeds into the `conflictOptionGap`.
+                if let width = style.borderWidth {
+                    shape.strokeBorder(Tokens.Color.Interactive.focusRing, lineWidth: width)
+                }
+            }
+            .contentShape(shape)
         }
         .buttonStyle(.plain)
     }

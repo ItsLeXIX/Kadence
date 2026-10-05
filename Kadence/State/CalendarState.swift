@@ -138,7 +138,7 @@ final class CalendarState {
     /// Which option row inside the active conflict is highlighted.
     ///
     /// P2-T15 wired this to the row highlight only
-    /// (`color.interactive.selectedRowFill`). P2-T16 additionally drives a
+    /// (a `selectedCardFill` card with a focus-ring border since P2-F13). P2-T16 additionally drives a
     /// live canvas preview from it (`DayColumnView`) — every other
     /// consequence of "changing this id" (the proposed frame it previews,
     /// what reverting it means) lives there and in

@@ -6911,3 +6911,45 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 
 - DEVIATIONS **C6**, **C10** and **D5** → "Resolved — retired by a spec
   ruling". No recapture.
+
+## 64. P2-F13 — selected option row (components.md §14.3, amended 2026-10-05; G-038 (1); tokens.json 1.2.0; PHASE2-REVIEW.md §6 item 13)
+
+### Built (`ConflictPanelView.swift`)
+
+- `ConflictOptionRowStyle.resolve(isFocused:)` (pure; token names, not
+  `Color`s): focused → `selectedCardFill` plus a `size.borderSelected` (2)
+  inner border in `focusRing`; unfocused → `canvasSunken`, no border; text
+  `primary` / `secondary` in both. Its fill vocabulary has no
+  `selectedRowFill`, so the barred pair (1.41:1 / 1.25:1) can't be drawn
+  under option text.
+- `ConflictOptionRowView` (shared by the main inspector and the Routines
+  editor's template panel) draws from it: tinted card, `strokeBorder` inside
+  the `radius.card` shape so the 2pt never enters `conflictOptionGap`.
+- `Tokens.swift` was already regenerated from 1.2.0 in P2-F01 (§52), so
+  there was nothing to regenerate here; `--check` stays clean.
+- Two comments that described the old solid fill are updated.
+
+### Tests
+
+- `ConflictOptionRowStyleTests` (4): focused → `selectedCardFill` + 2pt
+  border; unfocused → `canvasSunken`, no border; text colours identical in
+  both states; the row's only fills are `canvasSunken` and
+  `selectedCardFill`. `grep selectedRowFill Kadence/` now finds only
+  `Tokens.swift` and two comments that say it is barred.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 541
+  passed / 0 failed** (537 + 4).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Check capture** (scratch, dark appearance; Training × Supervisor
+  meeting, `Shift Training 75 min later` clicked): tinted card, blue
+  border, both lines readable.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- None. Recapture of 6, 7, 8, 16, 17, 18 is item 20's.
