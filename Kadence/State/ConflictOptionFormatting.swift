@@ -12,17 +12,17 @@
 //  `ConflictOrdering`.
 //
 //  Task P2-T45: the copy is now components.md §14.3.4's exact tables.
-//  Every minute figure goes through `minutes(_:)`. SPEC-GAP (design/GAPS.md
-//  G-035): §14.3.4's tables write `90 min`, `75 min later` and `60 min lost`,
-//  but the sentence under them says durations at or above 60 read `N h MM`
-//  (`1 h 30`). The tables are followed; a ruling for the sentence changes
-//  `minutes(_:)` alone.
+//  Every minute figure goes through `minutes(_:)`. components.md §14.3.4
+//  (amended 2026-10-05, closes G-035): conflict copy counts in minutes at
+//  every size (`75 min later`, `135 min lost`) — the ranking is read by
+//  comparing numbers. The old `N h MM` sentence is struck.
 //
 
 import Foundation
 
 enum ConflictOptionFormatting {
-    /// The one place a minute figure becomes text. See the header's SPEC-GAP.
+    /// The one place a minute figure becomes text: `N min` at every size
+    /// (§14.3.4, see the header).
     static func minutes(_ value: Int) -> String { "\(value) min" }
 
     /// components.md §14.3.4, line 1 — imperative, no trailing period:

@@ -6880,3 +6880,34 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 
 - DEVIATIONS **C8** → "Resolved — retired by a spec ruling", partly
   overturned (rejoin). No recapture.
+
+## 63. P2-F12 — marker cleanup for rulings adopted as built (components.md §14.3.4 (G-035), §13.7.4 (G-031), §14.2 (G-036); PHASE2-REVIEW.md §6 item 12)
+
+### Built (comments only, no behaviour change)
+
+- `RoutineTombstone.swift`: the G-031 marker → §13.7.4 (a tombstone is
+  removed only by undoing its own delete).
+- `ConflictOptionFormatting.swift`: the G-035 header marker and
+  `minutes(_:)`'s pointer → §14.3.4 (minutes at every size).
+- `TemplateConflictPanelView.swift`: the G-036 marker → §14.2 (as built).
+- The only `SPEC-GAP` markers left in `Kadence/` are G-034's two (Re-sync
+  popover), which P2-F17 removes.
+
+### Tests
+
+- None new. The existing copy and tombstone tests run unchanged and pass.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 537
+  passed / 0 failed** (unchanged).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **C6**, **C10** and **D5** → "Resolved — retired by a spec
+  ruling". No recapture.

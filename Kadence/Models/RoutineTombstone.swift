@@ -13,11 +13,10 @@
 //  no new identity scheme. It is not detachment and is never counted as an
 //  edited instance (§13.7.4, first bullet).
 //
-//  Lifetime. `⌘Z` on the delete removes it (same step). Nothing else does.
-//  SPEC-GAP (design/GAPS.md G-031): §13.7.4 says withdrawing the pair (block
-//  deleted, weekday deactivated) "makes the tombstone irrelevant and it MAY be
-//  discarded", which leaves open whether reactivating the weekday brings the
-//  deleted day back. Placeholder: tombstones are kept, so it doesn't.
+//  Lifetime: components.md §13.7.4 (amended 2026-10-05, closes G-031) — a
+//  tombstone is removed only by undoing its own delete (`⌘Z`, same step).
+//  Nothing else removes it, withdrawal included, so reactivating a weekday
+//  never brings back a day the user deleted.
 //
 
 import Foundation

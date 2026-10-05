@@ -687,11 +687,6 @@ changed is the *content* of three Phase 1 sections, plus three stale entries:
 
 ## D — spec contradictions
 
-- **D5 — components.md §14.3.4: the exact-copy tables vs the duration rule
-  under them (GAPS G-035).** *(new 2026-10-05, task P2-T45.)* The tables say
-  `75 min later`, `90 min → 30 min · 60 min lost`; the sentence says `N h MM`
-  at or above 60. The tables are built, through one formatter function, so
-  either ruling is a one-line change.
 
 - ~~**D4 — components.md §3.1 vs §3.3. The 11–15pt density tier cannot be drawn.**~~
   **Closed 2026-09-11** — ruled by `design/GAPS.md` G-011 — CLOSED (task P2-T04)
@@ -720,18 +715,10 @@ removed; `increaseContrast` parameter, GAPS G-003).
 placeholders (three behavioural, two accessibility strings), all marked
 `// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
 
-- **C10 — the §14.2 window row's label inset and gap (GAPS G-036).** *(new
-  2026-10-05, task P2-T46.)* `size.blockPadding` inset, `spacing.sm` between
-  the two labels.
 - **C9 — the Re-sync popover's `+N` row and insets (GAPS G-034).** *(new
   2026-10-05, task P2-T44.)* `+N` in `popoverRow` / `color.text.secondary`;
   insets borrowed from the menu bar popover.
 
-
-- **C6 — tombstones are never discarded (GAPS G-031).** *(new 2026-10-05,
-  task P2-T41.)* §13.7.4 says withdrawal "may" discard a tombstone. The
-  placeholder keeps it, so reactivating a weekday doesn't bring back a day
-  the user deleted. Only `⌘Z` on the delete removes it.
 
 
 Two P2-T39 judgement calls that need no marker, because no value was invented:
@@ -1740,6 +1727,21 @@ stays on record. Moved here by task P2-T38, 2026-10-01.
   `linked` / `detached` / `released`, because §13.6.4's kept-and-no-longer-
   detached instance must survive the next withdrawal pass. A released
   instance whose pair is produced again is left alone.
+
+- ~~**C6 — tombstones are never discarded (GAPS G-031).**~~ **Resolved by `design/GAPS.md` G-031 — CLOSED (2026-10-05), written into `components.md` §13.7.4; retired by task P2-F12:** adopted as built — a tombstone is removed only by undoing its own delete. The `SPEC-GAP` marker is gone; no behaviour change. *Original entry:* *(new 2026-10-05,
+  task P2-T41.)* §13.7.4 says withdrawal "may" discard a tombstone. The
+  placeholder keeps it, so reactivating a weekday doesn't bring back a day
+  the user deleted. Only `⌘Z` on the delete removes it.
+
+- ~~**C10 — the §14.2 window row's label inset and gap (GAPS G-036).**~~ **Resolved by `design/GAPS.md` G-036 — CLOSED (2026-10-05), written into `components.md` §14.2; retired by task P2-F12:** adopted as built (`size.blockPadding` insets, `spacing.sm` gap, one baseline). The `SPEC-GAP` marker is gone; no behaviour change. *Original entry:* *(new
+  2026-10-05, task P2-T46.)* `size.blockPadding` inset, `spacing.sm` between
+  the two labels.
+
+- ~~**D5 — components.md §14.3.4: the exact-copy tables vs the duration rule
+  under them (GAPS G-035).**~~ **Resolved by `design/GAPS.md` G-035 — CLOSED (2026-10-05), written into `components.md` §14.3.4 (the `N h MM` sentence is struck); retired by task P2-F12:** the tables stand as built, minutes at every size. The `SPEC-GAP` marker in `ConflictOptionFormatting` is gone; no behaviour change. *Original entry:* *(new 2026-10-05, task P2-T45.)* The tables say
+  `75 min later`, `90 min → 30 min · 60 min lost`; the sentence says `N h MM`
+  at or above 60. The tables are built, through one formatter function, so
+  either ruling is a one-line change.
 
 ## Not a deviation — worth stating
 

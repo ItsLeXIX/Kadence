@@ -102,9 +102,9 @@ struct TemplateConflictPanelView: View {
                     .foregroundStyle(Tokens.Color.Text.secondary)
                 Spacer(minLength: 0)
             }
-            // SPEC-GAP (design/GAPS.md G-036): §14.2 gives the row's fill,
-            // edges and two labels but not their inset or spacing; the
-            // block's own `size.blockPadding` / `spacing.sm` are used.
+            // components.md §14.2 (amended 2026-10-05, closes G-036): as
+            // built — `size.blockPadding` insets, `spacing.sm` between the
+            // two labels, one baseline.
             .padding(.horizontal, Tokens.Size.blockPadding)
         }
         .frame(maxWidth: .infinity)
