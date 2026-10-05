@@ -30,6 +30,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 struct ConflictPanelView: View {
     let conflict: Conflict
@@ -178,18 +179,26 @@ struct ConflictOptionRowView: View {
         let shape = RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
         Button(action: action) {
             VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
-                HStack(alignment: .top, spacing: Tokens.Spacing.sm) {
-                    Text(title)
-                        .typeStyle(.conflictOptionTitle)
-                        .foregroundStyle(style.titleColor.color)
-                    Spacer(minLength: Tokens.Spacing.sm)
-                    if isRecommended {
-                        recommendedChip
-                    }
-                }
+                // components.md §14.3 (amended 2026-10-05, G-038 (2)): line 1
+                // takes the FULL row width — the chip no longer sits beside
+                // it — and `conflictOptionTitle`'s two-line limit holds every
+                // §14.3.4 / §14.6 title. `fixedSize(vertical:)` lets it grow
+                // to its second line instead of truncating to one.
+                Text(title)
+                    .typeStyle(.conflictOptionTitle)
+                    .foregroundStyle(style.titleColor.color)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(delta)
                     .typeStyle(.conflictOptionDelta)
                     .foregroundStyle(style.deltaColor.color)
+                    .fixedSize(horizontal: false, vertical: true)
+                // Line 3: the chip, leading-aligned with lines 1 and 2,
+                // `spacing.xs` above it (the stack's `spacing.xxs` plus the
+                // difference).
+                if isRecommended {
+                    recommendedChip
+                        .padding(.top, Tokens.Spacing.xs - Tokens.Spacing.xxs)
+                }
             }
             .padding(Tokens.Spacing.sm)
             .frame(minHeight: Tokens.Size.conflictOptionRowMinHeight, alignment: .topLeading)
@@ -205,6 +214,39 @@ struct ConflictOptionRowView: View {
             .contentShape(shape)
         }
         .buttonStyle(.plain)
+    }
+
+    /// The width line 1 is laid out in: the inspector's content width (its
+    /// width less `spacing.xl` each side, layouts.md §6) less the row's own
+    /// `spacing.sm` padding each side. Nothing else takes from it now that
+    /// the chip is line 3.
+    static func titleWidth(inspectorWidth: CGFloat) -> CGFloat {
+        inspectorWidth - 2 * Tokens.Spacing.xl - 2 * Tokens.Spacing.sm
+    }
+
+    /// How many lines `title` takes at `width` in `conflictOptionTitle`,
+    /// measured with AppKit's text layout (what SwiftUI's `Text` uses on
+    /// macOS). §14.3: every title must fit the style's two-line limit.
+    static func titleLineCount(_ title: String, width: CGFloat) -> Int {
+        let font = NSFont.systemFont(
+            ofSize: Tokens.Typography.ConflictOptionTitle.size,
+            weight: CompactRowLayout.nsWeight(named: Tokens.Typography.ConflictOptionTitle.weight))
+        let storage = NSTextStorage(string: title, attributes: [.font: font])
+        let container = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        let manager = NSLayoutManager()
+        manager.addTextContainer(container)
+        storage.addLayoutManager(manager)
+        manager.ensureLayout(for: container)
+        var lines = 0
+        var index = 0
+        while index < manager.numberOfGlyphs {
+            var range = NSRange()
+            manager.lineFragmentRect(forGlyphAt: index, effectiveRange: &range)
+            index = NSMaxRange(range)
+            lines += 1
+        }
+        return lines
     }
 
     /// §14.3 — "marked with the word Recommended, not a colour and not a

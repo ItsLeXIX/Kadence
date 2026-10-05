@@ -6953,3 +6953,41 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 ### New GAPS / DEVIATIONS
 
 - None. Recapture of 6, 7, 8, 16, 17, 18 is item 20's.
+
+## 65. P2-F14 — chip on line 3 (components.md §14.3, amended 2026-10-05; G-038 (2); PHASE2-REVIEW.md §6 item 14)
+
+### Built (`ConflictPanelView.swift`, the shared `ConflictOptionRowView`)
+
+- The `Recommended` chip moves from line 1's trailing edge to its own line
+  below line 2, leading-aligned, `spacing.xs` above it. Line 1 takes the
+  full row width and grows to its second line (`fixedSize(vertical:)`)
+  rather than truncating; line 2 likewise wraps.
+- `titleWidth(inspectorWidth:)` (row content width, nothing reserved for the
+  chip) and `titleLineCount(_:width:)` (AppKit text layout in
+  `conflictOptionTitle`) are static so the test can measure without a view.
+
+### Tests
+
+- `ConflictOptionChipTests` (4, one parameterised over all seven §14.3.4 /
+  §14.6 titles): every title fits ≤ 2 lines at `size.editorInspectorWidth`
+  (216pt of line) and at `size.inspectorWidthMin`; the line width is the
+  full 216pt; `Remove Errands from this routine` is one line; a recommended
+  row is the same width as an unrecommended one and taller by the chip's
+  line.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 545
+  passed / 0 failed** (541 + 4).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Check capture** (scratch, Routines template panel, Errands × Lunch):
+  `Shift Errands 30 min later in / the routine` on two whole lines,
+  `Recommended` on line 3, `Remove Errands from this routine` on one line.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- None. Recapture of 6, 7, 16, 17 is item 20's.
