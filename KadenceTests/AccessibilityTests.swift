@@ -100,8 +100,8 @@ struct AccessibilityLabelTests {
         #expect(eventLabel.hasSuffix("conflicts with Training"))
         #expect(!eventLabel.contains("protected window"),
                 "an event-vs-event conflict must not claim a protected window")
-        // The SPEC-GAP placeholder (GAPS G-030) for the window kind.
-        #expect(windowLabel.hasSuffix("conflicts with a protected window"))
+        // components.md §11 (amended 2026-10-05, G-030), task P2-F10.
+        #expect(windowLabel.hasSuffix("lands in Lunch, a protected window"))
     }
 
     @Test("Conflict phrases are spoken only while the block is presented as conflicted")

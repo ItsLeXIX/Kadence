@@ -64,9 +64,20 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
         case .scheduled: break
         }
         if presentation.contains(.conflicted) {
-            parts.append(contentsOf: conflicts.map(\.spokenPhrase))
+            parts.append(contentsOf: Self.orderedConflictPhrases(conflicts))
         }
         return parts.joined(separator: ", ")
+    }
+
+    /// components.md §11 (amended 2026-10-05, G-030): "Block phrases come
+    /// first, then window phrases". Within each kind the caller's order is
+    /// kept — block partners arrive in partner start order
+    /// (`MainWindow.conflictPartnerTitles`). Swift's `filter` keeps order,
+    /// so two passes are a stable partition.
+    static func orderedConflictPhrases(_ conflicts: [BlockConflict]) -> [String] {
+        let blocks = conflicts.filter { if case .event = $0 { true } else { false } }
+        let windows = conflicts.filter { if case .protectedWindow = $0 { true } else { false } }
+        return (blocks + windows).map(\.spokenPhrase)
     }
 
     var accessibilityKindLabel: String {
@@ -98,13 +109,14 @@ enum BlockConflict: Equatable, Sendable {
             // "Datenmodellierung, 09:00 to 10:30, lecture, university
             // timetable, conflicts with Training".
             return "conflicts with \(title)"
-        case .protectedWindow:
-            // SPEC-GAP (design/GAPS.md G-030): §11 only gives the
-            // block-vs-block form. The wording for a block inside a
-            // protected window is unspecified; this is the string the build
-            // already spoke, kept as the placeholder. The window's label is
-            // carried so the ruling can use it without a model change.
-            return "conflicts with a protected window"
+        case .protectedWindow(let label):
+            // components.md §11 (amended 2026-10-05, closes G-030): a block
+            // LANDS IN a window (§14.2's verb) — two blocks conflict with
+            // each other, a block does not conflict with a window. The
+            // visible `(protected)` is spoken as `, a protected window`.
+            return label.isEmpty
+                ? "lands in a protected window"
+                : "lands in \(label), a protected window"
         }
     }
 }

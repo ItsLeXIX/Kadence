@@ -54,13 +54,12 @@ struct SidebarView: View {
                 // `.accessibilityValue` sets its value (AXValue). Both replace
                 // whatever SwiftUI would derive from the label view.
                 //
-                // The name is the row's visible text. The count is the badge's
-                // own number.
-                // SPEC-GAP (design/GAPS.md G-029): neither components.md §10.2
-                // nor §11 gives this row's spoken label or value. The bare
-                // count is a placeholder; the spec may want e.g. a noun with it.
+                // components.md §10.2 (amended 2026-10-05, closes G-029):
+                // label `Needs attention` (the row's visible text), value the
+                // count with its noun (`1 conflict` / `14 conflicts`), no
+                // hint. The badge stays a bare number; the noun is spoken only.
                 .accessibilityLabel("Needs attention")
-                .accessibilityValue("\(state.needsAttentionCount)")
+                .accessibilityValue(NeedsAttentionSpeech.value(count: state.needsAttentionCount))
                 // Not spoken by VoiceOver. A stable handle for
                 // `Scripts/check-conflict-apply-return.sh`, which reads the
                 // tree through the AX API (task P2-T41).
@@ -145,5 +144,14 @@ struct SourceSwatch: View {
             }
             .frame(width: 11, height: 11)
             .accessibilityHidden(true)
+    }
+}
+
+/// components.md §10.2's spoken value, pure so tests need no view. One noun,
+/// `conflict`, for both kinds the count includes (a §14.6 template refusal is
+/// "a conflict with no event on either side").
+enum NeedsAttentionSpeech {
+    static func value(count: Int) -> String {
+        count == 1 ? "1 conflict" : "\(count) conflicts"
     }
 }

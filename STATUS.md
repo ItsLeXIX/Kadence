@@ -6780,3 +6780,55 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 
 - DEVIATIONS **C7** → "Resolved — retired by a spec ruling", marked partly
   overturned (the colour). Recapture of 15 is item 20's.
+
+## 61. P2-F10 — spoken strings (components.md §10.2 (G-029) and §11 (G-030), both amended 2026-10-05; PHASE2-REVIEW.md §6 item 10)
+
+### Built
+
+- `SidebarView`: the needs-attention row's AX value is
+  `NeedsAttentionSpeech.value(count:)` — `1 conflict` / `14 conflicts`
+  (label `Needs attention`, no hint). The badge stays a bare number.
+- `BlockModels.swift`: `BlockConflict.protectedWindow` speaks `lands in
+  Sleep, a protected window`, or `lands in a protected window` for an empty
+  label. `GridBlockModel.orderedConflictPhrases` puts block phrases before
+  window phrases (stable within each kind).
+- `MainWindow.conflictPartnerTitles` now orders each block's partners by the
+  partner's start ("one phrase per partner, in partner start order"); it
+  kept the conflict list's order before.
+- `DayColumnView.protectedWindowLabels(for:windows:day:)` is now a static
+  pure helper (the instance method calls it), so the test drives the real
+  path for `Late lab session`.
+- Both `SPEC-GAP` markers (G-029, G-030) are replaced by spec references.
+  `check-conflict-apply-return.sh` matches the row by identifier and never
+  read the value text, so it needed no change.
+
+### Tests
+
+- `SpokenStringsTests` (6): the row value is `14 conflicts` with the §17.1
+  fixtures; `1 conflict` / `2 conflicts` / `12 conflicts`; `Late lab
+  session`'s label ends `lands in Sleep, a protected window`; an empty label
+  speaks `lands in a protected window`; block phrases precede window
+  phrases; partners come in start order. `AccessibilityTests.conflictKindsDiffer`
+  updated from the placeholder to `lands in Lunch, a protected window`.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings (MonthGridView.swift:153
+  is the known one).
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 532
+  passed / 0 failed** (526 + 6).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Live AX** (fresh store): `Needs attention` / `14 conflicts`; `Late lab
+  session, 22:30 to 23:30, event, University timetable, lands in Sleep, a
+  protected window`.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **C4** and **C5** → "Resolved — retired by a spec ruling" (C4
+  changed, C5 overturned).
+- DEVIATIONS **B23** (new, out of scope): seeded at night, the `Journal`
+  fixture lands in `Sleep` (`now + 4 min`), so a capture's content depends on
+  the clock. The count is unaffected.

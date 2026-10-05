@@ -375,12 +375,22 @@ struct MainWindow: View {
     /// (task P2-T41).
     @MainActor
     static func conflictPartnerTitles(events: [Event], routineBlocks: [RoutineBlock]) -> [UUID: [String]] {
-        var titles: [UUID: [String]] = [:]
+        // components.md §11 (amended 2026-10-05): "one phrase per partner,
+        // in partner start order" — so collect each partner's start too and
+        // sort by it, rather than keeping the conflict list's own order.
+        var partners: [UUID: [(start: Date, title: String)]] = [:]
         for conflict in sortedConflicts(events: events, routineBlocks: routineBlocks) {
-            titles[conflict.routineEvent.id, default: []].append(conflict.otherEvent.title)
-            titles[conflict.otherEvent.id, default: []].append(conflict.routineEvent.title)
+            partners[conflict.routineEvent.id, default: []]
+                .append((conflict.otherEvent.start, conflict.otherEvent.title))
+            partners[conflict.otherEvent.id, default: []]
+                .append((conflict.routineEvent.start, conflict.routineEvent.title))
         }
-        return titles
+        // `mapValues` transforms each dictionary value, keeping the keys.
+        return partners.mapValues { list in
+            list.enumerated()
+                .sorted { ($0.element.start, $0.offset) < ($1.element.start, $1.offset) }
+                .map(\.element.title)
+        }
     }
 
     /// `ConflictEngine.detect`'s result, in `ConflictOrdering`'s stable order

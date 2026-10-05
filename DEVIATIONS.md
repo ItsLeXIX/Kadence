@@ -735,21 +735,11 @@ placeholders (three behavioural, two accessibility strings), all marked
   instance whose pair is produced again is left alone.
 
 
-- **C5 — the spoken phrase for a block inside a protected window (GAPS
-  G-030).** *(new 2026-10-05, task P2-T41.)* `BlockConflict.protectedWindow`
-  speaks `conflicts with a protected window`, the string every conflicted
-  block used to speak. Block-vs-block conflicts now use §11's own
-  `conflicts with <title>`. §11 gives no form for the window kind.
 - **C6 — tombstones are never discarded (GAPS G-031).** *(new 2026-10-05,
   task P2-T41.)* §13.7.4 says withdrawal "may" discard a tombstone. The
   placeholder keeps it, so reactivating a weekday doesn't bring back a day
   the user deleted. Only `⌘Z` on the delete removes it.
 
-- **C4 — the needs-attention row's accessibility label and value (GAPS
-  G-029).** *(new 2026-10-01, task P2-T40.)* `SidebarView` gives the row
-  label `Needs attention` and value the bare count (`12`), both taken from
-  what the row draws. No spec says what the row speaks. Before this, the row
-  was an unnamed button, so VoiceOver said only "button".
 
 Two P2-T39 judgement calls that need no marker, because no value was invented:
 
@@ -1653,6 +1643,18 @@ Still open, all re-checked against the current spec text this session:
   are per day column only, so `Lunch` and `Low energy` stop at the gutter's
   edge there.
 
+- **B23 — components.md §17.1. The `Journal` fixture lands in `Sleep` when
+  the store is seeded at night.** *(new 2026-10-06, found during task
+  P2-F10; not in that fix's scope.)* `MockData.journalStart` puts `Journal`
+  at `now + 4 min` and steers it clear of day conflicts only
+  (`conflictBusyIntervals`). Seeded at 01:30 it sits at 01:34–01:49, inside
+  the 22:00–07:00 protected window, and draws `conflicted` with `lands in
+  Sleep, a protected window`. The needs-attention count is unaffected (14:
+  it counts block-vs-block day conflicts and template refusals), but what a
+  capture shows depends on the time of day — the kind of fixture clock
+  dependency §17.1 (2026-10-05) rules out. Fix: also treat protected spans
+  as busy in `journalStart`.
+
 ---
 
 ## Resolved — retired by a spec ruling
@@ -1726,6 +1728,18 @@ stays on record. Moved here by task P2-T38, 2026-10-01.
   is the segment title's line height, in the template's rail colour; the
   stepper reads `± 30 min`. §13.2 gives the sample's width and the
   stepper's type only.
+
+- ~~**C4 — the needs-attention row's accessibility label and value (GAPS
+  G-029).**~~ **Resolved by `design/GAPS.md` G-029 — CLOSED (2026-10-05), written into `components.md` §10.2; retired by task P2-F10. Changed:** the label stays `Needs attention`; the value is now the count with its noun (`1 conflict` / `14 conflicts`), not the bare number. The `SPEC-GAP` marker is gone. *Original entry:* *(new 2026-10-01, task P2-T40.)* `SidebarView` gives the row
+  label `Needs attention` and value the bare count (`12`), both taken from
+  what the row draws. No spec says what the row speaks. Before this, the row
+  was an unnamed button, so VoiceOver said only "button".
+
+- ~~**C5 — the spoken phrase for a block inside a protected window (GAPS
+  G-030).**~~ **Resolved by `design/GAPS.md` G-030 — CLOSED (2026-10-05), written into `components.md` §11; retired by task P2-F10. Overturned:** the placeholder `conflicts with a protected window` is replaced by `lands in Sleep, a protected window` (`lands in a protected window` for an empty label), block phrases first, in partner start order. The `SPEC-GAP` marker is gone. *Original entry:* *(new 2026-10-05, task P2-T41.)* `BlockConflict.protectedWindow`
+  speaks `conflicts with a protected window`, the string every conflicted
+  block used to speak. Block-vs-block conflicts now use §11's own
+  `conflicts with <title>`. §11 gives no form for the window kind.
 
 ## Not a deviation — worth stating
 

@@ -323,10 +323,20 @@ struct DayColumnView: View {
     /// Labels of the protected windows `event` overlaps on this day, for
     /// both the `.conflicted` presentation and the spoken label.
     private func protectedWindowLabels(_ event: Event) -> [String] {
-        fixtures.windows
+        Self.protectedWindowLabels(for: event, windows: fixtures.windows, day: day)
+    }
+
+    /// The labels of the protected windows `event` overlaps on `day` — what
+    /// §11's `lands in Sleep, a protected window` names. `static` (no view
+    /// state) so `KadenceTests` can drive it with the real fixtures.
+    static func protectedWindowLabels<Window: TimeWindowRenderable>(
+        for event: Event, windows: [Window], day: Date
+    ) -> [String] {
+        windows
             .filter { $0.kind == .protected }
             .filter { window in
-                window.spans(on: day).contains { span in event.start < span.end && span.start < event.end }
+                window.spans(on: day, calendar: .current)
+                    .contains { span in event.start < span.end && span.start < event.end }
             }
             .map(\.label)
     }
