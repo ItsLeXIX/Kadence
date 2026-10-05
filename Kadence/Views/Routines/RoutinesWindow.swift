@@ -147,6 +147,9 @@ struct RoutinesWindow: View {
     /// Task P2-T18 seeded this via `.task {}` below; nothing read it back
     /// anywhere in this window until this task's windows-mode rendering.
     @Query private var timeWindows: [TimeWindow]
+    /// Task P2-T44: every event, so the detached count (§13.7.3) re-renders
+    /// when an instance is edited in the main window.
+    @Query private var events: [Event]
     @Environment(\.modelContext) private var context
     /// KadenceApp.swift now injects the same instance MainWindow uses, so
     /// `⌘Z`/`⌘⇧Z` (wired once, app-wide, in `KadenceCommands`) undo/redo
@@ -197,6 +200,15 @@ struct RoutinesWindow: View {
     private func setWeekday(_ weekday: Int, active: Bool) {
         guard let selectedTemplate else { return }
         templateStore.setWeekday(weekday, active: active, in: selectedTemplate)
+    }
+
+    /// components.md §13.7.3 (task P2-T44): the selected template's detached
+    /// instances from today through the materialisation horizon.
+    private var detachedInstances: [Event] {
+        guard let selectedTemplate else { return [] }
+        return RoutineResync.scope(
+            of: selectedTemplate, among: events,
+            today: calendarState.now, visibleEnd: calendarState.visibleInterval.end)
     }
 
     /// A block of the selected template, by id.
@@ -404,7 +416,11 @@ struct RoutinesWindow: View {
                 onSetShiftRange: { id, minutes in
                     if let block = block(id) { store.setShiftRange(block, to: minutes) }
                 },
-                onRepairShiftRange: { id in store.repairShiftRanges(blockID: id) })
+                onRepairShiftRange: { id in store.repairShiftRanges(blockID: id) },
+                detachedInstances: detachedInstances,
+                onResync: { instances in
+                    RoutineResync.apply(instances, store: EventStore(context: context, undo: undoStack))
+                })
         }
     }
 
@@ -1570,6 +1586,10 @@ private struct RoutineInspectorView: View {
     let onSetFlexibility: (UUID, Flexibility) -> Void
     let onSetShiftRange: (UUID, Int) -> Void
     let onRepairShiftRange: (UUID) -> Void
+    /// Task P2-T44 — §13.7.3's scope and its one-step write.
+    let detachedInstances: [Event]
+    let onResync: ([Event]) -> Void
+    @State private var isResyncPresented = false
 
     private var orderedWeekdays: [Int] {
         RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)
@@ -1694,12 +1714,61 @@ private struct RoutineInspectorView: View {
         }
         field("Blocks", "\(template.blocks.count)")
         field("Total", String(format: "%.1f h", totalHours(template)))
-        // §13.4 — detached-instance count and its Re-sync button belong here
-        // too, but there is no main-grid edit-command path yet that can tell
-        // an instance apart from an untouched one (RoutineEngine.swift's own
-        // header), so the count is always zero. Same zero-state rule this
-        // window otherwise follows (§10.2 — "hidden entirely at zero"): the
-        // row is omitted, not stubbed at "0 instances edited this week".
+        // §13.4 / §13.7.3 (task P2-T44): the detached count and Re-sync.
+        // "Hidden entirely at zero": no row at all, not "0 instances".
+        if let count = RoutineResync.countText(detachedInstances.count) {
+            resyncRow(count)
+        }
+    }
+
+    /// `3 instances edited`, `blockMeta` / `color.text.secondary`, with a
+    /// **Re-sync** button whose popover names the damage (interactions.md
+    /// §11.2: "the affected dates, listed, not a count alone").
+    private func resyncRow(_ count: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+            Text(count)
+                .typeStyle(.blockMeta)
+                .foregroundStyle(Tokens.Color.Text.secondary)
+            Button("Re-sync") { isResyncPresented = true }
+                // Swift note: `.popover` attaches the popover to this
+                // button, so it is "anchored to the button" (§13.4).
+                .popover(isPresented: $isResyncPresented, arrowEdge: .bottom) {
+                    resyncPopover
+                }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var resyncPopover: some View {
+        let rows = RoutineResync.dateRows(for: detachedInstances)
+        return VStack(alignment: .leading, spacing: Tokens.Spacing.md) {
+            VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
+                ForEach(rows.dates, id: \.self) { date in
+                    Text(date)
+                        .typeStyle(.popoverRow)
+                        .foregroundStyle(Tokens.Color.Text.primary)
+                }
+                if let overflow = rows.overflow {
+                    // SPEC-GAP (design/GAPS.md G-034): §13.4 gives `+N` but
+                    // not its type or colour; `popoverRow` in
+                    // `color.text.secondary` is the placeholder.
+                    Text(overflow)
+                        .typeStyle(.popoverRow)
+                        .foregroundStyle(Tokens.Color.Text.secondary)
+                }
+            }
+            Button(RoutineResync.actionTitle(detachedInstances.count)) {
+                onResync(detachedInstances)
+                isResyncPresented = false
+            }
+            // The primary action: ↩ triggers it, and macOS draws it prominent.
+            .keyboardShortcut(.defaultAction)
+        }
+        // SPEC-GAP (design/GAPS.md G-034): the popover's insets aren't
+        // specified; these are the menu bar popover's (`MenuBarPopoverView`).
+        .padding(.horizontal, Tokens.Spacing.lg)
+        .padding(.vertical, Tokens.Spacing.md)
+        .frame(width: Tokens.Size.resyncPopoverWidth, alignment: .leading)
     }
 
     // MARK: Building blocks (mirrors InspectorView.swift's own)

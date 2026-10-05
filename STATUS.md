@@ -5867,3 +5867,56 @@ unchanged.
   **A31** resolved.
 
 **Next:** P2-T44, Re-sync.
+
+## 45. P2-T44 — Re-sync (components.md §13.7.3; interactions.md §11.2; GAPS G-021)
+
+### Built
+
+- **`RoutineResync`** (new, `Kadence/State/RoutineResync.swift`):
+  - `scope`: this template's `detached` instances whose **pair day** is in
+    the materialisation horizon (today through the later of day +28 and the
+    visible end +7). Past, beyond-horizon, linked, released and other
+    templates' instances are out. Tombstoned pairs have no event, so they
+    are out by construction.
+  - `countText`: `1 instance edited` / `N instances edited` (no "this
+    week"), `nil` at zero.
+  - `actionTitle`: `Re-sync 1 instance` / `Re-sync N instances`.
+  - `dateRows`: up to six `Tue 6`-style dates, then `+N`.
+  - `apply`: one `store.transaction("Re-sync Routine")` around
+    `RoutineInstance.revert` for each instance, so the Edit menu reads
+    `Undo Re-sync Routine` and one `⌘Z` restores every instance's edited
+    values and `detached` flag.
+- **Routines inspector**, template summary (nothing selected): the count in
+  `blockMeta` / `color.text.secondary` with a native **Re-sync** button,
+  hidden at zero. The button's popover is `size.resyncPopoverWidth` wide and
+  lists the dates in `popoverRow`, then `+N`. Its primary action is the
+  default button. The window now `@Query`s events so the count follows
+  main-window edits. The old "count is always zero" comment is gone.
+
+### Tests
+
+New `KadenceTests/ResyncTests.swift`, 8 tests: scope (past, day 0, 5, 28 in;
+day 30 out; another template's and a released instance out), visible range
+extends the scope, count and action copy at 0/1/3, popover rows at eight
+detached (six dates and `+2`; exactly six shows no `+N`), a row names the
+pair's day after a move off it, one undo step restoring three instances'
+values, flags and statuses with redo, no resurrection of a tombstoned pair,
+and an empty Re-sync records nothing.
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  443 passed / 0 failed** (§44: 435; +8).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **`check-routines-window.sh`: PASS. `check-conflict-apply-return.sh`:
+  PASS** (+1200 s).
+- **Not verified live:** the count row and popover. A fresh mock store has
+  no detached instances. §17's Re-sync item is for P2-T48.
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-034**. DEVIATIONS **C9**, three P2-T44 judgement calls under C.
+
+**Next:** P2-T45, conflict options catalogue and ranking.

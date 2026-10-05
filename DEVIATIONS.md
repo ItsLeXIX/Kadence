@@ -710,9 +710,13 @@ removed; `increaseContrast` parameter, GAPS G-003).
 
 ## C — invented design values
 
-*(Updated 2026-10-05, task P2-T43.)* Two invented design values and five
+*(Updated 2026-10-05, task P2-T44.)* Three invented design values and five
 placeholders (three behavioural, two accessibility strings), all marked
 `// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
+
+- **C9 — the Re-sync popover's `+N` row and insets (GAPS G-034).** *(new
+  2026-10-05, task P2-T44.)* `+N` in `popoverRow` / `color.text.secondary`;
+  insets borrowed from the menu bar popover.
 
 - **C8 — the detachment flag has three values, and a released instance stays
   released (GAPS G-033).** *(new 2026-10-05, task P2-T43.)* §13.7.2 says
@@ -834,6 +838,16 @@ P2-T43 judgement calls that need no marker, because no value was invented:
   dash to split a label off at, unlike `Edited — differs from …`, which is
   split like §13.6.2's `Will not run —` line. `Revert to routine` is a native
   button like the inspector's Done/Skip.
+
+P2-T44 judgement calls that need no marker, because no value was invented:
+
+- **The count row sits under Total in the template summary.** §13.4 says
+  "beside the template name"; layouts.md §8.1 lists it with the template's
+  fields, and the template name is the inspector title there.
+- **A popover row names the pair's own day**, not the instance's current
+  start, which a detaching move may have changed.
+- **"Today" for the scope is `CalendarState.now`**, the same clock the main
+  window uses.
 
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind

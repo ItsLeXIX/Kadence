@@ -1781,3 +1781,28 @@ Marked `// SPEC-GAP (design/GAPS.md G-033)` in `Event.swift` and
 `RoutineEngine.swift`. Not blocking.
 
 **Needed to close:** confirm the three-valued field, and rule on (2).
+
+---
+
+## 2026-10-05 — G-034 — the Re-sync popover's `+N` row and insets
+
+**Where it bit:** task P2-T44, the Re-sync popover in `RoutineInspectorView`
+(`Kadence/Views/Routines/RoutinesWindow.swift`).
+
+**What the spec says.** `components.md` §13.4 / §13.7.3: a popover anchored to
+the button, `size.resyncPopoverWidth`, listing the affected dates in
+`popoverRow` type, "up to six then `+N`", primary action `Re-sync 3 instances`.
+
+**What is missing.** The `+N` row's type and colour, and the popover's insets
+and row spacing.
+
+**What was built instead of guessing.** Placeholders, marked
+`// SPEC-GAP (design/GAPS.md G-034)`: `+N` in `popoverRow` /
+`color.text.secondary`; insets `spacing.lg` horizontal, `spacing.md`
+vertical, the menu bar popover's own (`MenuBarPopoverView`); rows
+`spacing.xxs` apart and `spacing.md` above the action. Dates read `Tue 6` (the
+calendar's short weekday symbol and the day, as in interactions.md §11.2's
+`Tue 8`). The primary action is the native default button (↩ triggers it).
+Not blocking.
+
+**Needed to close:** the `+N` row's style and the popover's insets.
