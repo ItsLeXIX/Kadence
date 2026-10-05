@@ -156,7 +156,11 @@ extension Event {
 /// - `released`: a detached instance that §13.6.4's withdrawal kept. "They
 ///   stop being detached … become ordinary `.routine`-origin events" — but
 ///   a later pass must still not withdraw them as if they were untouched,
-///   which a two-valued flag can't express. SPEC-GAP (design/GAPS.md G-033).
+///   which a two-valued flag can't express. If the template produces its
+///   pair again it rejoins as `detached` (§13.6.3).
+///
+/// One field, three values: components.md §13.7.2 (amended 2026-10-05,
+/// closes G-033).
 enum RoutineLink: String, Codable, Sendable {
     case linked, detached, released
 }

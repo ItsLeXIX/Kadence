@@ -727,13 +727,6 @@ placeholders (three behavioural, two accessibility strings), all marked
   2026-10-05, task P2-T44.)* `+N` in `popoverRow` / `color.text.secondary`;
   insets borrowed from the menu bar popover.
 
-- **C8 — the detachment flag has three values, and a released instance stays
-  released (GAPS G-033).** *(new 2026-10-05, task P2-T43.)* §13.7.2 says
-  "one persisted flag". It is one persisted field, `Event.routineLink`, with
-  `linked` / `detached` / `released`, because §13.6.4's kept-and-no-longer-
-  detached instance must survive the next withdrawal pass. A released
-  instance whose pair is produced again is left alone.
-
 
 - **C6 — tombstones are never discarded (GAPS G-031).** *(new 2026-10-05,
   task P2-T41.)* §13.7.4 says withdrawal "may" discard a tombstone. The
@@ -1740,6 +1733,13 @@ stays on record. Moved here by task P2-T38, 2026-10-01.
   speaks `conflicts with a protected window`, the string every conflicted
   block used to speak. Block-vs-block conflicts now use §11's own
   `conflicts with <title>`. §11 gives no form for the window kind.
+
+- ~~**C8 — the detachment flag has three values, and a released instance stays
+  released (GAPS G-033).**~~ **Resolved by `design/GAPS.md` G-033 — CLOSED (2026-10-05), written into `components.md` §13.6.3, §13.6.4 and §13.7.2; retired by task P2-F11. Partly overturned:** the three-valued `routineLink` field is adopted as built. "A released instance whose pair is produced again is left alone" is overturned: it now **rejoins as `.detached`** (edits kept, counted, re-syncable, no second instance), recorded inside the causing user step and unrecorded in the background pass, never before today. The `SPEC-GAP` markers are gone. *Original entry:* *(new 2026-10-05, task P2-T43.)* §13.7.2 says
+  "one persisted flag". It is one persisted field, `Event.routineLink`, with
+  `linked` / `detached` / `released`, because §13.6.4's kept-and-no-longer-
+  detached instance must survive the next withdrawal pass. A released
+  instance whose pair is produced again is left alone.
 
 ## Not a deviation — worth stating
 

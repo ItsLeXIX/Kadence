@@ -125,7 +125,10 @@ enum RoutineEngine {
                         flexibility: block.flexibility)
 
                     if let event = existing[externalID] {
-                        // Row 3: detached → leave alone. Row 2: update.
+                        // Rows 3–5: detached, or released (rejoined by
+                        // `rejoin`, never touched here) → leave alone; the
+                        // pair has its event, so no second instance is ever
+                        // created beside it. Row 2: update.
                         if isDetached(event) { continue }
                         if EventStore.RoutineValues(event) != values {
                             updated.append((event.id, values))
@@ -198,15 +201,8 @@ enum RoutineEngine {
                   pair.day >= todayStart
             else { continue }
 
-            let weekday = calendar.component(.weekday, from: pair.day)
-            let stillProduced: Bool = {
-                guard template.activeWeekdays.contains(weekday),
-                      let block = blocksByID[pair.blockID]
-                else { return false }
-                return !ProtectedWindowRule.refuses(
-                    startMinutes: block.startMinutes, duration: block.duration,
-                    weekday: weekday, windows: timeWindows)
-            }()
+            let stillProduced = produces(
+                template, pair: pair, blocksByID: blocksByID, timeWindows: timeWindows, calendar: calendar)
             guard !stillProduced else { continue }
 
             // A `.released` instance is an ordinary event already: kept.
@@ -231,6 +227,81 @@ enum RoutineEngine {
             store.releaseUnrecorded(released)
         }
         return withdrawn.count
+    }
+
+    /// Does `template` produce this pair now? Its weekday is active, its
+    /// block exists, and §13.6.1 doesn't refuse it. The one test both
+    /// `withdraw` (pair gone) and `rejoin` (pair back) ask.
+    private static func produces(
+        _ template: RoutineTemplate, pair: (blockID: UUID, day: Date),
+        blocksByID: [UUID: RoutineBlock], timeWindows: [TimeWindow], calendar: Calendar
+    ) -> Bool {
+        let weekday = calendar.component(.weekday, from: pair.day)
+        guard template.activeWeekdays.contains(weekday),
+              let block = blocksByID[pair.blockID]
+        else { return false }
+        return !ProtectedWindowRule.refuses(
+            startMinutes: block.startMinutes, duration: block.duration,
+            weekday: weekday, windows: timeWindows)
+    }
+
+    /// components.md §13.6.3 (amended 2026-10-05, closes G-033): every
+    /// future `.released` instance of `template` whose pair the template
+    /// produces again rejoins as `.detached` — the weekday came back, a
+    /// block delete was undone, or a protected window stopped refusing it.
+    /// Edits are kept and nothing but the link changes; the pair already has
+    /// its event, so `materialize` never creates a second one beside it.
+    ///
+    /// Recorded (`recordsUndo`) inside a user step, so `⌘Z` on `Add Monday
+    /// to Routine` releases it again; unrecorded in the background pass.
+    /// Never writes before `startOfDay(today)` — a flag is a write, and
+    /// §13.6.5 has no exceptions.
+    ///
+    /// - Returns: the number of instances rejoined.
+    @discardableResult
+    static func rejoin(
+        template: RoutineTemplate,
+        timeWindows: [TimeWindow] = [],
+        today: Date = Date(),
+        recordsUndo: Bool = true,
+        store: EventStore,
+        calendar: Calendar = .current
+    ) -> Int {
+        let todayStart = calendar.startOfDay(for: today)
+        let blocksByID = Dictionary(template.blocks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var rejoined: [UUID] = []
+        for event in instancesByExternalID(sourceID: template.id.uuidString, in: store.context).values
+        where event.routineLink == .released {
+            guard let pair = parse(externalID: event.externalID, calendar: calendar),
+                  pair.day >= todayStart,
+                  produces(template, pair: pair, blocksByID: blocksByID,
+                           timeWindows: timeWindows, calendar: calendar)
+            else { continue }
+            rejoined.append(event.id)
+        }
+        guard !rejoined.isEmpty else { return 0 }
+        if recordsUndo {
+            for id in rejoined.sorted(by: { $0.uuidString < $1.uuidString }) { store.rejoin(id) }
+        } else {
+            store.rejoinUnrecorded(rejoined)
+        }
+        return rejoined.count
+    }
+
+    /// `withdraw` then `rejoin` for every template in the store, against
+    /// every window in the store, recorded — what a store edit inside its
+    /// own step owes §13.6.3/§13.6.4 (task P2-F11 added the rejoin half).
+    @discardableResult
+    static func reconcileAll(store: EventStore, today: Date, calendar: Calendar) -> Int {
+        let context = store.context
+        let templates = (try? context.fetch(FetchDescriptor<RoutineTemplate>())) ?? []
+        let windows = (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? []
+        let withdrawn = withdrawAll(store: store, today: today, calendar: calendar)
+        for template in templates {
+            rejoin(template: template, timeWindows: windows, today: today,
+                   recordsUndo: true, store: store, calendar: calendar)
+        }
+        return withdrawn
     }
 
     /// `withdraw` for every template in the store, against every window in
@@ -365,8 +436,8 @@ enum RoutineInstance {
 /// their `isDetached` parameter's default. Task P2-T43 replaced the P2-T41
 /// seam (which said `false` for everything) with the persisted flag. A
 /// `.released` instance (§13.6.4) is left alone too: it is no longer the
-/// template's to update. SPEC-GAP (design/GAPS.md G-033) for what happens
-/// when its pair is produced again.
+/// template's to update. When its pair is produced again it rejoins as
+/// `.detached` (components.md §13.6.3, closes G-033) — `RoutineEngine.rejoin`.
 @MainActor
 enum RoutineDetachment {
     static func isDetached(_ event: Event) -> Bool {
@@ -546,6 +617,12 @@ enum RoutineMaterialization {
             RoutineEngine.withdraw(
                 template: template, timeWindows: windows, today: today,
                 recordsUndo: false, store: store, calendar: calendar)
+            // §13.6.3 (G-033): a released instance whose pair is produced
+            // again rejoins as detached — unrecorded here, because a
+            // background pass is not a user action.
+            RoutineEngine.rejoin(
+                template: template, timeWindows: windows, today: today,
+                recordsUndo: false, store: store, calendar: calendar)
             return total + RoutineEngine.materialize(
                 template: template, into: range, timeWindows: windows,
                 today: today, recordsUndo: false, store: store, calendar: calendar)
@@ -646,8 +723,10 @@ struct RoutineBlockStore {
     /// §13.6.4: anything this edit stopped the template producing is
     /// withdrawn in the same step. Called inside each step's `perform` body.
     private func withdrawUnproduced() {
-        RoutineEngine.withdrawAll(store: EventStore(context: context, undo: undo),
-                                  today: now(), calendar: calendar)
+        // P2-F11: and rejoin what it made the template produce again
+        // (§13.6.3), in the same step.
+        RoutineEngine.reconcileAll(store: EventStore(context: context, undo: undo),
+                                   today: now(), calendar: calendar)
     }
 
     // MARK: Resolving
@@ -915,6 +994,14 @@ struct RoutineTemplateStore {
             if let template = self.template(templateID) {
                 let windows = (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? []
                 RoutineEngine.withdraw(
+                    template: template, timeWindows: windows, today: today,
+                    recordsUndo: true, store: EventStore(context: context, undo: undo),
+                    calendar: calendar)
+                // components.md §13.6.3 (G-033, task P2-F11): on ACTIVATION
+                // a released instance of this weekday rejoins as detached,
+                // recorded here so `⌘Z` on `Add Monday to Routine` releases
+                // it again in the same press.
+                RoutineEngine.rejoin(
                     template: template, timeWindows: windows, today: today,
                     recordsUndo: true, store: EventStore(context: context, undo: undo),
                     calendar: calendar)

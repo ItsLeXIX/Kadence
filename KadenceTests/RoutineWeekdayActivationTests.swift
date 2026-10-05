@@ -181,10 +181,9 @@ struct RoutineTemplateStoreWeekdayTests {
         #expect(fetched.first?.activeWeekdays == [2, 4, 6, 7])
     }
 
-    /// SPEC-GAP (design/GAPS.md G-027): the spec gives no rule for the last
-    /// active weekday. The placeholder allows it; this pins the placeholder
-    /// so a ruling that changes it has to change this test too.
-    @Test("Removing the last active weekday (G-027 placeholder): allowed, empty set, one undo restores it")
+    /// components.md §13.5.4 (amended 2026-10-05, closes G-027): removing a
+    /// template's last weekday is allowed — a paused routine.
+    @Test("Removing the last active weekday (G-027): allowed, empty set, one undo restores it")
     func removeLastWeekday() throws {
         let (store, _, undo, template) = try makeTemplateStore()
         store.setWeekday(monday, active: false, in: template, calendar: english)

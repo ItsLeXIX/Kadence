@@ -100,8 +100,10 @@ struct TimeWindowStore {
     private func record(_ name: String, redo: @escaping () -> Void, undo inverse: @escaping () -> Void) {
         undo.perform(name) { group in
             group.perform(redo: redo, undo: inverse)
-            RoutineEngine.withdrawAll(store: EventStore(context: context, undo: undo),
-                                      today: now(), calendar: calendar)
+            // P2-F11: withdraw, then rejoin what this edit made the
+            // template produce again (§13.6.3, a window that stops refusing).
+            RoutineEngine.reconcileAll(store: EventStore(context: context, undo: undo),
+                                       today: now(), calendar: calendar)
         }
     }
 

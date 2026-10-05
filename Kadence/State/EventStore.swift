@@ -211,6 +211,24 @@ struct EventStore {
         try? context.save()
     }
 
+    /// components.md §13.6.3 (amended 2026-10-05, closes G-033): a released
+    /// instance whose pair the template produces again REJOINS as
+    /// `.detached` — its edits kept, nothing else touched. Recorded, so it
+    /// joins the user step that caused it (`⌘Z` releases it again).
+    func rejoin(_ id: UUID) {
+        guard let event = event(id), event.routineLink == .released else { return }
+        undo.perform("Rejoin Routine Instance",
+                     redo: { edit(id) { $0.routineLink = .detached } },
+                     undo: { edit(id) { $0.routineLink = .released } })
+    }
+
+    /// The same with no undo step, for the background pass. One save.
+    func rejoinUnrecorded(_ ids: [UUID]) {
+        guard !ids.isEmpty else { return }
+        for id in ids where event(id)?.routineLink == .released { event(id)?.routineLink = .detached }
+        try? context.save()
+    }
+
     // MARK: Routine instances (components.md §13.6.3 / §13.6.4, task P2-T41)
 
     /// The four template-owned fields (§13.7.1) of a routine instance.

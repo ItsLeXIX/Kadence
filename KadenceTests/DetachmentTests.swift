@@ -51,9 +51,12 @@ private func materialised(_ store: EventStore) -> (RoutineTemplate, RoutineBlock
     return (template, block, events(store.context)[0])
 }
 
+/// The background pass, as `RoutineMaterialization.run` does it: withdraw,
+/// rejoin (P2-F11), materialise — all unrecorded.
 @MainActor
-private func pass(_ template: RoutineTemplate, _ store: EventStore) {
-    RoutineEngine.withdraw(template: template, today: today, recordsUndo: false, store: store, calendar: calendar)
+private func pass(_ template: RoutineTemplate, _ store: EventStore, on day: Date = today) {
+    RoutineEngine.withdraw(template: template, today: day, recordsUndo: false, store: store, calendar: calendar)
+    RoutineEngine.rejoin(template: template, today: day, recordsUndo: false, store: store, calendar: calendar)
     RoutineEngine.materialize(template: template, into: DateInterval(start: today, duration: 7 * 86400),
                               today: today, recordsUndo: false, store: store, calendar: calendar)
 }
@@ -296,5 +299,92 @@ struct RevertToRoutineTests {
         store.delete(event)
         undo.undo()
         #expect(events(context).first { $0.id == id }?.isDetached == true)
+    }
+}
+
+// MARK: - §13.6.3 rejoin (G-033, task P2-F11)
+
+@Suite("A released instance rejoins as detached when its pair returns (§13.6.3, P2-F11)")
+@MainActor
+struct RejoinTests {
+
+    /// Monday's instance moved 30 min (detached), then `Remove Monday`
+    /// releases it.
+    private func released() throws -> (EventStore, ModelContext, UndoStack, RoutineTemplate, Event, Date) {
+        let (store, context, undo) = try makeStore()
+        let (template, _, first) = materialised(store)
+        store.move(first, by: 30 * 60)
+        let editedStart = first.start
+        RoutineTemplateStore(context: context, undo: undo)
+            .setWeekday(mon, active: false, in: template, today: today, calendar: calendar)
+        #expect(first.routineLink == .released)
+        return (store, context, undo, template, first, editedStart)
+    }
+
+    private func mondayInstances(_ context: ModelContext, _ template: RoutineTemplate) -> [Event] {
+        events(context).filter {
+            $0.sourceID == template.id.uuidString && calendar.isDate($0.start, inSameDayAs: today)
+        }
+    }
+
+    @Test("Add Monday: same id, detached, edited start kept, counted, exactly one event for the pair")
+    func rejoinsOnAddMonday() throws {
+        let (store, context, undo, template, first, editedStart) = try released()
+        let id = first.id
+
+        RoutineTemplateStore(context: context, undo: undo)
+            .setWeekday(mon, active: true, in: template, today: today, calendar: calendar)
+        pass(template, store)   // the background pass that follows activation
+
+        let monday = mondayInstances(context, template)
+        #expect(monday.count == 1, "the template never creates a second instance beside it")
+        #expect(monday.first?.id == id)
+        #expect(first.routineLink == .detached)
+        #expect(first.start == editedStart)
+        let scope = RoutineResync.scope(of: template, in: context, today: today, visibleEnd: nil, calendar: calendar)
+        #expect(scope.map(\.id) == [id])
+        #expect(RoutineResync.countText(scope.count) == "1 instance edited")
+        #expect(RoutineInstance.status(of: first, in: context) == .edited(routineName: "Gym routine"))
+    }
+
+    @Test("⌘Z on `Add Monday to Routine` returns it to released")
+    func undoReleasesAgain() throws {
+        let (_, context, undo, template, first, _) = try released()
+        RoutineTemplateStore(context: context, undo: undo)
+            .setWeekday(mon, active: true, in: template, today: today, calendar: calendar)
+        #expect(first.routineLink == .detached)
+        #expect(undo.undoMenuTitle == "Undo Add Monday to Routine")
+        undo.undo()
+        #expect(first.routineLink == .released)
+        #expect(!template.activeWeekdays.contains(mon))
+    }
+
+    @Test("A background pass performs the same rejoin, unrecorded")
+    func backgroundRejoin() throws {
+        let (store, context, undo, template, first, _) = try released()
+        let titleBefore = undo.undoMenuTitle
+        template.activeWeekdays.insert(mon)   // e.g. arrived by sync, not a user step
+        try context.save()
+        pass(template, store)
+        #expect(first.routineLink == .detached)
+        #expect(undo.undoMenuTitle == titleBefore, "no undo step recorded")
+        #expect(mondayInstances(context, template).count == 1)
+    }
+
+    @Test("A released instance dated before today is untouched")
+    func pastUntouched() throws {
+        let (store, context, _, template, first, _) = try released()
+        template.activeWeekdays.insert(mon)
+        try context.save()
+        let nextWeek = calendar.date(byAdding: .day, value: 7, to: today)!
+        RoutineEngine.rejoin(template: template, today: nextWeek, recordsUndo: false, store: store, calendar: calendar)
+        #expect(first.routineLink == .released)
+    }
+
+    @Test("Still not produced: a released instance stays released")
+    func notProducedStaysReleased() throws {
+        let (store, _, _, template, first, _) = try released()
+        pass(template, store)
+        #expect(first.routineLink == .released)
     }
 }

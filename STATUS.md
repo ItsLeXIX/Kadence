@@ -6832,3 +6832,51 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 - DEVIATIONS **B23** (new, out of scope): seeded at night, the `Journal`
   fixture lands in `Sleep` (`now + 4 min`), so a capture's content depends on
   the clock. The count is unaffected.
+
+## 62. P2-F11 — detachment rejoin (components.md §13.6.3, §13.6.4, §13.7.2, amended 2026-10-05; G-033; PHASE2-REVIEW.md §6 item 11)
+
+### Built
+
+- `RoutineEngine.rejoin(template:…)`: every future `.released` instance
+  whose pair the template produces again (weekday active, block exists, not
+  refused by §13.6.1) becomes `.detached`; nothing else is touched, and
+  nothing before `startOfDay(today)` is written. The produce test is now one
+  helper (`produces`) shared with `withdraw`.
+- `EventStore.rejoin(_:)` (recorded, `Rejoin Routine Instance`, joining the
+  open step) and `rejoinUnrecorded(_:)`.
+- Where it runs: `RoutineTemplateStore.setWeekday` (recorded inside `Add
+  Monday to Routine`, so `⌘Z` releases it again); every store edit that
+  used `withdrawAll` now uses `reconcileAll` (withdraw + rejoin, recorded:
+  block edits, every `TimeWindowStore` edit — a window that stops refusing);
+  the background pass `RoutineMaterialization.run` (withdraw, rejoin,
+  materialise — unrecorded). `materialize` already never creates a second
+  instance for a pair with an event; its comment now says why.
+- The G-033 `SPEC-GAP` markers (`Event.RoutineLink`, `RoutineDetachment`)
+  are replaced by spec references; the stale G-027 marker in
+  `RoutineWeekdayActivationTests` (missed in F08) too.
+
+### Tests
+
+- `RejoinTests` (5): Monday moved → `Remove Monday` → released → `Add
+  Monday` + a pass: same id, `.detached`, edited start kept, the only
+  in-scope instance (`1 instance edited`), inspector status `edited`, one
+  event for the pair; `⌘Z` on `Add Monday to Routine` → released again; a
+  background pass rejoins unrecorded (undo title unchanged); a released
+  instance before today stays released; a pair still not produced stays
+  released. The test file's `pass` helper now mirrors the real pass
+  (withdraw, rejoin, materialise).
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 537
+  passed / 0 failed** (532 + 5).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **C8** → "Resolved — retired by a spec ruling", partly
+  overturned (rejoin). No recapture.
