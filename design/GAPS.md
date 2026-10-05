@@ -1852,3 +1852,27 @@ inset and the gap between them.
 one baseline. Not blocking.
 
 **Needed to close:** the row's label inset and gap.
+
+---
+
+## 2026-10-05 — G-037 — §17.1 item 10's "degraded at 110pt" row contradicts §15.1's own threshold
+
+**Where it bit:** task P2-T47, `StatusItemLayout` and the item-10 captures.
+
+**What the spec says.** `components.md` §15.1 (amended): show `HH:mm · Title`
+while the space left after the time and ` · ` is at least
+`size.statusItemTitleMinWidth` (32), and the time alone below that. §17.1
+item 10: `degraded | 17:10 | Statistik Übung Gruppe 4 | 110 | 17:30 alone`.
+
+**What is missing.** Measured at the `statusItem` type (13pt medium,
+monospaced digits): `17:30` = 37.3pt and ` · ` = 11.0pt, so at 110pt the
+title has 61.8pt, about twice the threshold. By §15.1 the 110pt row shows
+`17:30 · Statisti…`. The degrade first happens below about 80.3pt (37.3 + 11.0
++ 32).
+
+**What was built instead of guessing.** §15.1's rule as written. The 110pt
+row is captured as the rule renders it, and an extra 80pt row shows the
+degrade (`screenshots/2/INDEX.md`, Batch 8). No SPEC-GAP marker, since no value
+was invented. Not blocking.
+
+**Needed to close:** change the fixture's width (to about 80) or the token.

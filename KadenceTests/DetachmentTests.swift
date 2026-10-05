@@ -259,7 +259,7 @@ struct RevertToRoutineTests {
         #expect(event.title == "Training")
         #expect(event.flexibility == .fixed)
         #expect(calendar.dateComponents([.hour, .minute], from: event.start) == DateComponents(hour: 16, minute: 30))
-        #expect(event.duration == 3600)
+        #expect(event.duration == TimeInterval(3600))
         #expect(event.routineLink == .linked)
         #expect(event.status == .done, "status is a fact about the day, left alone")
         #expect(RoutineInstance.status(of: event, in: context) == nil)

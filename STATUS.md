@@ -6073,3 +6073,85 @@ New `KadenceTests/TemplateConflictTests.swift`, 14 tests:
   **A30** resolved.
 
 **Next:** P2-T47, the status-item degrade rule.
+
+## 48. P2-T47 — status-item degrade rule (components.md §15.1 with its 2026-10-01 amendment; §17.1 item 10; DEVIATIONS B14, B15)
+
+### Bookkeeping carried from P2-T46
+
+P2-T46's commit (`768a692`) went out **without its DEVIATIONS.md changes**.
+The Python edit hit a failed assertion (the A31 anchor had changed when A31
+was struck through), wrote nothing, and the commit ran anyway. §47 describes
+those changes as made. They are in **this** commit instead: A30 resolved, C10
+(G-036), A32 (the `1 of N` footer), and the six P2-T46 judgement calls. No
+amend, per the rules.
+
+### Built
+
+- **`StatusItemLayout`** (new, pure, `Kadence/Views/MenuBar/StatusItemLayout.swift`):
+  from the measured leading part (the time, or glyph + elapsed in the late
+  state, §15.1), ` · ` and the title, and the available width capped at
+  `statusItemMaxWidth`. It shows the title only while ≥
+  `statusItemTitleMinWidth` (32) is left, otherwise the leading part alone.
+  The leading part always gets its full width. The total is what's drawn,
+  at most the budget.
+- **`StatusItemLabel`** (in `MenuBarStatusItemView.swift`): measures with
+  the `statusItem` face (13pt medium, monospaced digits) and the late glyph's
+  real width, and builds **one string**: `17:30 · Gym`,
+  `17:30 · Statistik Übung Gr…`, `17:30`. The title is truncated by
+  measurement (`truncated(_:toFit:)`, tail-first, no space before `…`). The
+  first version drew the time and the title as two `Text`s. **Live, the
+  menu bar dropped the second one** (AX title `640m ago`, `Breakfast`
+  missing): a `MenuBarExtra` label is flattened to one image and one text,
+  which is what `0d81c96` had run into. After the fix the live AX title is
+  `642m ago · Breakfast`, 169pt wide. B14 and B15 resolved.
+- `MenuBarStatusItemView` is now the fetching wrapper around the label.
+
+### Captures (§17.1 item 10)
+
+`screenshots/2/status-item-{normal-full,normal-clipped,late-full,late-clipped,empty,degraded-110,degraded-80}-p2t47.png`
+are offscreen renders of the real `StatusItemLabel` at §17.1's `now`,
+title and width (`StatusItemLayoutTests.renderRows` with
+`TEST_RUNNER_KADENCE_CAPTURE_DIR`; the sandboxed host writes to its temp
+directory, and the files were copied out). The real menu bar can't be set
+to 17:10 or to 110pt, and right now the item is hidden off the visible
+menu bar anyway (AX x = −4390, crowded bar), so a real crop wasn't possible.
+INDEX.md **Batch 8** maps them. **The time is intact in every row.**
+**§17.1's 110pt "degraded" row contradicts §15.1's own threshold:** at
+110, `17:30` (37.3pt) + ` · ` (11.0pt) leaves 61.8pt ≥ 32, so the rule shows
+`17:30 · Statisti…`. The rule is built, the 110 row is captured as the
+rule draws it, and an extra 80pt row (31.7 left) shows the actual degrade.
+GAPS **G-037**.
+
+### Tests
+
+New `KadenceTests/StatusItemLayoutTests.swift`, 8 tests: threshold (32
+shows, 31 doesn't, no separator/ellipsis), time never truncated even when it
+alone exceeds the budget (swept over 0…300pt), at most max and only as wide
+as drawn, no title; per-row layout for the seven rows; the exact string per
+row (time intact, `…`, ≤ width given, `17:30` alone at 80); truncation; the
+render.
+
+**Test flake fixed along the way:** `#expect(x == 45 * 60)` with a
+`TimeInterval`/`CGFloat` on the left failed once with equal printed values
+(2700.0 vs 2700) in `TemplateConflictApplyTests`, after passing in §47. The
+integer-expression right-hand sides in this session's new test files are
+now explicitly typed (`TimeInterval(…)`, `CGFloat(…)`, 10 sites). The suite
+then passed twice in a row.
+
+### Verified
+
+- `xcodebuild … build`: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests test`: `** TEST SUCCEEDED **`, **xcresult:
+  477 passed / 0 failed** (§47: 469; +8).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **`check-routines-window.sh`: PASS** (three runs, two with `--keep` for the
+  live AX read; the app was quit). **`check-conflict-apply-return.sh`:
+  PASS** (+1200 s).
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-037**. DEVIATIONS: **B14** and **B15** resolved; three P2-T47
+  judgement calls under C; plus P2-T46's carried entries (above).
+
+**Next:** P2-T49 (snooze across midnight), then P2-T48.

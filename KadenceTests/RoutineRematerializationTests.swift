@@ -128,7 +128,7 @@ struct PerPairTableTests {
         for event in events(context) {
             #expect(calendar.component(.hour, from: event.start) == 7)
             #expect(calendar.component(.minute, from: event.start) == 30)
-            #expect(event.duration == 45 * 60)
+            #expect(event.duration == TimeInterval(45 * 60))
             #expect(event.title == "Gym (short)")
             #expect(event.flexibility == .droppable)
         }

@@ -835,3 +835,40 @@ It answers no §17 item that the cropped images above don't already cover.
 **Recommendation: Parsa deletes it**, both for the personal content and
 because the name says it shows something it doesn't.
 
+
+## Batch 8 — §17 item 10's six §17.1 rows, after the degrade rule (task P2-T47, 2026-10-05)
+
+Seven PNGs, `*-p2t47.png`. §17.1 fixes each row's `now`, title and available
+width, and the real menu bar can't be set to 17:10 or given 110pt. So these
+are **offscreen renders of the real label view** (`StatusItemLabel`, the same
+view the `MenuBarExtra` shows), not menu-bar crops. Made by
+`KadenceTests/StatusItemLayoutTests.swift`'s `renderRows` with
+`TEST_RUNNER_KADENCE_CAPTURE_DIR` set: `ImageRenderer`, scale 2, light
+appearance, on a `color.surface.toolbar` strip exactly as wide as the
+available width, so you can see how much of it the item uses. The sandboxed
+test host writes to its own temp directory, and the files were copied here.
+No UI was driven.
+
+| §17.1 row | File | `now` | Title | Width | Shows |
+|---|---|---|---|---|---|
+| normal, full | `status-item-normal-full-p2t47.png` | 17:10 | Gym | 180 | `17:30 · Gym` |
+| normal, clipped | `status-item-normal-clipped-p2t47.png` | 17:10 | Statistik Übung Gruppe 4 | 180 | `17:30 · Statistik Übung Gr…` |
+| late, full | `status-item-late-full-p2t47.png` | 17:42 | Gym | 180 | glyph + `12m ago · Gym` |
+| late, clipped | `status-item-late-clipped-p2t47.png` | 17:42 | Statistik Übung Gruppe 4 | 180 | glyph + `12m ago · Statistik Übu…` |
+| empty | `status-item-empty-p2t47.png` | 23:40 | — | 180 | `Nothing left today` |
+| degraded | `status-item-degraded-110-p2t47.png` | 17:10 | Statistik Übung Gruppe 4 | **110** | `17:30 · Statisti…` — see below |
+| (extra) degraded | `status-item-degraded-80-p2t47.png` | 17:10 | Statistik Übung Gruppe 4 | 80 | `17:30` alone |
+
+**The time is intact in every row**, and each item is only as wide as what it
+draws (B15), not padded to 180.
+
+**The 110pt row doesn't degrade, and that follows §15.1.** Measured at the
+`statusItem` font, `17:30` is 37.3pt and ` · ` is 11.0pt, which leaves
+61.8pt for the title at 110. §15.1 shows the title while at least
+`size.statusItemTitleMinWidth` (32) is left, so §17.1's expectation of
+"`17:30` alone" at 110 contradicts the rule it is meant to check. The rule
+was built; GAPS **G-037** asks which one to change. The extra 80pt row
+(31.7pt left, under 32) shows the degrade itself: no separator, no ellipsis.
+
+The Batch 7 crops (`status-item-{normal,late,empty}.png`, real menu bar)
+predate this change and are kept.

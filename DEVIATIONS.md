@@ -716,10 +716,13 @@ removed; `increaseContrast` parameter, GAPS G-003).
 
 ## C — invented design values
 
-*(Updated 2026-10-05, task P2-T44.)* Three invented design values and five
+*(Updated 2026-10-05, task P2-T46.)* Four invented design values and five
 placeholders (three behavioural, two accessibility strings), all marked
 `// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
 
+- **C10 — the §14.2 window row's label inset and gap (GAPS G-036).** *(new
+  2026-10-05, task P2-T46.)* `size.blockPadding` inset, `spacing.sm` between
+  the two labels.
 - **C9 — the Re-sync popover's `+N` row and insets (GAPS G-034).** *(new
   2026-10-05, task P2-T44.)* `+N` in `popoverRow` / `color.text.secondary`;
   insets borrowed from the menu bar popover.
@@ -863,6 +866,38 @@ P2-T45 judgement calls that need no marker, because no value was invented:
 - **The shorten title names the kept duration** (`Shorten Training to 30
   min`), from §14.3.4's table, so it is `duration − trimmed`. The
   disturbance number is the trimmed minutes.
+
+P2-T46 judgement calls that need no marker, because no value was invented:
+
+- **One template conflict per (block, protected window)**, since §14.2's
+  header shows one window row. A block refused by two windows is two
+  conflicts.
+- **An option has to clear every protected span on every active weekday**,
+  not just the named window's, so applying it never trades one refusal for
+  another.
+- **Applying a day conflict never advances into the template queue.**
+  `CalendarState.applyFocusedConflictOption` advances among day conflicts
+  only; the main panel can't show a template conflict (§14.6). The count
+  still includes them, and the next activation routes there.
+- **In the Routines window, `⎋` with nothing previewed leaves conflict mode**,
+  and selecting another block leaves it too (§10.2: the panel never traps).
+- **After `↩` in the Routines window, the next template conflict opens with
+  its top option previewed**, the same as the main window's advance.
+- **The option row is now one shared view (`ConflictOptionRowView`)**,
+  moved unchanged out of `ConflictPanelView`, for §14.6's "same row
+  geometry, same chip".
+
+P2-T47 judgement calls that need no marker, because no value was invented:
+
+- **"What it is actually given" is the budget.** A `MenuBarExtra` label is
+  never told its available width (macOS hides an item that doesn't fit
+  rather than narrowing it), so the live item measures against
+  `statusItemMaxWidth`. The rule is exercised at other widths in the tests
+  and the item-10 renders.
+- **One string, truncated by measurement**, not a time `Text` beside a
+  `.truncationMode` title `Text`: a `MenuBarExtra` label keeps one image and
+  one text, and a second `Text` was dropped live.
+- **No space before the ellipsis** when the cut falls after a word.
 
 - ~~**C1 — components.md §10.1, source swatch symbols.**~~ **Closed.** §10.1
   carries a normative table for all nine source kinds plus an unknown-kind
@@ -1352,11 +1387,21 @@ P2-T45 judgement calls that need no marker, because no value was invented:
   snapshot alongside the recreated one: two events with the same identity.
   Tombstones close both. Not covered by a test yet, because the fix is
   §13.7.4's, not this task's.
-- **A30 — components.md §13.6.2 third surface and §14.6.** *(new 2026-10-01,
+- ~~**A30 — components.md §13.6.2 third surface and §14.6.**~~ **Resolved
+  2026-10-05, task P2-T46:** template conflicts count in the needs-attention
+  row, `⌘⇧A` and the row route a template conflict to the Routines window's
+  conflict mode (§14.6 panel, template catalogue, preview, `↩` as one
+  `Resolve Routine Conflict` step). *(was:)* *(new 2026-10-01,
   task P2-T40.)* A refused pair doesn't reach the needs-attention count, and
   that row doesn't route to the Routines window. The canvas `conflicted`
   presentation and the inspector `Will not run …` line are built. Marked
   `// P2-T46` in `RoutineInspectorView.blockDetails`.
+- **A32 — layouts.md §10 item 3. The conflict panel's `1 of N` footer with
+  `‹` `›` is not built**, in either window. *(new 2026-10-05, noticed by task
+  P2-T46, out of scope.)* Conflicts are reached through the needs-attention
+  row, `⌘⇧A` and apply's advance only, so there is no way to step to a later
+  conflict without resolving the current one, and no way to reach a template
+  conflict from the main panel while day conflicts remain.
 - ~~**A31 — components.md §13.7.1 / §13.6.3 row 3. Until P2-T43, every
   materialised instance counts as undetached, so a main-grid edit to one is
   overwritten by the next materialisation pass.**~~ **Resolved 2026-10-05,
@@ -1453,9 +1498,13 @@ Still open, all re-checked against the current spec text this session:
   missing behaviour, it was not caused by the hit-region bug, and fixing the
   hit region did not close it.
 
-- **B14 — components.md §15.1. The status item's time is no longer
+- ~~**B14 — components.md §15.1. The status item's time is no longer
   structurally protected from truncation, and the 2026-10-01 "below the
-  budget" rule is not built.** *(new 2026-10-01, task P2-T38, recording hand
+  budget" rule is not built.**~~ **Resolved 2026-10-05, task P2-T47:**
+  `StatusItemLayout` + `StatusItemLabel.text` measure the time, ` · ` and the
+  title with the `statusItem` font. The title is truncated by measurement into
+  one string, so the time is never part of what gets cut, and with under
+  `size.statusItemTitleMinWidth` left the item shows the time alone. *(was:)* *(new 2026-10-01, task P2-T38, recording hand
   commit `0d81c96`. See `STATUS.md` §38.)* §15.1: "The time comes first and is
   never truncated ... The title truncates tail-first inside whatever the time
   leaves." Before `0d81c96` this held by construction: the time was its own
@@ -1472,8 +1521,10 @@ Still open, all re-checked against the current spec text this session:
   item shows a stub such as `17:30 · T…`. The token now exists in
   `Tokens.swift` (regenerated by P2-T38) but nothing reads it. *Still open.*
   Building it is a separate status-item task, outside P2-T38's scope.
-- **B15 — components.md §15.1. The status item is always exactly
-  `size.statusItemMaxWidth` wide.** *(new 2026-10-01, task P2-T38, recording
+- ~~**B15 — components.md §15.1. The status item is always exactly
+  `size.statusItemMaxWidth` wide.**~~ **Resolved 2026-10-05, task P2-T47:**
+  the item is as wide as its text, at most the budget (live: 169pt for
+  `642m ago · Breakfast`). *(was:)* *(new 2026-10-01, task P2-T38, recording
   `0d81c96`.)* §15.1 calls 180 "a budget, not a guarantee". `0d81c96` changed
   `.frame(maxWidth: statusItemMaxWidth)` to `.frame(width:
   statusItemMaxWidth)` + `.fixedSize()`, so the label always asks for the full

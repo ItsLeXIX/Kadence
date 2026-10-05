@@ -270,7 +270,7 @@ struct TemplateConflictApplyTests {
 
             if kind == .shorten {
                 #expect(errands.startMinutes == 13 * 60)
-                #expect(errands.duration == 15 * 60)
+                #expect(errands.duration == TimeInterval(15 * 60))
             } else {
                 #expect(template.blocks.isEmpty)
             }
@@ -278,7 +278,7 @@ struct TemplateConflictApplyTests {
             undo.undo()
             #expect(template.blocks.count == 1)
             #expect(template.blocks.first?.startMinutes == 12 * 60 + 30)
-            #expect(template.blocks.first?.duration == 45 * 60)
+            #expect(template.blocks.first?.duration == TimeInterval(45 * 60))
         }
     }
 }
