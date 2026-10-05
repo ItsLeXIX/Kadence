@@ -6278,3 +6278,82 @@ unchanged (`Moved to 17:45`).
 ### New GAPS / DEVIATIONS
 
 - GAPS **G-038**. DEVIATIONS **B20**, four P2-T48 judgement calls under C.
+
+## 51. Run summary — P2-T41 … P2-T49 (2026-10-05)
+
+### Tasks
+
+| Task | Result | Commit |
+|---|---|---|
+| P2-T41 re-materialisation, withdrawal, tombstones (+ B17, conflict wording, script reader, Journal flake) | committed | `9273fd5` |
+| P2-T42 flexibility stepper | committed | `61e1060` |
+| P2-T43 detachment flag and its two surfaces | committed | `ef666f6` |
+| P2-T44 Re-sync | committed | `027421a` |
+| P2-T45 conflict options catalogue and ranking | committed | `ea89b01` |
+| P2-T46 template conflicts: header, panel, routing | committed, **but its DEVIATIONS.md edits went out in P2-T47's commit** (a failed edit assertion, see §48) | `768a692` |
+| P2-T47 status-item degrade rule | committed (carries P2-T46's DEVIATIONS) | `20a5924` |
+| P2-T49 snooze across midnight (run before T48) | committed | `f9715af` |
+| P2-T48 fixtures and remaining captures | committed | `aca9a32` |
+
+None stopped or skipped. This §51 entry is left uncommitted, since it belongs
+to no task.
+
+### Tests
+
+**488 passed / 0 failed** (xcresult), against the 385 baseline (+103).
+Counting notes: `xcodebuild` sometimes stalls after testing finishes (Xcode's
+runtime-profile download, §30); the runner kills it and counts with
+`NSUnbufferedIO=YES`. One flake was fixed (§48): untyped integer expressions
+inside `#expect` comparisons.
+
+### Scripts (last runs)
+
+- `check-routines-window.sh`: **PASS**.
+- `check-conflict-apply-return.sh`: **PASS**. Its first end-to-end PASS
+  came in P2-T41, after the reader change, the B17 fix, and fixing a
+  time-of-day flake (B18).
+- `generate-tokens --check`: up to date.
+- New: `Scripts/capture-p2t48.sh` (§17 captures).
+
+### GAPS opened (all with placeholders, none blocking)
+
+G-030 spoken phrase for a block in a protected window · G-031 tombstone
+lifetime · G-032 rail-sample height/colour and stepper text · G-033 the
+detachment flag needs three values, and released instances when their pair
+returns · G-034 Re-sync popover `+N` row and insets · **G-035 §14.3.4's copy
+tables contradict its `N h MM` rule** · G-036 window-row label inset · **G-037
+§17.1's 110pt status-item row contradicts §15.1's threshold** · G-038 selected
+option row contrast and long template titles.
+
+### DEVIATIONS
+
+- Resolved: A28, A29, A30, A31, B14, B15, B17, B18 (opened and resolved),
+  B19 (opened and resolved). Narrowed: B16.
+- Opened: C5–C10 (placeholders), D5 (G-035), A31 (temporary, resolved by
+  T43), A32 (`1 of N` footer not built), B20 (main inspector content clipped
+  at its leading edge).
+
+### §17 captures
+
+Every item 1–18 has a file (`screenshots/2/INDEX.md`, Batch 9 table). Items
+10–12 are offscreen renders of the real views, not menu-bar crops: §17.1
+pins clock times, and the status item is hidden off this machine's crowded
+menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
+
+### For Parsa, before the design agent's final screenshot review
+
+1. **G-035:** exact-copy tables (`90 min`) or the `1 h 30` rule? Built: the tables.
+2. **G-037:** the 110pt "degraded" row can't degrade under §15.1's own
+   threshold. Change the fixture width (~80) or the token?
+3. **G-033:** accept a three-valued detachment field (linked / detached /
+   released) in place of "one flag"? And should a released instance rejoin
+   the routine if its weekday comes back?
+4. **B20 / G-038:** visible in the new frames (clipped inspector edge,
+   unreadable selected-row line 2, truncated template titles). Expect the
+   reviewer to raise these.
+5. **The conflict count depends on the weekday** (15 vs 13): §17.1's
+   Training also collides with Phase 1's `Group call` and `Code review` on a
+   Mon/Wed/Fri today. Intended, or move those fixtures?
+6. **Housekeeping:** P2-T46's DEVIATIONS changes are in P2-T47's commit
+   (no amend, per the rules). `secondary_with_popover.png` (§39) is still
+   awaiting your delete decision.
