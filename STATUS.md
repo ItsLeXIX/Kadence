@@ -8156,3 +8156,54 @@ count inside one parameterised test).
 ### New GAPS / DEVIATIONS
 
 - DEVIATIONS **B22** resolved.
+
+## 88. P2-SF6 — the 780pt Routines frame: the editor inspector starts collapsed (layouts.md §8, §1.1; PHASE2-REVIEW.md 2026-10-06 R4 SF6)
+
+### Checked first
+
+- The build **did** open it by itself: `RoutinesWindow` had no collapsed
+  state — below 1040pt the inspector was always drawn as the overlay
+  (`if !isSplit { inspector … .elevation(.level2) }`). So the build is
+  fixed here, and item 13's 780 frame is recaptured in P2-RC.
+
+### Built
+
+- `RoutinesWindow`: `isInspectorVisible` / `userSetInspectorVisibility`,
+  the main window's §1.1 pair. Auto-collapse on open and whenever the width
+  crosses 1040 (`onChange(of: isSplit, initial: true)`), unless the user
+  chose. Split ≥ 1040 and overlay < 1040 are drawn only while visible.
+- ⌥⌘I: the View menu's `Show/Hide Inspector` toggles the **key Routines
+  window's** editor inspector when one is key
+  (`.focusedSceneValue(\.routinesInspector, RoutinesInspectorToggle)` read
+  by `@FocusedValue` in `KadenceCommands`), else the main window's as
+  before. layouts.md §8's toolbar has no inspector button, so none added.
+- Activating a template conflict (`enterConflictMode`) opens the inspector
+  (its panel is the inspector's conflict mode), as the main window does for
+  a day conflict.
+- INDEX.md Batch 10: the 780 row's "the canvas scrolls horizontally at this
+  width" corrected (it doesn't: 780pt canvas, 104pt columns; the overlay
+  covered Fri–Sun) and marked superseded by P2-RC.
+
+### Tests
+
+- No unit test (view state); the live check is the evidence.
+  `check-routines-window.sh` gains two steps at its 1000pt size: the
+  editor inspector's `Weekdays` label is absent (**collapsed**), then a
+  real ⌥⌘I (Kadence frontmost-checked) makes it appear (**overlay
+  opened**), then its existing click-selects-Gym test.
+
+### Verified
+
+- `-only-testing:KadenceTests`: **xcresult 597 passed / 0 failed**
+  (unchanged). No warning in a touched file. `generate-tokens --check`: up
+  to date.
+- Fresh pre-flight before each: `check-routines-window.sh` **PASS**
+  (collapsed at 1000pt; ⌥⌘I opened it; Gym selected),
+  `check-conflict-apply-return.sh` **PASS**, `check-inspector-inset.sh`
+  **PASS** (the main window's inspector unaffected),
+  `check-block-click-selects.sh` **PASS**, `check-resync-escape.sh`
+  **PASS** (at 1051pt, split).
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B37** logged and resolved in this task.

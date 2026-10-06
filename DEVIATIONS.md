@@ -1823,6 +1823,19 @@ Still open, all re-checked against the current spec text this session:
   `⌥⌘↩` share one path (`SnoozeConfirmation.perform`). Tests:
   `SnoozeProtectedTests`, `PopoverCaptureTests` (item 12's three rows).
 
+- ~~**B37 — layouts.md §8 → §1.1. Below 1040pt the Routines window's editor
+  inspector opened by itself, as an overlay.**~~ **Resolved 2026-10-06, task
+  P2-SF6** *(logged and resolved in the same task, from the re-review's
+  SF6).* The build had no collapsed state: below 1040pt the overlay was
+  always drawn (item 13's 780 frame shows it over Fri–Sun). Now the window
+  keeps §1.1's pair — visible / user-chose — auto-collapsing below 1040 and
+  re-opening only on ⌥⌘I (the View menu's inspector command, routed to the
+  key Routines window through a focused scene value) or on activating a
+  template conflict (its panel is the inspector's conflict mode); an
+  explicit choice survives a resize. layouts.md §8 gives this window no
+  toolbar inspector button, so none was added. `check-routines-window.sh`
+  now asserts collapsed at 1000pt, then ⌥⌘I opens it.
+
 ---
 
 ## Resolved — retired by a spec ruling

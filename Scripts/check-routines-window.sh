@@ -192,7 +192,30 @@ EOF
 
 query() { osascript "$WORK/query.applescript"; }
 
+# P2-SF6 (layouts.md §8 → §1.1): below 1040pt the editor inspector starts
+# collapsed — nothing of it on screen — and ⌥⌘I brings it back as an
+# overlay. Its template summary's "Weekdays" label is the marker.
+query > "$WORK/collapsed.txt"
+if grep -q "~~Weekdays|" "$WORK/collapsed.txt"; then
+  echo "FAIL: at 1000pt the editor inspector is open by itself (layouts.md §8: it starts collapsed below 1040pt)."
+  [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null
+  exit 1
+fi
+echo "PASS: at 1000pt the editor inspector starts collapsed."
+osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $TARGET) to true" >/dev/null 2>&1
+sleep 1
+FRONT=$(osascript -e 'tell application "System Events" to get unix id of first process whose frontmost is true' 2>/dev/null)
+[[ "$FRONT" == "$TARGET" ]] || { echo "STOP: Kadence is not frontmost — ⌥⌘I not sent."; [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
+osascript -e "tell application \"System Events\" to tell (first process whose unix id is $TARGET) to keystroke \"i\" using {command down, option down}" >/dev/null 2>&1
+sleep 2
+
 query > "$WORK/before.txt"
+if ! grep -q "~~Weekdays|" "$WORK/before.txt"; then
+  echo "FAIL: ⌥⌘I did not open the Routines window's editor inspector."
+  [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null
+  exit 1
+fi
+echo "PASS: ⌥⌘I opened the editor inspector (overlay)."
 
 python3 - "$WORK/before.txt" "$WORK/plan.txt" <<'PY'
 import re, sys

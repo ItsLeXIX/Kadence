@@ -184,6 +184,14 @@ struct RoutinesWindow: View {
     /// selected — including the very first tap — since nothing else in this
     /// window claims keyboard focus by default.
     @FocusState private var canvasFocused: Bool
+    /// layouts.md §8 → §1.1 (task P2-SF6): the editor inspector auto-collapses
+    /// below 1040pt and comes back, as an overlay, only when the user opens
+    /// it (⌥⌘I — routed here by `RoutinesInspectorToggle` while this window
+    /// is key) or a template conflict is activated (its panel lives in the
+    /// inspector). An explicit choice isn't overwritten by a later resize.
+    /// Mirrors `CalendarState.isInspectorVisible` / `userSetInspectorVisibility`.
+    @State private var isInspectorVisible = true
+    @State private var userSetInspectorVisibility = false
 
     private var store: RoutineBlockStore {
         RoutineBlockStore(context: context, undo: undoStack)
@@ -270,7 +278,7 @@ struct RoutinesWindow: View {
                 HStack(spacing: 0) {
                     canvas
                         .frame(minWidth: 0, maxWidth: .infinity)
-                    if isSplit {
+                    if isSplit && isInspectorVisible {
                         Rectangle()
                             .fill(Tokens.Color.Separator.region)
                             .frame(width: Tokens.Size.hairline)
@@ -279,11 +287,16 @@ struct RoutinesWindow: View {
                     }
                 }
 
-                if !isSplit {
+                if !isSplit && isInspectorVisible {
                     inspector
                         .frame(width: Tokens.Size.editorInspectorWidth)
                         .elevation(.level2)
                 }
+            }
+            // §1.1's collapse order, applied on open (`initial: true`) and
+            // whenever the width crosses 1040 — unless the user chose.
+            .onChange(of: isSplit, initial: true) { _, wide in
+                if !userSetInspectorVisibility { isInspectorVisible = wide }
             }
             // interactions.md §11.1/§5 — `⌫` deletes the selected block
             // immediately, no confirmation. Attached at this level (rather
@@ -312,6 +325,15 @@ struct RoutinesWindow: View {
             }
         }
         .toolbar { toolbarContent }
+        // ⌥⌘I (View ▸ Show/Hide Inspector) toggles THIS window's editor
+        // inspector while it is the key window. Swift note: a focused scene
+        // value is how a menu command (`KadenceCommands`) finds out which
+        // window is key and talks to it — roughly a "current window" service
+        // the frontmost window registers itself with.
+        .focusedSceneValue(\.routinesInspector, RoutinesInspectorToggle(isVisible: isInspectorVisible) {
+            userSetInspectorVisibility = true
+            isInspectorVisible.toggle()
+        })
         .frame(
             minWidth: Tokens.Size.routineEditorMinWidth,
             minHeight: Tokens.Size.routineEditorMinHeight)
@@ -454,6 +476,11 @@ struct RoutinesWindow: View {
     }
 
     private func enterConflictMode(_ conflict: TemplateConflict) {
+        // The conflict panel is the editor inspector's conflict mode, so it
+        // must be showing — as the main window opens its inspector for a day
+        // conflict (`CalendarState.activateNeedsAttention`).
+        userSetInspectorVisibility = true
+        isInspectorVisible = true
         selectedTemplateID = conflict.templateID
         editorMode = .blocks
         windowSelection = nil
@@ -722,6 +749,20 @@ private struct RoutineWeekdayHeaderRow: View {
     private func weekdaySymbol(_ weekday: Int) -> String {
         Calendar.current.shortWeekdaySymbols[weekday - 1]
     }
+}
+
+// MARK: - ⌥⌘I routing (task P2-SF6)
+
+/// What the Routines window publishes for the View menu's inspector command
+/// while it is key: whether its editor inspector shows, and how to toggle it.
+struct RoutinesInspectorToggle {
+    let isVisible: Bool
+    let toggle: @MainActor () -> Void
+}
+
+extension FocusedValues {
+    /// Swift note: `@Entry` generates the key type and accessor (macOS 15).
+    @Entry var routinesInspector: RoutinesInspectorToggle?
 }
 
 // MARK: - The time gutter (layouts.md §8, amended 2026-10-06; G-041)

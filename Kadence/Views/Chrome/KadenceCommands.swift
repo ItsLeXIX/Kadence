@@ -17,6 +17,9 @@ struct KadenceCommands: Commands {
     /// same way a `View`'s does; this is the standard SwiftUI pattern for a
     /// custom "open a named window" menu command.
     @Environment(\.openWindow) private var openWindow
+    /// Task P2-SF6: set while a Routines window is key — ⌥⌘I then toggles
+    /// its editor inspector (layouts.md §8 → §1.1), not the main window's.
+    @FocusedValue(\.routinesInspector) private var routinesInspector
 
     var body: some Commands {
         // interactions.md §9 — each action is named, so the menu reads
@@ -66,11 +69,18 @@ struct KadenceCommands: Commands {
             }
             .keyboardShortcut("s", modifiers: [.control, .command])
 
-            Button(calendar.isInspectorVisible ? "Hide Inspector" : "Show Inspector") {
-                calendar.userSetInspectorVisibility = true
-                calendar.isInspectorVisible.toggle()
+            if let routinesInspector {
+                Button(routinesInspector.isVisible ? "Hide Inspector" : "Show Inspector") {
+                    routinesInspector.toggle()
+                }
+                .keyboardShortcut("i", modifiers: [.option, .command])
+            } else {
+                Button(calendar.isInspectorVisible ? "Hide Inspector" : "Show Inspector") {
+                    calendar.userSetInspectorVisibility = true
+                    calendar.isInspectorVisible.toggle()
+                }
+                .keyboardShortcut("i", modifiers: [.option, .command])
             }
-            .keyboardShortcut("i", modifiers: [.option, .command])
 
             Divider()
 
