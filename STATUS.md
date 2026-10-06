@@ -8355,3 +8355,20 @@ item 2 → `…windows-mode-p2f25`, 3's Windows half → the same, 11 →
 ### New GAPS / DEVIATIONS
 
 - GAPS **G-051** opened (refused-row copy doesn't fit).
+
+## 91. P2-SF7 — housekeeping (PHASE2-REVIEW.md 2026-10-06 R4 SF7, R6)
+
+- `git rm` (19): the 15 superseded `-p2t48` frames R6 lists, the three
+  2026-09-27 crops `status-item-{normal,late,empty}.png`, and
+  `snooze-next-day-p2t48.png` (its replacements `snooze-next-day-p2f25.png`
+  and `snooze-refused-p2f25.png` exist since P2-RC). All 19 were checked
+  tracked first. `snooze-same-day-p2t48.png` stays (the only `-p2t48` left).
+- INDEX.md: dated "retired" notes under Batch 7 and Batch 9; Batch 10's
+  P2-RC section already names the retirements and the new mappings.
+- DEVIATIONS: **B21** moved to "Resolved — retired by a spec ruling"
+  (G-039); **B22** (SF3), **B34** (B2), **B35** (SF1) were resolved in their
+  own tasks, as was **B36** (B1's defect); **A35** (G-048) logged as
+  deferred.
+- No code change. `-only-testing:KadenceTests`: **xcresult 599 passed / 0
+  failed**; `generate-tokens --check`: up to date; fresh pre-flight before
+  each: all five UI scripts **PASS**.

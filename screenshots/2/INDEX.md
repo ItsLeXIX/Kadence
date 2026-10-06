@@ -810,6 +810,11 @@ to add beyond Batch 5's "What is next" above: re-run steps 4–5 of
 
 ## Batch 7 — menu bar captures from commit `0d81c96` (components.md §17 items 10–12)
 
+> **Retired 2026-10-06 (P2-SF7, PHASE2-REVIEW.md 2026-10-06 R6):**
+> `status-item-normal.png`, `status-item-late.png` and `status-item-empty.png`
+> are `git rm`'d — superseded by the seven `-p2t47` renders and
+> `status-item-live-p2f20.png`, and they predate P2-T47's one-string label.
+
 Recorded by task P2-T38 (2026-10-01). These eight PNGs were **not** made by an
 agent task: they were captured by hand and committed in `0d81c96` ("Fix
 MenuBarStatusItemView @Query bug and capture §17 screenshots", 2026-09-27),
@@ -914,6 +919,18 @@ DEVIATIONS B19). This image predates the fix and is kept. P2-T48 re-captures
 item 12.
 
 ## Batch 9 — §17.1 fixtures and the remaining items (task P2-T48, 2026-10-05)
+
+> **Retired 2026-10-06 (P2-SF7, PHASE2-REVIEW.md 2026-10-06 R6):** every
+> `-p2t48` frame below except `snooze-same-day-p2t48.png` is `git rm`'d —
+> the 15 superseded by Batch 10 (`conflict-panel-three-options`,
+> `conflict-single-option`, `conflict-skip-today-preview`,
+> `detached-instance-inspector`, `inactive-weekdays-{780,wide,windows-mode}`,
+> `popover-{empty,late,normal,overflow}`, `resync-popover`,
+> `routine-refusal-errands`, `template-conflict-panel`,
+> `template-conflict-preview`) and `snooze-next-day-p2t48.png` (replaced by
+> `snooze-next-day-p2f25.png` and `snooze-refused-p2f25.png`; it depicted a
+> write into `Sleep` that §16 now refuses). `snooze-same-day-p2t48.png`
+> stays: it is item 12's same-day evidence.
 
 **Method.** Two methods:
 

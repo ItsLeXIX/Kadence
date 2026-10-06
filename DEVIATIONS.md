@@ -892,6 +892,17 @@ P2-T48 judgement calls that need no marker, because no value was invented:
 
 ### Canvas
 
+- **A35 — components.md §3.3 (amended 2026-10-06; GAPS G-048). A covered
+  block's title band.** *(new 2026-10-06, P2-SF7; deferred out of Phase 2 by
+  ruling, still normative — DECISIONS 2026-10-06, PHASE2-REVIEW.md
+  2026-10-06 R4 "DEFERRED".)* A block covered from below its title row
+  keeps its title when the visible width across its title band is ≥ 44pt
+  (`.titleOnly` content set in that band). The build measures the
+  narrowest strip, so e.g. Wednesday's `Training` in
+  `conflict-panel-two-options-p2f20.png` and the conflict's `Supervisor
+  meeting` in `conflict-single-option-p2f20.png` draw no title. Not built:
+  it changes cascade rendering in every view and needs its own captures.
+
 - **A36 — interactions.md §1 table (amended 2026-10-06). The Routines
   canvas has no cursor mode.** *(new 2026-10-06, task P2-SF1's ⇥ walk;
   blocked on GAPS G-050.)* Focused with nothing selected, the Routines canvas
@@ -1637,19 +1648,6 @@ Still open, all re-checked against the current spec text this session:
   `InspectorView` applies doesn't show on the leading side. The Routines
   window's editor inspector is unaffected.
 
-- **B21 — interactions.md §1 / layouts.md §6. The grid's and the main
-  inspector's region focus rings are disabled.** *(new 2026-10-06, task
-  P2-F02; GAPS G-039.)* On macOS 26 AppKit draws both rings around their
-  hosting rects, which reach the window's own edges (the detail column runs
-  under the floating sidebar and the toolbar), so the only edge that shows is
-  the full-height accent line at the canvas/inspector boundary. layouts.md §6
-  (2026-10-05) allows the inspector's ring to be complete or absent; a
-  complete one would need a hand-drawn ring with no specified inset, width or
-  colour, so both are absent (`.focusEffectDisabled()` in `MainWindow`).
-  §1 says the focused region draws the system ring, so this is a deviation
-  for the grid. The grid's focus is still shown by its other §1 signals.
-  The sidebar's ring is unchanged.
-
 - ~~**B26 — components.md §7 rule 1. The low-energy hatch paints Saturday.**~~
   **Resolved 2026-10-06, task P2-F05.** *(was: logged 2026-10-06 by P2-HK
   from PHASE2-REVIEW.md §7.)* The hatch's 45° lines ran up to one span-height
@@ -1876,6 +1874,25 @@ Entries that recorded a judgement call made against a spec silence, retired
 once DA wrote the ruling into `design/` **and** `design/GAPS.md` recorded it
 CLOSED (CONTEXT.md's definition of closed). Kept verbatim so the reasoning
 stays on record. Moved here by task P2-T38, 2026-10-01.
+
+- ~~**B21 — interactions.md §1 / layouts.md §6. The grid's and the main
+  inspector's region focus rings are disabled.**~~ **Resolved by spec
+  ruling 2026-10-06 (G-039 CLOSED; interactions.md §1 "Where focus is
+  drawn", layouts.md §6/§8/§8.1/§9; DECISIONS 2026-10-06; moved here by
+  P2-SF7).** No region or window-root draws a focus ring; focus is drawn on
+  the element. What B21 recorded as a deviation is now the spec. The same
+  ruling made B35 a defect (resolved, P2-SF1) and gave §1 a normative table,
+  which P2-SF1's ⇥ walk checked (B38). *(was:)* *(new 2026-10-06, task
+  P2-F02; GAPS G-039.)* On macOS 26 AppKit draws both rings around their
+  hosting rects, which reach the window's own edges (the detail column runs
+  under the floating sidebar and the toolbar), so the only edge that shows is
+  the full-height accent line at the canvas/inspector boundary. layouts.md §6
+  (2026-10-05) allows the inspector's ring to be complete or absent; a
+  complete one would need a hand-drawn ring with no specified inset, width or
+  colour, so both are absent (`.focusEffectDisabled()` in `MainWindow`).
+  §1 says the focused region draws the system ring, so this is a deviation
+  for the grid. The grid's focus is still shown by its other §1 signals.
+  The sidebar's ring is unchanged.
 
 - ~~**P2-T16 — the `.skipToday` preview treatment.**~~ **Resolved by
   `design/GAPS.md` G-014 — CLOSED (2026-10-01), written into `components.md`
