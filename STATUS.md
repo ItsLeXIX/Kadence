@@ -7898,3 +7898,62 @@ count inside one parameterised test).
 
 - DEVIATIONS **B36** logged and resolved in this task (the review's Blocker
   B1 defect).
+
+## 83. P2-B2 — `⎋` closes the Re-sync popover (components.md §13.4, amended 2026-10-06; G-040; DEVIATIONS B34; PHASE2-REVIEW.md 2026-10-06 R4 B2)
+
+### Cause
+
+- The popover is a system `NSPopover`; while it is up the Routines window
+  stays key, so a real `⎋` goes to the Routines window (whose canvas
+  ignores `⎋` outside conflict mode) and never reaches the popover. `↩`
+  worked because the default button's key equivalent is dispatched across
+  windows.
+
+### Built
+
+- `Kadence/Views/Support/EscapeKeyMonitor.swift` (new): a local
+  `NSEvent` key monitor that swallows a bare `⎋` (key code 53, no
+  modifiers) and calls a handler — it sees keys in every Kadence window.
+- `RoutineInspectorView.resyncRow`: the monitor is started when
+  `isResyncPresented` turns true and stopped when it turns false (and on
+  disappear); its handler closes the popover (no write) and sets
+  `@FocusState isResyncButtonFocused` so focus returns to `Re-sync`.
+- `Scripts/check-resync-escape.sh` (new, helpers copied from
+  `capture-p2f20.sh`): fresh store; detach three `Morning review`
+  instances (⌥↓); ⌘⌥R; `Re-sync` → `⎋` → popover gone, `3 instances
+  edited` still shown, focus checked; reopen, click a date row inside the
+  popover → `⎋` → gone, still 3; reopen → `↩` → re-synced (count row gone).
+  All input guarded (`kadence-guard`, Kadence frontmost).
+- `Scripts/capture-p2f20.sh`: the click-on-the-inspector-heading
+  workaround is removed; it sends `⎋` and stops if the popover stays open.
+
+### Found — focus on the button needs keyboard navigation
+
+- On this Mac macOS keyboard navigation is off (`AppleKeyboardUIMode` =
+  1). With it off, buttons never take key focus: a live ⇥ walk in the
+  Routines window alternates between the canvas (AX reports its `SUN`
+  header) and the weekday toggle row, never `Re-sync`. A
+  `-AppleKeyboardUIMode 2` launch argument doesn't change that. So the
+  script reads the setting (never writes it): **on** → asserts the focused
+  element after `⎋` is the `Re-sync` button; **off** (this run) → asserts
+  focus is back on the element that had it before the popover opened.
+  Focus *on* `Re-sync` is therefore built but not observed live.
+
+### Verified
+
+- Shown to bite: with the monitor's `start` disabled (temporary edit,
+  restored from a copy, `cmp` identical), the check **FAILs** `⎋ left the
+  popover open (B34)`.
+- `-only-testing:KadenceTests`: **xcresult 582 passed / 0 failed**
+  (unchanged; this task's evidence is the scripted check). No warning in a
+  touched file.
+- `generate-tokens --check`: up to date.
+- Fresh pre-flight before each: `check-routines-window.sh` **PASS**,
+  `check-conflict-apply-return.sh` **PASS**, `check-inspector-inset.sh`
+  **PASS**, `check-block-click-selects.sh` **PASS**,
+  `check-resync-escape.sh` **PASS** (keyboard navigation off: focus back
+  where it was).
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B34** resolved.

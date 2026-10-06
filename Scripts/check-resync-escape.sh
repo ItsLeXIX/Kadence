@@ -1,40 +1,28 @@
 #!/bin/bash
 #
-# capture-p2f20.sh — PHASE2-REVIEW.md §6 item 20: recapture components.md §17
-# items 1, 4, 5, 6 (both halves), 7, 8 (both halves), 13 (wide + 780), 14, 15,
-# 16, 17, 18 into screenshots/2/*-p2f20.png. Item 11's four frames are
-# offscreen renders (KadenceTests/PopoverCaptureTests.swift); items 9, 10 and
-# 12 are not recaptured (review §6 item 20).
+# check-resync-escape.sh — task P2-B2: components.md §13.4 (amended
+# 2026-10-06, G-040; DEVIATIONS B34). `⎋` dismisses the Routines window's
+# Re-sync popover wherever focus is inside it, writes nothing, and focus
+# returns to `Re-sync`; `↩` still re-syncs. A regression check so B34 can't
+# come back.
 #
-# Method (components.md §17.2): a fresh store per run (MockData reseeds
-# relative to today), real HID input sent ONLY while Kadence is frontmost
-# (checked before every event), the tree read through the AX API, and
-# `screencapture -l` of a window's own id — or `-R` of the union of
-# Kadence's on-screen windows when a system popover hangs off one (item 4:
-# a popover is its own window, so `-l` alone can't show it).
+# Same method and helpers as capture-p2f20.sh (copied from it): a fresh
+# store, the pre-flight (refuses if the screen is locked or any app is in
+# full screen), real HID input sent only while Kadence is frontmost, every
+# click through Scripts/lib/kadence-guard.swift, the tree read through the
+# AX API.
 #
-# Conflicts are reached by STEPPING with the footer's `Next conflict` button
-# (layouts.md §10), never by -KadenceConflictUnderTest. Activation focuses
-# the recommended option and scrolls the conflict into view
-# (interactions.md §10.1), so no extra click is needed for that.
+# Steps: detach three `Morning review` instances on the main grid (⌥↓, as
+# item 5's capture does) → ⌘⌥R → click `Re-sync`:
+#   1. ⎋ with focus where the click left it (the default button) → popover
+#      gone, `3 instances edited` still shown, focus on `Re-sync`;
+#   2. reopen, click a date row inside the popover, ⎋ → gone, still 3;
+#   3. reopen, ↩ → re-synced (the count row is gone).
 #
-# Differences from capture-p2t48.sh: no click at screen (5,5) before launch
-# (it lands outside Kadence); the frontmost check re-activates Kadence only
-# when it isn't already frontmost (re-activating raised the main window over
-# the Routines window); mouse events carry empty modifier flags.
-#
-# Written during P2-F20 while the screen was locked; first run 2026-10-06
-# (STATUS §79), which fixed: the item-5 loop, `has` under pipefail, the
-# Re-sync popover left open (B34), duplicate frames for items 7/8. Still:
-# check every frame by eye before indexing it. P2-B2: the Re-sync popover
-# closes with ⎋; the click-to-close workaround is gone.
-#
-# Usage: Scripts/capture-p2f20.sh [OUTDIR]   (default screenshots/2)
+# Usage: Scripts/check-resync-escape.sh
 set -uo pipefail
 cd "$(dirname "$0")/.."
-OUT="${1:-screenshots/2}"
-mkdir -p "$OUT"
-SUFFIX="p2f20"
+SUFFIX="unused"
 
 # ---------------------------------------------------------------- pre-flight
 LOCK_STATE=$(swift -e '
@@ -250,15 +238,41 @@ step_until() {  # step_until PATTERN — click `Next conflict` until PATTERN is 
   has "$1"
 }
 
-# ===================================================================== run A
-echo "run A: fresh store — items 5, 4, 1, 13, 14, 15"
+
+# focused element of the app: role~title~desc, then (stderr-free) detail
+# for the log: value, frame, the focused window's title, the parent roles.
+cat > "$WORK/focus.swift" <<'SWIFT'
+import ApplicationServices
+let app = AXUIElementCreateApplication(pid_t(CommandLine.arguments[1])!)
+func attr(_ e: AXUIElement, _ a: String) -> AnyObject? { var v: AnyObject?; AXUIElementCopyAttributeValue(e, a as CFString, &v); return v }
+func s(_ o: AnyObject?) -> String { o.map { "\($0)" } ?? "" }
+guard let f = attr(app, "AXFocusedUIElement") else { print("none"); exit(0) }
+let e = f as! AXUIElement
+var p = CGPoint.zero, z = CGSize.zero
+if let v = attr(e, "AXPosition") { AXValueGetValue(v as! AXValue, .cgPoint, &p) }
+if let v = attr(e, "AXSize") { AXValueGetValue(v as! AXValue, .cgSize, &z) }
+var chain: [String] = []
+var cur: AXUIElement? = e
+for _ in 0..<6 { guard let c = cur, let par = attr(c, "AXParent") else { break }; let pe = par as! AXUIElement; chain.append(s(attr(pe, "AXRole"))); cur = pe }
+let win = attr(app, "AXFocusedWindow").map { s(attr($0 as! AXUIElement, "AXTitle")) } ?? ""
+print([s(attr(e, "AXRole")), s(attr(e, "AXTitle")), s(attr(e, "AXDescription"))].joined(separator: "~")
+      + "  [value '\(s(attr(e, "AXValue")))' at \(Int(p.x)),\(Int(p.y)) \(Int(z.width))x\(Int(z.height)); window '\(win)'; parents \(chain.joined(separator: ">"))]")
+SWIFT
+swiftc -O "$WORK/focus.swift" -o "$WORK/focus" 2>"$WORK/focus.log" || { echo "FAIL: helper focus"; cat "$WORK/focus.log"; exit 1; }
+KVK_RETURN=36
+
+fail() { echo "FAIL: $1"; quit_app; exit 1; }
+
+# "Focus returns to Re-sync" is only observable with macOS keyboard
+# navigation on (System Settings › Keyboard; `AppleKeyboardUIMode` bit 2):
+# with it off, buttons never take key focus — ⇥ visits only the canvas and
+# the weekday toggle row (P2-B2, measured live). This script reads the
+# setting (never writes it) and asserts accordingly: on → the focused element
+# after ⎋ is the Re-sync button; off → focus is back on the element that had
+# it before the popover opened (nothing lost to the closed popover).
+KBNAV=$(( $(defaults read -g AppleKeyboardUIMode 2>/dev/null || echo 0) & 2 ))
+echo "keyboard navigation: $([[ $KBNAV -ne 0 ]] && echo on || echo off)"
 fresh_launch
-# Item 5: three Morning reviews moved with ⌥↓ (detaches them); the last
-# stays selected — the item asks for a selected detached instance. Always
-# the first instance still at 08:15 (a moved one reads 08:30); when this week
-# runs out (instances exist from today on, so a late weekday has fewer than
-# three), page to next week with ⌘→. (P2-F20, first run: the old loop took
-# the n-th 08:15 and missed after the first move.)
 DET=0
 for page in 0 1; do
   while [[ $DET -lt 3 ]]; do
@@ -270,96 +284,75 @@ for page in 0 1; do
   [[ $DET -ge 3 ]] && break
   key $KVK_RIGHT cmd
 done
-echo "  detached $DET Morning review instances"
-shoot_main "detached-instance-inspector"
+[[ $DET -eq 3 ]] || fail "could only detach $DET Morning review instances"
+echo "detached 3 Morning review instances"
 
 key $KVK_R cmd opt
 sleep 2
 size_routines 1400
-# Item 4: nothing selected, the count and the Re-sync popover (its own window).
-# The popover must be gone before the next frame. It isn't a separate entry
-# in CGWindowList here, so its own default button in the AX tree is what
-# says it's open. ⎋ closes it (P2-B2, B34 resolved — this used to need a
-# click on the inspector heading); if it doesn't, stop.
+has "3 instances edited" || fail "the Routines inspector doesn't show '3 instances edited'"
+
 popover_open() { has "re-sync 3 instances"; }
-XY=$(find "re-sync") && { click $XY; sleep 1; shoot_union "resync-popover"; } || echo "  Re-sync not found"
-if popover_open; then
-  key $KVK_ESC; sleep 1
-  popover_open && { echo "STOP: ⎋ did not close the Re-sync popover (B34 regressed)"; quit_app; exit 1; }
-  echo "  popover closed with ⎋"
+open_popover() {
+  local xy; xy=$(find "re-sync") || fail "no Re-sync button"
+  click $xy; sleep 1
+  popover_open || fail "clicking Re-sync didn't open the popover"
+}
+
+# 1. ⎋ with focus on the default button.
+BEFORE=$("$WORK/focus" "$PID")
+echo "before opening, focus: $BEFORE"
+open_popover
+echo "popover open; focus: $("$WORK/focus" "$PID")"
+key $KVK_ESC; sleep 1
+popover_open && fail "⎋ left the popover open (B34)"
+has "3 instances edited" || fail "⎋ wrote something: '3 instances edited' is gone"
+FOCUS=$("$WORK/focus" "$PID")
+echo "after ⎋, focus: $FOCUS"
+if [[ $KBNAV -ne 0 ]]; then
+  [[ "$FOCUS" == "AXButton~Re-sync~"* ]] || fail "focus is not on the Re-sync button after ⎋ ($FOCUS)"
+  echo "PASS: ⎋ closed the popover, nothing written, focus on Re-sync."
+else
+  [[ "$FOCUS" == "$BEFORE" ]] || fail "focus after ⎋ isn't where it was before the popover opened ($FOCUS)"
+  echo "PASS: ⎋ closed the popover, nothing written, focus back where it was (keyboard navigation off: buttons can't hold focus, so Re-sync can't be checked)."
 fi
 
-# Item 13: Blocks mode, nothing selected, wide and at 780.
-shoot_routines "inactive-weekdays-wide"
-size_routines 780
-shoot_routines "inactive-weekdays-780"
-size_routines 1400
+# 2. ⎋ after clicking inside the popover's date list.
+open_popover
+"$WORK/axq" "$PID" > "$WORK/ax.txt"
+XY=$(python3 - "$WORK/ax.txt" <<'PY'
+import re, sys
+rows, button = [], None
+for line in open(sys.argv[1]).read().splitlines():
+    p = line.split("~")
+    if len(p) != 9: continue
+    x, y, w, h = map(float, p[5:9])
+    if p[0] == "AXButton" and "re-sync 3 instances" in " ".join(p[1:5]).lower(): button = (x, y, w, h)
+    text = p[3] or p[1]
+    if p[0] == "AXStaticText" and re.fullmatch(r"(Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d{1,2}", text.strip()) and w > 0:
+        rows.append((x, y, w, h))
+if not button: sys.exit(1)
+bx, by, bw, bh = button
+# A date row in the popover: above its button, within the popover's width.
+near = [r for r in rows if r[1] < by and by - r[1] < 200 and abs(r[0] - bx) < 120]
+if not near: sys.exit(1)
+x, y, w, h = min(near, key=lambda r: by - r[1])
+print(int(x + w / 2), int(y + h / 2))
+PY
+) || fail "no date row found inside the popover"
+click $XY; sleep 1
+popover_open || fail "clicking a date row closed the popover (can't test ⎋ from there)"
+echo "clicked a date row inside the popover; focus: $("$WORK/focus" "$PID")"
+key $KVK_ESC; sleep 1
+popover_open && fail "⎋ after a click in the date list left the popover open"
+has "3 instances edited" || fail "⎋ wrote something: '3 instances edited' is gone"
+echo "PASS: ⎋ from inside the date list closed it, nothing written."
 
-# Item 14 (also items 2 and 3's Windows half): Windows mode.
-key $KVK_RBRACKET cmd
-shoot_routines "inactive-weekdays-windows-mode"
-key $KVK_LBRACKET cmd
-
-# Item 1: Gym 07:00, Morning review 08:15 and Reading 21:00 in one frame —
-# scroll the canvas down six hours (6 × 44pt).
-LINE=$(routines_line); RX=$(echo "$LINE" | cut -d' ' -f2); RY=$(echo "$LINE" | cut -d' ' -f3)
-scroll $((RX + 300)) $((RY + 400)) -264
-shoot_routines "routine-template-flexibility"
-scroll $((RX + 300)) $((RY + 400)) 264
-
-# Item 15: Errands selected (the item asks for its inspector line).
-XY=$(find "errands, 12:30") && { click $XY; shoot_routines "routine-refusal-errands"; } || echo "  Errands not found"
-
-# ===================================================================== run B
-echo "run B: stepping with the footer — items 6, 7, 8, 18, 16"
-fresh_launch
-XY=$(find "id:needs-attention-row") || { echo "  needs-attention row not found"; quit_app; exit 1; }
-click $XY
-sleep 2
-# Walk the list once, 1 → N, with `Next conflict`, capturing each frame when
-# its conflict comes up — the order depends on today's weekday, so no
-# conflict is assumed to come before another.
-GOT_TWO=0; GOT_THREE=0
-for n in $(seq 1 16); do
-  # Item 6, two-option half: Focus review × Client call.
-  if [[ $GOT_TWO -eq 0 ]] && has "shorten focus review"; then
-    shoot_main "conflict-panel-two-options"; GOT_TWO=1
-  fi
-  # Items 6 (three options), 7 (chip on row 2), 8 (preview active, row 2
-  # focused, block in view) and 18 (the skip row focused): Training ×
-  # Supervisor meeting.
-  # (One frame serves 6, 7 and 8: activation already focuses and previews
-  # the recommended row 2, so a second "preview" capture would be the same.)
-  if [[ $GOT_THREE -eq 0 ]] && has "shift training 75 min later"; then
-    shoot_main "conflict-panel-three-options"
-    XY=$(find "skip training today") && { click $XY; shoot_main "conflict-skip-today-preview"; }
-    GOT_THREE=1
-  fi
-  # Item 16 and item 8's Routines half: past the last day conflict the
-  # Routines window opens on the template conflict, recommendation focused
-  # and previewed.
-  if has "remove errands from this routine"; then
-    sleep 3
-    size_routines 1400
-    shoot_routines "template-conflict-panel"   # also item 8's Routines half
-    break
-  fi
-  echo "  step $n: $("$WORK/axq" "$PID" | grep -oE 'Conflict [0-9]+ of [0-9]+' | sort -u | tr '\n' ' ')"
-  XY=$(find "next conflict") || { echo "  no Next conflict button"; break; }
-  click $XY
-done
-
-# ===================================================================== run C
-echo "run C: single option — item 17 (Training ±15, Supervisor 16:45–18:45)"
+# 3. ↩ still re-syncs.
+open_popover
+key $KVK_RETURN; sleep 2
+popover_open && fail "↩ left the popover open"
+has "instances edited" && fail "↩ didn't re-sync: the count row is still there"
+echo "PASS: ↩ re-synced (the count row is gone)."
 quit_app
-sqlite3 "$STORE" "UPDATE ZROUTINEBLOCK SET ZSHIFTABLEMINUTES = 15 WHERE ZTITLE = 'Training';
-                  UPDATE ZEVENT SET ZSTART = ZSTART - 2700, ZEND = ZEND + 1800 WHERE ZTITLE = 'Supervisor meeting';" \
-  || { echo "  sqlite edit failed"; exit 1; }
-launch
-XY=$(find "id:needs-attention-row") || { echo "  needs-attention row not found"; quit_app; exit 1; }
-click $XY
-sleep 2
-step_until "skip training today" && shoot_main "conflict-single-option"
-
-quit_app
-echo "done"
+echo "PASS: check-resync-escape — ⎋ dismisses the Re-sync popover (§13.4, G-040)."

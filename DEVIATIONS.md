@@ -1767,9 +1767,22 @@ Still open, all re-checked against the current spec text this session:
   height (its `GeometryReader`); the initial-scroll hold clamps with the same
   height. Item 17's first P2-F20 frame showed it (grid at ≈06:15).
 
-- **B34 — components.md §13.4 (amended 2026-10-05). `⎋` does not dismiss
-  the Re-sync popover.** *(new 2026-10-06, found during task P2-F20; not in
-  its scope.)* §13.4: "`↩` triggers it, `⎋` dismisses the popover". Live,
+- ~~**B34 — components.md §13.4 (amended 2026-10-05). `⎋` does not dismiss
+  the Re-sync popover.**~~ **Resolved 2026-10-06, task P2-B2** (§13.4
+  amended 2026-10-06, G-040). While the popover is open, an app-wide local
+  key monitor (`EscapeKeyMonitor`) takes a bare `⎋` in any Kadence window —
+  the Routines window stays key while the popover is up, which is why `⎋`
+  never reached it — closes the popover, writes nothing, and asks for focus
+  on `Re-sync` (`@FocusState`); removed when the popover closes, so `⎋`
+  keeps its conflict-panel meaning otherwise. `Scripts/check-resync-escape.sh`
+  (new) checks it live: `⎋` right after opening, `⎋` after a click in the
+  date list, both close it with `3 instances edited` still shown; `↩` still
+  re-syncs; FAILs with the monitor disabled. Focus *on the button* is only
+  observable with macOS keyboard navigation on (off on this Mac: buttons
+  never take focus, ⇥ visits only the canvas and the toggle row); the script
+  reads that setting and, with it off, asserts focus is back where it was.
+  `capture-p2f20.sh`'s click-to-close workaround is gone. *(was:)* *(new
+  2026-10-06, found during task P2-F20; not in its scope.)* §13.4: "`↩` triggers it, `⎋` dismisses the popover". Live,
   with Kadence frontmost: after a click on `Re-sync`, a real HID `⎋` leaves
   the popover open (its `Re-sync 3 instances` button stays in the AX tree,
   and it redraws in its inactive look); `↩` does trigger the default button

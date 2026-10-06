@@ -1901,6 +1901,13 @@ private struct RoutineInspectorView: View {
     let detachedInstances: [Event]
     let onResync: ([Event]) -> Void
     @State private var isResyncPresented = false
+    /// §13.4 (amended 2026-10-06, G-040): `⎋` closes the Re-sync popover
+    /// wherever key focus is; see `EscapeKeyMonitor` for why a monitor.
+    /// Swift note: `@State` keeps this one object alive for the view's
+    /// lifetime (SwiftUI recreates the struct itself on every update).
+    @State private var resyncEscape = EscapeKeyMonitor()
+    /// …and focus returns to the `Re-sync` button.
+    @FocusState private var isResyncButtonFocused: Bool
 
     private var orderedWeekdays: [Int] {
         RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)
@@ -2050,6 +2057,21 @@ private struct RoutineInspectorView: View {
                 .popover(isPresented: $isResyncPresented, arrowEdge: .bottom) {
                     resyncPopover
                 }
+                .focused($isResyncButtonFocused)
+                // §13.4 (amended 2026-10-06): while the popover is open, a
+                // bare `⎋` anywhere in the app dismisses it (writing
+                // nothing) and focus returns to this button.
+                .onChange(of: isResyncPresented) { _, presented in
+                    if presented {
+                        resyncEscape.start {
+                            isResyncPresented = false
+                            isResyncButtonFocused = true
+                        }
+                    } else {
+                        resyncEscape.stop()
+                    }
+                }
+                .onDisappear { resyncEscape.stop() }
             Spacer(minLength: 0)
         }
     }
