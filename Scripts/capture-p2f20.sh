@@ -23,8 +23,10 @@
 # when it isn't already frontmost (re-activating raised the main window over
 # the Routines window); mouse events carry empty modifier flags.
 #
-# Written during P2-F20 while the screen was locked: NOT YET RUN. Check the
-# frames by eye before indexing them.
+# Written during P2-F20 while the screen was locked; first run 2026-10-06
+# (STATUS §79), which fixed: the item-5 loop, `has` under pipefail, the
+# Re-sync popover left open (B34), duplicate frames for items 7/8. Still:
+# check every frame by eye before indexing it.
 #
 # Usage: Scripts/capture-p2f20.sh [OUTDIR]   (default screenshots/2)
 set -uo pipefail
@@ -143,7 +145,7 @@ done
 # it is sent only if Kadence is frontmost AND the window under the point is Kadence's.
 swiftc -O Scripts/lib/kadence-guard.swift -o "$WORK/kguard" 2>"$WORK/kguard.log" || { echo "FAIL: helper kguard"; cat "$WORK/kguard.log"; exit 1; }
 
-KVK_DOWN=125; KVK_ESC=53; KVK_R=15; KVK_RBRACKET=30; KVK_LBRACKET=33
+KVK_DOWN=125; KVK_RIGHT=124; KVK_ESC=53; KVK_R=15; KVK_RBRACKET=30; KVK_LBRACKET=33
 
 echo "building…"
 xcodebuild -scheme Kadence -destination 'platform=macOS' build >"$WORK/build.log" 2>&1 || { echo "FAIL: build"; exit 1; }
@@ -168,7 +170,7 @@ launch() {
   osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to set size of window 1 to {1500, 900}" >/dev/null 2>&1
   osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to set position of window 1 to {34, 70}" >/dev/null 2>&1
   sleep 2
-  window_line 1500 | grep -q . || { echo "FAIL: the main window is not 1500pt wide — the resize did not take"; quit_app; exit 1; }
+  [[ -n "$(window_line 1500)" ]] || { echo "FAIL: the main window is not 1500pt wide — the resize did not take"; quit_app; exit 1; }
   # Park the pointer inside Kadence's own window (P2-F21), so nothing is hovered.
   front; "$WORK/kguard" park "$PID" || { echo "STOP: could not park the pointer inside Kadence."; quit_app; exit 1; }
 }
@@ -212,7 +214,11 @@ PY
   done
   return 1
 }
-has() { "$WORK/axq" "$PID" | tr 'A-Z' 'a-z' | grep -q -- "$(echo "$1" | tr 'A-Z' 'a-z')"; }
+# Via a file, not a pipe: under `set -o pipefail`, `grep -q` exiting on its
+# first match kills the writer with SIGPIPE and the pipeline reads as a
+# failure — a match reported as "absent" (P2-F20, first run: the template
+# conflict was on screen and `has` said no).
+has() { "$WORK/axq" "$PID" > "$WORK/has.txt"; grep -qi -- "$1" "$WORK/has.txt"; }
 
 window_line() { "$WORK/wins" | awk -v want="$1" '$6 == 0 && $4 == want { print; exit }'; }
 routines_line() { "$WORK/wins" | awk '$6 == 0 && $4 != 1500 { print; exit }'; }
@@ -246,20 +252,64 @@ step_until() {  # step_until PATTERN — click `Next conflict` until PATTERN is 
 # ===================================================================== run A
 echo "run A: fresh store — items 5, 4, 1, 13, 14, 15"
 fresh_launch
-# Item 5: three Morning reviews moved with ⌥↓ (detaches them); Fri's stays
-# selected — the item asks for a selected detached instance.
-for n in 0 1 2; do
-  XY=$(find "morning review, 08:15" "$n") || XY=$(find "morning review, 08:30" "$n") || { echo "  morning review #$n not found"; continue; }
-  click $XY
-  key $KVK_DOWN opt
+# Item 5: three Morning reviews moved with ⌥↓ (detaches them); the last
+# stays selected — the item asks for a selected detached instance. Always
+# the first instance still at 08:15 (a moved one reads 08:30); when this week
+# runs out (instances exist from today on, so a late weekday has fewer than
+# three), page to next week with ⌘→. (P2-F20, first run: the old loop took
+# the n-th 08:15 and missed after the first move.)
+DET=0
+for page in 0 1; do
+  while [[ $DET -lt 3 ]]; do
+    XY=$(find "morning review, 08:15") || break
+    click $XY
+    key $KVK_DOWN opt
+    DET=$((DET + 1))
+  done
+  [[ $DET -ge 3 ]] && break
+  key $KVK_RIGHT cmd
 done
+echo "  detached $DET Morning review instances"
 shoot_main "detached-instance-inspector"
 
 key $KVK_R cmd opt
 sleep 2
 size_routines 1400
 # Item 4: nothing selected, the count and the Re-sync popover (its own window).
-XY=$(find "re-sync") && { click $XY; sleep 1; shoot_union "resync-popover"; key $KVK_ESC; } || echo "  Re-sync not found"
+# The popover must be gone before the next frame. (P2-F20, first runs:
+# item 13's wide frame caught it in its inactive look — ⎋ hadn't closed it.
+# It isn't a separate entry in CGWindowList here, so its own default button
+# in the AX tree is what says it's open.) ⎋ first; if it's still there, a
+# click on the inspector's static "Daily routine" heading — inside Kadence,
+# no action of its own — which closes a transient popover.
+popover_open() { has "re-sync 3 instances"; }
+XY=$(find "re-sync") && { click $XY; sleep 1; shoot_union "resync-popover"; } || echo "  Re-sync not found"
+if popover_open; then
+  key $KVK_ESC; sleep 1
+  if popover_open; then
+    echo "  ⎋ left the popover open; clicking the inspector heading"
+    "$WORK/axq" "$PID" > "$WORK/ax.txt"
+    # The rightmost static text that is exactly "Daily routine": the Routines
+    # inspector's heading (the picker and the main window's sidebar row are
+    # further left, and the picker would open a menu).
+    XY=$(python3 - "$WORK/ax.txt" <<'PY2'
+import sys
+hits = []
+for line in open(sys.argv[1]).read().splitlines():
+    p = line.split("~")
+    if len(p) == 9 and p[0] == "AXStaticText" and "Daily routine" in (p[1], p[3]):
+        x, y, w, h = map(float, p[5:9])
+        if w > 0 and h > 0: hits.append((x, y, w, h))
+if not hits: sys.exit(1)
+x, y, w, h = max(hits)
+print(int(x + w / 2), int(y + h / 2))
+PY2
+) && click $XY
+    sleep 1
+  fi
+  popover_open && { echo "STOP: the Re-sync popover would not close"; quit_app; exit 1; }
+  echo "  popover closed"
+fi
 
 # Item 13: Blocks mode, nothing selected, wide and at 780.
 shoot_routines "inactive-weekdays-wide"
@@ -300,9 +350,10 @@ for n in $(seq 1 16); do
   # Items 6 (three options), 7 (chip on row 2), 8 (preview active, row 2
   # focused, block in view) and 18 (the skip row focused): Training ×
   # Supervisor meeting.
+  # (One frame serves 6, 7 and 8: activation already focuses and previews
+  # the recommended row 2, so a second "preview" capture would be the same.)
   if [[ $GOT_THREE -eq 0 ]] && has "shift training 75 min later"; then
     shoot_main "conflict-panel-three-options"
-    shoot_main "conflict-preview-active"
     XY=$(find "skip training today") && { click $XY; shoot_main "conflict-skip-today-preview"; }
     GOT_THREE=1
   fi
@@ -312,10 +363,10 @@ for n in $(seq 1 16); do
   if has "remove errands from this routine"; then
     sleep 3
     size_routines 1400
-    shoot_routines "template-conflict-panel"
-    shoot_routines "template-conflict-preview"
+    shoot_routines "template-conflict-panel"   # also item 8's Routines half
     break
   fi
+  echo "  step $n: $("$WORK/axq" "$PID" | grep -oE 'Conflict [0-9]+ of [0-9]+' | sort -u | tr '\n' ' ')"
   XY=$(find "next conflict") || { echo "  no Next conflict button"; break; }
   click $XY
 done

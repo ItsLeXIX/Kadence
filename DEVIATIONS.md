@@ -1767,6 +1767,27 @@ Still open, all re-checked against the current spec text this session:
   height (its `GeometryReader`); the initial-scroll hold clamps with the same
   height. Item 17's first P2-F20 frame showed it (grid at ≈06:15).
 
+- **B34 — components.md §13.4 (amended 2026-10-05). `⎋` does not dismiss
+  the Re-sync popover.** *(new 2026-10-06, found during task P2-F20; not in
+  its scope.)* §13.4: "`↩` triggers it, `⎋` dismisses the popover". Live,
+  with Kadence frontmost: after a click on `Re-sync`, a real HID `⎋` leaves
+  the popover open (its `Re-sync 3 instances` button stays in the AX tree,
+  and it redraws in its inactive look); `↩` does trigger the default button
+  (the re-sync ran). The app's focused window stays the Routines window
+  while the popover is up, so `⎋` goes there, not to the popover. A click
+  elsewhere in the window closes it. `Scripts/capture-p2f20.sh` works around
+  it that way.
+
+- **B35 — interactions.md §1 / layouts.md §8. The Routines window draws a
+  1px accent line at its outer leading and trailing edges.** *(new
+  2026-10-06, seen in every P2-F20 Routines frame; not in its scope.)*
+  Pixel column 0 and the last column of each `screencapture -l` frame are
+  ≈ `#80B3FA` (light) top to bottom; the main window's frames have none.
+  Most likely a region focus ring drawn around a view whose rect is the
+  whole window — the B21 / G-039 family (the main window disables its
+  rings). Not investigated further; for the design agent's re-review with
+  G-039.
+
 ---
 
 ## Resolved — retired by a spec ruling

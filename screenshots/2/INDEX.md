@@ -131,6 +131,8 @@ energy `13:00`–`14:30`; Deep work `15:00`–`17:00`).
 
 ### 1. `routine-template-flexibility.png` — §17 item 1
 
+> *Retired 2026-10-06, P2-F20 — this file was removed (`git rm`, PHASE2-REVIEW.md §6 item 20); the current evidence is in Batch 10.*
+
 Blocks mode (toolbar segmented control shows **Blocks** selected, filled
 capsule). Inspector reads **"Daily routine" / Weekdays: Mon, Wed, Fri / Blocks:
 3 / Total: 6.0 h** (the template summary, §8.1 — nothing selected). Three
@@ -167,6 +169,8 @@ legible capture instead.
 
 ### 2. `routine-windows-all-three-kinds.png` — §17 item 2
 
+> *Retired 2026-10-06, P2-F20 — this file was removed (`git rm`, PHASE2-REVIEW.md §6 item 20); the current evidence is in Batch 10.*
+
 Windows mode (toolbar shows **Windows** selected), scrolled to the top
 (`00:00`). All three `TimeWindow` kinds are visible together — the only place
 in the app they ever are (§17 item 2's own wording):
@@ -188,6 +192,8 @@ dimmed — see 3b below for the machine-checked opacity value; this image's own
 job is only the three window kinds.
 
 ### 3a. `routine-blocks-mode-inactive-windows.png` — §17 item 3, Blocks-mode half
+
+> *Retired 2026-10-06, P2-F20 — this file was removed (`git rm`, PHASE2-REVIEW.md §6 item 20); the current evidence is in Batch 10.*
 
 Blocks mode active, top scroll position. Shows the **windows layer** — the
 "other" layer while Blocks mode is active. **Correction against the task
@@ -212,6 +218,8 @@ wording is kept as given, but this note is the accurate account of what it
 actually shows.
 
 ### 3b. `routine-windows-mode-inactive-blocks.png` — §17 item 3, Windows-mode half
+
+> *Retired 2026-10-06, P2-F20 — this file was removed (`git rm`, PHASE2-REVIEW.md §6 item 20); the current evidence is in Batch 10.*
 
 Windows mode active, same top scroll position, same window bounds — identical
 source capture to `routine-windows-all-three-kinds.png` (both needs are the
@@ -395,6 +403,8 @@ capture session's display happened to render at.
 Focus review by 20 min`, `Frees 60 min · …`) is the pre-P2-T45 catalogue,
 two revisions old. The current two-option copy is §14.3.4's.
 
+> *Retired 2026-10-06, P2-F20 — this file was removed (`git rm`, PHASE2-REVIEW.md §6 item 20); the current evidence is in Batch 10.*
+
 **`conflict-panel-two-options.png`.** The inspector (right-hand panel) shows,
 top to bottom: the **collision header** (§14.2) — a real "Client call" block,
 the word "overlaps", a real "Focus review" block, both rendered at the
@@ -489,6 +499,8 @@ position.
 | file | §17 item | what it shows |
 |---|---|---|
 | `conflict-panel-preview-active.png` | 8 | Conflict preview active: canvas border, previewed block, dimmed ghost sliver, selected option row |
+
+> *Retired 2026-10-06, P2-F20 — this file was removed (`git rm`, PHASE2-REVIEW.md §6 item 20); the current evidence is in Batch 10.*
 
 **`conflict-panel-preview-active.png`.** Full main window, `1500×900` (1×,
 same scale note as batch 2 — not 2×). Inspector shows the same collision
@@ -926,6 +938,8 @@ item 12.
 
 ### Every §17 item
 
+> *Superseded 2026-10-06, P2-F20: Batch 10's table maps every item to its current file(s).*
+
 | § 17 item | File(s) | Notes |
 |---|---|---|
 | 1 | `routine-template-flexibility.png` (batch 1) | predates Training/Errands |
@@ -959,17 +973,52 @@ list). The fixes are P2-F02 (inspector inset), P2-F13/F14 (selected row,
 chip on line 3), P2-F08 (weekday toggles), P2-F04 (text confinement),
 P2-F17 (Re-sync popover), and the recapture is P2-F20.
 
-## Batch 10 — the Phase 2 review recapture (task P2-F20, 2026-10-06) — PARTIAL
+## Batch 10 — the Phase 2 review recapture (task P2-F20, 2026-10-06)
 
-`design/PHASE2-REVIEW.md` §6 item 20. **Only the offscreen half is done.**
-The screen was locked from about 02:30 on 2026-10-06, so no live window
-could be captured, and the run's rules forbid waiting for it.
+`design/PHASE2-REVIEW.md` §6 item 20. **Complete** for every live item; the
+two live menu-bar crops are P2-F19's (below the table).
 
-**Done — item 11, four offscreen renders** (§17.2 rule 3: renders are
-evidence of layout and copy). Made by `KadenceTests/PopoverCaptureTests.swift`
-with `TEST_RUNNER_KADENCE_CAPTURE_DIR` set (`ImageRenderer`, scale 2,
-**light** appearance), the real `MenuBarPopoverView` against §17.1's
-fixtures, content asserted in the same test, after P2-F18:
+### How the live frames were made
+
+`Scripts/capture-p2f20.sh`, run at about 11:37 on Tue 6 Oct 2026, build
+`8531c18` (F01–F24). Fresh store per run (MockData reseeds relative to
+today); real HID input only through `Scripts/lib/kadence-guard.swift`
+(Kadence frontmost **and** the AX hit test at the point is Kadence's —
+P2-F21); the tree read through the AX API; `screencapture -l` of the
+window's own id (1500 × 900pt main window, 1400 × 900 Routines window, 780 ×
+900 for item 13's narrow frame, all at scale 2), except item 4, which is
+`-R` of the Routines window's bounds so the system popover is whole — its
+rounded corners show a sliver of what's behind the window. Conflicts are
+reached **only by stepping with the footer's `Next conflict` button** from
+`1 of 14` (never `-KadenceConflictUnderTest`); item 17's run edits the
+store first (Training ±15, Supervisor meeting 16:45–18:45, §17.1). Every
+frame was opened and checked by eye against §17.2 before it was filed.
+
+**Appearance: light**, every frame (this Mac has no `AppleInterfaceStyle`
+set). The main-window grid opens at **06:00**, per layouts.md §3.1's
+`min(07:00, firstEventStart − 1h)` — Tuesday's first event is `Breakfast`
+07:15 (P2-F22); main-window inspectors show the full `Starts`, `Ends`, …
+labels at edge + 16 (P2-F02). Nothing is selected except where the item
+asks: item 5 (the detached instance), item 15 (`Errands`), item 18 (the
+skip row), and item 16, where §14.6's entry itself selects the block
+(Monday's ghost carries its ring).
+
+| File | §17 item(s) | Shows |
+|---|---|---|
+| `routine-template-flexibility-p2f20.png` | 1 | Blocks mode, scrolled to 06:00–23:00: `Gym` 07:00 (shiftable rail), `Morning review` 08:15 (fixed), `Reading` 21:00 (droppable) on Mon/Wed/Fri in one frame; nothing selected |
+| `resync-popover-p2f20.png` | 4 | `3 instances edited` · `Re-sync`; the system popover whole, arrow on the button: `Wed 7` · `Fri 9` · `Mon 12`, `Re-sync 3 instances` (default); weekday toggles `M T W T F S S` unclipped |
+| `detached-instance-inspector-p2f20.png` | 5 | Week 12–18 Oct, Mon 12's `Morning review` (moved to 08:30, detached) selected; inspector `Starts 08:30` … `Source  Daily routine`, `Edited — differs from Daily routine`, `Revert to routine` |
+| `conflict-panel-two-options-p2f20.png` | 6 (two options) | `Client call` × `Focus review`, `20:00–20:20 · 20 min overlap`; `Shorten Focus review to 40 min` (focused, `Recommended` on line 3) · `Skip Focus review today`; footer `1 of 14`; ghost + dashed twin, canvas border |
+| `conflict-panel-three-options-p2f20.png` | 6 (three options), 7, 8 (main window) | `Training` × `Supervisor meeting` (Wed 7), `17:30–18:15 · 45 min overlap`; rows 60 · 75 · 90 with `Recommended` on **row 2** (`Shift Training 75 min later`), row 2 focused and previewed — Training's ghost at 17:00, dashed twin 18:15–19:45, canvas border; footer `2 of 14` |
+| `template-conflict-panel-p2f20.png` | 16, 8 (Routines window) | Window row `Errands` / `lands in` / `Lunch  protected · 12:00–13:00`, overlap `12:30–13:00 · 30 min · Mon, Wed, Fri`; rows 30 · 30 · 135, row 1 recommended (chip on line 3, nothing truncated); footer `14 of 14`; ghosts at 12:30 and dashed twins at 13:00 in Mon/Wed/Fri, canvas border |
+| `inactive-weekdays-wide-p2f20.png` | 13 (wide), 3 (Blocks half) | Blocks mode, 1400pt: Tue/Thu/Sat/Sun `Not in this routine` + `Add Tue`…; Mon/Wed/Fri green header underline; windows layer at full strength; nothing selected |
+| `inactive-weekdays-780-p2f20.png` | 13 (780) | The same at `size.routineEditorMinWidth` (780pt): the notes fit; the canvas scrolls horizontally at this width (Fri cut at the inspector, Sat/Sun out of view) |
+| `inactive-weekdays-windows-mode-p2f20.png` | 14, 2, 3 (Windows half) | Windows mode: no notes, no underlines; `Sleep` and `Lunch` (protected), `Low energy` hatch stopping at Friday, `Deep work` dashed (peak focus) — all three kinds; blocks recessive at the inactive layer; toggles unclipped |
+| `routine-refusal-errands-p2f20.png` | 15 | `Errands` `conflicted` in Mon/Wed/Fri only, selected; inspector `± 90 min`, `Will not run — inside Lunch (protected) on Mon, Wed, Fri` |
+| `conflict-single-option-p2f20.png` | 17 | `Supervisor meeting` (16:45–18:45) × `Training` (±15): `17:00–18:30 · 90 min overlap`; one row, `Skip Training today`, **no chip**, focused and previewed (ghost dim); footer `2 of 14` |
+| `conflict-skip-today-preview-p2f20.png` | 18 | The three-option conflict with `Skip Training today` focused: Training's ghost dimmed in place, **no dashed twin**, canvas border; `Recommended` stays on row 2 |
+
+Item 11's four renders (unchanged since `d4895ee`):
 
 | File | §17.1 fixture | Shows |
 |---|---|---|
@@ -978,46 +1027,43 @@ fixtures, content asserted in the same test, after P2-F18:
 | `popover-empty-p2f20.png` | 23:40, nothing next | NEXT + `Nothing left today` only; no actions, no rest section |
 | `popover-overflow-p2f20.png` | 17:10, nine rest rows | rows `18:30` … `21:00`, then `+3 more`; `Open` enabled |
 
-**Retired** (`git rm`): the batch-7 frames `popover-{normal,late,empty}.png`
-and `snooze-{same-day,next-day}.png` — superseded builds (review §6 item 20).
-Items 11 and 12 are covered by the `-p2f20` popover renders and the batch-9
-`snooze-*-p2t48.png` renders.
+Renders: `KadenceTests/PopoverCaptureTests.swift`, `ImageRenderer`, scale 2,
+**light**.
 
-**Not done — every live item.** `Scripts/capture-p2f20.sh` is written and
-ready, **not yet run** (it needs an unlocked screen). It reaches every
-conflict by stepping with the footer's `Next conflict` button, not by
-`-KadenceConflictUnderTest`; it captures the Re-sync popover with its window
-(`-R` of their union, since a system popover is its own window); and it
-leaves nothing selected except where an item asks for a selection (5, 15,
-18). Run it, check each frame by eye, then retire the six files review §6
-item 20 names (`routine-template-flexibility.png`,
+**Retired** (`git rm`, review §6 item 20): `routine-template-flexibility.png`,
 `routine-windows-all-three-kinds.png`, `routine-blocks-mode-inactive-windows.png`,
 `routine-windows-mode-inactive-blocks.png`, `conflict-panel-two-options.png`,
-`conflict-panel-preview-active.png`) and the `-p2t48` frames it replaces.
-They are kept until then so no item is left with no frame at all.
+`conflict-panel-preview-active.png` (this task), and batch 7's
+`popover-{normal,late,empty}.png` and `snooze-{same-day,next-day}.png`
+(`d4895ee`). The batch-9 `-p2t48` frames of items 4–6, 8, 11 and 13–18 are
+still in the folder but are **superseded** by the files above and are not
+evidence for any item.
 
-### Every §17 item — where the evidence stands (2026-10-06)
+Seen in these frames, logged, not fixed here: every Routines-window frame
+has a 1px accent line (≈ `#80B3FA`, light) on the window's leading and
+trailing edges (DEVIATIONS **B35**); and during the capture `⎋` did not
+close the Re-sync popover, which §13.4 says it does (**B34**) — the script
+closes it with a click on the inspector heading instead.
+
+### Every §17 item — current evidence (2026-10-06)
 
 | §17 item | Current file(s) | Status |
 |---|---|---|
-| 1 | `routine-template-flexibility.png` (batch 1) | **pending** → `routine-template-flexibility-p2f20.png` |
-| 2 | → item 14's frame (review ruling) | **pending** (item 14) |
-| 3 | → item 13 (wide) for the Blocks-mode half, item 14 for the Windows half | **pending** (items 13, 14) |
-| 4 | `resync-popover-p2t48.png` | **pending** → `resync-popover-p2f20.png` |
-| 5 | `detached-instance-inspector-p2t48.png` | **pending** → `detached-instance-inspector-p2f20.png` |
-| 6 | `conflict-panel-two-options.png` (batch 2) · `conflict-panel-three-options-p2t48.png` | **pending** → `conflict-panel-two-options-p2f20.png`, `conflict-panel-three-options-p2f20.png` |
-| 7 | `conflict-panel-three-options-p2t48.png` | **pending** → `conflict-panel-three-options-p2f20.png` |
-| 8 | `conflict-panel-preview-active.png` (batch 3) · `template-conflict-preview-p2t48.png` | **pending** → `conflict-preview-active-p2f20.png`, `template-conflict-preview-p2f20.png` |
+| 1 | `routine-template-flexibility-p2f20.png` | recaptured |
+| 2 | `inactive-weekdays-windows-mode-p2f20.png` (item 14's frame, review ruling) | recaptured |
+| 3 | `inactive-weekdays-wide-p2f20.png` (Blocks half) · `inactive-weekdays-windows-mode-p2f20.png` (Windows half) | recaptured |
+| 4 | `resync-popover-p2f20.png` | recaptured |
+| 5 | `detached-instance-inspector-p2f20.png` | recaptured |
+| 6 | `conflict-panel-two-options-p2f20.png` · `conflict-panel-three-options-p2f20.png` | recaptured |
+| 7 | `conflict-panel-three-options-p2f20.png` | recaptured |
+| 8 | `conflict-panel-three-options-p2f20.png` (main window) · `template-conflict-panel-p2f20.png` (Routines window) | recaptured |
 | 9 | `needs-attention-count-{0,1,12}.png` (batch 4) | accepted with note; not recaptured |
-| 10 | `status-item-*-p2t47.png` (batch 8 renders) · batch-7 crops | renders accepted; the **live** crop is P2-F19's (pending) |
-| 11 | `popover-{normal,late,empty,overflow}-p2f20.png` | **done** (renders); the **live** crop is P2-F19's (pending) |
-| 12 | `snooze-{same-day,next-day}-p2t48.png` | accepted; not recaptured |
-| 13 | `inactive-weekdays-{wide,780}-p2t48.png` | **pending** → `inactive-weekdays-{wide,780}-p2f20.png` |
-| 14 | `inactive-weekdays-windows-mode-p2t48.png` | **pending** → `inactive-weekdays-windows-mode-p2f20.png` |
-| 15 | `routine-refusal-errands-p2t48.png` | **pending** → `routine-refusal-errands-p2f20.png` |
-| 16 | `template-conflict-panel-p2t48.png` | **pending** → `template-conflict-panel-p2f20.png` |
-| 17 | `conflict-single-option-p2t48.png` | **pending** → `conflict-single-option-p2f20.png` |
-| 18 | `conflict-skip-today-preview-p2t48.png` | **pending** → `conflict-skip-today-preview-p2f20.png` |
-
-Appearance: the `-p2f20` popover renders are **light**; the live frames take
-the system appearance (this Mac: dark) and must say so when indexed.
+| 10 | `status-item-{normal-full,normal-clipped,late-full,late-clipped,empty,degraded-110,degraded-80}-p2t47.png` (batch 8 renders) | renders accepted; live crop: P2-F19 |
+| 11 | `popover-{normal,late,empty,overflow}-p2f20.png` (renders) | renders done; live crop: P2-F19 |
+| 12 | `snooze-{same-day,next-day}-p2t48.png` (batch 9 renders) | accepted; not recaptured |
+| 13 | `inactive-weekdays-wide-p2f20.png` · `inactive-weekdays-780-p2f20.png` | recaptured |
+| 14 | `inactive-weekdays-windows-mode-p2f20.png` | recaptured |
+| 15 | `routine-refusal-errands-p2f20.png` | recaptured |
+| 16 | `template-conflict-panel-p2f20.png` | recaptured |
+| 17 | `conflict-single-option-p2f20.png` | recaptured |
+| 18 | `conflict-skip-today-preview-p2f20.png` | recaptured |

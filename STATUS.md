@@ -7668,3 +7668,77 @@ about 06:15, not 06:00.
 ### New GAPS / DEVIATIONS
 
 - DEVIATIONS **B33** logged and resolved in this task.
+
+## 79. P2-F20 — recapture complete (PHASE2-REVIEW.md §6 item 20)
+
+### Done
+
+- `Scripts/capture-p2f20.sh` run four times into a scratch folder; the
+  fourth run's 12 frames (build `8531c18`, ~11:37) filed as
+  `screenshots/2/*-p2f20.png`: items 1, 4, 5, 6 (both halves), 7, 8 (both
+  halves), 13 (wide + 780), 14 (also 2 and 3's Windows half), 15, 16, 17,
+  18. Item 11's renders were already there (`d4895ee`). Not recaptured, per
+  the review: 9, 10 (renders), 12.
+- **Every frame opened and checked by eye** against §17.2: subject whole in
+  the viewport; from this build; no selection the item didn't ask for (5,
+  15 and 18 ask; 16's block selection is §14.6's own entry); appearance
+  named (light, every frame). Main-window frames: grid from 06:00 (§3.1
+  with `Breakfast` 07:15 — P2-F22), inspector labels whole (`Starts`, F02).
+  Conflicts reached only by stepping with `Next conflict` from `1 of 14`.
+- `git rm` of the six files review §6 item 20 names, after all replacements
+  existed. Earlier INDEX sections that describe them carry a dated
+  "retired" note; Batch 9's table a "superseded" note.
+- `screenshots/2/INDEX.md` Batch 10 rewritten: method, appearance, a row per
+  new file, item 11's renders, the retirements, and the §17 table mapping
+  every item 1–18 to its current file(s).
+
+### Debugged in the script (no app change)
+
+1. Item 5 took the n-th `Morning review, 08:15` and missed after the first
+   move; with today a Tuesday only Wed/Fri instances exist this week. Now:
+   always the first remaining 08:15, then ⌘→ to next week (third = Mon 12).
+2. Item 16 never captured: `has()` piped AX output into `grep -q` under
+   `set -o pipefail` — `grep` exiting on its match SIGPIPEs the writer and
+   the pipeline reads as failed. Now via a file. (Same fix for the resize
+   check added in F21.)
+3. Item 13's wide frame caught the Re-sync popover: `⎋` doesn't close it
+   (B34, below). Now the script checks the popover's own button in the AX
+   tree, tries `⎋`, then clicks the inspector's static `Daily routine`
+   heading, and stops if it is still open.
+4. Items 6/7/8 and 16/8 were each shot twice as identical frames; one frame
+   each now, indexed for every item it serves.
+
+### Found, fixed separately
+
+- Item 17's first frame started at ≈06:15: activation scrolled a conflict
+  that was already in view — **P2-F24** (`8531c18`, §78). Frames were
+  re-shot after it.
+
+### Found, logged open (not in scope)
+
+- **B34**: `⎋` doesn't dismiss the Re-sync popover (§13.4 says it does);
+  `↩` works.
+- **B35**: every Routines-window frame has a 1px accent line (≈ `#80B3FA`)
+  at the window's outer leading and trailing edges; likely a whole-window
+  focus ring (B21 / G-039 family).
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`; only the known `MonthGridView.swift:153`
+  warning. `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult
+  572 passed / 0 failed**. `generate-tokens --check`: up to date.
+- `check-routines-window.sh`: **PASS**. `check-conflict-apply-return.sh`:
+  **PASS**. `check-inspector-inset.sh`: **PASS**.
+
+### Process note — pre-flight
+
+- One `check-routines-window.sh` run in this task started while **Opera
+  was in full screen**: my runner printed the pre-flight but didn't stop on
+  it. No input reached Opera — every event goes through `kadence-guard`
+  (Kadence frontmost **and** the AX hit test on a Kadence element) — but the
+  rule says not to run at all. The runner now refuses on a failed
+  pre-flight; the script was re-run after a clean one (**PASS**).
+- The same gap applies to my ad-hoc live checks earlier in this run (F22's
+  scroll tests, F16's footer walk, F24's and B34's checks): they relied on
+  the session's earlier pre-flights rather than one each time. All their
+  events also went through `kadence-guard`.
