@@ -115,6 +115,23 @@ Seven day columns. First weekday from `Calendar.current.firstWeekday` (Monday in
 - Default scroll position on open: `min(07:00, firstEventStart − 1h)` at the top
   of the viewport. `T` and the Today button scroll the current time to 1/3 from
   the top of the viewport.
+- **Amended 2026-10-06 (Phase 2 re-review; G-042) — what `firstEventStart` is.**
+  It is a **time of day**: the earliest start time-of-day of any timed event that
+  **starts** on one of the visible days, compared as minutes after that event's own
+  midnight. In Day view that is the day's first event; in Week view it is the
+  earliest across all seven columns, not the first event of the first day that
+  has one. The scroll offset is one value shared by every column, so the question
+  it answers is "how early does anything in view begin"; reading only the first
+  occupied day would open a week whose Tuesday starts at 08:00 at 07:00 and hide a
+  Thursday 05:30 above the fold. All-day items are ignored (they are not on the
+  grid), and so is the after-midnight part of an event that started on the
+  previous day — it starts at 00:00 only by clipping, and counting it would pin
+  every week containing one late night to 00:00. With no timed event the rule's
+  07:00 holds. (P2-F22 built "earliest instant"; with the 2026-10-06 fixtures
+  both readings give 06:00, so no capture changes.)
+- The initial position is **held** until the user scrolls or a conflict scroll
+  request arrives (P2-F22's build, now spec): a window that lays its canvas out
+  several times while settling must still open at the computed hour.
 
 ### 3.2 All-day row
 
@@ -349,10 +366,14 @@ width 84.
   (`tarts`, `nds`, `ource`) and the conflict panel's blocks flush against the
   edge, plus a full-height accent line on the inspector's leading edge in every
   main-window frame since 2026-09-25. Both are the same fault: the content is
-  laid out wider than the region and clipped on the leading side. The focus
+  laid out wider than the region and clipped on the leading side. ~~The focus
   ring the inspector draws when it is the focused region (`interactions.md` §1)
   is the **complete** standard system ring around the region, never one edge of
-  it.
+  it.~~ **Amended 2026-10-06 (closes G-039):** "complete or absent" is decided —
+  **absent**. The inspector, like every region, draws no region focus ring;
+  focus is shown on the focused control (`interactions.md` §1, "Where focus is
+  drawn"). The build's `.focusEffectDisabled()` on the grid and the inspector
+  (DEVIATIONS B21) is the spec.
 - **Row 4's "Source" is the source's name**, as the sidebar lists it — `Daily
   routine`, `University timetable` — with its swatch (`components.md` §3.4:
   "Inspector: Always, as swatch + name"). Never the palette slot: the 2026-10-05
@@ -424,6 +445,38 @@ sense against each other (`components.md` §13.3).
   origin. If a future change makes the canvas narrower than 640pt, the header
   must scroll with the grid in the same `ScrollView`, never in a sibling — but
   no Phase 2 change does. No Phase 2 work is required by this paragraph.
+  *(Note 2026-10-06: INDEX.md Batch 10 describes the 780pt frame as "the canvas
+  scrolls horizontally at this width". It does not — the frame measures 104pt
+  columns, 780pt of canvas, with the editor inspector's overlay covering Fri–Sun.
+  The overlay is the §1.1 behaviour; the description is wrong, not the build.)*
+
+**Amended 2026-10-06 (Phase 2 re-review) — three rules the 2026-10-06 frames
+showed the window needed.**
+
+- **Default scroll position (G-047).** §3.1's rule, over the template instead of
+  events: `min(07:00, earliestBlockStart − 1h)` at the top of the viewport, where
+  `earliestBlockStart` is the earliest `startMinutes` of any block in the selected
+  template (a template block's time of day is the same on every active weekday;
+  inactive weekdays do not change it). In Windows mode the same value is used, so
+  switching modes never jumps the canvas. With no blocks, 07:00. Re-applied when
+  the template picker changes template; **not** re-applied on mode change or
+  after an edit. Every 2026-10-06 Routines frame except item 1 opens at 00:00 —
+  seven hours of `Sleep` before the first block, which is the view the main
+  window's B24 fix removed. With the `Daily routine` fixture (Gym 07:00) it opens
+  at 06:00, which still shows `Sleep`'s 22:00 edge, `Lunch`, `Low energy` and
+  `Deep work` in a 900pt window. The hold rule of §3.1 applies.
+- **Window treatments reach the gutter here too (G-041, DEVIATIONS B22).**
+  "Hour grid exactly as §3.1" includes `components.md` §7 rule 2: protected fill
+  and edges and the low-energy hatch span the time gutter at the window's height
+  in the Routines canvas, as they do in the main window. Peak focus's dashed
+  outline (Windows mode only) does **not** enter the gutter: it is an outline of
+  the editable span, and §7's gutter strip exists to keep a *background*
+  treatment visible under a full column, which an outline with no fill is not.
+  Labels still never enter the gutter.
+- **No window-level or region-level focus ring (G-039, DEVIATIONS B35).**
+  `interactions.md` §1. The ~1px accent line on all four outer edges of every
+  2026-10-06 Routines frame is a system focus ring around the window's root (or
+  canvas) hosting view and must not be drawn.
 
 ### 8.1 Editor inspector
 
@@ -464,10 +517,12 @@ placeholder graphic.
     focus): a `size.borderSelected` stroke in `color.interactive.focusRing`,
     **inset** 1pt inside the toggle's bounds, at `radius.chip` — the build's
     placeholder, adopted. Inset rather than outset because the toggles are
-    `spacing.xs` apart and an outside ring would touch the neighbour. The
+    `spacing.xs` apart and an outside ring would touch the neighbour. ~~The
     system focus ring stays on the row as a whole, per `interactions.md` §1:
-    the ring says *this region*, the inset stroke says *this item*. Shown only
-    while the row has keyboard focus; never on pointer hover.
+    the ring says *this region*, the inset stroke says *this item*.~~
+    **Amended 2026-10-06:** no ring on the row — `interactions.md` §1 bars
+    region rings; the inset stroke is the row's whole focus indicator. Shown
+    only while the row has keyboard focus; never on pointer hover.
   - Each toggle is **not** its own `⇥` stop. `interactions.md` §1's model holds:
     the row is one focus target with an internal focused item.
   - The time-window inspector's row is the same component with the same
@@ -502,7 +557,9 @@ Padding `spacing.xl` on all sides. Background `color.surface.popover` with its
 material, falling back under Reduce Transparency per `components.md` §11.
 
 The popover closes on `⎋`, on clicking outside, and on `Open` (which activates
-the main window). It does **not** close on `Done` or `Snooze` — those replace
+the main window). **Amended 2026-10-06:** no focus ring around the popover's root
+(`interactions.md` §1); NEXT and the rest rows show focus with
+`hoverOverlay` (`interactions.md` §12). It does **not** close on `Done` or `Snooze` — those replace
 their row in place (`components.md` §16) so you can see what happened.
 
 ---

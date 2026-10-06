@@ -23,9 +23,43 @@ keyboard user expects for window chrome. Every toolbar action also has a key
 equivalent and a menu item (§2), so nothing is unreachable. The omission is
 deliberate and a test asserts it, so it cannot decay into an oversight.
 
-The focused region draws the standard system focus ring on its container. Within
-a region, `↑` `↓` `←` `→` move focus between its items; `⇥` always leaves the
-region rather than moving inside it.
+~~The focused region draws the standard system focus ring on its container.~~
+**Superseded 2026-10-06 (Phase 2 re-review; closes G-039, rules DEVIATIONS B21
+and B35) — see "Where focus is drawn" below.** Within a region, `↑` `↓` `←` `→`
+move focus between its items; `⇥` always leaves the region rather than moving
+inside it.
+
+**Where focus is drawn (amended 2026-10-06).** **No region draws a region-level
+focus ring** — not the hour grid, not the all-day row, not the inspector, not the
+Routines window's canvas or editor inspector, not either popover's root. On
+macOS 26 the system ring is drawn around a region's hosting rect, and every one
+of those rects reaches a window edge: the 2026-10-05 main-window frames showed
+it as one accent edge at the canvas/inspector boundary, and every 2026-10-06
+Routines frame and the live menu-bar popover show it as a ~1px accent line on
+the window's outer edges. A drawn replacement was considered and rejected: an
+accent rectangle around the canvas is already `components.md` §14.4's preview
+border ("you are looking at a hypothetical"), and the two would follow each
+other in the same place with opposite meanings — `⇥` out of the conflict panel
+abandons the preview (§10.2) and would swap one accent frame for an identical
+one that means something else.
+
+Focus is shown **on the element that has it**, which every region already has.
+This is normative — a region that takes focus and shows none of these is a
+defect, not an allowed state:
+
+| Region | What shows focus |
+|---|---|
+| Sidebar | The system's focused-selection treatment of the source list (as built) |
+| Hour grid (main window and Routines canvas) | Cursor mode's time cursor and its gutter time, or selection mode's §6 selected ring. Focus entering the grid with nothing selected enters cursor mode, so the cursor is always drawn |
+| All-day row | The focused pill takes §6's selected ring |
+| Inspector, normal mode | `⇥` in focuses its first control that accepts key focus, which draws its own system control ring |
+| Conflict panel (both windows) | The focused option row's `selectedCardFill` + 2pt `focusRing` border (`components.md` §14.3) |
+| Routines editor inspector | The weekday toggle row's inset stroke (`layouts.md` §8.1); the flexibility control's own system control ring |
+| Menu bar popover | `color.interactive.hoverOverlay` behind the focused row — NEXT included (§12) |
+| Re-sync popover | Its one button is the default button; `↩`/`⎋` are its whole keyboard surface (`components.md` §13.4) |
+
+Control-level rings (a text field's, a segmented control's) are untouched; this
+rule removes only rings drawn around a region or a window's root view.
 
 The grid is a single focus target. Inside it there are two focus modes:
 
@@ -353,6 +387,18 @@ and to the canvas.**
   is not a preview. In the Routines window the same scroll rule applies to the
   template block. Stepping with `‹`/`›` does the same. Abandoning the preview
   (§10.2) does **not** scroll back.
+- **Amended 2026-10-06 — near the end of the day the scroll clamps, and that is
+  correct.** The grid's content ends at 24:00, so for a conflict late in the day
+  (§17's Training at 17:00 in a 900pt window) "one third from the top" asks for an
+  offset past the content's end. The grid scrolls as far as it goes and stops; it
+  never pads the content, overscrolls, or moves the 24:00 edge. One third is the
+  *aim*; the requirement is the sentence above it — the occurrence wholly in view.
+  A clamped scroll satisfies that whenever the occurrence is no taller than the
+  viewport, because the clamp puts the day's end at the viewport's bottom edge.
+  An occurrence taller than the viewport keeps its earlier start at one third,
+  and its end may be below the fold. The same holds for 00:00 at the top. The
+  decision "is it wholly in view?" is made against the scroll view's real laid-out
+  viewport (P2-F24), never a transient geometry report.
 
 ### 10.2 Abandonment is unconditional
 
@@ -514,6 +560,14 @@ rules on what Phase 2 needs.
 - The focused rest row draws `color.interactive.hoverOverlay` behind its full
   row width at `radius.chip` — the same treatment as a hovered row — so focus is
   visible without a second focus ring inside a popover that already has one.
+  **Amended 2026-10-06:** the popover does **not** have one — §1 now bars a ring
+  around the popover's root (the live capture `popover-live-p2f20.png` shows it as
+  a ~1px accent line on the popover's edge). So the hover-overlay treatment is the
+  popover's only focus indicator and it covers **NEXT as well**: while NEXT is
+  focused (the state every open starts in), `hoverOverlay` is drawn behind the
+  next-item block's full width at `radius.card`, inside the popover's
+  `spacing.xl` padding. Same colour, same reason — one focus vocabulary inside
+  one surface.
 - **Deferred, not required for Phase 2:** `components.md` §16's third bullet
   (running the block-move transition in an open main window at the moment of a
   popover snooze). It needs animation state shared across two scenes, and

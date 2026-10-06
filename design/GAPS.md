@@ -2059,3 +2059,111 @@ column and the gutter, the selection ring). The sidebar's ring is unaffected.
 **Needed to close:** confirm "absent" for the grid region, or specify a drawn
 region ring (inset, width, colour) for regions whose system ring cannot be
 complete.
+
+---
+
+## 2026-10-06 — Phase 2 re-review: gaps opened and closed
+
+Design agent, 2026-10-06 (`PHASE2-REVIEW.md`, "Re-review — 2026-10-06"). Each item
+the re-review was asked to rule on, or found in the Batch 10 frames, that had no
+GAPS entry is **opened here and closed in the same pass**, so the record shows
+both. Every closure names the spec text that now carries the ruling.
+
+### G-039 — CLOSED. `interactions.md` §1 ("Where focus is drawn", 2026-10-06); `layouts.md` §6, §8, §8.1, §9 (2026-10-06).
+
+Absent, everywhere: no region draws a region focus ring and no window or popover
+root draws one. Focus is shown on the element that has it, per §1's table, which
+is normative (a focused region showing none of those indicators is a defect).
+Covers DEVIATIONS B21 (main grid and inspector — built as now specced) and B35
+(the Routines window's ~1px accent line on all four outer edges, measured
+`#80B3FA`-ish; still to remove). Also covers the same line on the live menu-bar
+popover's edge (`popover-live-p2f20.png`, measured `#8DBBFB`), with NEXT now taking
+`hoverOverlay` when focused (`interactions.md` §12). A drawn ring was rejected:
+around the canvas it would be the same accent frame as §14.4's preview border with
+the opposite meaning. No token added.
+
+### G-040 — opened and CLOSED. `components.md` §13.4 (2026-10-06).
+
+**Gap:** §13.4 said `⎋` dismisses the Re-sync popover; the build ignores it
+(DEVIATIONS B34) and nothing said what "dismiss" must cover. **Ruled:** `⎋`
+dismisses whenever the popover is open, wherever focus is inside it, writes
+nothing, and returns focus to the `Re-sync` button. A keyboard user's only other
+exits are confirming or closing the window.
+
+### G-041 — opened and CLOSED. `layouts.md` §8 (2026-10-06); `components.md` §7 rule 2.
+
+**Gap:** DEVIATIONS B22 — the Routines canvas leaves its time gutter unpainted;
+§8's "hour grid exactly as §3.1" did not say whether §7's gutter span came with
+it. **Ruled:** it does. Protected and low-energy treatments span the gutter in the
+Routines canvas; peak focus's outline does not; labels never do.
+
+### G-042 — opened and CLOSED. `layouts.md` §3.1 (2026-10-06).
+
+**Gap:** in Week view, is `firstEventStart` the earliest instant on the visible
+days or the earliest time of day across them? (P2-F22 built the first.)
+**Ruled:** earliest time of day among timed events that start on a visible day;
+all-day items and previous-day carry-overs excluded. Same result (06:00) with
+today's fixtures.
+
+### G-043 — opened and CLOSED (no change). `components.md` §3.3 (2026-10-06 confirmation).
+
+**Gap:** Routines-window block titles clip without an ellipsis (`Morning revie`).
+**Ruled:** that is §3.3's `.titleOnly` rule (no ellipsis character) on a 22pt
+block. Correct as built.
+
+### G-044 — opened and CLOSED. `components.md` §7 rule 2 (corrected 2026-10-06).
+
+**Gap:** in Windows mode `Low energy` is drawn above `Errands` with the block's
+border through the word. The coding agent read §7 rule 2 ("drawn above … never
+displaced") as allowing it — a correct reading of a wrong sentence. **Ruled:**
+Windows mode places labels by the same column scan as Blocks mode, draws them
+above the dimmed blocks, and never omits one (fallback: leading spanned column).
+
+### G-045 — opened and CLOSED. `interactions.md` §10.1 (2026-10-06).
+
+**Gap:** an evening conflict cannot sit one third from the top because the
+content ends at 24:00. **Ruled:** the clamp is correct. One third is the aim;
+"wholly in view" is the requirement, and the clamp meets it for any occurrence no
+taller than the viewport. No padding, no overscroll.
+
+### G-046 — opened and CLOSED. `components.md` §16 (2026-10-06), §17 item 12, §17.1 item 12.
+
+**Gap:** found in the frames. G-016's +15 placeholder can move a block into
+protected time (`snooze-next-day-p2t48.png`: `00:05 – 01:35`, inside `Sleep`),
+against CONTEXT.md's hard rule. **Ruled:** a snooze whose destination strictly
+overlaps a `.protected` span writes nothing; the result row reads `Not moved —
+00:05 is inside Sleep (protected)`, no `Undo`. G-016 itself stays open (the
+destination rule is still Phase 4's); this closes only the guarantee.
+
+### G-047 — opened and CLOSED. `layouts.md` §8 (2026-10-06).
+
+**Gap:** found in the frames. The Routines window opens at 00:00 (every Batch 10
+Routines frame but item 1, which the script scrolled). §8 never gave it a default
+scroll. **Ruled:** §3.1's rule over the template's blocks —
+`min(07:00, earliestBlockStart − 1h)` — held like the main grid's, re-applied on
+template change only. 06:00 with `Daily routine`.
+
+## 2026-10-06 — G-048 — a covered block's title band (DEFERRED out of Phase 2)
+
+**Where it bit:** found in the Batch 10 frames. `conflict-panel-two-options-p2f20.png`
+(Wednesday's `Training`, covered from 17:30, draws only a badge although its
+17:00–17:30 strip is uncovered at full width) and `conflict-single-option-p2f20.png`
+(the conflict's own `Supervisor meeting` has no title on the grid).
+
+**What the spec says.** §3.3: a block whose *visible width* is below 44pt renders
+`.glyphOnly`. *Visible width* is not defined; the build takes the narrowest strip.
+
+**Ruled, deferred.** The rule is written into `components.md` §3.3 (amended
+2026-10-06) — visible width is measured across the title band; ≥ 44pt there draws
+the `.titleOnly` content set in that band — and marked **deferred out of Phase 2,
+still normative**, to be logged as DEVIATIONS **A35**. Reason: it changes cascade
+rendering in every view and needs its own capture set; Phase 2's definition of
+done does not depend on it (the collision header names both blocks; hover help
+carries every title). **Stays OPEN** until built and captured.
+
+### Still open after this pass
+
+- **G-016** — unchanged (snooze destination: Phase 4). G-046 adds a guarantee the
+  Phase 4 rule must keep.
+- **G-003** — unchanged (contrast checker; not a Phase 2 condition).
+- **G-048** — deferred, above.

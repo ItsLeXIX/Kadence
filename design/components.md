@@ -248,6 +248,11 @@ region, never paint (§3.5), and it loses to any real block's frame
 Truncation is always `.tail` with no ellipsis character at `.titleOnly` (the clip
 edge reads as truncation and the ellipsis costs 6pt of a very short line).
 `.compact` and `.full` use a standard ellipsis.
+**Confirmed 2026-10-06 (Phase 2 re-review; G-043):** this binds the Routines
+window too. `Morning review` (08:15–08:45) is 22pt tall there — `.titleOnly` —
+so `Morning revie` clipped at its frame with no `…`, in every Routines frame, is
+the rule working, not a defect. The same title at `.compact` (the main Week grid
+at narrower widths: `Fixture revi…`) takes the ellipsis. No change.
 
 If two clamped blocks would overlap after clamping, they enter cascade layout
 (see `layouts.md` §3.3) rather than being drawn on top of each other.
@@ -259,6 +264,32 @@ by the block in front of it. When a block's visible width is below
 full content gets clipped mid-string and reads as damage (`10:`), not as
 something behind something else. `resolveBlockStyle` therefore takes visible
 width as well as rendered height.
+
+**Amended 2026-10-06 — DEFERRED out of Phase 2 (G-048; DEVIATIONS A35, to be
+logged), still normative.** *Visible width* was never defined, and the build
+reads it as the narrowest visible strip anywhere on the block. A conflict is an
+overlap, so every Phase 2 conflict draws a cascade, and the 2026-10-06 frames show
+the cost: in `conflict-panel-two-options-p2f20.png` Wednesday's `Training`
+(17:00–18:30) is covered from 17:30 by `Supervisor meeting`, yet its whole
+17:00–17:30 top strip — full column width, uncovered — draws nothing but the
+badge; in `conflict-single-option-p2f20.png` the conflict's own `Supervisor
+meeting` has no title on the grid. The rule, when built:
+
+- Visible width is measured across the block's **title band**: from the frame's
+  top to top + the tier's top padding + `lineHeight(blockTitleCompact)`.
+- If the title band's unobstructed width is ≥ `size.blockCascadeMinReadableWidth`
+  (44), the block draws the **`.titleOnly` content set** (glyph — or §6's badge
+  rule — and a one-line title) in that band, top-anchored, and nothing below it;
+  the rest of the frame is fill and rail. Only when the title band is itself
+  covered below 44pt does `.glyphOnly` apply as above.
+- It never draws more than its height tier allows, and the covering block still
+  paints over it (§3.5 is about a block's own frame; occlusion by a block in
+  front is not overflow).
+
+Deferred because it changes cascade rendering in every view, not only conflict
+frames, and needs its own capture set; Phase 2's definition of done does not
+depend on it — the inspector's collision header names both blocks, and hover
+help carries every title (§3.4).
 
 **Amended 2026-10-05 (Phase 2 screenshot review) — the title beats the time on a
 shared row.** At `.compact` the title and the trailing time share one row, and
@@ -558,9 +589,21 @@ were missing.**
    The label is placed in the **leading day column the window spans in which its
    rect intersects no block frame**, scanning in column order; if no such column
    exists it is omitted for that span. The window is still drawn; the label is
-   recoverable from Windows mode and the window inspector. In Windows mode
+   recoverable from Windows mode and the window inspector. ~~In Windows mode
    (§13.3) the edited layer is the windows, so there labels are drawn **above**
-   the dimmed block layer and are never displaced.
+   the dimmed block layer and are never displaced.~~
+   **Corrected 2026-10-06 (Phase 2 re-review; G-044).** The struck sentence was
+   built exactly as written (P2-F06), and `inactive-weekdays-windows-mode-p2f20.png`
+   shows what it produces: `Low energy` at 13:00 in Monday with `Errands`'
+   2pt alert border running through the middle of the word. Drawn above is not
+   the same as legible; a label crossed by a line reads as struck out. In
+   Windows mode labels are drawn **above** the dimmed block layer **and placed by
+   the same column scan as Blocks mode** (leading spanned column whose label rect
+   intersects no block frame). The one difference: Windows mode never omits a
+   label, because there the windows are the subject being edited — if every
+   spanned column is covered, the label is drawn in the leading spanned column,
+   above the blocks. With the `Daily routine` fixtures `Low energy` is therefore
+   in Tuesday in both modes.
 3. **The leading column's top-left corner is shared by stacking, never by
    overprinting (closes G-025).** When the label's column is an inactive
    Routines column (§13.5.3), the in-column note takes the corner and the label is
@@ -957,6 +1000,17 @@ It is **one undo step** — see `interactions.md` §11.2.
 - The primary action sits `spacing.md` below the last row, is the native default
   button (`↩` triggers it, `⎋` dismisses the popover), and is the only button.
   Cancelling is dismissing.
+- **Amended 2026-10-06 (G-040, DEVIATIONS B34).** `⎋` dismisses the popover
+  **whenever it is open** — with key focus on the button, on the popover, or
+  anywhere inside it — writing nothing, and focus returns to the `Re-sync`
+  button. The build answers `↩` and ignores `⎋`, which leaves a keyboard user
+  only two exits from a destructive confirmation: confirm it, or close the
+  window. Cancelling must be as reachable as confirming. (The menu bar popover
+  already closes on a real `⎋`, P2-F19, so this is a defect in this popover's
+  wiring, not a platform limit.)
+- **Correction 2026-10-06:** the count's copy is `3 instances edited`, with no
+  "this week", as `layouts.md` §8.1 (2026-10-01) already rules and the build
+  draws; the second bullet at the top of this section predates that ruling.
 
 **Amended 2026-10-01.** This subsection specifies the *surfaces*. What actually
 makes an instance detached, what marks it, how re-materialisation treats it, and
@@ -1890,6 +1944,30 @@ dialog and it does not steal focus.
   confirmation and the movement are the same event seen from two places.
 - Never a sheet, never an alert, never a toast that outlives the popover.
 
+**Amended 2026-10-06 (Phase 2 re-review; G-046) — a snooze never lands in
+protected time.** G-016's placeholder moves the block a fixed 15 minutes, and
+nothing stops that destination being inside a `.protected` window:
+`snooze-next-day-p2t48.png` shows `Prep: relational algebra` moved to
+`00:05 – 01:35`, inside `Sleep` (22:00–07:00). The user asked for *later*; they did
+not choose *where*, so the destination is chosen automatically, and CONTEXT.md's
+hard rule — protected windows are never scheduled into automatically — applies to
+it exactly as `DECISIONS.md` 2026-10-01 applies it to materialisation ("refuses …
+does not trim and does not shift: both are an automatic process choosing a time").
+The placeholder stays a placeholder; it gains the same refusal, not a search:
+
+- If the snoozed interval would **strictly overlap** any `.protected` span on the
+  destination day(s) (§13.6.1's test, using `TimeWindow.spans(on:)`, so overnight
+  windows count on both days), **nothing is written**. No undo step is recorded.
+- The result row still replaces the action row, same height, same hold
+  (`motion.snoozeConfirmHold`, pausing on hover): `Not moved — 00:05 is inside
+  Sleep (protected)` — `popoverRow`, `color.text.primary`, **no `Undo`** (there
+  is nothing to undo). The time is the destination start that was refused, in the
+  same `HH:mm` form; an empty window label reads `inside a protected window`. The
+  phrasing is §13.6.2's `Will not run — inside Lunch (protected)` family, so a
+  refusal reads the same wherever the app makes one.
+- Phase 4's real snooze rule replaces the +15 and must keep this guarantee; it
+  does not replace the guarantee.
+
 ---
 
 ## 17. What Phase 2 must render for review
@@ -1911,7 +1989,8 @@ Additions to the §12 fixture set. Same rule: display fixtures, no services.
     `size.statusItemMaxWidth`
 11. Popover: normal, late, empty, and with more than `size.popoverMaxRestRows`
     remaining
-12. The snooze result row, same-day and next-day
+12. The snooze result row, same-day and next-day — and (amended 2026-10-06, §16)
+    the refused row, `Not moved — … inside Sleep (protected)`
 13. The Routines window in Blocks mode with four inactive weekday columns —
     reweighted hour lines, the in-column note, and the active columns' header
     underlines (§13.5.2, §13.5.3)
@@ -2073,6 +2152,22 @@ three rest rows; **late** = `now` 17:42 against the same next item, giving
 `Started 12m ago · Daily routine` (amended 2026-10-05: the meta line names the
 source, §15.2); **empty** = `now` 23:40, no next item, rest section omitted
 entirely.
+
+#### Item 12 — snooze results (added 2026-10-06)
+
+Renders, like items 10–11 (§17.2 rule 3). Three rows:
+
+| Capture | Fixture | Expected |
+|---|---|---|
+| same-day | `now` 17:10, `Training` 17:30–18:15, `Sleep` present | `17:45 – 18:30` above `Moved to 17:45` + `Undo` (unchanged, `snooze-same-day-p2t48.png`) |
+| next-day | `now` 23:40, `Prep: relational algebra` 23:50–01:20, **no time windows** | `00:05 – 01:35` above `Moved to tomorrow 00:05` + `Undo` |
+| refused | the next-day fixture **with** `Sleep` (22:00–07:00 daily) | NEXT unchanged (`23:50 – 01:20`) above `Not moved — 00:05 is inside Sleep (protected)`, no `Undo` |
+
+The next-day row needs a world with no protected window over its destination:
+with the seeded `Sleep`, every +15 that crosses midnight is refused, which is
+exactly what the third row checks. The existing `snooze-next-day-p2t48.png`
+shows the surface correctly but depicts a write that §16 now refuses; it is
+replaced by the two new renders.
 
 #### Item 13 — inactive weekday columns
 

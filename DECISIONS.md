@@ -301,3 +301,18 @@ both kinds, no wrap. ↩ never opens the other window by itself.
 §7's scrolled-past window-label pinning, and §16's block-move transition in
 an open main window at the moment of a popover snooze. Neither affects Phase
 2's definition of done; both are logged as DEVIATIONS A-entries.
+
+## 2026-10-06 — No region focus rings; focus is drawn on the element.
+macOS 26 draws a region's system ring around a hosting rect that reaches the window's edge, so it showed as one accent edge in the main window and as a hairline round the Routines window and the menu-bar popover. A drawn ring was rejected: around the canvas it would be the same accent frame as the preview border, which means "you are looking at a hypothetical". Every region already shows focus on the element: the time cursor or selection ring, the focused option card, the toggle's inset stroke, a control's own ring, the popover's hover overlay (NEXT included). That table is normative; a focused region that shows none of these is a defect. Closes G-039.
+
+## 2026-10-06 — A snooze never lands in protected time.
+The user asks for later, not for where, so the destination is chosen automatically and the hard rule applies. The +15 placeholder gains the same refusal materialisation has, not a search: if the destination strictly overlaps a protected span, nothing is written and the popover says `Not moved — 00:05 is inside Sleep (protected)`. Phase 4's real rule replaces the +15 and must keep this guarantee. Closes G-046; G-016 stays open.
+
+## 2026-10-06 — A window label is never crossed by a block, in either mode.
+Windows mode drew labels above the dimmed blocks wherever the window started, which put Errands' border through `Low energy`. Above is not the same as legible. Both modes now use the same column scan; Windows mode differs only in never omitting a label, because there the windows are what is being edited. Closes G-044.
+
+## 2026-10-06 — The default scroll is a time of day, and the Routines window has one.
+`firstEventStart` is the earliest start time-of-day of any event that starts on a visible day: the scroll offset is shared by every column, so the question is how early anything in view begins. The Routines window applies the same rule to its template's blocks and stops opening on seven hours of Sleep. Closes G-042, G-047.
+
+## 2026-10-06 — Deferred out of Phase 2, still normative: a covered block's title band.
+A block covered from below its title row keeps its title (title band ≥ 44pt visible → `.titleOnly` content set in that band). It changes cascade rendering in every view and needs its own captures; no Phase 2 definition-of-done item depends on it. Logged as A35 (G-048). A33 and A34 stay deferred.

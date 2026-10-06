@@ -417,3 +417,329 @@ the actual recapture happens once, in item 20. Every task: build, `-only-testing
 - DEVIATIONS B15 still reads "*Still open*, same task as B14" although STATUS §48 resolves it.
 - DEVIATIONS' P2-T45 judgement call "after an apply, the next conflict previews its top row"
   is overturned by interactions §10.1 (2026-10-05).
+
+---
+
+## Re-review — 2026-10-06
+
+PHASE 2 NOT YET — BLOCKERS
+
+Design agent, 2026-10-06. Inputs: CONTEXT.md, DECISIONS.md (through the 2026-10-05
+entries), this file's 2026-10-05 review, all of design/, STATUS.md §52–§81,
+DEVIATIONS.md, screenshots/2/INDEX.md Batch 10, and every frame Batch 10 maps to
+items 1–18, opened and looked at — including `status-item-live-p2f20.png` and
+`popover-live-p2f20.png`. Where a claim needed more than a look, the frame was
+cropped and zoomed or its pixels sampled (the edge-line colours below are sampled
+values). Judged on what is drawn, under DECISIONS 2026-10-05 "Review evidence rules".
+
+**Why not accepted — two blockers, both small.** Everything the 2026-10-05 review
+asked for is built and visible, and every §17 item is accepted (none rejected).
+What stops acceptance:
+
+1. **A snooze can write into protected time.** `snooze-next-day-p2t48.png` shows
+   `Prep: relational algebra` moved to `00:05 – 01:35`, inside `Sleep`. That breaks
+   a CONTEXT.md hard rule. I accepted this frame on 2026-10-05 looking only at its
+   copy; that was my miss, not the build's. Ruled in §16 (G-046).
+2. **`⎋` does not close the Re-sync popover (B34).** On a destructive confirmation
+   a keyboard user can confirm or close the window, and nothing else. That is a
+   wrong behaviour against §13.4 and a keyboard-accessibility failure (G-040).
+
+Each is a guard of a few lines plus a test. When they and the small fixes land,
+Phase 2 can be accepted on the final run's evidence: the tests named below, a
+recaptured item 14, the two new snooze renders, and the popover edge check. I do
+not need to re-review all 18 items again (see "For Parsa").
+
+### R1. Fix-list verification (2026-10-05 §6, items 1–20)
+
+Judged from the frames and the spec. Where a fix has nothing a frame can show,
+that is said, and the verdict rests on the spec plus the named test.
+
+| # | Fix | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Weekday-independent fixtures | **DONE** | Sidebar badge `14` in every main frame; footers read `1 of 14`, `2 of 14`, `14 of 14` (Tue 6 Oct, a non-template day). |
+| 2 | Inspector inset (B20) | **DONE** | `Starts`, `Ends`, `Duration`, `Source`, `Origin`, `Edited`, `Status`, `Notes` whole in `detached-instance-inspector-p2f20.png`; collision blocks inset in all conflict frames; main-window edge pixels clean (sampled). The ring half is now ruled (G-039). |
+| 3 | Source row names the source | **DONE** | `Source  ▢ Daily routine` in item 5's frame. |
+| 4 | Title beats time; text confined | **DONE** | `Gym` whole in main Week and Routines; at 780pt no text crosses a divider; `Morning revie` is §3.3's `.titleOnly` clip (G-043). |
+| 5 | Window treatments clipped | **DONE** | Hatch stops at Friday's trailing divider in every main and Routines frame. |
+| 6 | Window label placement | **DONE to its text; text corrected** | Blocks mode: `Low energy` in Tuesday, clear of `Errands`. Windows mode: drawn above `Errands` as the 2026-10-05 sentence said, with the block's border through the word. The sentence was wrong (G-044) → SF2. |
+| 7 | Inactive columns under Increase Contrast | **DONE (test only)** | No IC frame was asked for; `HourLineColorsTests` covers the resolver. Spec unchanged. |
+| 8 | Weekday toggle row | **DONE** | Row under its label, `M T W T F S S` unclipped, M/W/F filled, in every Routines frame. Focused-toggle stroke not captured (not asked). |
+| 9 | Rail sample as template image | **DONE** | `routine-refusal-errands-p2f20.png`: samples in title colour, white in the selected `Shiftable` segment; `± 90 min`. |
+| 10 | Spoken strings | **DONE (test + live AX)** | Not frame-visible. `SpokenStringsTests`; STATUS §61's live AX read `14 conflicts` and the `Late lab session` phrase. |
+| 11 | Detachment rejoin | **DONE (test only)** | Engine; `RejoinTests`. |
+| 12 | Marker cleanup | **DONE** | No behaviour; no `SPEC-GAP` marker left (STATUS §68). |
+| 13 | Selected option row | **DONE** | Tinted card + 2pt accent border, text in normal colours, in items 6, 7, 16, 17, 18. |
+| 14 | Chip on line 3 | **DONE** | `Recommended` below line 2 in all panels; `Shift Errands 30 min later in / the routine` on two whole lines; `Remove Errands from this routine` on one. |
+| 15 | Activation focuses + brings into view | **DONE** | Row 2 focused on entry (item 7); single option focused (item 17); recommendation focused in the Routines panel; every conflict wholly in view. |
+| 16 | `1 of N` footer | **DONE** | Footer in both panels; frames reached by stepping (INDEX method). |
+| 17 | Re-sync popover as system popover | **PARTLY** | Whole, arrow on the button, `Wed 7 · Fri 9 · Mon 12`, default button. But `⎋` does not dismiss it (B34) → **Blocker B2**. |
+| 18 | Popover `Open` / keyboard / `Re-offer` | **DONE** | `Open` enabled in every render and live; `Re-offer` leading and prominent. With the popover's root ring now barred, NEXT needs its own focus indicator → SF1. |
+| 19 | Live captures | **DONE** | Status item in menu-bar tint, one string, no glyph, only as wide as its text; popover live with `Open` enabled and `+2 more`. |
+| 20 | Recapture and re-index | **DONE** | All live items recaptured from `8531c18`/`827a254`; subjects in view; selection only where asked. Two INDEX wording errors (780pt "scrolls horizontally"; see SF6) and 17 stale `-p2t48` files left (R6). |
+
+Score: 18 DONE (three of them test-only by nature), 1 DONE with its spec text
+corrected (6), 1 PARTLY (17).
+
+### R2. Per-item table — components.md §17 items 1–18
+
+| # | File(s) | Verdict | Spec § | Note |
+|---|---|---|---|---|
+| 1 | `routine-template-flexibility-p2f20.png` | **ACCEPT WITH NOTE** | §2.3, §13.2, §17.1 item 1 | `Gym` (inset rail, shiftable), `Morning review` (solid, fixed), `Reading` (dotted, droppable) in one frame, verified by zoom; nothing selected. Notes: window-edge accent line (B35 → SF1); gutter unpainted under `Lunch`/`Sleep` (B22 → SF3). Neither is the item's subject. |
+| 2 | `inactive-weekdays-windows-mode-p2f20.png` | **ACCEPT WITH NOTE** | §7, §13.3 | Protected value step (`Sleep`, `Lunch`), low-energy hatch (Mon–Fri, stops at Friday), peak-focus dashed outline (`Deep work` 15:00–17:00) — all three distinct. Note: `Low energy` crossed by `Errands`' border (G-044 → SF2); gutter (SF3). |
+| 3 | `inactive-weekdays-wide-p2f20.png` + item 14's frame | **ACCEPT** | §13.3 | Windows at full strength in Blocks mode; blocks at the inactive layer in Windows mode. |
+| 4 | `resync-popover-p2f20.png` | **ACCEPT WITH NOTE** | §13.4 | Subject as specified, whole. The `⎋` defect is behaviour, not in the frame → Blocker B2. |
+| 5 | `detached-instance-inspector-p2f20.png` | **ACCEPT** | §13.4, layouts §6 | Mon 12 `Morning review` at 08:30, selected; `Edited — differs from Daily routine`, `Revert to routine`; `Source  Daily routine`; labels whole. |
+| 6 | `conflict-panel-two-options-p2f20.png`, `conflict-panel-three-options-p2f20.png` | **ACCEPT WITH NOTE** | §14.2, §14.3, §14.3.4, layouts §10 | Copy exact in both (`60 min → 40 min · 20 min lost`; rows 60 · 75 · 90). Note: in the two-option frame Wednesday's `Training` is drawn with no title — §3.3's covered-block rule as written (G-048, deferred). |
+| 7 | `conflict-panel-three-options-p2f20.png` | **ACCEPT** | §14.3.3, interactions §10.1 | Row 2 recommended, focused, previewed on entry. |
+| 8 | `conflict-panel-three-options-p2f20.png`, `template-conflict-panel-p2f20.png` | **ACCEPT** | §6 previewed, §14.4, §14.6 | Main: ghost at 17:00, dashed twin 18:15–19:45, canvas border. Routines: ghosts at 12:30 and dashed twins at 13:00 in Mon/Wed/Fri, canvas border. |
+| 9 | `needs-attention-count-{0,1,12}.png` | **ACCEPT WITH NOTE** | §10.2 | Unchanged since 2026-10-05's verdict; the live `14` is in every current main frame. |
+| 10 | `status-item-*-p2t47.png` (7 renders) + `status-item-live-p2f20.png` | **ACCEPT** | §15.1, §17.2 rule 3 | Live: `12:30 · Stand-up`, template white on the dark bar, no glyph, tight width. |
+| 11 | `popover-{normal,late,empty,overflow}-p2f20.png` + `popover-live-p2f20.png` | **ACCEPT WITH NOTE** | §15.2, interactions §12 | All four states right; `Open` enabled; `Re-offer` prominent. Note: the live popover has a ~1px accent line on its edge (sampled `#8DBBFB`), the same root focus ring as B35 → SF1. |
+| 12 | `snooze-{same-day,next-day}-p2t48.png` | **ACCEPT WITH NOTE** | §16 | The surface is right in both. But the next-day frame depicts a write into `Sleep` → Blocker B1, which also adds a refused-row render and replaces the next-day render (§17.1 item 12). |
+| 13 | `inactive-weekdays-{wide,780}-p2f20.png` | **ACCEPT WITH NOTE** | §13.5.2, §13.5.3, layouts §8 | Notes `Not in this routine` + `Add Tue`… in Tue/Thu/Sat/Sun (wide), Tue/Thu (780) and fit; green underlines on Mon/Wed/Fri; nothing selected. Note: at 780 the editor inspector's overlay is open over Fri–Sun, and INDEX calls this horizontal scrolling — it isn't (104pt columns). Whether the overlay opens by itself → SF6. |
+| 14 | `inactive-weekdays-windows-mode-p2f20.png` | **ACCEPT WITH NOTE** | §13.5.5, §7 | No notes, no underlines, no reweighting; toggles whole. Notes as item 2. Recaptured after SF1–SF4. |
+| 15 | `routine-refusal-errands-p2f20.png` | **ACCEPT WITH NOTE** | §13.6.2 | `Errands` conflicted in Mon/Wed/Fri only; `Will not run — inside Lunch (protected) on Mon, Wed, Fri`. Notes: gutter, edge line. |
+| 16 | `template-conflict-panel-p2f20.png` | **ACCEPT** | §14.2, §14.6, layouts §8.1 | Window row, `lands in`, `Lunch protected · 12:00–13:00`, `12:30–13:00 · 30 min · Mon, Wed, Fri`; 30 · 30 · 135; row 1 recommended, chip on line 3; `14 of 14`. |
+| 17 | `conflict-single-option-p2f20.png` | **ACCEPT WITH NOTE** | §14.3.3 | One row, no chip, focused and previewed; `17:00–18:30 · 90 min overlap`; `2 of 14`. Note: the conflict's `Supervisor meeting` has no title on the grid (G-048, deferred). |
+| 18 | `conflict-skip-today-preview-p2f20.png` | **ACCEPT WITH NOTE** | §14.4 | Ghost dimmed in place, no dashed twin, canvas border, skip row focused, chip stays on row 2. Note: the ghost sits under `Supervisor meeting` and reads untitled (G-048). |
+
+**18 of 18 accepted** (6 ACCEPT, 12 ACCEPT WITH NOTE, 0 REJECT). No note requires
+a recapture before acceptance except item 14 (after SF1–SF4) and item 12 (after B1).
+
+### R3. Rulings, with § references
+
+| Open item | Ruling | Where | GAPS |
+|---|---|---|---|
+| G-039 / B21 + B35 | **Absent**, both windows and both popovers: no region or window-root focus ring. Focus is drawn on the element (normative table: time cursor / selected ring, focused option card, toggle inset stroke, control rings, popover `hoverOverlay` — NEXT included). A drawn ring rejected: it would duplicate §14.4's preview border with the opposite meaning. B21 is the spec; B35 and the popover edge line are to remove. | interactions §1, §12; layouts §6, §8, §8.1, §9 | G-039 CLOSED |
+| B34 | `⎋` dismisses the Re-sync popover wherever focus is inside it, writes nothing, returns focus to `Re-sync`. | components §13.4 | G-040 opened + CLOSED |
+| B22 | Routines canvas paints protected/low-energy treatments into the gutter (§7 rule 2); peak-focus outline does not; labels never. | layouts §8; components §7 | G-041 opened + CLOSED |
+| layouts §3.1 "first event" | Earliest **time of day** among timed events starting on a visible day; all-day and previous-day carry-overs excluded. Both readings give 06:00 today. | layouts §3.1 | G-042 opened + CLOSED |
+| `Morning revie` | Correct: §3.3 `.titleOnly`, no ellipsis. No change. | components §3.3 | G-043 opened + CLOSED |
+| Windows-mode label over `Errands` | The coding agent read §7 rule 2 correctly; the sentence was wrong. Corrected: same column scan as Blocks mode, drawn above, never omitted. | components §7 rule 2 | G-044 opened + CLOSED |
+| Evening conflict and one third | Clamp accepted and written: one third is the aim, wholly-in-view is the requirement. | interactions §10.1 | G-045 opened + CLOSED |
+| A33, A34 | Stay deferred. Nothing in the frames depends on either. | DECISIONS 2026-10-05 | — |
+| **Found:** snooze into protected time | A snooze whose destination strictly overlaps a `.protected` span writes nothing; `Not moved — 00:05 is inside Sleep (protected)`, no `Undo`. G-016 stays open for the destination rule. | components §16, §17 item 12, §17.1 item 12 | G-046 opened + CLOSED |
+| **Found:** Routines opens at 00:00 | §3.1's rule over the template's blocks, held, re-applied on template change only → 06:00. | layouts §8 | G-047 opened + CLOSED |
+| **Found:** covered block loses its title | Visible width measured over the title band; ≥ 44pt there draws `.titleOnly`. **Deferred** (A35). | components §3.3 | G-048 opened, OPEN (deferred) |
+| **Found:** §13.4 base still says `this week` | Struck by a dated correction; layouts §8.1 and the build already agree. | components §13.4 | — |
+
+**tokens.json is unchanged** (still 1.2.0, 2026-10-05). No ruling introduced a new
+value: every colour, size and radius used above (`hoverOverlay`, `radius.card`,
+`popoverRow`, `text.primary`, `blockCascadeMinReadableWidth`, `blockTitleCompact`)
+already exists, and no new colour pair is drawn.
+
+### R4. Triage
+
+#### BLOCKERS (2)
+
+**B1 — A snooze never lands in protected time.** CONTEXT.md hard rule; components
+§16 (2026-10-06), §17.1 item 12; G-046.
+- *Build:* in `EventStore.snooze`, before writing, test the shifted interval
+  against `.protected` spans on its day(s) with §13.6.1's strict-overlap test
+  (`spans(on:)`, so overnight windows count on both days). Overlap → no write, no
+  undo step, a refused result carrying the destination start and the window's
+  label. The result row draws `Not moved — HH:mm is inside <Label> (protected)` /
+  `inside a protected window`, no `Undo`, same height and hold.
+- *Acceptance:* tests — an event at 23:50 snoozed with `Sleep` present: store
+  unchanged, undo stack unchanged, result `.refused(00:05, "Sleep")`, row text
+  exact; Mon 11:50 against `Lunch`: refused; an event at 17:30 with nothing
+  protected after it: moved to 17:45 (existing behaviour); empty label → `inside
+  a protected window`; `⌥⌘↩` takes the same path as the button.
+- *Recapture:* item 12 — `snooze-next-day-<suffix>.png` (no time windows) and
+  `snooze-refused-<suffix>.png` (with `Sleep`), per §17.1 item 12's table; then
+  delete `snooze-next-day-p2t48.png`.
+
+**B2 — `⎋` closes the Re-sync popover.** components §13.4 (2026-10-06); G-040;
+DEVIATIONS B34.
+- *Acceptance:* a test or scripted check: open the popover, send `⎋` (guarded,
+  `kadence-guard`) with focus on the default button — popover gone, store
+  unchanged (`3 instances edited` still shown), focus on `Re-sync`; repeat after
+  clicking inside the popover's date list. `↩` still re-syncs. Add the `⎋` step to
+  `check-routines-window.sh` (or a new check) so it cannot regress, and drop
+  `capture-p2f20.sh`'s click-to-close workaround.
+- *Recapture:* none.
+
+#### SMALL FIXES (7) — one short final run
+
+**SF1 — No region or window-root focus ring; NEXT shows focus.** interactions §1
+("Where focus is drawn"), §12; layouts §8, §9; G-039; DEVIATIONS B35.
+- *Acceptance:* sampled edge check — in a Routines window capture (both modes) and
+  in a menu-bar popover capture, no pixel in the outermost 2px band matches
+  `interactive.accent`/`focusRing` (the `#80B3FA` / `#8DBBFB` lines are gone); the
+  main window stays clean. Popover key model: on open, focus index 0 → the
+  `hoverOverlay` is drawn behind NEXT at `radius.card` (render test with NEXT
+  focused). A `⇥` walk through every region of both windows (AX or by eye) finds
+  the §1-table indicator in each; any region that shows none is fixed in this
+  task (most likely the main inspector in normal mode: `⇥` must land on its first
+  focusable control).
+- *Recapture:* item 14 (with SF2–SF4) and `popover-live-<suffix>.png`. The live
+  popover may again need room made on the menu bar (Parsa's hand); if that isn't
+  available, a `screencapture -l` of the popover's own window opened from the
+  status item is acceptable for this edge check only.
+
+**SF2 — Windows-mode window labels avoid blocks, never omitted.** components §7
+rule 2 (corrected 2026-10-06); G-044.
+- *Acceptance:* `WindowLabelPlacementTests` — Windows mode, `Low energy` with
+  `Errands` in Monday → Tuesday; Windows mode with every spanned column covered →
+  leading column, drawn (not omitted); Blocks mode unchanged (still omitted when
+  all covered).
+- *Recapture:* item 14 — `Low energy` in Tuesday, uncrossed.
+
+**SF3 — Routines gutter carries window treatments.** layouts §8 (2026-10-06);
+components §7 rule 2; G-041; DEVIATIONS B22.
+- *Acceptance:* a render test of the Routines canvas's gutter strip: protected fill
+  at `Lunch`'s and `Sleep`'s heights, hatch at `Low energy`'s, nothing at `Deep
+  work`'s (peak focus); no label in the gutter.
+- *Recapture:* item 14 (shows all three).
+
+**SF4 — Routines window default scroll.** layouts §8 (2026-10-06); G-047.
+- *Acceptance:* pure test — `Daily routine` → 06:00; a template with no blocks →
+  07:00; first block 05:30 → 04:30; held through the window's settling passes
+  (the §3.1 hold); re-applied on template change, not on Blocks/Windows switch or
+  after an edit.
+- *Recapture:* item 14 opens at 06:00 by itself (the capture script must not
+  scroll it).
+
+**SF5 — Week view's first event is a time of day.** layouts §3.1 (2026-10-06);
+G-042.
+- *Acceptance:* `InitialScrollTests` — Tue first event 08:00 and Thu 05:30 →
+  04:30 (built today: 07:00); an event 23:50–01:20 the previous day doesn't count
+  for the next day; all-day ignored; Day view unchanged.
+- *Recapture:* none (06:00 with today's fixtures either way).
+
+**SF6 — The 780pt Routines frame: check the overlay and correct INDEX.** layouts §8,
+§1.1 (via §8's collapse order).
+- *Acceptance:* open the Routines window at 780pt on a fresh state: the editor
+  inspector is collapsed (overlay only after the user opens it). If the build
+  opens it by itself, fix it here. Correct INDEX Batch 10's "the canvas scrolls
+  horizontally at this width" (it doesn't).
+- *Recapture:* item 13's 780 frame **only if** the build changed (then nothing
+  covers Sat/Sun and all four notes show).
+
+**SF7 — Housekeeping.** Delete the 15 superseded files in R6 (and the three
+2026-09-27 status-item crops); `snooze-next-day-p2t48.png` after B1's render
+exists. INDEX: retire them, map item 12 to the new renders, item 14 / 11-live to
+their recaptures. DEVIATIONS: B21 → resolved by spec ruling (G-039); B22, B34, B35
+→ resolved by their fixes; log **A35** (G-048) as deferred; log B1's defect as a
+B-entry resolved by its fix.
+
+#### DEFERRED (3) — still normative
+
+- **A33** — §16's block-move transition in an open main window at the moment of a
+  popover snooze (interactions §12, 2026-10-05). Unchanged.
+- **A34** — §7's scrolled-past window-label pinning. Unchanged; SF4 makes the
+  Routines window open below `Sleep`'s 00:00 edge, which makes the unpinned label
+  slightly more visible as missing, not less correct.
+- **A35 (new; G-048)** — a covered block's title band (components §3.3, amended
+  2026-10-06). Changes cascade rendering in every view; needs its own captures;
+  no Phase 2 definition-of-done item depends on it.
+
+### R5. GAPS closed and opened this pass
+
+Recorded in GAPS.md under "2026-10-06 — Phase 2 re-review: gaps opened and closed".
+
+- **Closed:** G-039.
+- **Opened and closed in the same pass:** G-040, G-041, G-042, G-043, G-044, G-045,
+  G-046, G-047.
+- **Opened, left open (deferred):** G-048.
+- **Still open, unchanged:** G-016 (snooze destination, Phase 4), G-003 (contrast
+  checker).
+
+### R6. Stale frames in screenshots/2/
+
+**Superseded by Batch 10 and safe to delete now (15):**
+
+- `conflict-panel-three-options-p2t48.png`
+- `conflict-single-option-p2t48.png`
+- `conflict-skip-today-preview-p2t48.png`
+- `detached-instance-inspector-p2t48.png`
+- `inactive-weekdays-780-p2t48.png`
+- `inactive-weekdays-wide-p2t48.png`
+- `inactive-weekdays-windows-mode-p2t48.png`
+- `popover-empty-p2t48.png`
+- `popover-late-p2t48.png`
+- `popover-normal-p2t48.png`
+- `popover-overflow-p2t48.png`
+- `resync-popover-p2t48.png`
+- `routine-refusal-errands-p2t48.png`
+- `template-conflict-panel-p2t48.png`
+- `template-conflict-preview-p2t48.png` (item 8's Routines half is now
+  `template-conflict-panel-p2f20.png`, which shows the ghosts, twins and border)
+
+**Must stay:**
+
+- `snooze-same-day-p2t48.png` — the current, accepted evidence for item 12's
+  same-day row (§17.1 item 12).
+- `snooze-next-day-p2t48.png` — current evidence until B1's two new renders are
+  filed; delete it then.
+
+**Not `-p2t48`, also safe to delete:** `status-item-normal.png`,
+`status-item-late.png`, `status-item-empty.png` (2026-09-27 live crops, batch 7)
+— superseded by the seven `-p2t47` renders and `status-item-live-p2f20.png`, and
+they predate P2-T47's one-string label. INDEX maps no item to them.
+
+### R7. Proposed DECISIONS.md entries (text only — yours to write)
+
+**2026-10-06 — No region focus rings; focus is drawn on the element.** macOS 26
+draws a region's system ring around a hosting rect that reaches the window's
+edge, so it showed as one accent edge in the main window and as a hairline round
+the Routines window and the menu-bar popover. A drawn ring was rejected: around
+the canvas it would be the same accent frame as the preview border, which means
+"you are looking at a hypothetical". Every region already shows focus on the
+element: the time cursor or selection ring, the focused option card, the toggle's
+inset stroke, a control's own ring, the popover's hover overlay (NEXT included).
+That table is normative; a focused region that shows none of these is a defect.
+Closes G-039.
+
+**2026-10-06 — A snooze never lands in protected time.** The user asks for later,
+not for where, so the destination is chosen automatically and the hard rule
+applies. The +15 placeholder gains the same refusal materialisation has, not a
+search: if the destination strictly overlaps a protected span, nothing is written
+and the popover says `Not moved — 00:05 is inside Sleep (protected)`. Phase 4's
+real rule replaces the +15 and must keep this guarantee. Closes G-046; G-016 stays
+open.
+
+**2026-10-06 — A window label is never crossed by a block, in either mode.**
+Windows mode drew labels above the dimmed blocks wherever the window started,
+which put `Errands`' border through `Low energy`. Above is not the same as
+legible. Both modes now use the same column scan; Windows mode differs only in
+never omitting a label, because there the windows are what is being edited.
+Closes G-044.
+
+**2026-10-06 — The default scroll is a time of day, and the Routines window has
+one.** `firstEventStart` is the earliest start time-of-day of any event that
+starts on a visible day: the scroll offset is shared by every column, so the
+question is how early anything in view begins. The Routines window applies the
+same rule to its template's blocks and stops opening on seven hours of Sleep.
+Closes G-042, G-047.
+
+**2026-10-06 — Deferred out of Phase 2, still normative: a covered block's title
+band.** A block covered from below its title row keeps its title (title band ≥
+44pt visible → `.titleOnly` content set in that band). It changes cascade
+rendering in every view and needs its own captures; no Phase 2
+definition-of-done item depends on it. Logged as A35 (G-048). A33 and A34 stay
+deferred.
+
+### For Parsa — decisions that are yours
+
+1. **Is a snooze automatic placement?** B1 depends on reading CONTEXT.md's "never
+   scheduled into automatically" as covering a destination the user didn't pick.
+   I think it does (the 2026-10-01 materialisation ruling makes the same cut). If
+   you rule that pressing Snooze is the user being explicit, B1 drops out, §16's
+   2026-10-06 amendment and G-046 should be withdrawn, and the next-day frame
+   stands.
+2. **Is B34 a blocker?** By your definition it is (wrong behaviour plus a keyboard
+   exit missing from a destructive confirmation). ⌘Z does undo a mistaken
+   Re-sync in one step, so if you weigh that recovery as enough, it becomes a
+   small fix.
+3. **Acceptance without another full review.** If both blockers stay blockers, I
+   propose Phase 2 is accepted when the final run's report shows: B1's and B2's
+   tests passing, SF1–SF6's named tests, the item 14 recapture, the two snooze
+   renders, the popover edge check, and the R6 deletions. I'd check only those
+   frames and tests, not all 18 items again. CONTEXT.md says a phase isn't done
+   until I've reviewed its screenshots, so whether that narrower check is enough
+   is your call.
+4. **The live popover recapture (SF1)** may need you to make room on the menu bar
+   again, as in P2-F19.
+5. **Deleting the stale frames** (R6) is a `git rm` the final run does and you
+   commit.
