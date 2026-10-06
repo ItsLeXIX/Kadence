@@ -718,9 +718,11 @@ removed; `increaseContrast` parameter, GAPS G-003).
 
 ## C — invented design values
 
-*(Updated 2026-10-05, task P2-T46.)* Four invented design values and five
-placeholders (three behavioural, two accessibility strings), all marked
-`// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
+*(Updated 2026-10-06, P2-HK.)* **None open.** Every entry this section held
+(C2–C10) was retired by the 2026-10-05 spec rulings as its fix landed
+(P2-F08…F12, F17) and moved to "Resolved — retired by a spec ruling", and no
+`// SPEC-GAP` marker remains in `Kadence/`. *(Was, 2026-10-05: four invented
+design values and five placeholders, all marked `// SPEC-GAP`.)*
 
 
 Two P2-T39 judgement calls that need no marker, because no value was invented:
@@ -815,9 +817,12 @@ P2-T44 judgement calls that need no marker, because no value was invented:
 
 P2-T45 judgement calls that need no marker, because no value was invented:
 
-- **After an apply, the next conflict previews its top row**, not its
+- ~~**After an apply, the next conflict previews its top row**, not its
   recommended one. interactions.md §10.1 says only "advances to the next
-  unresolved conflict". Before P2-T45 the two were always the same row.
+  unresolved conflict". Before P2-T45 the two were always the same row.~~
+  **Overturned 2026-10-05 by interactions.md §10.1 (amended); built by task
+  P2-F15:** every activation, the advance after `↩` included, focuses the
+  recommended option.
 - **The shorten title names the kept duration** (`Shorten Training to 30
   min`), from §14.3.4's table, so it is `duration − trimmed`. The
   disturbance number is the trimmed minutes.
@@ -886,6 +891,14 @@ P2-T48 judgement calls that need no marker, because no value was invented:
 ## A — specified but not built
 
 ### Canvas
+
+- **A34 — components.md §7. A window label scrolled past its top edge does
+  not pin to the top of the visible region.** *(new 2026-10-06, P2-HK; a
+  Phase 1 rule never built and never logged until the 2026-10-05 review;
+  deferred out of Phase 2 by that review and DECISIONS 2026-10-05.)* The
+  label (with its `chevron.up`) is drawn only at the window's own top edge.
+  The §13.5.3 note does pin, and G-025's stacking (built in P2-F06) already
+  covers the pinned case when this is built. Still normative.
 
 - ~~**A1 — background windows do not span the time gutter.**~~ **Closed.**
   `TimedCanvasView.windowsBackdrop` draws one continuous layer behind gutter +
@@ -1518,7 +1531,9 @@ Still open, all re-checked against the current spec text this session:
   180pt, even for `13:29 · Journal` or `Nothing left today`, and reserves
   that menu-bar space whatever the content. This is read from the code. The
   committed crops are tight to the text, so they neither confirm nor rule out
-  the empty padding. *Still open*, same task as B14.
+  the empty padding. ~~*Still open*, same task as B14.~~ *(Corrected
+  2026-10-06, P2-HK: stale — resolved by P2-T47, STATUS §48, as the header
+  of this entry says.)*
 - **B16 — components.md §13.6.4 / §14.6 / interactions.md §11.2. Background
   materialisation is not part of the edit that caused it.** *(Narrowed
   2026-10-05, task P2-T41.)* Withdrawal now IS part of its causing step
@@ -1626,6 +1641,34 @@ Still open, all re-checked against the current spec text this session:
   §1 says the focused region draws the system ring, so this is a deviation
   for the grid. The grid's focus is still shown by its other §1 signals.
   The sidebar's ring is unchanged.
+
+- ~~**B26 — components.md §7 rule 1. The low-energy hatch paints Saturday.**~~
+  **Resolved 2026-10-06, task P2-F05.** *(was: logged 2026-10-06 by P2-HK
+  from PHASE2-REVIEW.md §7.)* The hatch's 45° lines ran up to one span-height
+  past their rect, unclipped, so Friday's hatch spilled into Saturday on both
+  canvases.
+- ~~**B27 — components.md §7 rule 2. Window labels are sliced under
+  blocks.**~~ **Resolved 2026-10-06, task P2-F06.** *(was: logged by P2-HK.)*
+  `Low energy` drew under `Errands` at 13:00; labels were always in the first
+  column, below the blocks.
+- ~~**B28 — components.md §3.3 / §3.5. The time beats the title on a
+  `.compact` row, and text crosses a column divider.**~~ **Resolved
+  2026-10-06, task P2-F04.** *(was: logged by P2-HK.)* `Gym` became `G`
+  beside a full `07:00-08:00`; `Morning review` printed across the next
+  column at 780pt.
+- ~~**B29 — layouts.md §6 / components.md §3.4. The inspector's Source row
+  reads the palette slot (`Source  Green`).**~~ **Resolved 2026-10-06, task
+  P2-F03.** *(was: logged by P2-HK.)*
+- ~~**B30 — components.md §15.2. The popover's `Open` is drawn
+  disabled.**~~ **Resolved 2026-10-06, task P2-F18.** *(was: logged by
+  P2-HK.)* It was never wired; every capture since 2026-09-27 drew it
+  disabled.
+- ~~**B31 — components.md §13.4. The Re-sync popover is clipped at the
+  window's edge.**~~ **Resolved 2026-10-06, task P2-F17** (copy) *— see the
+  note.* *(was: logged by P2-HK.)* The build already used a system
+  `.popover`; the clipping was most likely the capture (`screencapture -l`
+  of one window can't show a popover's own window). P2-F20 captures the
+  popover with its window. Its overflow row now reads `+N more`.
 
 - **B22 — components.md §7 rule 2. The Routines canvas does not paint window
   treatments into its time gutter.** *(new 2026-10-06, found during task

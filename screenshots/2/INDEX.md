@@ -1,12 +1,19 @@
 # screenshots/2 — review set (components.md §17)
 
+*(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 2.)* The paragraph below is stale. There are nine
+batches (1–9; batches 5 and 6 were attempts that produced no images), and
+items 10–12 have images (batches 7–9). The design agent's verdicts on every
+§17 item are in `design/PHASE2-REVIEW.md` §2; the frames it rejected are
+recaptured by P2-F20 (see the §17 table it writes at the end of this file).
+
 Four batches, plus one attempted-and-blocked fifth. **Batch 1** (this file's
 original content, task P2-T27, items 1–5) covers the Routines window.
 **Batch 2** (task P2-T29 retry, items 6–7) covers the conflict panel's
 two-option case. **Batch 3** (task P2-T31 retry, item 8) covers the conflict
 panel's preview-active state. **Batch 4** (task P2-T32, item 9) covers the
 sidebar needs-attention row at counts 0, 1 and 12. **Batch 5** (task P2-T35,
-item 10 — the menu bar status item) produced **no images**: two prior tasks
+item 10 — the menu bar status item) produced **no images** *(stale — see the
+note above: items 10–12 have images from batches 7–9)*: two prior tasks
 (P2-T33, P2-T34) ran out of turns attempting it, and this task's own attempt
 got as far as a fully reproducible capture method before hitting a locked
 screen it cannot clear itself. See that section near the end of this file for
@@ -116,9 +123,11 @@ energy `13:00`–`14:30`; Deep work `15:00`–`17:00`).
 | # | file | §17 item | mode / scroll | what it shows |
 |---|---|---|---|---|
 | 1 | `routine-template-flexibility.png` | 1 | Blocks, scrolled ~03:00–23:00 | All three flexibility rail styles together |
-| 2 | `routine-windows-all-three-kinds.png` | 2 | Windows, top (00:00) | Protected + low-energy + peak-focus together |
+| 2 | `routine-windows-all-three-kinds.png` | 2 | Windows, top (00:00) — *corrected: the frame starts at 03:00* | Protected + low-energy + peak-focus together |
 | 3a | `routine-blocks-mode-inactive-windows.png` | 3 (Blocks-mode half) | Blocks, top (00:00) | Windows layer while Blocks mode is active |
-| 3b | `routine-windows-mode-inactive-blocks.png` | 3 (Windows-mode half) | Windows, top (00:00) | Blocks layer dimmed while Windows mode is active |
+| 3b | `routine-windows-mode-inactive-blocks.png` | 3 (Windows-mode half) | Windows, top (00:00) — *corrected: the frame starts at 03:00* | Blocks layer dimmed while Windows mode is active |
+
+*(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 3.)* Frames 2 and 3b start at **03:00**, not 00:00.
 
 ### 1. `routine-template-flexibility.png` — §17 item 1
 
@@ -142,7 +151,9 @@ styles are visually distinct at that zoom in exactly the pattern §2.3
 prescribes — inset (Gym) vs. solid (Morning review) vs. dotted (Reading). The
 **Low energy** time window is also incidentally visible (13:00–14:30 hatch),
 drawn normally and non-hit-testable per §13.3's Blocks-mode row — expected,
-not a defect.
+not a defect. *(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 4.)* Not "drawn normally": the hatch spills past
+Friday into Saturday in every Routines frame (components.md §7 rule 1; fixed
+by P2-F05).
 
 Judgement call worth recording: `Gym`'s title barely fit at the routine
 column's natural width in an earlier, narrower test capture (`1050pt` window)
@@ -162,7 +173,9 @@ in the app they ever are (§17 item 2's own wording):
 
 - **Sleep** (`.protected`, 22:00–07:00, every day) — its `00:00`–`07:00` head
   is visible at the very top of frame as the familiar hatched protected
-  treatment.
+  treatment. *(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 3.)* The frame starts at 03:00, so only
+  03:00–07:00 is visible; and protected is a value step, not a hatch (only
+  low-energy is hatched).
 - **Low energy** (`.lowEnergy`, 13:00–14:30, Mon–Fri) — hatched fill, same
   treatment Blocks mode already showed.
 - **Deep work** (`.peakFocus`, 15:00–17:00, Mon–Fri) — **only rendered in
@@ -187,7 +200,8 @@ the spec, not the brief:
 `RoutinesWindow.swift`'s `.opacity(editorMode == .windows ? ... : 1)` is
 conditioned on `editorMode == .windows`, and there is no corresponding
 opacity modifier anywhere on the windows-drawing layer. **Pixel-checked, not
-eyeballed:** the Low-energy hatch region (a 320×130pt sample block, one pixel
+eyeballed:** *(*(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 4.)* The hatch is not drawn normally: it
+spills into Saturday — P2-F05.)* the Low-energy hatch region (a 320×130pt sample block, one pixel
 every 2pt) has a **byte-for-byte identical color histogram** between this
 image's source capture and `routine-windows-mode-inactive-blocks.png`'s (both
 captured at the same window bounds and scroll position, one in each mode) —
@@ -377,6 +391,10 @@ capture session's display happened to render at.
 |---|---|---|
 | `conflict-panel-two-options.png` | 6 (two-option half) | Full main window, conflict mode active in the inspector |
 
+*(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 5.)* **Superseded:** the option copy below (`Shorten
+Focus review by 20 min`, `Frees 60 min · …`) is the pre-P2-T45 catalogue,
+two revisions old. The current two-option copy is §14.3.4's.
+
 **`conflict-panel-two-options.png`.** The inspector (right-hand panel) shows,
 top to bottom: the **collision header** (§14.2) — a real "Client call" block,
 the word "overlaps", a real "Focus review" block, both rendered at the
@@ -477,7 +495,9 @@ same scale note as batch 2 — not 2×). Inspector shows the same collision
 header as batch 2's own image plus the first option row now highlighted
 blue; the calendar canvas carries the accent inset border around its own
 bounds only; "Focus review" appears at `20:20–21:00` in its normal
-full-opacity style; immediately above it, a thin amber sliver (`20:00–20:20`,
+full-opacity style *(*(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 6.)* wrong — the frame shows a
+dashed accent twin at 20:20–21:00, the §14.4 previewed copy, not the block
+in its normal style)*; immediately above it, a thin amber sliver (`20:00–20:20`,
 still carrying the conflicted-block warning glyph) is the dimmed remainder of
 the original block peeking out from behind the proposed block's higher
 `zIndex`.
@@ -529,7 +549,9 @@ the code before touching any fixture, not assumed:
   type, never folded into `state.conflicts` — DEVIATIONS.md already records
   this as "still no `WindowConflict` wired into ... the needs-attention row/
   count" (P2-T19's entry). Confirmed unchanged by this task: only
-  `Conflict` (event-vs-event) feeds the sidebar badge.
+  `Conflict` (event-vs-event) feeds the sidebar badge. *(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 7.)*
+  Stale since P2-T46: template conflicts (`TemplateConflict`) are counted in
+  the needs-attention count.
 
 Both facts are what make the count-0 and count-12 states buildable as pure
 fixture data, entirely off-day, with no interaction needed.
@@ -657,6 +679,9 @@ matching count 1's own image and §10.2's rule.
 
 ### Known open at capture time (batch 4, in addition to batches 1–3's lists above)
 
+- *(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 7.)* Both bullets of this list are stale: `↩` was
+  fixed in P2-T37 (STATUS §36), and template conflicts are counted since
+  P2-T46.
 - **`CalendarState.applyFocusedConflictOption` via `↩`, driven through real
   HID key events while the conflict panel is open, did not visibly commit**
   in this task's own testing — see "Count 0" above for the full account and
@@ -797,6 +822,12 @@ uses §17's numbering.
 | `snooze-same-day.png` | 12 — same-day | `Moved to 14:26` + `Undo` replacing the action row; the block reads 14:26–15:56. 692×602 (2×) |
 | `snooze-next-day.png` | 12 — next-day | `Moved to tomorrow 00:05` + `Undo`; the block reads **23:50 – 01:20**. 346×200 (1×) |
 
+*(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 8.)* **Superseded by batches 8–9:** the clipped
+sub-variant exists (batch 8), the next-day mismatch was fixed (B19, P2-T49),
+and the same-day "moved earlier" is G-016's deliberate placeholder. The
+batch-7 table above is superseded by batches 8–9; its popover and snooze
+frames show superseded builds and are retired by P2-F20.
+
 **Still missing or questionable, for DA's review (not fixed here):**
 
 - **Item 10's clipped sub-variant** ("each at full width **and** clipped to
@@ -819,22 +850,8 @@ uses §17's numbering.
 - **Mixed capture scales** (1× and 2×, see the table), and `status-item-empty`
   includes wallpaper where the other two are tight crops on black.
 
-### `secondary_with_popover.png` — flagged for deletion
-
-Not part of any batch and not described anywhere before this note. It is now
-**tracked**: it was committed with the design commit `b5be079`, so it is no
-longer untracked as the P2-T38 brief says. Nothing was deleted.
-
-What it shows: a full-screen 3360×2100 desktop capture dated Sat 26 Sep 13:31.
-The Kadence main window is in Week view (21–27 Sep, needs-attention count 12,
-Saturday's inspector summary). Despite the filename, **no popover is open**.
-The menu bar shows the status item reading `14:30 · Prep: relational
-algebra`. The frame also includes unrelated personal content: a WhatsApp menu
-bar, another app's window title bar, and video subtitles over the desktop.
-It answers no §17 item that the cropped images above don't already cover.
-**Recommendation: Parsa deletes it**, both for the personal content and
-because the name says it shows something it doesn't.
-
+*(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 1.)* The `secondary_with_popover.png` section that
+stood here is removed: the file was deleted in `2b8f02a`.
 
 ## Batch 8 — §17 item 10's six §17.1 rows, after the degrade rule (task P2-T47, 2026-10-05)
 
@@ -867,7 +884,9 @@ draws (B15), not padded to 180.
 61.8pt for the title at 110. §15.1 shows the title while at least
 `size.statusItemTitleMinWidth` (32) is left, so §17.1's expectation of
 "`17:30` alone" at 110 contradicts the rule it is meant to check. The rule
-was built; GAPS **G-037** asks which one to change. The extra 80pt row
+was built; GAPS **G-037** asks which one to change. *(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 9.)* Resolved: G-037
+is closed — the 110pt row is now the `narrowed` row and the 80pt row the
+`degraded` one (§17.1 item 10, amended 2026-10-05). The extra 80pt row
 (31.7pt left, under 32) shows the degrade itself: no separator, no ellipsis.
 
 The Batch 7 crops (`status-item-{normal,late,empty}.png`, real menu bar)
@@ -917,9 +936,9 @@ item 12.
 | 6 | `conflict-panel-two-options.png` (batch 2) · `conflict-panel-three-options-p2t48.png` | three rows 60 · 75 · 90 |
 | 7 | `conflict-panel-three-options-p2t48.png` | `Recommended` on row 2 (`Shift Training 75 min later`) |
 | 8 | `conflict-panel-preview-active.png` (batch 3) · `template-conflict-preview-p2t48.png` | the second is the Routines canvas: ghosts and dashed twins in Mon/Wed/Fri, canvas border |
-| 9 | `needs-attention-count-{0,1,12}.png` (batch 4) | counts from before P2-T48; the fixtures now give 16 (15 day + 1 template), visible in item 5's shot |
-| 10 | `status-item-*-p2t47.png` (batch 8) · batch 7 crops | see G-037 for the 110pt row |
-| 11 | `popover-{normal,late,empty,overflow}-p2t48.png` | overflow: six rows then `+3 more`; late: `Started 12m ago · Daily routine` (§17.1 writes `· Gym`, but the meta line names the source, §15.2) |
+| 9 | `needs-attention-count-{0,1,12}.png` (batch 4) | counts from before P2-T48; the fixtures now give 16 (15 day + 1 template), visible in item 5's shot — **(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 10.)* weekday-dependent and superseded: since P2-F01 it is 14 (13 + 1) on every weekday* |
+| 10 | `status-item-*-p2t47.png` (batch 8) · batch 7 crops | see G-037 for the 110pt row — **(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 12.)* G-037 is closed* |
+| 11 | `popover-{normal,late,empty,overflow}-p2t48.png` | overflow: six rows then `+3 more`; late: `Started 12m ago · Daily routine` (§17.1 writes `· Gym`, but the meta line names the source, §15.2) — **(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 11.)* §17.1 now writes `· Daily routine`* |
 | 12 | `snooze-{same-day,next-day}-p2t48.png` | after P2-T49: next-day block reads `00:05 – 01:35` above `Moved to tomorrow 00:05` |
 | 13 | `inactive-weekdays-wide-p2t48.png` · `inactive-weekdays-780-p2t48.png` | Tue/Thu/Sat/Sun notes + Add; underlines Mon/Wed/Fri; at 780 the notes fit and the inspector overlays (layouts §8) |
 | 14 | `inactive-weekdays-windows-mode-p2t48.png` | none of §13.5's treatment |
@@ -932,20 +951,10 @@ item 12.
 not menu-bar crops (reasons above), and items 1, 2 and 9's images predate the
 §17.1 fixtures.
 
-### For the design review — seen in these frames, not fixed
+### For the design review
 
-- **Inspector content clipped at its leading edge** in the main window
-  (`Starts` → `tarts` in item 5; the collision blocks in 6/7/17 start flush
-  against the edge). DEVIATIONS B20.
-- **A selected option row's line 2 is nearly unreadable**:
-  `color.text.secondary` on `color.interactive.selectedRowFill` (items 18 and
-  the template preview). GAPS G-038.
-- **Long template option titles truncate** at the editor inspector's width
-  beside the chip: `Shift Errands 30 min later in the…` (item 16). G-038.
-- **Weekday toggles clip their letters** (`M`, `W`) in the Routines
-  inspector (items 4, 14). From P2-T39.
-- **`Morning review` runs into its block's edge** at 780pt (item 13, narrow).
-- **Item 13 (wide) has Morning review selected**: the capture's click to
-  close the Re-sync popover landed on it. It doesn't affect the columns.
-- **`resync-popover-p2t48.png`**: the popover is clipped at the window's
-  right edge.
+*(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 13.)* Every bullet that stood here was answered by the
+design agent's review: see `design/PHASE2-REVIEW.md` (§2 per item, §6 fix
+list). The fixes are P2-F02 (inspector inset), P2-F13/F14 (selected row,
+chip on line 3), P2-F08 (weekday toggles), P2-F04 (text confinement),
+P2-F17 (Re-sync popover), and the recapture is P2-F20.

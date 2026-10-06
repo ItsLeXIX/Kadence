@@ -6357,6 +6357,9 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 6. **Housekeeping:** P2-T46's DEVIATIONS changes are in P2-T47's commit
    (no amend, per the rules). `secondary_with_popover.png` (§39) is still
    awaiting your delete decision.
+   *(Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7 item 1: stale.
+   `secondary_with_popover.png` was already deleted in `2b8f02a`; there is
+   no decision pending.)*
 
 ## 52. P2-F01 — weekday-independent review fixtures (components.md §17.1, amended 2026-10-05; PHASE2-REVIEW.md §6 item 1)
 
@@ -7216,3 +7219,62 @@ queue resumes at **P2-F16**.
 - DEVIATIONS **A33** (new): §16's third bullet, deferred by ruling. The
   P2-T26 key-focus paragraph gets a dated "resolved" note. The "`Open`
   disabled" entry is written in P2-HK. Recapture of 11 is item 20's.
+
+## 70. P2-HK — review housekeeping (PHASE2-REVIEW.md §7)
+
+### `screenshots/2/INDEX.md` — all 13 corrections
+
+Each is a dated note (`Corrected 2026-10-06, P2-HK — PHASE2-REVIEW.md §7
+item N`) beside the line it corrects, not a rewrite:
+
+1. The `secondary_with_popover.png` section is removed (the file was deleted
+   in `2b8f02a`).
+2. Opening paragraph: nine batches, items 10–12 have images; Batch 5's
+   "produced no images" lead marked stale.
+3. Frames 2 and 3b start at 03:00, not 00:00; protected is a value step,
+   not a hatch.
+4. Batch 1 item 1 and 3a: the Low-energy hatch is not "drawn normally" — it
+   spills into Saturday (fixed by P2-F05).
+5. Batch 2's option copy marked superseded (pre-P2-T45 catalogue).
+6. Batch 3's text corrected: the frame shows a dashed accent twin.
+7. Batch 4's `WindowConflict` line and both "Known open" bullets marked
+   stale (P2-T46, P2-T37).
+8. Batch 7's "Still missing" list and table marked superseded by 8–9.
+9. Batch 8's G-037 question marked resolved (110 = `narrowed`, 80 =
+   `degraded`).
+10. Batch 9 item 9's "16" marked superseded (14 since P2-F01).
+11. Batch 9 item 11: §17.1 now writes `· Daily routine`.
+12. Batch 9 item 10: G-037 closed.
+13. Batch 9's "For the design review" list replaced by a pointer to
+    PHASE2-REVIEW.md.
+
+INDEX.md's §17 table itself is rewritten by P2-F20.
+
+### DEVIATIONS.md
+
+- New A-entries for the two deferrals: **A33** (§16's cross-scene
+  block-move, logged in P2-F18) and **A34** (§7's scrolled-past label
+  pinning, never logged before).
+- The six visible defects, each logged and marked resolved by its fix:
+  **B26** hatch spill (F05), **B27** label slicing (F06), **B28** title/time
+  squeeze (F04), **B29** `Source  Green` (F03), **B30** `Open` disabled
+  (F18), **B31** clipped Re-sync popover (F17; most likely a capture
+  artefact, see the entry).
+- C-entries: C2–C10 were retired into "Resolved — retired by a spec ruling"
+  as their fixes landed (C3, C7, C8 marked partly overturned, C5 overturned,
+  C4 and C9 changed); the C section's preamble now says none is open.
+  D5 was retired in P2-F12.
+- B15's stale "*Still open*, same task as B14" is struck with a dated note.
+- The P2-T45 judgement call "after an apply, the next conflict previews its
+  top row" is struck as overturned (interactions.md §10.1; built by P2-F15).
+
+### STATUS.md
+
+- §51 item 6's stale `secondary_with_popover.png` line gets a dated note,
+  not a rewrite.
+
+### Verified
+
+- No code changed. `generate-tokens --check`: up to date. Tests unchanged
+  (565 passed, from §69).
+
