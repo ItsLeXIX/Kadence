@@ -7957,3 +7957,62 @@ count inside one parameterised test).
 ### New GAPS / DEVIATIONS
 
 - DEVIATIONS **B34** resolved.
+
+## 84. P2-SF4 — the Routines window's default scroll (layouts.md §8, amended 2026-10-06; G-047; PHASE2-REVIEW.md 2026-10-06 R4 SF4)
+
+### Built
+
+- `InitialScroll.minute(blockStartMinutes:)`: `min(07:00, earliestBlockStart
+  − 1h)` in minutes, floored at 00:00; no blocks → 07:00. Minute-precise
+  (05:30 → 04:30), not hour-floored.
+- `InitialScroll.needsAim(_:minute:…)`: the minute form of the hold's test.
+  The scroll lands on the `ConflictScrollAnchors` anchor at or before the
+  minute (5-minute anchors, as the conflict scroll already does), so that
+  anchor's top is the target compared against. The hour form now calls it.
+- `InitialScroll.Hold` (pure value): target fixed when the hold starts,
+  `retarget` (template changed), `release` (the user scrolled / a conflict
+  scroll took over), `shouldAim` (re-aim on every off-target geometry
+  change while holding, capped at `maxAims`).
+- `RoutinesCanvasView`: holds `InitialScroll.Hold` in `@State`; retargets on
+  `template?.id` change (`initial: true`, so on open, and nil → the seeded
+  template on a fresh store); re-aims from `onScrollGeometryChange` with the
+  scroll view's laid-out height (P2-F24's real viewport); released by the
+  user's first scroll and by a template-conflict scroll request. A
+  Blocks/Windows switch or a block edit changes neither the template id nor
+  the target, so neither moves the canvas.
+
+### Tests
+
+- `InitialScrollTests` (+7): `Daily routine` (the seeded template, Gym
+  07:00) → 06:00; no blocks → 07:00; first block 05:30 → 04:30 (and the
+  00:00 / 07:00 clamps); a 04:30 target is an anchor top; the hold
+  re-aims through settling passes (0, a phantom 220-in-596, back to 0)
+  and not when on target, and stops once released; re-applied on template
+  change only (a released hold with an edited block doesn't re-aim; a new
+  template holds again at its own default); the hold gives up after
+  `maxAims`.
+
+### Verified
+
+- `-only-testing:KadenceTests`: **xcresult 589 passed / 0 failed** (582 +
+  7). No warning in a touched file. `generate-tokens --check`: up to date.
+- **Live** (pre-flight each time; existing store, no input outside
+  Kadence): ⌘⌥R → the Routines canvas's scroll area top is y 225 and its
+  first visible label `06:00` is at y 227 (hour line + 2), with no script
+  scrolling; ⌘] and ⌘[ leave it at 06:00. After a real (guarded)
+  scroll-wheel event moved it to 07:00, ⌘] left it at 07:00.
+- Fresh pre-flight before each: `check-routines-window.sh` **PASS**,
+  `check-conflict-apply-return.sh` **PASS**, `check-inspector-inset.sh`
+  **PASS**, `check-block-click-selects.sh` **PASS**,
+  `check-resync-escape.sh` **PASS**.
+
+### Process note
+
+- A scratch probe of mine that deleted the store from inside a `bash -c`
+  was refused by Claude Code's removal check and did not run. Ad-hoc probes
+  since use the existing store (`launch`, no deletion); fresh-store runs
+  stay in the committed scripts.
+
+### New GAPS / DEVIATIONS
+
+- None.

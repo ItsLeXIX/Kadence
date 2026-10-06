@@ -746,6 +746,10 @@ private struct RoutinesCanvasView: View {
     /// The viewport in content coordinates, for "wholly in view".
     @State private var visibleRect: CGRect = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// layouts.md §8 (amended 2026-10-06, G-047): open at
+    /// `min(07:00, earliestBlockStart − 1h)` and hold it (§3.1's hold) until
+    /// the user scrolls; re-targeted only when the template changes.
+    @State private var initialHold = InitialScroll.Hold(target: 7 * 60)
 
     /// Task P2-T38 — the one in-flight block move/resize, owned HERE rather
     /// than by each column. interactions.md §11.1: "The drop preview appears
@@ -801,9 +805,39 @@ private struct RoutinesCanvasView: View {
                 .onScrollGeometryChange(for: CGRect.self) { $0.visibleRect } action: { _, rect in
                     visibleRect = rect
                 }
+                // The default scroll (G-047). Like the main grid's (P2-F22):
+                // the window lays the canvas out several times while it
+                // settles and any pass can reset the scroll, so every
+                // geometry change re-checks and re-aims while holding. The
+                // viewport height is the scroll view's laid-out height
+                // (P2-F24: `ScrollGeometry`'s container alternates).
+                .onScrollGeometryChange(for: InitialScroll.Position.self) { geometry in
+                    InitialScroll.Position(geometry)
+                } action: { _, position in
+                    if initialHold.shouldAim(position, hourHeight: hourHeight, viewportHeight: proxy.size.height) {
+                        aimInitialScroll(using: vertical)
+                    }
+                }
+                // Re-applied when the template changes — including nil → the
+                // seeded template on a fresh store — and on open
+                // (`initial: true`); NOT on a Blocks/Windows switch or an
+                // edit, which change neither the id nor the hold's target.
+                .onChange(of: template?.id, initial: true) { _, _ in
+                    initialHold.retarget(InitialScroll.minute(
+                        blockStartMinutes: template?.blocks.map(\.startMinutes) ?? []))
+                    aimInitialScroll(using: vertical)
+                }
+                // The user's first scroll ends the hold; a programmatic
+                // `scrollTo` stays `.idle`.
+                .onScrollPhaseChange { _, phase in
+                    if phase == .tracking || phase == .interacting || phase == .decelerating {
+                        initialHold.release()
+                    }
+                }
                 // `initial: true`: the request is usually set in the same
                 // update that opens this window on the conflict.
                 .onChange(of: scrollRequest, initial: true) { _, request in
+                    if request != nil { initialHold.release() }   // the conflict's scroll wins
                     guard let request,
                           let target = ConflictScroll.targetMinute(
                             occurrence: request.occurrence, earliestStart: request.earliestStart,
@@ -828,6 +862,17 @@ private struct RoutinesCanvasView: View {
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
+        }
+    }
+
+    /// One aim at the hold's target, deferred a main-actor turn: inside a
+    /// geometry callback the scroll view hasn't finished laying out and a
+    /// `scrollTo` then is dropped (P2-F22, found live on the main grid).
+    private func aimInitialScroll(using proxy: ScrollViewProxy) {
+        let anchor = ConflictScroll.anchorID(minute: initialHold.target)
+        Task { @MainActor in
+            guard initialHold.isHolding else { return }
+            proxy.scrollTo(anchor, anchor: .top)
         }
     }
 

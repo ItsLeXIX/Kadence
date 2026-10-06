@@ -88,4 +88,82 @@ struct InitialScrollTests {
             occurrence: (20 * 60)..<(21 * 60), earliestStart: 19 * 60 + 50,
             visibleTop: 220, visibleHeight: 675, hourHeight: hh) == 19 * 60 + 50)
     }
+
+    /// `#expect` can't call a `mutating` method on a captured value (the
+    /// macro wraps its argument in a closure), so this does it through
+    /// `inout` — Swift's pass-by-reference for a value type.
+    private func aim(_ hold: inout InitialScroll.Hold, _ position: InitialScroll.Position,
+                     hourHeight: CGFloat, viewportHeight: CGFloat) -> Bool {
+        hold.shouldAim(position, hourHeight: hourHeight, viewportHeight: viewportHeight)
+    }
+
+    // MARK: The Routines window (layouts.md §8, amended 2026-10-06; G-047; task P2-SF4)
+
+    @Test func routinesDailyRoutineOpensAtSix() {
+        // The seeded template: Gym 07:00 is its earliest block.
+        let blocks = MockData.makeRoutineTemplates()[0].blocks.map(\.startMinutes)
+        #expect(InitialScroll.minute(blockStartMinutes: blocks) == 6 * 60)
+    }
+
+    @Test func routinesNoBlocksOpensAtSeven() {
+        #expect(InitialScroll.minute(blockStartMinutes: []) == 7 * 60)
+    }
+
+    @Test func routinesFirstBlockAtFiveThirtyOpensAtFourThirty() {
+        #expect(InitialScroll.minute(blockStartMinutes: [9 * 60, 5 * 60 + 30]) == 4 * 60 + 30)
+        #expect(InitialScroll.minute(blockStartMinutes: [20]) == 0, "never above 00:00")
+        #expect(InitialScroll.minute(blockStartMinutes: [10 * 60]) == 7 * 60, "never below 07:00")
+    }
+
+    /// The 04:30 target lands on the 04:30 anchor's top, and the hold
+    /// counts that as "there".
+    @Test func aMinuteTargetIsAnAnchorTop() {
+        let hh: CGFloat = 44
+        let day = 24 * hh
+        #expect(!InitialScroll.needsAim(.init(top: 4.5 * hh, contentHeight: day), minute: 270, hourHeight: hh, viewportHeight: 780))
+        #expect(InitialScroll.needsAim(.init(top: 4 * hh, contentHeight: day), minute: 270, hourHeight: hh, viewportHeight: 780))
+    }
+
+    @Test func routinesHoldThroughSettlingPasses() {
+        let hh: CGFloat = 44
+        let day = 24 * hh
+        var hold = InitialScroll.Hold(target: 7 * 60)
+        hold.retarget(6 * 60)   // the template arrives
+        // Layout passes reset the scroll to 0, then a phantom 44pt-inset pass:
+        // each one off target re-aims; on target, none.
+        #expect(aim(&hold, .init(top: 0, contentHeight: day), hourHeight: hh, viewportHeight: 56))
+        #expect(aim(&hold, .init(top: 220, contentHeight: day), hourHeight: hh, viewportHeight: 596))
+        #expect(!aim(&hold, .init(top: 264, contentHeight: day), hourHeight: hh, viewportHeight: 780))
+        #expect(aim(&hold, .init(top: 0, contentHeight: day), hourHeight: hh, viewportHeight: 780))
+        #expect(hold.isHolding)
+        // The user scrolls: no more aims.
+        hold.release()
+        #expect(!aim(&hold, .init(top: 0, contentHeight: day), hourHeight: hh, viewportHeight: 780))
+    }
+
+    @Test func routinesReappliedOnTemplateChangeOnly() {
+        let hh: CGFloat = 44
+        let day = 24 * hh
+        var hold = InitialScroll.Hold(target: 7 * 60)
+        hold.retarget(InitialScroll.minute(blockStartMinutes: [7 * 60]))   // Daily routine
+        hold.release()                                                     // the user scrolled
+        // A Blocks/Windows switch or an edit (Gym dragged to 05:30) is not a
+        // retarget: the hold stays released and its target unchanged.
+        #expect(hold.target == 6 * 60)
+        #expect(!aim(&hold, .init(top: 0, contentHeight: day), hourHeight: hh, viewportHeight: 780))
+        // Another template: held again at its own default.
+        hold.retarget(InitialScroll.minute(blockStartMinutes: [5 * 60 + 30]))
+        #expect(hold.target == 4 * 60 + 30)
+        #expect(hold.isHolding)
+        #expect(aim(&hold, .init(top: 0, contentHeight: day), hourHeight: hh, viewportHeight: 780))
+    }
+
+    @Test func theHoldGivesUpAfterMaxAims() {
+        var hold = InitialScroll.Hold(target: 6 * 60)
+        for _ in 0..<InitialScroll.maxAims {
+            #expect(aim(&hold, .init(top: 0, contentHeight: 1056), hourHeight: 44, viewportHeight: 780))
+        }
+        #expect(!aim(&hold, .init(top: 0, contentHeight: 1056), hourHeight: 44, viewportHeight: 780))
+        #expect(!hold.isHolding)
+    }
 }
