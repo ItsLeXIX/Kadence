@@ -4,7 +4,9 @@
 //
 //  layouts.md §3.1: the canvas opens scrolled to `min(07:00, firstEventStart − 1h)`
 //  at the top. Pure, so it can be tested; `TimedCanvasView` scrolls to the
-//  `ConflictScrollAnchors` anchor at the start of this hour (task P2-F22).
+//  `ConflictScrollAnchors` anchor at that minute (task P2-F22; minute-precise
+//  and time-of-day since P2-SF5). The Routines window uses the same rule over
+//  its template's blocks (P2-SF4).
 //
 
 import Foundation
@@ -13,21 +15,29 @@ import SwiftUI
 /// A caseless `enum` is Swift's idiom for a namespace of static functions —
 /// like a Java/C# `static class`: it can't be instantiated.
 enum InitialScroll {
-    /// The hour (0…7) to put at the top of the viewport on open.
+    /// The minute after midnight (0…420) to put at the top of the viewport
+    /// on open: `min(07:00, firstEventStart − 1h)`.
     ///
-    /// `firstEventStart` is the earliest timed (not all-day) event starting on
-    /// one of the visible days; with none, 07:00. (Moved unchanged from
-    /// `TimedCanvasView.initialAnchorHour`.)
-    static func hour(events: [Event], days: [Date], calendar: Calendar = .current) -> Int {
-        let firstStart = events
+    /// layouts.md §3.1 (amended 2026-10-06, G-042): `firstEventStart` is a
+    /// **time of day** — the earliest start time-of-day of any timed event
+    /// that *starts* on one of the visible days, measured from that event's
+    /// own midnight. In Week view that's the earliest across all columns
+    /// (a Thursday 05:30 beats a Tuesday 08:00), not the first event of the
+    /// first occupied day (P2-F22 built that, and floored to the hour).
+    /// All-day items don't count, and neither does the after-midnight part of
+    /// an event that started the day before (it starts on that earlier day).
+    /// With no timed event, 07:00.
+    static func minute(events: [Event], days: [Date], calendar: Calendar = .current) -> Int {
+        let firstMinute = events
             .filter { event in
                 !event.isAllDay && days.contains { day in calendar.isDate(event.start, inSameDayAs: day) }
             }
-            .map(\.start)
+            .map { event in
+                Int(event.start.timeIntervalSince(calendar.startOfDay(for: event.start)) / 60)
+            }
             .min()
-        guard let firstStart else { return 7 }
-        let hour = calendar.component(.hour, from: firstStart)
-        return max(0, min(7, hour - 1))
+        guard let firstMinute else { return 7 * 60 }
+        return max(0, min(7 * 60, firstMinute - 60))
     }
 
     /// Where the canvas is scrolled, from the scroll view's geometry.
@@ -65,14 +75,9 @@ enum InitialScroll {
         return max(0, min(7 * 60, earliest - 60))
     }
 
-    /// True when `position` isn't at the hour's top — clamped to the
+    /// True when `position` isn't at `minute`'s top — clamped to the
     /// largest top the content allows in a `viewportHeight` viewport —
-    /// within half a point.
-    static func needsAim(_ position: Position, hour: Int, hourHeight: CGFloat, viewportHeight: CGFloat) -> Bool {
-        needsAim(position, minute: hour * 60, hourHeight: hourHeight, viewportHeight: viewportHeight)
-    }
-
-    /// The same, for a target minute. The scroll lands on the
+    /// within half a point. The scroll lands on the
     /// `ConflictScrollAnchors` anchor at or before `minute` (5-minute
     /// anchors), so that anchor's top is the target compared against.
     static func needsAim(_ position: Position, minute: Int, hourHeight: CGFloat, viewportHeight: CGFloat) -> Bool {

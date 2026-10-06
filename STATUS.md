@@ -8016,3 +8016,51 @@ count inside one parameterised test).
 ### New GAPS / DEVIATIONS
 
 - None.
+
+## 85. P2-SF5 — Week view's first event is a time of day (layouts.md §3.1, amended 2026-10-06; G-042; PHASE2-REVIEW.md 2026-10-06 R4 SF5)
+
+### Built
+
+- `InitialScroll.minute(events:days:)` replaces `hour(events:days:)`:
+  the earliest start **time of day** (minutes after the event's own
+  midnight) of any timed event that starts on a visible day, then
+  `min(07:00, that − 1h)`, floored at 00:00; 07:00 with none. All-day
+  events are ignored; a previous day's carry-over doesn't count for the next
+  day (it starts on the earlier day — filtered as before).
+- `TimedCanvasView`'s hold and aim use the minute (the anchor at or before
+  it, 5-minute anchors) via `needsAim(_:minute:…)`; the hour form of
+  `needsAim` is gone.
+
+### Note — minute precision changes one Day-view case
+
+- §3.1's `firstEventStart − 1h` is minute arithmetic, and SF5's acceptance
+  needs it (Thu 05:30 → 04:30). P2-F22 floored to the hour. So a Day view
+  whose first event is `Breakfast` 07:15 (today, Tuesday) now opens at
+  06:15, where it opened at 06:00. **Week view is unchanged at 06:00** with
+  today's fixtures: Gym 07:00 on Wed/Fri is the earliest time of day. No
+  §17 frame is a Day view, so no recapture follows (as the review
+  expected).
+
+### Tests
+
+- `InitialScrollTests`: the P2-F22 cases moved to minutes (05:30 → 04:30,
+  was 04:00); new: Tue 08:00 + Thu 05:30 in a week → 04:30 (built before:
+  07:00); a 23:50–01:20 carry-over doesn't count for Tuesday's Day view and
+  counts as 23:50 in a week (both → 06:15 with Breakfast 07:15); all-day
+  ignored in a week; Day view = that day's first event only.
+
+### Verified
+
+- `-only-testing:KadenceTests`: **xcresult 593 passed / 0 failed** (589 +
+  4). No warning in a touched file. `generate-tokens --check`: up to date.
+- Live (existing store, Tuesday): the main Week grid's scroll area top is
+  y 190 and `06:00` is at y 192.
+- Fresh pre-flight before each: `check-routines-window.sh` **PASS**,
+  `check-conflict-apply-return.sh` **PASS**, `check-inspector-inset.sh`
+  **PASS**, `check-block-click-selects.sh` **PASS**,
+  `check-resync-escape.sh` **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- None. (STATUS §75's "for the design agent" note on earliest instant is
+  answered by G-042 and built here.)

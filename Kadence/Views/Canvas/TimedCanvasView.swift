@@ -31,7 +31,7 @@ struct TimedCanvasView: View {
     var onTab: (KeyPress) -> KeyPress.Result
 
     @Environment(CalendarState.self) private var state
-    /// layouts.md §3.1: while true, the canvas keeps `InitialScroll.hour`
+    /// layouts.md §3.1: while true, the canvas keeps `InitialScroll.minute`
     /// at the top (task P2-F22). Cleared by the user's first scroll or a
     /// conflict scroll request.
     @State private var holdsInitialScroll = true
@@ -86,7 +86,7 @@ struct TimedCanvasView: View {
                     }
                     .scrollIndicators(.automatic)
                     // layouts.md §3.1 (task P2-F22, DEVIATIONS B24): open with
-                    // `InitialScroll.hour` at the top, and HOLD it there until
+                    // `InitialScroll.minute` at the top, and HOLD it there until
                     // the user first scrolls. A single `scrollTo` at appear
                     // isn't enough (found live): the canvas lays out several
                     // times while the window settles (viewport 56 → 596 → 780pt,
@@ -103,7 +103,7 @@ struct TimedCanvasView: View {
                         visibleTop = position.top
                         holdInitialScroll(position, using: vertical, viewportHeight: proxy.size.height)
                     }
-                    .onChange(of: InitialScroll.hour(events: events, days: days)) { _, _ in
+                    .onChange(of: InitialScroll.minute(events: events, days: days)) { _, _ in
                         guard holdsInitialScroll else { return }
                         aimInitialScroll(using: vertical)
                     }
@@ -248,8 +248,8 @@ struct TimedCanvasView: View {
     /// One re-check of the initial scroll position (see the modifier's comment).
     private func holdInitialScroll(_ position: InitialScroll.Position, using proxy: ScrollViewProxy, viewportHeight: CGFloat) {
         guard holdsInitialScroll else { return }
-        let hour = InitialScroll.hour(events: events, days: days)
-        guard InitialScroll.needsAim(position, hour: hour, hourHeight: hourHeight, viewportHeight: viewportHeight) else { return }
+        let minute = InitialScroll.minute(events: events, days: days)
+        guard InitialScroll.needsAim(position, minute: minute, hourHeight: hourHeight, viewportHeight: viewportHeight) else { return }
         aimInitialScroll(using: proxy)
     }
 
@@ -259,7 +259,7 @@ struct TimedCanvasView: View {
             return
         }
         initialScrollAims += 1
-        let anchor = ConflictScroll.anchorID(minute: InitialScroll.hour(events: events, days: days) * 60)
+        let anchor = ConflictScroll.anchorID(minute: InitialScroll.minute(events: events, days: days))
         // Deferred one main-actor turn: inside a layout/geometry callback the
         // scroll view hasn't finished laying out, and a `scrollTo` then is
         // silently dropped (found live). `Task { @MainActor in … }` is like

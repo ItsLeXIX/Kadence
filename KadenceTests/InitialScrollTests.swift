@@ -27,24 +27,61 @@ struct InitialScrollTests {
     }
 
     @Test func noEventsOpensAtSeven() {
-        #expect(InitialScroll.hour(events: [], days: [monday]) == 7)
+        #expect(InitialScroll.minute(events: [], days: [monday]) == 7 * 60)
     }
 
     @Test func anEarlyEventOpensAnHourBeforeIt() {
-        // Gym at 07:00 → 06:00.
-        #expect(InitialScroll.hour(events: [event(at(monday, 7))], days: [monday]) == 6)
-        #expect(InitialScroll.hour(events: [event(at(monday, 5, 30))], days: [monday]) == 4)
-        #expect(InitialScroll.hour(events: [event(at(monday, 0, 20))], days: [monday]) == 0)
+        // Gym at 07:00 → 06:00. Minute-precise since P2-SF5 (§3.1's
+        // `firstEventStart − 1h`): 05:30 → 04:30, not P2-F22's 04:00.
+        #expect(InitialScroll.minute(events: [event(at(monday, 7))], days: [monday]) == 6 * 60)
+        #expect(InitialScroll.minute(events: [event(at(monday, 5, 30))], days: [monday]) == 4 * 60 + 30)
+        #expect(InitialScroll.minute(events: [event(at(monday, 0, 20))], days: [monday]) == 0)
     }
 
     @Test func aLateFirstEventStillOpensAtSeven() {
-        #expect(InitialScroll.hour(events: [event(at(monday, 10))], days: [monday]) == 7)
+        #expect(InitialScroll.minute(events: [event(at(monday, 10))], days: [monday]) == 7 * 60)
     }
 
     @Test func allDayAndOffCanvasEventsDoNotCount() {
         let tuesday = calendar.date(byAdding: .day, value: 1, to: monday)!
         let events = [event(at(monday, 0), allDay: true), event(at(tuesday, 3))]
-        #expect(InitialScroll.hour(events: events, days: [monday]) == 7)
+        #expect(InitialScroll.minute(events: events, days: [monday]) == 7 * 60)
+    }
+
+    // MARK: Week view: a time of day (layouts.md §3.1, amended 2026-10-06; G-042; task P2-SF5)
+
+    private var week: [Date] {
+        (0..<7).map { calendar.date(byAdding: .day, value: $0, to: monday)! }
+    }
+    private func day(_ offset: Int) -> Date { calendar.date(byAdding: .day, value: offset, to: monday)! }
+
+    @Test func weekUsesTheEarliestTimeOfDayAcrossColumns() {
+        // Tue 08:00 is the first instant; Thu 05:30 is the earliest time of
+        // day. Built before (earliest instant): 07:00. Now: 04:30.
+        let events = [event(at(day(1), 8)), event(at(day(3), 5, 30))]
+        #expect(InitialScroll.minute(events: events, days: week) == 4 * 60 + 30)
+    }
+
+    @Test func aPreviousDayCarryOverDoesNotCount() {
+        // 23:50–01:20 starting Monday: on Tuesday it is a carry-over that
+        // starts at 00:00 only by clipping. Tuesday's Day view ignores it…
+        let late = Event(title: "Late", start: at(day(0), 23, 50), end: at(day(1), 1, 20))
+        let breakfast = event(at(day(1), 7, 15))
+        #expect(InitialScroll.minute(events: [late, breakfast], days: [day(1)]) == 6 * 60 + 15)
+        // …and in a week it counts as 23:50, its own start time of day.
+        #expect(InitialScroll.minute(events: [late, breakfast], days: week) == 6 * 60 + 15)
+    }
+
+    @Test func allDayIsIgnoredInAWeek() {
+        let events = [event(at(day(2), 0), allDay: true), event(at(day(4), 9))]
+        #expect(InitialScroll.minute(events: events, days: week) == 7 * 60)
+    }
+
+    @Test func dayViewIsTheDaysFirstEvent() {
+        // One visible day: that day's own first event; other days' earlier
+        // events don't count.
+        let events = [event(at(day(1), 7)), event(at(day(3), 5, 30))]
+        #expect(InitialScroll.minute(events: events, days: [day(1)]) == 6 * 60)
     }
 
     /// The scroll target is a real `ConflictScrollAnchors` anchor whose
@@ -65,15 +102,15 @@ struct InitialScrollTests {
         let hh: CGFloat = 44
         let day: CGFloat = 24 * hh   // 1056, the live content height
         // At 06:00 exactly (offset 220 + the 44pt inset seen live): no aim.
-        #expect(!InitialScroll.needsAim(.init(top: 264, contentHeight: day), hour: 6, hourHeight: hh, viewportHeight: 780))
+        #expect(!InitialScroll.needsAim(.init(top: 264, contentHeight: day), minute: 6 * 60, hourHeight: hh, viewportHeight: 780))
         // Reset to the top by a layout pass: aim.
-        #expect(InitialScroll.needsAim(.init(top: 0, contentHeight: day), hour: 6, hourHeight: hh, viewportHeight: 780))
+        #expect(InitialScroll.needsAim(.init(top: 0, contentHeight: day), minute: 6 * 60, hourHeight: hh, viewportHeight: 780))
         // A 780pt viewport can't reach 07:00 (308 > 1056 − 780 = 276): the
         // clamped end counts as there — the clamp uses the real viewport,
         // not the shorter phantom container, so the hold doesn't fight it.
-        #expect(!InitialScroll.needsAim(.init(top: 276, contentHeight: day), hour: 7, hourHeight: hh, viewportHeight: 780))
+        #expect(!InitialScroll.needsAim(.init(top: 276, contentHeight: day), minute: 7 * 60, hourHeight: hh, viewportHeight: 780))
         // Content shorter than the viewport: 0 is the only position.
-        #expect(!InitialScroll.needsAim(.init(top: 0, contentHeight: day), hour: 7, hourHeight: hh, viewportHeight: 1200))
+        #expect(!InitialScroll.needsAim(.init(top: 0, contentHeight: day), minute: 7 * 60, hourHeight: hh, viewportHeight: 1200))
     }
 
     /// P2-F24: the conflict scroll's "wholly in view" check, fed the real
