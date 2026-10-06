@@ -7592,3 +7592,25 @@ INDEX.md's §17 table itself is rewritten by P2-F20.
 ### New GAPS / DEVIATIONS
 
 - DEVIATIONS **B23** resolved.
+
+## 77. P2-F16 … P2-F18 — UI verification (owed since the screen locked; §67–§69)
+
+No code change. Build under test: `2d6a088` (F16–F18 plus F21–F23).
+
+- Pre-flight 11:08: unlocked (`CGSSessionScreenIsLocked = 0`), no
+  full-screen window.
+- `check-routines-window.sh`: **PASS** (⌘⌥R opens the Routines window;
+  clicking `Gym` selects it and the inspector switches to its details).
+- `check-conflict-apply-return.sh`: **PASS** (needs-attention row →
+  `Shorten Focus review to 40 min` → a real `↩` moves `Focus review`'s start
+  by exactly +1200 s).
+- `check-inspector-inset.sh`: **PASS** (selected and conflict; first label
+  at edge + 16; the accent at both canvas edges is §14.4's preview border).
+- Live, beyond the scripts (F16's footer, never walked live): the
+  needs-attention row opens on `Conflict 1 of 14`; `Next conflict` → `2 of
+  14`; `Previous conflict` → `1 of 14`. Every click went through
+  `kadence-guard`.
+- Not covered here: F17's whole popover and F18's live `Open` — those are
+  the frames of P2-F20 (item 4) and P2-F19 (the live popover).
+
+No script failed, so no P2-F24.
