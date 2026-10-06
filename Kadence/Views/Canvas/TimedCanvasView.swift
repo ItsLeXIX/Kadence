@@ -317,7 +317,7 @@ struct TimedCanvasView: View {
             },
             hourHeight: hourHeight,
             showsPeakFocus: false,
-            avoidsBlocks: true)
+            omitsWhenCovered: true)
     }
 
     /// The cursor time to print in the gutter, or nil when there is no cursor to

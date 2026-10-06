@@ -876,10 +876,12 @@ private struct RoutinesCanvasView: View {
         }
     }
 
-    /// components.md §7 rules 2–3 (task P2-F06). Blocks mode: a label goes
-    /// in the leading column whose label rect no block covers, and under an
-    /// inactive column's note (G-025). Windows mode: windows are the edited
-    /// layer, so labels sit above the dimmed blocks and are never displaced.
+    /// components.md §7 rules 2–3 (task P2-F06; corrected 2026-10-06, G-044,
+    /// task P2-SF2). Both modes: a label goes in the leading column whose
+    /// label rect no block covers, and under an inactive column's note
+    /// (G-025). Blocks mode omits it when every spanned column is covered;
+    /// Windows mode (windows are the edited layer) never omits — it falls
+    /// back to the leading spanned column, drawn above the dimmed blocks.
     private var placedLabels: [WindowLabelPlacement.Placed] {
         WindowLabelPlacement.place(
             windows: timeWindows,
@@ -891,7 +893,7 @@ private struct RoutinesCanvasView: View {
             },
             hourHeight: hourHeight,
             showsPeakFocus: editorMode == .windows,
-            avoidsBlocks: editorMode == .blocks)
+            omitsWhenCovered: editorMode == .blocks)
     }
 
     private func gridBody(columnWidth: CGFloat) -> some View {
@@ -1167,8 +1169,9 @@ private struct RoutineDayColumnView: View {
                 .opacity(editorMode == .windows ? Tokens.Opacity.editorInactiveLayer : 1)
                 .allowsHitTesting(editorMode == .blocks)
 
-                // §7 rule 2, Windows mode: "labels are drawn above the dimmed
-                // block layer and are never displaced."
+                // §7 rule 2, Windows mode (corrected 2026-10-06, G-044):
+                // labels are drawn above the dimmed block layer, placed by
+                // the same column scan as Blocks mode, never omitted.
                 if editorMode == .windows {
                     WindowLabelsLayer(labels: windowLabels)
                 }

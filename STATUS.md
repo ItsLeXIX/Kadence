@@ -8064,3 +8064,43 @@ count inside one parameterised test).
 
 - None. (STATUS §75's "for the design agent" note on earliest instant is
   answered by G-042 and built here.)
+
+## 86. P2-SF2 — Windows-mode window labels avoid blocks and are never omitted (components.md §7 rule 2, corrected 2026-10-06; G-044; PHASE2-REVIEW.md 2026-10-06 R4 SF2)
+
+### Built
+
+- `WindowLabelPlacement.place`: `avoidsBlocks:` is replaced by
+  `omitsWhenCovered:`. Both modes now run the same scan — the leading
+  spanned column whose label rect (after rule 3's note stacking) meets no
+  block frame. If none is free, Blocks mode omits the label for that span
+  (unchanged); Windows mode places it in the leading spanned column, still
+  drawn above the dimmed blocks (`RoutinesWindow` keeps that z-order).
+- Callers: the main grid passes `omitsWhenCovered: true` (unchanged
+  behaviour); the Routines canvas passes `editorMode == .blocks`. Block
+  frames were already reported in both modes.
+
+### Tests
+
+- `WindowLabelPlacementTests`: the old "Windows mode: never displaced"
+  case is replaced by — Windows mode, `Low energy` with `Errands` in Monday
+  → Tuesday at 13:00; Windows mode with every spanned column covered → the
+  leading column, drawn (not omitted); Blocks mode unchanged (omitted when
+  all covered, Tuesday when only Monday is). The peak-focus gate and the
+  note-stacking cases now use the new parameter.
+- One of my new expectations was wrong on the first run (it compared a
+  Tuesday-local label rect with Monday's `Errands` frame; frames are
+  column-local) — fixed in the test, not the build.
+
+### Verified
+
+- `-only-testing:KadenceTests`: **xcresult 595 passed / 0 failed** (593 +
+  2). No warning in a touched file. `generate-tokens --check`: up to date.
+- Fresh pre-flight before each: `check-routines-window.sh` **PASS**,
+  `check-conflict-apply-return.sh` **PASS**, `check-inspector-inset.sh`
+  **PASS**, `check-block-click-selects.sh` **PASS**,
+  `check-resync-escape.sh` **PASS**.
+- The frame (item 14, `Low energy` in Tuesday, uncrossed) is P2-RC's.
+
+### New GAPS / DEVIATIONS
+
+- None.

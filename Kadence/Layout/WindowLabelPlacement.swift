@@ -11,8 +11,12 @@
 //  a block over the label's rect leaves a sliced string (`Low energy` under
 //  `Errands`). The label goes in the LEADING column the window spans whose
 //  label rect meets no block frame, scanning in column order; if there is
-//  none it is omitted for that span. In Windows mode (§13.3) labels are drawn
-//  ABOVE the dimmed blocks and are never displaced (`avoidsBlocks: false`).
+//  none it is omitted for that span. Corrected 2026-10-06 (G-044, task
+//  P2-SF2): Windows mode (§13.3) uses the SAME scan — a label drawn above a
+//  block's border still reads struck out — and differs only in never
+//  omitting: with every spanned column covered, the label goes in the
+//  leading spanned column, above the dimmed blocks (`omitsWhenCovered:
+//  false`).
 //
 //  Rule 3 — the leading column's corner is shared by stacking. When the
 //  label's column carries a note and the two would overlap, the note keeps
@@ -49,7 +53,7 @@ enum WindowLabelPlacement {
         columns: [Column],
         hourHeight: CGFloat,
         showsPeakFocus: Bool,
-        avoidsBlocks: Bool,
+        omitsWhenCovered: Bool,
         calendar: Calendar = .current,
         labelSize: @MainActor (String) -> CGSize = WindowLabelPlacement.measuredSize
     ) -> [Placed] {
@@ -73,22 +77,26 @@ enum WindowLabelPlacement {
                 }
             }
             for minute in startsSeen {
-                for candidate in candidates[minute] ?? [] {
-                    let column = columns[candidate.column]
-                    var rect = CGRect(
-                        origin: CGPoint(x: Tokens.Spacing.xs, y: candidate.y), size: size)
-                    // Rule 3: the note keeps the corner; the label stacks
-                    // `spacing.xs` below it.
-                    if let note = column.noteFrame, note.intersects(rect) {
+                let spanned = candidates[minute] ?? []
+                // The label's rect in a candidate column. Rule 3: the note
+                // keeps the corner; the label stacks `spacing.xs` below it.
+                func rect(in candidate: (column: Int, y: CGFloat)) -> CGRect {
+                    var rect = CGRect(origin: CGPoint(x: Tokens.Spacing.xs, y: candidate.y), size: size)
+                    if let note = columns[candidate.column].noteFrame, note.intersects(rect) {
                         rect.origin.y = note.maxY + Tokens.Spacing.xs
                     }
-                    // Rule 2: never half-covered — try the next column.
-                    if avoidsBlocks, column.blockFrames.contains(where: { $0.intersects(rect) }) {
-                        continue
-                    }
-                    placed.append(Placed(text: window.label, columnIndex: candidate.column, frame: rect))
-                    break
+                    return rect
                 }
+                // Rule 2, both modes: the leading spanned column whose label
+                // rect meets no block frame.
+                let free = spanned.first { candidate in
+                    let r = rect(in: candidate)
+                    return !columns[candidate.column].blockFrames.contains { $0.intersects(r) }
+                }
+                // None free: Blocks mode omits it for this span; Windows
+                // mode draws it in the leading spanned column anyway.
+                guard let chosen = free ?? (omitsWhenCovered ? nil : spanned.first) else { continue }
+                placed.append(Placed(text: window.label, columnIndex: chosen.column, frame: rect(in: chosen)))
             }
         }
         return placed

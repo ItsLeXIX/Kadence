@@ -44,11 +44,13 @@ struct WindowLabelPlacementTests {
         (0..<7).map { WindowLabelPlacement.Column(day: october(5 + $0), blockFrames: frames[$0] ?? []) }
     }
 
+    /// `windowsMode`: peak focus drawn, labels never omitted (§13.3, §7
+    /// rule 2 as corrected 2026-10-06).
     private func place(_ windows: [TimeWindow], _ columns: [WindowLabelPlacement.Column],
-                       avoidsBlocks: Bool = true) -> [WindowLabelPlacement.Placed] {
+                       windowsMode: Bool = false) -> [WindowLabelPlacement.Placed] {
         WindowLabelPlacement.place(
             windows: windows, columns: columns, hourHeight: hourHeight,
-            showsPeakFocus: !avoidsBlocks, avoidsBlocks: avoidsBlocks,
+            showsPeakFocus: windowsMode, omitsWhenCovered: !windowsMode,
             calendar: calendar, labelSize: { _ in labelSize })
     }
 
@@ -79,11 +81,32 @@ struct WindowLabelPlacementTests {
         #expect(placed.first?.columnIndex == 0)
     }
 
-    @Test("Windows mode: drawn in the leading column above the dimmed blocks, never displaced")
-    func windowsModeNeverDisplaced() {
+    // components.md §7 rule 2, corrected 2026-10-06 (G-044), task P2-SF2.
+
+    @Test("Windows mode: `Low energy` with `Errands` in Monday is placed in Tuesday, uncrossed")
+    func windowsModeAvoidsBlocks() {
+        let errands = block(12, 30, 13, 15)
+        let placed = place(lowEnergy, mondayFirst([0: [errands]]), windowsMode: true)
+        #expect(placed.count == 1)
+        #expect(placed.first?.columnIndex == 1)
+        // Frames are column-local: Tuesday has no block, so nothing crosses it.
+        #expect(placed.first?.frame.minY == y(13) + 1)
+    }
+
+    @Test("Windows mode, every spanned column covered: drawn in the leading column, not omitted")
+    func windowsModeNeverOmits() {
         let covered = Dictionary(uniqueKeysWithValues: (0..<5).map { ($0, [block(12, 30, 13, 15)]) })
-        let placed = place(lowEnergy, mondayFirst(covered), avoidsBlocks: false)
+        let placed = place(lowEnergy, mondayFirst(covered), windowsMode: true)
+        #expect(placed.count == 1)
         #expect(placed.first?.columnIndex == 0)
+        #expect(placed.first?.frame.minY == y(13) + 1)
+    }
+
+    @Test("Blocks mode unchanged: still omitted when every spanned column is covered")
+    func blocksModeStillOmits() {
+        let covered = Dictionary(uniqueKeysWithValues: (0..<5).map { ($0, [block(12, 30, 13, 15)]) })
+        #expect(place(lowEnergy, mondayFirst(covered)).isEmpty)
+        #expect(place(lowEnergy, mondayFirst([0: [block(12, 30, 13, 15)]])).first?.columnIndex == 1)
     }
 
     @Test("Sunday-first calendar, Mon–Fri template: `Sleep`'s label goes `spacing.xs` below Sunday's note (G-025)")
@@ -96,7 +119,7 @@ struct WindowLabelPlacementTests {
         }
         let placed = WindowLabelPlacement.place(
             windows: sleep, columns: columns, hourHeight: hourHeight, showsPeakFocus: false,
-            avoidsBlocks: true, calendar: sundayFirst, labelSize: { _ in labelSize })
+            omitsWhenCovered: true, calendar: sundayFirst, labelSize: { _ in labelSize })
         let top = placed.first { $0.frame.minY < y(7) }
         #expect(top?.columnIndex == 0)
         #expect(top?.frame.minY == note.maxY + Tokens.Spacing.xs)
@@ -117,6 +140,6 @@ struct WindowLabelPlacementTests {
     func peakFocusGated() {
         let all = MockData.makeTimeWindows()
         #expect(!place(all, mondayFirst()).contains { $0.text == "Deep work" })
-        #expect(place(all, mondayFirst(), avoidsBlocks: false).contains { $0.text == "Deep work" })
+        #expect(place(all, mondayFirst(), windowsMode: true).contains { $0.text == "Deep work" })
     }
 }
