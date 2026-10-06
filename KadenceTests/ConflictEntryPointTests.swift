@@ -199,7 +199,9 @@ struct ConflictActivationTests {
         #expect(state.conflicts.first?.routineEvent.title == "Early")
         #expect(state.selectedEventID == nil, "conflict mode replaces an ordinary selection")
         #expect(state.isInspectorVisible == true, "conflict mode requires the inspector to be visible")
-        #expect(state.selectedConflictOptionID == nil, "no option is pre-highlighted")
+        // interactions.md §10.1 (amended 2026-10-05, P2-F15): activation
+        // focuses — and so previews — the recommended option.
+        #expect(state.selectedConflictOptionID == state.conflicts.first?.options.first(where: \.isRecommended)?.id)
     }
 
     @Test("activateNeedsAttention() is a no-op when there are no conflicts")

@@ -174,6 +174,8 @@ struct RoutinesWindow: View {
     /// options is focused (and so previewed on the canvas).
     @State private var routineConflictID: String?
     @State private var routineConflictOptionID: String?
+    /// Task P2-F15 — the last "bring this conflict into view" request.
+    @State private var routineScrollRequest: RoutineScrollRequest?
     @State private var didSeed = false
     /// Task P2-T40 — see `MainWindow.isMaterializationReady`.
     @State private var isMaterializationReady = false
@@ -409,7 +411,8 @@ struct RoutinesWindow: View {
                 timeWindowStore: timeWindowStore,
                 windowSelection: $windowSelection,
                 onAddWeekday: { setWeekday($0, active: true) },
-                conflictPreview: conflictPreview)
+                conflictPreview: conflictPreview,
+                scrollRequest: routineScrollRequest)
         }
     }
 
@@ -452,9 +455,11 @@ struct RoutinesWindow: View {
         windowSelection = nil
         selection = RoutineBlockSelection(blockID: conflict.blockID, weekday: conflict.weekdays.first ?? 2)
         routineConflictID = conflict.id
-        // Nothing focused yet, as in the main window: activating is not
-        // itself a preview.
-        routineConflictOptionID = nil
+        // interactions.md §10.1 (amended 2026-10-05, task P2-F15):
+        // activation focuses — and so previews — the recommended option, or
+        // the only one.
+        routineConflictOptionID = RoutineScrollRequest.activationOptionID(conflict)
+        routineScrollRequest = RoutineScrollRequest(conflict)
         canvasFocused = true
     }
 
@@ -500,8 +505,9 @@ struct RoutinesWindow: View {
             windows: (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? [],
             orderedWeekdays: orderedWeekdays)
         if let next = fresh.first {
+            // The advance after `↩` is an activation (§10.1, P2-F15):
+            // `enterConflictMode` focuses the recommendation and scrolls.
             enterConflictMode(next)
-            routineConflictOptionID = next.options.first?.id
         } else {
             routineConflictID = nil
         }
@@ -699,6 +705,11 @@ private struct RoutinesCanvasView: View {
     /// Task P2-T46 — the focused template-conflict option's preview
     /// (components.md §14.6 → §14.4), or `nil`.
     var conflictPreview: RoutineConflictPreview? = nil
+    /// Task P2-F15 — bring a template conflict's block into view.
+    var scrollRequest: RoutineScrollRequest? = nil
+    /// The viewport in content coordinates, for "wholly in view".
+    @State private var visibleRect: CGRect = .zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Task P2-T38 — the one in-flight block move/resize, owned HERE rather
     /// than by each column. interactions.md §11.1: "The drop preview appears
@@ -729,22 +740,44 @@ private struct RoutinesCanvasView: View {
             let columnWidth = max(naturalWidth, Tokens.Size.routineEditorColumnMin)
             let needsHorizontalScroll = columnWidth > naturalWidth
 
-            ScrollView(.vertical) {
-                gridBody(columnWidth: columnWidth)
-                    .frame(
-                        width: needsHorizontalScroll
-                            ? Tokens.Size.timeGutterWidth + columnWidth * CGFloat(weekdays.count)
-                            : nil,
-                        alignment: .leading)
-            }
-            .scrollIndicators(.automatic)
-            // macOS 15 API: calls `action` whenever the value the `of:`
-            // closure extracts from the scroll geometry changes. Here that is
-            // the content's vertical offset — positive once scrolled down.
-            .onScrollGeometryChange(for: CGFloat.self) { scrollGeometry in
-                scrollGeometry.contentOffset.y + scrollGeometry.contentInsets.top
-            } action: { _, newOffset in
-                scrollOffsetY = newOffset
+            // `ScrollViewReader` hands out a proxy that can scroll to a
+            // view by id (task P2-F15: bringing a template conflict's block
+            // into view).
+            ScrollViewReader { vertical in
+                ScrollView(.vertical) {
+                    gridBody(columnWidth: columnWidth)
+                        .frame(
+                            width: needsHorizontalScroll
+                                ? Tokens.Size.timeGutterWidth + columnWidth * CGFloat(weekdays.count)
+                                : nil,
+                            alignment: .leading)
+                        .overlay(alignment: .top) { ConflictScrollAnchors(hourHeight: hourHeight) }
+                }
+                .scrollIndicators(.automatic)
+                // macOS 15 API: calls `action` whenever the value the `of:`
+                // closure extracts from the scroll geometry changes. Here that is
+                // the content's vertical offset — positive once scrolled down.
+                .onScrollGeometryChange(for: CGFloat.self) { scrollGeometry in
+                    scrollGeometry.contentOffset.y + scrollGeometry.contentInsets.top
+                } action: { _, newOffset in
+                    scrollOffsetY = newOffset
+                }
+                .onScrollGeometryChange(for: CGRect.self) { $0.visibleRect } action: { _, rect in
+                    visibleRect = rect
+                }
+                // `initial: true`: the request is usually set in the same
+                // update that opens this window on the conflict.
+                .onChange(of: scrollRequest, initial: true) { _, request in
+                    guard let request,
+                          let target = ConflictScroll.targetMinute(
+                            occurrence: request.occurrence, earliestStart: request.earliestStart,
+                            visibleTop: visibleRect.minY, visibleHeight: visibleRect.height,
+                            hourHeight: hourHeight)
+                    else { return }
+                    withAnimation(ConflictScroll.animation(reduceMotion: reduceMotion)) {
+                        vertical.scrollTo(ConflictScroll.anchorID(minute: target), anchor: ConflictScroll.oneThird)
+                    }
+                }
             }
             .modifier(HorizontalScrollIfNeeded(isEnabled: needsHorizontalScroll))
         }
@@ -2229,5 +2262,29 @@ private struct TimeWindowInspectorView: View {
 
     private func timeOfDay(_ minutes: Int) -> String {
         String(format: "%02d:%02d", minutes / 60, minutes % 60)
+    }
+}
+
+/// interactions.md §10.1 (amended 2026-10-05) in the Routines window: bring
+/// a template conflict's block into view. Minutes of day. `token` makes a
+/// repeat request a change. Task P2-F15.
+struct RoutineScrollRequest: Equatable {
+    let token = UUID()
+    var occurrence: Range<Int>
+    var earliestStart: Int
+
+    /// "In the Routines window the same scroll rule applies to the template
+    /// block": its frame, and the earlier of the two colliding starts (a
+    /// window that wraps midnight collides from 00:00).
+    init(_ conflict: TemplateConflict) {
+        occurrence = conflict.blockStartMinutes..<(conflict.blockStartMinutes + max(conflict.durationMinutes, 1))
+        let windowStart = conflict.windowStartMinutes < conflict.windowEndMinutes ? conflict.windowStartMinutes : 0
+        earliestStart = min(conflict.blockStartMinutes, windowStart)
+    }
+
+    /// The option activation focuses in the Routines window: the
+    /// recommended one, or the only one (interactions.md §10.1).
+    static func activationOptionID(_ conflict: TemplateConflict) -> String? {
+        (conflict.options.first(where: \.isRecommended) ?? conflict.options.first)?.id
     }
 }

@@ -183,7 +183,7 @@ struct ApplyShiftAndShortenTests {
 @MainActor
 struct ApplyAdvanceTests {
 
-    @Test("Two conflicts: applying the first previews the second's first (top) option")
+    @Test("Two conflicts: applying the first previews the second's RECOMMENDED option (interactions.md §10.1, P2-F15)")
     func advancesToNextConflictsFirstOption() throws {
         let context = try makeContext()
         let undo = UndoStack()
@@ -221,8 +221,8 @@ struct ApplyAdvanceTests {
         // method itself just wrote), not from `secondConflict` above.
         let refreshedSecond = try #require(state.conflicts.first { $0.id == secondConflict.id })
         #expect(
-            state.selectedConflictOptionID == refreshedSecond.options.first?.id,
-            "previews the next conflict's top option immediately; since P2-T45 that is not necessarily the recommended one (§14.3.3)")
+            state.selectedConflictOptionID == refreshedSecond.options.first(where: \.isRecommended)?.id,
+            "previews the next conflict's recommended option immediately (the P2-T45 'top row' call is overturned)")
         #expect(state.conflicts.count == 1, "the resolved conflict has dropped out of the refreshed list")
     }
 

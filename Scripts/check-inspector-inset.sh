@@ -203,14 +203,25 @@ def png(path):
     return W, H, bpp, out
 W, H, bpp, px = png(shot)
 scale = W / 1500.0
-bx = int((ix - 34) * scale)
-for x in range(max(0, bx - int(6 * scale)), min(W, bx + int(6 * scale))):
-    n = 0
-    for y in range(0, H, 8):
-        r, g, b = px[y][x * bpp:x * bpp + 3]
-        if b > r + 60 and b > 120 and g < b: n += 1
-    if n > (H // 8) * 0.6:
-        print(f"FAIL [{label}]: full-height accent line at x {x / scale + 34:.0f} (the boundary is {ix:.0f})"); ok = False; break
+def accent_column(center):
+    c = int((center - 34) * scale)
+    for x in range(max(0, c - int(6 * scale)), min(W, c + int(6 * scale))):
+        n = 0
+        for y in range(0, H, 8):
+            r, g, b = px[y][x * bpp:x * bpp + 3]
+            if b > r + 60 and b > 120 and g < b: n += 1
+        if n > (H // 8) * 0.6: return x
+    return None
+# P2-F15: activation now previews the recommended option, so in conflict
+# mode the canvas carries components.md §14.4's inset accent border on ALL
+# its edges. That complete border is spec; a ONE-edge line is the defect.
+# An accent column at the boundary is a failure only if the canvas's leading
+# edge has none.
+x = accent_column(ix)
+if x is not None and accent_column(canvas["x"]) is None:
+    print(f"FAIL [{label}]: full-height accent line at x {x / scale + 34:.0f} (the boundary is {ix:.0f})"); ok = False
+elif x is not None:
+    print(f"     [{label}]: accent at both canvas edges — the §14.4 preview border, not an edge ring")
 sys.exit(0 if ok else 1)
 PY
 }

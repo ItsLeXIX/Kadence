@@ -32,6 +32,9 @@ struct TimedCanvasView: View {
 
     @Environment(CalendarState.self) private var state
     @State private var didInitialScroll = false
+    /// The viewport in content coordinates (task P2-F15).
+    @State private var visibleRect: CGRect = .zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Every column's block frames, reported up through
     /// `ColumnLabelInputsKey` — what §7 rule 2's label placement needs.
     @State private var labelInputs: [Int: ColumnLabelInputs] = [:]
@@ -79,6 +82,17 @@ struct TimedCanvasView: View {
                         guard !didInitialScroll else { return }
                         didInitialScroll = true
                         vertical.scrollTo(initialAnchorHour, anchor: .top)
+                    }
+                    // macOS 15: the visible part of the content, in content
+                    // points — what "wholly inside the viewport" is tested
+                    // against (interactions.md §10.1, task P2-F15).
+                    .onScrollGeometryChange(for: CGRect.self) { $0.visibleRect } action: { _, rect in
+                        visibleRect = rect
+                    }
+                    // A conflict was activated: bring it into view.
+                    .onChange(of: state.conflictScrollRequest) { _, request in
+                        guard let request else { return }
+                        bringIntoView(request, using: vertical)
                     }
                 }
                 // Below the column floor the grid scrolls horizontally; it never
@@ -153,6 +167,10 @@ struct TimedCanvasView: View {
                 }
             }
         }
+        // Five-minute anchors for bringing a conflict into view (P2-F15).
+        .overlay(alignment: .top) {
+            ConflictScrollAnchors(hourHeight: hourHeight)
+        }
         // Anchors for the initial scroll position.
         .overlay(alignment: .top) {
             ForEach(0..<24, id: \.self) { hour in
@@ -204,6 +222,28 @@ struct TimedCanvasView: View {
         .frame(height: hourHeight * 24, alignment: .top)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// interactions.md §10.1 (amended 2026-10-05, task P2-F15): if the
+    /// occurrence isn't wholly in view, scroll so the earlier colliding start
+    /// sits one third from the top, over `motion.paging` (instant under
+    /// Reduce Motion). Paging to its week already happened in
+    /// `CalendarState.open(_:)`; a day not on this canvas is ignored.
+    private func bringIntoView(_ request: CalendarState.ConflictScrollRequest, using proxy: ScrollViewProxy) {
+        let calendar = Calendar.current
+        guard let day = days.first(where: { calendar.isDate($0, inSameDayAs: request.occurrenceStart) }) else { return }
+        let dayStart = calendar.startOfDay(for: day)
+        func minute(_ date: Date) -> Int { Int(date.timeIntervalSince(dayStart) / 60) }
+        guard let target = ConflictScroll.targetMinute(
+            occurrence: minute(request.occurrenceStart)..<max(minute(request.occurrenceEnd), minute(request.occurrenceStart) + 1),
+            earliestStart: minute(request.earliestStart),
+            visibleTop: visibleRect.minY,
+            visibleHeight: visibleRect.height,
+            hourHeight: hourHeight)
+        else { return }
+        withAnimation(ConflictScroll.animation(reduceMotion: reduceMotion)) {
+            proxy.scrollTo(ConflictScroll.anchorID(minute: target), anchor: ConflictScroll.oneThird)
+        }
     }
 
     /// components.md §7 rules 2–3 (task P2-F06): one label per window span,

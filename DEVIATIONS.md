@@ -1635,6 +1635,21 @@ Still open, all re-checked against the current spec text this session:
   dependency §17.1 (2026-10-05) rules out. Fix: also treat protected spans
   as busy in `journalStart`.
 
+- **B24 — layouts.md §3.1. The canvas's initial-scroll hour anchors are
+  placed with `.offset(y:)`, which `scrollTo` ignores.** *(new 2026-10-06,
+  found during task P2-F15; not in its scope.)* `scrollTo` targets a view's
+  layout frame; an offset moves only its drawing, so every hour anchor sits
+  at y = 0. P2-F15's own anchors hit exactly this and now use a `VStack`;
+  `TimedCanvasView`'s 24 hour anchors (initial scroll to
+  `min(07:00, first − 1h)`) still use offsets, so the initial scroll
+  probably always lands at 00:00. Masked at night by `Journal` (B23).
+
+- **B25 — components.md §14.6. Activating a template conflict while a
+  Routines window is open opens a second Routines window.** *(new
+  2026-10-06, found during task P2-F15; not in its scope.)*
+  `WindowGroup(id: "routines")` + `openWindow(id:)` creates a new window
+  each time; the new one enters conflict mode, the old one stays as it was.
+
 ---
 
 ## Resolved — retired by a spec ruling

@@ -6991,3 +6991,70 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 ### New GAPS / DEVIATIONS
 
 - None. Recapture of 6, 7, 16, 17 is item 20's.
+
+## 66. P2-F15 — activation focuses the recommendation and brings the conflict into view (interactions.md §10.1, components.md §14.1, amended 2026-10-05; PHASE2-REVIEW.md §6 item 15)
+
+### Built
+
+- `CalendarState.open(_:)`: the one activation path (needs-attention row,
+  `⌘⇧A`, the advance after `↩`; F16's `‹`/`›` will use it). It focuses —
+  and so previews — the recommended option (`activationOptionID`: the
+  recommended one, else the only one), pages `anchor` to the occurrence's day
+  when it isn't visible (same mode, never an auto-switch), and posts a
+  `ConflictScrollRequest`. The P2-T45 "top row after apply" is gone.
+- `Kadence/Layout/ConflictScroll.swift` (new): pure `targetMinute` (scroll
+  only if the occurrence isn't wholly in the viewport; target = the earlier
+  colliding start), `oneThird` anchor, `motion.paging` (`nil` under Reduce
+  Motion), and `ConflictScrollAnchors`: 5-minute scroll targets laid out in
+  a `VStack`. **Found live:** anchors placed with `.offset(y:)` are all at
+  y = 0 for `scrollTo` (it uses layout frames), so the first build scrolled
+  nowhere; fixed by layout positioning (temporary logging, since removed).
+- `TimedCanvasView` tracks `visibleRect` (`onScrollGeometryChange`) and
+  performs the request. The Routines window focuses the recommendation on
+  entry and on the advance after `↩`, and scrolls the template block
+  (`RoutineScrollRequest`: block frame; earlier of block and window start).
+- `Scripts/check-inspector-inset.sh`: conflict mode now shows §14.4's
+  preview border on activation, whose trailing edge the script read as the
+  B20 edge line. It now fails only when the accent column is at the boundary
+  and **not** at the canvas's leading edge (a one-edge ring). Updated
+  because this fix changed what it sees.
+
+### Tests
+
+- `ConflictActivationFocusTests` (7): Training × Supervisor meeting opens on
+  row 2, `Shift Training 75 min later`; a single-option conflict focuses its
+  row; activation pages to the conflict's week in Week mode; the request
+  targets 17:00 and puts it at one third (100pt of a 300pt viewport); no
+  scroll when wholly visible, scroll when cut off; Routines Errands × Lunch
+  → recommended option, scroll to 12:00; a repeat open is a new request.
+- Updated for the overturned P2-T45 call: `ApplyAdvanceTests` (advance
+  previews the recommended option) and `ConflictEntryPointTests` (activation
+  pre-focuses the recommendation).
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 552
+  passed / 0 failed** (545 + 7).
+- `generate-tokens --check`: up to date.
+- **Pre-flight:** unlocked, no full-screen window.
+- **Live:** main window, the needs-attention row opens Training × Supervisor
+  with row 2 focused and the grid scrolled so Training and its preview twin
+  are in view (clamped by the 24:00 end). Routines: Errands × Lunch opens
+  with the recommendation focused; at the default size the block was
+  already wholly visible, so no scroll was due; the scroll path there is
+  unit-tested only.
+- `check-routines-window.sh`: **PASS**. `check-conflict-apply-return.sh`:
+  **PASS**. `check-inspector-inset.sh`: **FAIL** before the script update
+  (above), **PASS** after.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B24** (offset-placed hour anchors) and **B25** (a second
+  Routines window) — new, out of scope. The overturned P2-T45 judgement call
+  is marked in P2-HK.
+
+### Run stopped here (usage limit)
+
+Not done: P2-F16, F17, F18, P2-HK, F20, F19, and the run summary. The
+queue resumes at **P2-F16**.

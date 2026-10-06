@@ -176,12 +176,54 @@ final class CalendarState {
             if case .template(let id)? = target { pendingTemplateConflictID = id }
             return target
         }
-        selectedConflictID = id
-        selectedConflictOptionID = nil
+        if let conflict = conflicts.first(where: { $0.id == id }) { open(conflict) }
         selectedEventID = nil
         userSetInspectorVisibility = true
         isInspectorVisible = true
         return target
+    }
+
+    /// A request for the canvas to bring a conflict into view
+    /// (interactions.md §10.1, amended 2026-10-05). `token` makes every
+    /// request a change, so stepping back onto the same conflict scrolls
+    /// again. `TimedCanvasView` performs it.
+    struct ConflictScrollRequest: Equatable {
+        let token = UUID()
+        /// The routine occurrence's frame — scroll only if it isn't wholly
+        /// in view.
+        var occurrenceStart: Date
+        var occurrenceEnd: Date
+        /// The earlier of the two colliding starts — what lands one third
+        /// from the top.
+        var earliestStart: Date
+    }
+    var conflictScrollRequest: ConflictScrollRequest?
+
+    /// The option activation focuses: the recommended one, or the only one
+    /// (interactions.md §10.1, amended 2026-10-05). The first is a fallback
+    /// for a list with no recommendation, which `ConflictEngine` never makes.
+    static func activationOptionID(_ options: [ConflictOption]) -> UUID? {
+        (options.first(where: \.isRecommended) ?? options.first)?.id
+    }
+
+    /// interactions.md §10.1 (amended 2026-10-05, task P2-F15) — the one
+    /// path every activation takes: the needs-attention row, `⌘⇧A`, the
+    /// footer's `‹`/`›` and the advance after `↩`.
+    /// - focuses (and so previews) the recommended option;
+    /// - pages the canvas to the range containing the occurrence when its day
+    ///   isn't visible — same view, never an auto-switch;
+    /// - asks the canvas to scroll it into view (`conflictScrollRequest`).
+    func open(_ conflict: Conflict) {
+        selectedConflictID = conflict.id
+        selectedConflictOptionID = Self.activationOptionID(conflict.options)
+        let occurrence = conflict.routineEvent
+        if !visibleDays.contains(where: { calendar.isDate($0, inSameDayAs: occurrence.start) }) {
+            anchor = occurrence.start
+        }
+        conflictScrollRequest = ConflictScrollRequest(
+            occurrenceStart: occurrence.start,
+            occurrenceEnd: occurrence.end,
+            earliestStart: min(occurrence.start, conflict.otherEvent.start))
     }
 
     /// interactions.md §10.1 — "`↑`/`↓` move between options. Moving focus
@@ -261,9 +303,8 @@ final class CalendarState {
     /// `ConflictEngine.detect` against the just-mutated data, since this
     /// class holds no query of its own. Called *after* `store`'s transaction
     /// runs, so its result is "what is still unresolved now" — the input
-    /// `ConflictOrdering.firstUnresolved` needs to either preview the next
-    /// conflict's first (== recommended — `ConflictEngine.finalize` already
-    /// sorts ascending by disturbance and marks index 0 recommended) option,
+    /// `ConflictOrdering.firstUnresolved` needs to either open the next
+    /// conflict on its recommended option (`open(_:)`, task P2-F15),
     /// or, if nothing is left, return the inspector to its ordinary,
     /// non-conflict state: `selectedConflictID = nil` alongside
     /// `selectedConflictOptionID = nil` — components.md §14.5, "the panel
@@ -322,8 +363,10 @@ final class CalendarState {
         let refreshed = recomputeConflicts()
         conflicts = refreshed
         if let next = ConflictOrdering.firstUnresolved(refreshed) {
-            selectedConflictID = next.id
-            selectedConflictOptionID = next.options.first?.id
+            // interactions.md §10.1 (amended 2026-10-05): the advance after
+            // `↩` is an activation like any other — recommendation focused,
+            // conflict brought into view. (P2-T45 focused the top row.)
+            open(next)
         } else {
             selectedConflictID = nil
         }
