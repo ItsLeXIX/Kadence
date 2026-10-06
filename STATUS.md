@@ -8642,3 +8642,58 @@ to date at every task. Build: only `MonthGridView.swift:153`.
   failure, so no extra fix item.
 - Verify: xcresult **622 passed / 0 failed**; tokens `--check` up to date;
   fresh pre-flight before each: the four UI scripts **PASS**.
+
+## 99. Run summary — Phase 2 closeout (2026-10-07)
+
+### Tasks
+
+| Task | Result | Commit |
+|---|---|---|
+| Step 0 — closeout rulings (design/ + DECISIONS.md had changes) | committed unedited | `613d0af` |
+| CF1 refused snooze row on two lines, never truncated (G-051) | committed | `6bdaabb` |
+| CF2 focused weekday toggle visible on and off (G-049) | committed | `20b1e19` |
+| CF3 Routines canvas cursor mode, minimum (G-050, A36) | committed | `51d5728` |
+| CF4 default scroll floors to the hour (G-052) | committed | `3a7367a` |
+| C6 (extra) conflict-opened Routines window keeps 06:00 (B39) | committed | `d9a3752` |
+| CF5 recapture, INDEX.md, retirements | committed (one edge-check line fails — G-053) | `969c65f` |
+
+### Tests
+
+**622 passed / 0 failed** (xcresult), against 599 at the start (+23: CF1 8,
+CF2 3, CF3 10, CF4 1, C6 1).
+
+### Scripts (last runs, fresh pre-flight each)
+
+`check-routines-window.sh`, `check-conflict-apply-return.sh`,
+`check-inspector-inset.sh`, `check-block-click-selects.sh` — **PASS**;
+`check-routines-cursor.sh` (new) — **PASS**; `check-resync-escape.sh` —
+**PASS** (keyboard-navigation-off branch). `generate-tokens --check`: up to
+date at every task. Full clean build: only `MonthGridView.swift:153`.
+
+### Re-sync focus return
+
+Not observable: keyboard navigation is off for apps on this Mac
+(`AppleKeyboardUIMode` = 1; ⇥ into the main inspector lands on Notes, not
+`Done`). ⎋ closes, writes nothing, focus restored to its prior element —
+PASS. Focus *on* `Re-sync` unverified.
+
+### GAPS / DEVIATIONS
+
+- GAPS **G-053 opened** (CF5's edge rule vs §14.4's preview border on item
+  16). G-049, G-050, G-051, G-052 were closed by the design agent and are
+  now built; their `// SPEC-GAP` markers (G-049, G-051) are removed.
+- DEVIATIONS **A36 resolved** (CF3); **B39 opened and resolved** (C6).
+  Still deferred by ruling: A33, A34, A35.
+
+### Closeout acceptance
+
+All CF1–CF4 acceptance tests pass. CF5: every line passes except the edge
+check on `template-conflict-panel-p2c.png` (item 16), which flags the §14.4
+preview border — G-053.
+
+### Process notes
+
+- One removal (`rm -f $F/*` to clear a scratch frame dir) was refused by
+  Claude Code's removal check; not worked around — later runs wrote to new
+  scratch directories instead.
+- No forbidden git operation. Nothing sent to any app but Kadence.
