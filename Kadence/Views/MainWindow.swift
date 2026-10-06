@@ -141,7 +141,7 @@ struct MainWindow: View {
         .onReceive(NotificationCenter.default.publisher(for: .kadenceGoToFirstConflict)) { _ in
             // §14.6 / interactions.md §10.1: a template conflict opens the
             // Routines window instead of the main inspector.
-            if case .template? = state.activateNeedsAttention() { openWindow(id: "routines") }
+            if case .template? = state.activateNeedsAttention() { RoutinesWindowOpener.open(using: openWindow) }
         }
     }
 
@@ -299,7 +299,18 @@ struct MainWindow: View {
             // through to the plain `.return` case, which only re-asserts
             // `isInspectorVisible = true` (already true, since the inspector
             // has focus) — a harmless no-op, not a new behaviour.
-            .onKeyPress(keys: [.upArrow, .downArrow, .escape, .return], action: handleKey)
+            // P2-F16: `⌥←`/`⌥→` step the footer (layouts.md §10).
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .escape, .return], action: handleKey)
+    }
+
+    /// layouts.md §10 (task P2-F16): `‹`/`›`. Stepping onto a template
+    /// conflict routes exactly as activating one does: the Routines window
+    /// opens on it.
+    private func stepConflict(_ direction: Int) {
+        guard let id = state.selectedConflictID else { return }
+        if case .template? = state.stepConflict(from: .day(id), by: direction) {
+            RoutinesWindowOpener.open(using: openWindow)
+        }
     }
 
     private var inspectorBody: some View {
@@ -313,6 +324,12 @@ struct MainWindow: View {
             conflict: activeConflict,
             selectedConflictOptionID: state.selectedConflictOptionID,
             onSelectConflictOption: { state.selectedConflictOptionID = $0 },
+            conflictFooter: activeConflict.flatMap { conflict in
+                state.conflictPosition(of: .day(conflict.id)).map {
+                    ConflictFooterModel(position: $0, count: state.needsAttentionCount)
+                }
+            },
+            onStepConflict: stepConflict,
             routineStatus: selectedEvent.flatMap { RoutineInstance.status(of: $0, in: context) },
             onRevertToRoutine: {
                 if let selectedEvent { RoutineInstance.revert(selectedEvent, store: store) }
@@ -580,6 +597,14 @@ struct MainWindow: View {
         case .return where state.focusedRegion == .inspector
             && state.selectedConflictID != nil && state.selectedConflictOptionID != nil:
             applyFocusedConflictOption(); return .handled
+
+        // layouts.md §10 (task P2-F16): `⌥←`/`⌥→` with the conflict panel
+        // focused step between conflicts — ahead of the grid's `⌥←`/`⌥→`
+        // block move, which needs the grid focused anyway.
+        case .leftArrow where option && state.focusedRegion == .inspector && state.selectedConflictID != nil:
+            stepConflict(-1); return .handled
+        case .rightArrow where option && state.focusedRegion == .inspector && state.selectedConflictID != nil:
+            stepConflict(1); return .handled
 
         case .leftArrow where option:
             if let selected { store.move(selected, by: -86400); return .handled }

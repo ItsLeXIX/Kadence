@@ -23,6 +23,9 @@ struct InspectorView: View {
     var conflict: Conflict? = nil
     var selectedConflictOptionID: UUID? = nil
     var onSelectConflictOption: (UUID) -> Void = { _ in }
+    /// layouts.md §10's footer (task P2-F16).
+    var conflictFooter: ConflictFooterModel? = nil
+    var onStepConflict: (Int) -> Void = { _ in }
     /// components.md §13.4 / §13.6.4 (task P2-T43): the selected routine
     /// instance's relation to its template. `nil` hides the line.
     var routineStatus: RoutineInstance.Status? = nil
@@ -36,7 +39,9 @@ struct InspectorView: View {
                         conflict: conflict,
                         now: now,
                         selectedOptionID: selectedConflictOptionID,
-                        onSelectOption: onSelectConflictOption)
+                        onSelectOption: onSelectConflictOption,
+                        footer: conflictFooter,
+                        onStep: onStepConflict)
                 } else if let event {
                     details(for: event)
                 } else {

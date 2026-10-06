@@ -1369,8 +1369,11 @@ P2-T48 judgement calls that need no marker, because no value was invented:
   that row doesn't route to the Routines window. The canvas `conflicted`
   presentation and the inspector `Will not run …` line are built. Marked
   `// P2-T46` in `RoutineInspectorView.blockDetails`.
-- **A32 — layouts.md §10 item 3. The conflict panel's `1 of N` footer with
-  `‹` `›` is not built**, in either window. *(new 2026-10-05, noticed by task
+- ~~**A32 — layouts.md §10 item 3. The conflict panel's `1 of N` footer with
+  `‹` `›` is not built**, in either window.~~ **Resolved 2026-10-06, task
+  P2-F16:** both panels carry the footer (`‹` · `k of N` · `›`, `⌥←`/`⌥→`),
+  N = the needs-attention count in `⌘⇧A` order, no wrap, stepping crosses
+  windows explicitly. *(was:)* *(new 2026-10-05, noticed by task
   P2-T46, out of scope.)* Conflicts are reached through the needs-attention
   row, `⌘⇧A` and apply's advance only, so there is no way to step to a later
   conflict without resolving the current one, and no way to reach a template
@@ -1644,8 +1647,13 @@ Still open, all re-checked against the current spec text this session:
   `min(07:00, first − 1h)`) still use offsets, so the initial scroll
   probably always lands at 00:00. Masked at night by `Journal` (B23).
 
-- **B25 — components.md §14.6. Activating a template conflict while a
-  Routines window is open opens a second Routines window.** *(new
+- ~~**B25 — components.md §14.6. Activating a template conflict while a
+  Routines window is open opens a second Routines window.**~~ **Resolved
+  2026-10-06, task P2-F16:** routing a template conflict (needs-attention
+  row, `⌘⇧A`, the footer's `›`) goes through `RoutinesWindowOpener`, which
+  brings an open Routines window forward and calls `openWindow` only when
+  there is none. `⌘⌥R` itself still opens a new window each time (unchanged,
+  not a conflict path). *(was:)* *(new
   2026-10-06, found during task P2-F15; not in its scope.)*
   `WindowGroup(id: "routines")` + `openWindow(id:)` creates a new window
   each time; the new one enters conflict mode, the old one stays as it was.

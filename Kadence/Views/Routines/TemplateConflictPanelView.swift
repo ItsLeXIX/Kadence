@@ -21,21 +21,27 @@ struct TemplateConflictPanelView: View {
     let template: RoutineTemplate?
     let selectedOptionID: String?
     let onSelectOption: (String) -> Void
+    /// layouts.md §8.1 / §10: the identical `1 of N` footer (task P2-F16).
+    var footer: ConflictFooterModel? = nil
+    var onStep: (Int) -> Void = { _ in }
 
     @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.xl) {
             header
-            VStack(spacing: Tokens.Size.conflictOptionGap) {
-                ForEach(conflict.options) { option in
-                    ConflictOptionRowView(
-                        title: TemplateConflictEngine.title(for: option, conflict: conflict),
-                        delta: TemplateConflictEngine.delta(for: option, conflict: conflict),
-                        isRecommended: option.isRecommended,
-                        isSelected: option.id == selectedOptionID,
-                        action: { onSelectOption(option.id) })
+            VStack(spacing: Tokens.Spacing.lg) {
+                VStack(spacing: Tokens.Size.conflictOptionGap) {
+                    ForEach(conflict.options) { option in
+                        ConflictOptionRowView(
+                            title: TemplateConflictEngine.title(for: option, conflict: conflict),
+                            delta: TemplateConflictEngine.delta(for: option, conflict: conflict),
+                            isRecommended: option.isRecommended,
+                            isSelected: option.id == selectedOptionID,
+                            action: { onSelectOption(option.id) })
+                    }
                 }
+                if let footer { ConflictFooterView(model: footer, onStep: onStep) }
             }
         }
     }

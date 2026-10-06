@@ -137,6 +137,7 @@
 //
 
 import SwiftUI
+import AppKit
 import SwiftData
 
 // `RoutinesEditorMode` now lives in `Kadence/Layout/RoutineColumnRules.swift`
@@ -292,7 +293,10 @@ struct RoutinesWindow: View {
             .focused($canvasFocused)
             .onKeyPress(keys: [.delete]) { _ in handleDelete() }
             // Task P2-T46: the conflict panel's keys (interactions.md §10.1).
-            .onKeyPress(keys: [.upArrow, .downArrow, .escape, .return]) { press in handleConflictKey(press) }
+            // P2-F16: `⌥←`/`⌥→` step the footer (layouts.md §10).
+            .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .escape, .return]) { press in
+                handleConflictKey(press)
+            }
             // interactions.md §11.1: "Switching between Blocks and Windows
             // mode: ⌘[ / ⌘], or the mode control." Window-scoped, the same
             // way `⌫` above is — not routed through `KadenceCommands`
@@ -476,6 +480,10 @@ struct RoutinesWindow: View {
             let next = current.map { min(max($0 + step, 0), ids.count - 1) } ?? 0
             routineConflictOptionID = ids.isEmpty ? nil : ids[next]
             return .handled
+        case .leftArrow, .rightArrow:
+            guard press.modifiers.contains(.option) else { return .ignored }
+            stepRoutineConflict(press.key == .leftArrow ? -1 : 1)
+            return .handled
         case .escape:
             // §10.2: ⎋ reverts the pending preview. With nothing previewed,
             // it leaves conflict mode for the ordinary inspector.
@@ -487,6 +495,32 @@ struct RoutinesWindow: View {
             return .handled
         default:
             return .ignored
+        }
+    }
+
+    /// layouts.md §10's footer for the active template conflict (task
+    /// P2-F16): its place in the one needs-attention list, of N.
+    private var routineConflictFooter: ConflictFooterModel? {
+        guard let id = routineConflictID,
+              let position = calendarState.conflictPosition(of: .template(id)) else { return nil }
+        return ConflictFooterModel(position: position, count: calendarState.needsAttentionCount)
+    }
+
+    /// `‹`/`›` in the Routines window. Onto another template conflict:
+    /// `stepConflict` records it as pending, which `openPendingTemplateConflict`
+    /// (watching that value) consumes here. Back from the first template
+    /// conflict onto a day conflict: `stepConflict` opens it in the main
+    /// window's state, and the main window is brought forward.
+    private func stepRoutineConflict(_ direction: Int) {
+        guard let id = routineConflictID else { return }
+        if case .day? = calendarState.stepConflict(from: .template(id), by: direction) {
+            // The main window is the one window that isn't a Routines
+            // window. AppKit is used because `openWindow(id:)` would open a
+            // second one of a `WindowGroup`.
+            NSApplication.shared.windows
+                .first { $0.isVisible && $0.canBecomeMain
+                    && !RoutinesWindowOpener.isRoutinesWindow(identifier: $0.identifier?.rawValue) }?
+                .makeKeyAndOrderFront(nil)
         }
     }
 
@@ -536,7 +570,9 @@ struct RoutinesWindow: View {
                     conflict: conflict,
                     template: selectedTemplate,
                     selectedOptionID: routineConflictOptionID,
-                    onSelectOption: { routineConflictOptionID = $0; canvasFocused = true })
+                    onSelectOption: { routineConflictOptionID = $0; canvasFocused = true },
+                    footer: routineConflictFooter,
+                    onStep: stepRoutineConflict)
                     .padding(Tokens.Spacing.xl)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }

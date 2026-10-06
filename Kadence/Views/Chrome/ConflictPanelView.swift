@@ -37,6 +37,10 @@ struct ConflictPanelView: View {
     let now: Date
     let selectedOptionID: UUID?
     let onSelectOption: (UUID) -> Void
+    /// layouts.md §10's `1 of N` footer (task P2-F16); `nil` hides it.
+    var footer: ConflictFooterModel? = nil
+    /// `‹` is −1, `›` is +1.
+    var onStep: (Int) -> Void = { _ in }
 
     /// §14.2 says "the 16–27 density tier" (§3.3's old numbering for
     /// `.titleOnly`, band 18–27 in the current numbering) without pinning an
@@ -48,7 +52,12 @@ struct ConflictPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.xl) {
             collisionHeader
-            optionsList
+            // layouts.md §10: the footer is the panel's last element,
+            // `spacing.lg` below the last option row.
+            VStack(spacing: Tokens.Spacing.lg) {
+                optionsList
+                if let footer { ConflictFooterView(model: footer, onStep: onStep) }
+            }
         }
     }
 
@@ -122,6 +131,57 @@ struct ConflictPanelView: View {
 /// on the recommended option only. Shared by the day panel and the template
 /// panel (§14.6: "same row geometry, same chip"); task P2-T46 moved it here
 /// out of `ConflictPanelView` unchanged.
+/// layouts.md §10 (amended 2026-10-05, task P2-F16) — the footer's content
+/// and state, pure. Ends don't wrap; `1 of 1` is still shown with both
+/// buttons disabled.
+struct ConflictFooterModel: Equatable, Sendable {
+    /// 1-based position, and N (the needs-attention count).
+    var position: Int
+    var count: Int
+
+    var text: String { "\(position) of \(count)" }
+    var accessibilityText: String { "Conflict \(position) of \(count)" }
+    var canGoBack: Bool { position > 1 }
+    var canGoForward: Bool { position < count }
+}
+
+/// `‹` · `3 of 14` · `›` (layouts.md §10). Shared by both conflict panels.
+struct ConflictFooterView: View {
+    let model: ConflictFooterModel
+    let onStep: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            chevron("chevron.left", label: "Previous conflict", enabled: model.canGoBack) { onStep(-1) }
+            Spacer(minLength: 0)
+            Text(model.text)
+                .typeStyle(.blockMeta)
+                .monospacedDigit()
+                .foregroundStyle(Tokens.Color.Text.secondary)
+                .accessibilityLabel(model.accessibilityText)
+            Spacer(minLength: 0)
+            chevron("chevron.right", label: "Next conflict", enabled: model.canGoForward) { onStep(1) }
+        }
+    }
+
+    /// Native borderless button, `size.blockGlyphSize` chevron in
+    /// `text.secondary`, hit target at least 24 × 24 (the
+    /// `size.weekdayToggleSize` square, the nearest 24pt token).
+    private func chevron(_ symbol: String, label: String, enabled: Bool,
+                         action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: Tokens.Size.blockGlyphSize))
+                .foregroundStyle(Tokens.Color.Text.secondary)
+                .frame(width: Tokens.Size.weekdayToggleSize, height: Tokens.Size.weekdayToggleSize)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+    }
+}
+
 /// components.md §14.3 (amended 2026-10-05, closes G-038 (1)) — how an option
 /// row is drawn, as token names so a test can check it without comparing
 /// `Color`s. A focused row is a tinted CARD: `selectedCardFill` plus a

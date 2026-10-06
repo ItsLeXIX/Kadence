@@ -27,7 +27,7 @@ struct SidebarView: View {
             // (§14.6), because none of its options apply to a day.
             if state.needsAttentionCount > 0 {
                 Button {
-                    if case .template? = state.activateNeedsAttention() { openWindow(id: "routines") }
+                    if case .template? = state.activateNeedsAttention() { RoutinesWindowOpener.open(using: openWindow) }
                 } label: {
                     HStack {
                         Text("Needs attention")

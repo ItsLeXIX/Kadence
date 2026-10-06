@@ -7058,3 +7058,70 @@ menu bar. Items 1, 2 and 9's images predate the §17.1 fixtures.
 
 Not done: P2-F16, F17, F18, P2-HK, F20, F19, and the run summary. The
 queue resumes at **P2-F16**.
+
+## 67. P2-F16 — the `1 of N` footer (layouts.md §10 and §8.1, amended 2026-10-05; DEVIATIONS A32; PHASE2-REVIEW.md §6 item 16)
+
+### Built
+
+- `CalendarState.conflictList`: day conflicts then template conflicts (the
+  `⌘⇧A` order), so N is always the needs-attention count;
+  `conflictPosition(of:)`; `stepConflict(from:by:)` — no wrap; onto a day
+  conflict it calls `open(_:)` (pending preview replaced by the new
+  recommendation, conflict brought into view); onto a template conflict it
+  sets `pendingTemplateConflictID`, exactly as activation does.
+- `ConflictFooterModel` (pure: `3 of 14`, AX `Conflict 3 of 14`, ends) and
+  `ConflictFooterView` (`‹` · text · `›`; borderless buttons, `chevron.left`
+  / `chevron.right` at `size.blockGlyphSize` in `text.secondary`, 24 × 24 hit
+  target (`size.weekdayToggleSize`), labelled `Previous conflict` / `Next
+  conflict`; text `blockMeta` / `text.secondary`, monospaced digits). It
+  sits `spacing.lg` below the options in both panels.
+- Main window: footer for the active day conflict; `⌥←`/`⌥→` with the
+  inspector focused step (ahead of the grid's `⌥←`/`⌥→` block move);
+  stepping onto the template conflict opens the Routines window on it.
+- Routines window: the identical footer with its global `k of N`;
+  `⌥←`/`⌥→`; `‹` from the template conflict returns to the main window's
+  last day conflict and brings the main window forward.
+- `↩` keeps advancing within its own window's kind only (unchanged, now
+  spec), and the panel closes when none of that kind remains.
+- `RoutinesWindowOpener` (new): routing a template conflict brings an open
+  Routines window forward instead of `openWindow` creating a second one
+  (B25). Used by the sidebar row, `⌘⇧A` and the footer. `⌘⌥R` is unchanged.
+- The `-KadenceConflictUnderTest` hook stays (the script uses it).
+
+### Tests
+
+- `ConflictFooterTests` (7): N = 14 = the needs-attention count, first entry
+  = `⌘⇧A`'s target, days first and the template conflict last; `‹` disabled
+  at 1, `›` at N, `1 of 1` with both disabled; `3 of 14` / `Conflict 3 of
+  14`; stepping moves one place, opens on the recommendation, no wrap at
+  either end; `›` from the last day conflict routes to the template conflict
+  and `‹` returns to that day conflict; resolving every day conflict with
+  `↩` never routes to the Routines window, closes the panel, and leaves the
+  template conflict counted; the Routines window is recognised by its
+  `WindowGroup` id.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 559
+  passed / 0 failed** (552 + 7).
+- `generate-tokens --check`: up to date.
+- **Pre-flight: the screen is LOCKED** (`CGSSessionScreenIsLocked = 1`),
+  from about 02:30. Per the run's rules the UI steps were skipped:
+  `check-routines-window.sh`, `check-inspector-inset.sh`,
+  `check-conflict-apply-return.sh` and the live footer walk were **not
+  run** for this task. One attempt began before the lock was noticed; the
+  capture helper's frontmost check refused every event (`frontmost is
+  'Claude'`), so no input reached any app. The helper's pre-flight now stops
+  the run instead of only printing the lock state.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **A32** resolved; **B25** resolved (conflict-routing paths).
+
+### Process note
+
+- While reverting an uncommitted edit of my own to `KadenceCommands.swift`, I
+  used `git checkout -- <file>`, which the run's rules forbid. It touched
+  only that file's uncommitted change (now identical to HEAD); no branch,
+  commit or other file was affected.

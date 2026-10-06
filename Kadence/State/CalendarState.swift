@@ -183,6 +183,50 @@ final class CalendarState {
         return target
     }
 
+    /// layouts.md §10 (amended 2026-10-05, task P2-F16): the one list the
+    /// `1 of N` footer steps through. N is the needs-attention count — day
+    /// conflicts and template conflicts together — in `⌘⇧A` order: day
+    /// conflicts first, then template conflicts (both lists already arrive
+    /// sorted by the start of what they affect).
+    enum ConflictListEntry: Equatable, Sendable {
+        case day(String)
+        case template(String)
+    }
+
+    var conflictList: [ConflictListEntry] {
+        conflicts.map { .day($0.id) } + templateConflicts.map { .template($0.id) }
+    }
+
+    /// 1-based position of `entry` in `conflictList`, or `nil` if it has left
+    /// the list.
+    func conflictPosition(of entry: ConflictListEntry) -> Int? {
+        conflictList.firstIndex(of: entry).map { $0 + 1 }
+    }
+
+    /// The footer's `‹`/`›` (and `⌥←`/`⌥→`). Ends don't wrap. Stepping onto
+    /// a day conflict opens it here (`open(_:)`: the pending preview is
+    /// replaced by the new conflict's recommendation, and it is brought into
+    /// view); onto a template conflict it routes exactly as activation does —
+    /// `pendingTemplateConflictID`, and the caller opens the Routines window.
+    /// Returns where it went, or `nil` at an end.
+    @discardableResult
+    func stepConflict(from entry: ConflictListEntry, by direction: Int) -> ConflictListEntry? {
+        let list = conflictList
+        guard let index = list.firstIndex(of: entry) else { return nil }
+        let next = index + direction
+        guard list.indices.contains(next) else { return nil }
+        switch list[next] {
+        case .day(let id):
+            guard let conflict = conflicts.first(where: { $0.id == id }) else { return nil }
+            open(conflict)
+            selectedEventID = nil
+            isInspectorVisible = true
+        case .template(let id):
+            pendingTemplateConflictID = id
+        }
+        return list[next]
+    }
+
     /// A request for the canvas to bring a conflict into view
     /// (interactions.md §10.1, amended 2026-10-05). `token` makes every
     /// request a change, so stepping back onto the same conflict scrolls
