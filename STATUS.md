@@ -7331,3 +7331,104 @@ INDEX.md's §17 table itself is rewritten by P2-F20.
 - `-only-testing:KadenceTests/PopoverCaptureTests`: `** TEST SUCCEEDED **`.
 - `bash -n Scripts/capture-p2f20.sh`: clean. Not run (locked).
 - `generate-tokens --check`: up to date.
+
+## 72. P2-F19 — live menu-bar captures for items 10 and 11 — NOT RUN (screen locked)
+
+- Pre-flight at 02:49 on 2026-10-06: `CGSSessionScreenIsLocked = 1`. No crop
+  of the real menu bar can be taken on a locked screen, and the run's rules
+  forbid waiting for it. Nothing was quit, hidden or rendered in its place.
+- **What is needed:** unlock the Mac, make sure no app is in full screen,
+  launch the current build (`Scripts/capture-p2f20.sh`'s build, or Xcode),
+  and check that Kadence's status item is visible in the menu bar. If it is
+  hidden off a crowded bar, quit or hide other status items (§17.2 rule 3
+  allows that as a capture step; it needs Parsa's hand). Then crop (a) the
+  status item in its normal state and (b) the open popover in its normal
+  state. Expected: menu-bar tint, one string, the item only as wide as its
+  text, `Open` enabled. File them as `status-item-live-p2f20.png` and
+  `popover-live-p2f20.png` and add them to INDEX.md's Batch 10 table.
+
+## 73. Run summary — P2-F01 … P2-F20 (2026-10-06)
+
+### Tasks
+
+| Fix | Result | Commit |
+|---|---|---|
+| F01 weekday-independent fixtures | committed (before this resume) | `9138d56` |
+| F02 inspector inset | committed (before this resume) | `6c667e2` |
+| F03 Source row names the source | committed | `1108a62` |
+| F04 title beats time; text confined | committed | `2c9849d` |
+| F05 window treatments clipped | committed | `6f3e4f0` |
+| F06 window label placement (G-025) | committed | `3d47565` |
+| F07 Increase Contrast lines (G-026) | committed | `324e6bb` |
+| F08 weekday toggle row (G-027, G-028) | committed | `0c5441f` |
+| F09 rail sample as template image (G-032) | committed | `bec05c2` |
+| F10 spoken strings (G-029, G-030) | committed | `5b022ed` |
+| F11 detachment rejoin (G-033) | committed | `36562fc` |
+| F12 marker cleanup (G-031, G-035, G-036) | committed | `1281520` |
+| F13 selected option row | committed | `69da0c6` |
+| F14 chip on line 3 | committed | `4b5e79a` |
+| F15 activation focus + scroll into view | committed | `96debf3` |
+| F16 `1 of N` footer (A32) | committed; UI checks skipped (locked) | `542579e` |
+| F17 Re-sync popover (G-034) | committed; UI checks skipped (locked) | `ee69eb9` |
+| F18 popover Open / keyboard / Re-offer | committed; UI checks skipped (locked) | `561b77e` |
+| HK review housekeeping | committed | `28b9052` |
+| F20 recapture | **partial**: item 11 renders + capture script; live frames blocked (locked) | `d4895ee` |
+| F19 live menu-bar crops | **not run** (locked) — see §72 | — |
+
+### Tests
+
+**565 passed / 0 failed** (xcresult), against 488 at the run's start (+77).
+
+### Scripts (last runs)
+
+- `generate-tokens --check`: up to date (every task).
+- `check-routines-window.sh`, `check-conflict-apply-return.sh`: **PASS** at
+  F15 (last unlocked run); skipped for F16–F18 (screen locked).
+- `check-inspector-inset.sh`: **PASS** at F15, after F15 taught it to tell
+  §14.4's complete preview border from a one-edge ring; skipped for F16–F18.
+- New: `Scripts/capture-p2f20.sh` — written, not yet run.
+
+### GAPS
+
+- None opened. (G-039 from F02 remains open for the design agent.)
+
+### DEVIATIONS
+
+- **Resolved / retired:** A32 (F16); B25 (F16); C2, C3 (F08); C4, C5
+  (F10); C6, C10, D5 (F12); C7 (F09); C8 (F11); C9 (F17). B26–B31 were
+  logged by HK as the review's visible defects and are all resolved.
+- **Opened, still open:** B22 (Routines canvas gutter not painted), B23
+  (`Journal` fixture lands in Sleep when seeded at night), B24 (the canvas's
+  initial-scroll hour anchors use `.offset`, which `scrollTo` ignores), A33
+  (§16's cross-scene block move, deferred), A34 (§7 label pinning, deferred).
+- **Struck as stale:** B15's "Still open" line; the P2-T45 "top row" call
+  (overturned).
+
+### §17 captures
+
+- Done: item 11 (`popover-{normal,late,empty,overflow}-p2f20.png`, renders).
+- Not done (screen locked): 1, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17, 18 (and
+  2, 3 through 14, 13); F19's two live crops. `Scripts/capture-p2f20.sh`
+  does the first set.
+
+### For the design agent's re-review
+
+- **B21 / G-039**: the grid's and the main inspector's region focus rings
+  are disabled (complete-or-absent → absent); confirm, or specify a drawn
+  ring.
+- F15 found that a §17 conflict near the end of the day can't reach
+  "one third from the top": the content ends at 24:00 and the scroll clamps
+  (Training at 17:00 lands lower). Worth a line in interactions §10.1.
+- F06: in Windows mode labels draw above the dimmed blocks, so `Low energy`
+  overprints `Errands`' border at 13:00 — as §7 rule 2 says; confirm that's
+  the intended look.
+- B22 (Routines gutter), B24 (initial scroll), and the still-unrun live
+  captures.
+
+### Process notes
+
+- Clicks: `check-routines-window.sh` and `capture-p2t48.sh` click screen
+  (5,5) before launching Kadence — outside the app. They weren't changed
+  (only a fix may change a script); `capture-p2f20.sh` doesn't do it.
+- One rule breach, recorded in §67: a `git checkout -- <file>` to discard
+  my own uncommitted edit to one file.
