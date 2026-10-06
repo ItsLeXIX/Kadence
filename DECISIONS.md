@@ -316,3 +316,15 @@ Windows mode drew labels above the dimmed blocks wherever the window started, wh
 
 ## 2026-10-06 — Deferred out of Phase 2, still normative: a covered block's title band.
 A block covered from below its title row keeps its title (title band ≥ 44pt visible → `.titleOnly` content set in that band). It changes cascade rendering in every view and needs its own captures; no Phase 2 definition-of-done item depends on it. Logged as A35 (G-048). A33 and A34 stay deferred.
+
+## 2026-10-07 — A hard-rule refusal is never truncated.
+The refused snooze row cut off at `Sleep (protect…`: the sentence needs ~290pt and the popover gives 276. A window label is the user's own text, so no one-line copy can be guaranteed to fit. The row breaks after `is inside` and puts the window on its own line (`Sleep (protected)` / `a protected window`), wrapping further if needed and growing the row; nothing in it is ever elided. The moved row stays one line. Closes G-051.
+
+## 2026-10-07 — A focus stroke takes its colour from the fill it sits on.
+`focusRing` equals `accent`, so the focused stroke on an ON weekday toggle was invisible, and ⇥ enters the row on an ON toggle. On an accent fill the stroke is `focusRingOnAccent` (the letter's colour, 4.56 / 6.93 : 1); elsewhere it stays `focusRing` (4.05 / 6.40 : 1 on the off fill). Never the system focus colour on accent, which follows the accent. Closes G-049.
+
+## 2026-10-07 — The Routines canvas has a cursor, as an indicator only.
+Interactions §1 makes a focused region that shows nothing a defect, so the missing cursor isn't deferrable. In Phase 2 it is one accent line across all seven columns with its gutter time, moved by ↑ ↓ only. It creates nothing: keyboard creation of a template block stays unspecified. Closes G-050 and A36 once built.
+
+## 2026-10-07 — The default scroll lands on a whole hour.
+`min(07:00, firstEventStart − 1h)` is rounded down to the hour in every view, so a 07:15 first event opens at 06:00, not 06:15. The viewport then starts on a labelled hour line, and rounding down only adds lead. Closes G-052.

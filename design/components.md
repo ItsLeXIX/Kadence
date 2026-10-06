@@ -1968,6 +1968,38 @@ The placeholder stays a placeholder; it gains the same refusal, not a search:
 - Phase 4's real snooze rule replaces the +15 and must keep this guarantee; it
   does not replace the guarantee.
 
+**Amended 2026-10-07 (Phase 2 closeout; G-051) — the refused row is read in
+full.** `snooze-refused-p2f25.png` draws `Not moved — 00:05 is inside Sleep
+(protect…`: the sentence is ~290pt in `popoverRow` and the row has 276pt
+(`size.popoverWidth` 300 less two `spacing.lg` insets), at a fixed
+`size.popoverActionRowHeight`. A refusal of a hard rule that is cut off is not a
+refusal the user can read, and a window label is the user's own text, so no
+single-line copy can be guaranteed to fit. Ruled — **two lines with a fixed
+break, then wrap; never truncated:**
+
+- **Line 1, fixed:** `Not moved — 00:05 is inside` (the refused destination
+  start, `HH:mm`, monospaced digits; always fits — about 175pt).
+- **Line 2, the window:** `Sleep (protected)`. Unlabelled window (empty or
+  whitespace-only label): `a protected window`. The label is drawn verbatim. The
+  space before `(protected)` is a no-break space (U+00A0), so the qualifier never
+  sits alone on a line.
+- Type `popoverRefusalRow` (13pt, regular, `lineLimit` 0 — added in
+  `tokens.json` 1.3.0), `color.text.primary`, leading-aligned. If line 2 is
+  wider than 276pt it **wraps at word boundaries onto further lines**; it is never
+  truncated, at any label length. No `Undo`.
+- **Row height** = the text's height + `spacing.xs` above and below, never less
+  than `size.popoverActionRowHeight` (28). Two lines at 13pt ≈ 40pt. The popover's
+  content height follows the row for the hold and returns to the normal state's
+  height when the hold ends; no animation of its own (the system's popover
+  resize, or none). The hold (`motion.snoozeConfirmHold`, pausing on hover) is
+  unchanged.
+- **Accessibility:** the row is one element whose label is the one-line sentence
+  — `Not moved — 00:05 is inside Sleep (protected)` / `Not moved — 00:05 is inside
+  a protected window` — line break replaced by a space.
+- The **moved** row (`Moved to 19:15` + `Undo`, `Moved to tomorrow 00:05` +
+  `Undo`) is unchanged: `popoverRow`, one line, `size.popoverActionRowHeight`.
+  Its longest form fits.
+
 ---
 
 ## 17. What Phase 2 must render for review
@@ -2162,12 +2194,20 @@ Renders, like items 10–11 (§17.2 rule 3). Three rows:
 | same-day | `now` 17:10, `Training` 17:30–18:15, `Sleep` present | `17:45 – 18:30` above `Moved to 17:45` + `Undo` (unchanged, `snooze-same-day-p2t48.png`) |
 | next-day | `now` 23:40, `Prep: relational algebra` 23:50–01:20, **no time windows** | `00:05 – 01:35` above `Moved to tomorrow 00:05` + `Undo` |
 | refused | the next-day fixture **with** `Sleep` (22:00–07:00 daily) | NEXT unchanged (`23:50 – 01:20`) above `Not moved — 00:05 is inside Sleep (protected)`, no `Undo` |
+| refused, unlabelled (added 2026-10-07) | the refused fixture with `Sleep`'s label set to empty | NEXT unchanged above two lines: `Not moved — 00:05 is inside` / `a protected window`, no `Undo` |
 
 The next-day row needs a world with no protected window over its destination:
 with the seeded `Sleep`, every +15 that crosses midnight is refused, which is
 exactly what the third row checks. The existing `snooze-next-day-p2t48.png`
 shows the surface correctly but depicts a write that §16 now refuses; it is
 replaced by the two new renders.
+
+**Amended 2026-10-07 (G-051).** The refused rows render on **two lines**, line 1
+`Not moved — 00:05 is inside`, line 2 `Sleep (protected)` (or `a protected
+window`), nothing truncated and no `…` anywhere in the row (§16, 2026-10-07). All
+four item 12 renders — same-day, next-day, refused, refused-unlabelled — are
+captured from one build with one renderer; `snooze-same-day-p2t48.png` (which
+predates B1 and NEXT's focus overlay) is replaced, not kept.
 
 #### Item 13 — inactive weekday columns
 

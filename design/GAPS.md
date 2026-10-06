@@ -2170,7 +2170,7 @@ carries every title). **Stays OPEN** until built and captured.
 
 ## 2026-10-06 — Phase 2 final run (coding agent): gaps found in P2-SF1's ⇥ walk
 
-### G-049 — OPEN. `layouts.md` §8.1 (focused toggle) / `tokens.json` `color.interactive.focusRing`.
+### G-049 — CLOSED 2026-10-07 (see "Phase 2 closeout" below). Was OPEN. `layouts.md` §8.1 (focused toggle) / `tokens.json` `color.interactive.focusRing`.
 
 **Where it bit:** P2-SF1's live ⇥ walk of the Routines window. ⇥ into the editor
 inspector focuses the weekday toggle row on its first toggle in display order —
@@ -2187,7 +2187,7 @@ colour on on-toggles, an outset, a stroke in `text.onSolid`, …) A value is
 needed; the coding agent may not pick one. **Placeholder:** unchanged
 (`focusRing` on both), marked `// SPEC-GAP G-049` in `WeekdayToggleRow.swift`.
 
-### G-050 — OPEN. `interactions.md` §1 table (Routines canvas) vs §11.1.
+### G-050 — CLOSED 2026-10-07 (see "Phase 2 closeout" below). Was OPEN. `interactions.md` §1 table (Routines canvas) vs §11.1.
 
 **Where it bit:** P2-SF1's ⇥ walk. §1's table says the Routines canvas shows
 focus by "cursor mode's time cursor … or selection mode's §6 selected ring",
@@ -2203,7 +2203,7 @@ moves between columns, and what `↩`/typing does at it (the main grid creates a
 event there; §11.1 routes block creation through the template) are all
 unspecified. **Placeholder:** none drawn; logged as DEVIATIONS A36.
 
-### G-051 — OPEN. `components.md` §16 (amended 2026-10-06) / §17.1 item 12 (refused row).
+### G-051 — CLOSED 2026-10-07 (see "Phase 2 closeout" below). Was OPEN. `components.md` §16 (amended 2026-10-06) / §17.1 item 12 (refused row).
 
 **Where it bit:** P2-RC's render `screenshots/2/snooze-refused-p2f25.png`. The
 refused row's exact copy, `Not moved — 00:05 is inside Sleep (protected)`, in
@@ -2216,3 +2216,53 @@ Sleep (protect…`. A longer window label is worse.
 or truncation (and where)? Each is a design value the coding agent may not
 choose. **Placeholder:** SwiftUI's default tail truncation, marked
 `// SPEC-GAP G-051` in `MenuBarPopoverView.swift`.
+
+## 2026-10-07 — Phase 2 closeout: gaps closed
+
+Design agent, 2026-10-07 (`PHASE2-REVIEW.md`, "Closeout — 2026-10-07"). Each
+closure names the spec text that now carries the ruling. `tokens.json` 1.2.0 →
+1.3.0.
+
+### G-049 — CLOSED. `layouts.md` §8.1 (amended 2026-10-07); `tokens.json` 1.3.0 `color.interactive.focusRingOnAccent`.
+
+**Ruled:** the focused toggle's inset stroke takes its colour from the toggle's
+fill. On (`accent` fill): `focusRingOnAccent` (light `#FFFFFF`, dark `#0C0C0D`,
+= `text.onSolid`), 4.56:1 / 6.93:1 against the fill. Off (`canvasSunken` fill):
+`focusRing` as before, 4.05:1 / 6.40:1. Same geometry (2pt, inset 1pt,
+`radius.chip`). Both declared as `contrastPairs` (min 3.0). Replaces the
+`// SPEC-GAP G-049` placeholder in `WeekdayToggleRow.swift`.
+
+### G-050 — CLOSED. `interactions.md` §1 (amended 2026-10-07), §11.1 (2026-10-07 note).
+
+**Ruled, not deferred:** a focused canvas showing nothing breaks §1's own
+normative rule, so the minimum is in Phase 2. The Routines canvas has cursor
+mode as an indicator only: one 1pt accent line across all seven columns plus
+the gutter time; entry at the last cursor time if in view, else the first whole
+hour below the viewport's top (07:00 at the default scroll); `↑` `↓` by 15 min;
+`←` `→` nothing; click on empty canvas places it; no creation at the cursor in
+Phase 2. DEVIATIONS A36 is resolved by building it, not deferred.
+
+### G-051 — CLOSED. `components.md` §16 (amended 2026-10-07), §17.1 item 12 (2026-10-07); `tokens.json` 1.3.0 `typography.popoverRefusalRow`.
+
+**Ruled:** two lines with a fixed break, then wrap, never truncated. Line 1
+`Not moved — 00:05 is inside`; line 2 `Sleep (protected)` or, unlabelled, `a
+protected window` (no-break space before `(protected)`). `popoverRefusalRow`
+(13pt, `lineLimit` 0), row height = text + `spacing.xs` ×2, min 28pt. The
+accessibility label is the one-line sentence. The moved row is unchanged.
+Replaces the `// SPEC-GAP G-051` placeholder in `MenuBarPopoverView.swift`.
+
+### G-052 — opened and CLOSED. `layouts.md` §3.1 (amended 2026-10-07); §8.
+
+**Gap:** STATUS §92 — after G-042 a Day view whose first event is 07:15 opens at
+06:15; §3.1 never said whether the position is minute-precise. **Ruled:** rounded
+down to the hour — `min(07:00, floorToHour(firstEventStart − 1h))`, clamped at
+00:00 — in Day, Week and the Routines window. 07:15 → 06:00. This changes two
+2026-10-06 acceptance values: SF5's Thu 05:30 → **04:00** (was 04:30) and SF4's
+first block 05:30 → **04:00** (was 04:30).
+
+### Still open after this pass
+
+- **G-016** — unchanged (snooze destination: Phase 4).
+- **G-003** — unchanged (contrast checker). 57 pairs now declared.
+- **G-048** — deferred (A35).
+

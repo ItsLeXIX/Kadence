@@ -743,3 +743,128 @@ deferred.
    again, as in P2-F19.
 5. **Deleting the stale frames** (R6) is a `git rm` the final run does and you
    commit.
+
+## Closeout — 2026-10-07
+
+Design agent, 2026-10-07. Inputs: CONTEXT.md, DECISIONS.md (through 2026-10-06),
+this file's 2026-10-06 re-review, GAPS G-049–G-051, interactions §1, components
+§13.5.4 / §16 / §17.1 item 12, layouts §3.1, STATUS §92 ("Phase 2 final"),
+DEVIATIONS A35/A36, and the frames `snooze-refused-p2f25.png` and
+`inactive-weekdays-windows-mode-p2f25.png`, looked at. Five rulings, each written
+into the spec and closed in GAPS ("2026-10-07 — Phase 2 closeout"). **tokens.json
+1.2.0 → 1.3.0** (updated 2026-10-07): `color.interactive.focusRingOnAccent`,
+`typography.popoverRefusalRow`, two contrast pairs (57 declared).
+
+What the frames show: the refused row ends `Sleep (protect…` — the 300pt popover
+gives 276pt of text and the sentence needs about 290pt. The windows-mode frame is
+right on every 2026-10-06 point (opens 06:00, gutter painted under `Lunch` and
+`Sleep`, `Low energy` in Tuesday clear of `Errands`, no edge line). Its toggle row
+is unfocused, so G-049 isn't visible there; the defect is the 1.00:1 between
+`focusRing` and `accent`, which I checked from the tokens.
+
+### C1. Rulings
+
+| # | Item | Ruling | Spec § | GAPS |
+|---|---|---|---|---|
+| 1 | Refused snooze row truncates | **Two lines with a fixed break, then wrap; never truncated.** Line 1 `Not moved — 00:05 is inside`; line 2 `Sleep (protected)` / unlabelled `a protected window` (no-break space before `(protected)`). `popoverRefusalRow` (13pt, `lineLimit` 0, `text.primary`); height = text + `spacing.xs` × 2, min 28pt (two lines ≈ 40pt). A long label wraps onto more lines, never `…`. Accessibility label = the one-line sentence. The moved row is unchanged. Why not a shorter copy: the window label is the user's own text, so no one-line form can be guaranteed to fit. | components §16 (2026-10-07), §17.1 item 12 (2026-10-07) | G-051 **CLOSED** |
+| 2 | Focused ON toggle shows no focus | **Stroke colour follows the fill.** Same geometry (2pt `borderSelected`, inset 1pt, `radius.chip`). On (`accent` fill): `focusRingOnAccent` (L `#FFFFFF` / D `#0C0C0D`, = `text.onSolid`): **4.56 / 6.93 : 1** against the fill. Off (`canvasSunken` fill): `focusRing`: **4.05 / 6.40 : 1**. Both above WCAG 1.4.11's 3:1 and declared as contrast pairs. Never `keyboardFocusIndicatorColor` on an on toggle (it follows the accent). | layouts §8.1 (2026-10-07); tokens 1.3.0 | G-049 **CLOSED** |
+| 3 | Routines canvas has no cursor | **Not deferred.** A focused canvas showing nothing breaks interactions §1's own normative rule ("a defect, not an allowed state"), so per your condition the minimum is specified and is in Phase 2. Indicator only: one 1pt `accent` line across all seven columns plus the gutter time in `hourLabel`/`accent` (12pt hour-label suppression); entry at the last cursor time if in view, else the first whole hour below the viewport's top (07:00 at the default scroll); `↑` `↓` 15 min, clamped 00:00–23:45; `←` `→` nothing; a click on empty canvas places it (and creates nothing on an inactive column); `⎋` unfocuses; AX value `07:00`. `↩` / typing / `⌘N` create nothing at it in Phase 2. A36 is resolved by building this, not logged as deferred. | interactions §1 (2026-10-07), §11.1 (2026-10-07 note) | G-050 **CLOSED** |
+| 4 | Day view opens at 06:15 | **Round down to the hour.** `min(07:00, floorToHour(firstEventStart − 1h))`, clamped at 00:00, in Day, Week and the Routines window. 07:15 → **06:00**. The top of the viewport is then a labelled hour line, and rounding down only adds lead. This changes two 2026-10-06 test values: 05:30 → 04:00, not 04:30 (SF4, SF5). | layouts §3.1 (2026-10-07), §8 | G-052 opened + **CLOSED** |
+| 5 | Frames that predate the final run | **All must be recaptured from the closeout build.** Under the 2026-10-05 evidence rule ("from the build under review"), a frame that shows a fixed defect (B35's edge line, B22's unpainted gutter) can't be the record. Routines: items 1, 3 / 13-wide, 4, 15, 16 (16 is also item 8's Routines half). Item 12: all four renders, because CF1 changes the row container they share, and `snooze-same-day-p2t48.png` predates B1 and NEXT's overlay. Superseded `-p2f20` / `-p2t48` files are deleted. | components §17.1, §17.2; DECISIONS 2026-10-05 "Review evidence rules" | — |
+
+### C2. CLOSEOUT FIX LIST for CA — in order
+
+**CF1 — Refused snooze row on two lines, never truncated.** components §16
+(2026-10-07), §17.1 item 12; G-051; tokens 1.3.0 `typography.popoverRefusalRow`.
+- *Acceptance:* `generate-tokens --check` clean at 1.3.0. Render/unit tests at
+  `size.popoverWidth` (300): (a) `Sleep` → exactly two text lines, `Not moved —
+  00:05 is inside` / `Sleep (protected)`, no truncation (the laid-out text is not
+  truncated, i.e. its ideal width ≤ 276pt per line and no `…` in the rendered
+  string); (b) empty label → `… is inside` / `a protected window`; (c) a 40-char
+  label → wraps to ≥ 3 lines, no `…`, and `(protected)` is never alone on a line;
+  (d) row height = text height + 8, never < 28; (e) accessibility label is the
+  one-line sentence; (f) the moved rows (`Moved to 17:45`, `Moved to tomorrow
+  00:05`) still render at 28pt on one line with `Undo`. The `// SPEC-GAP G-051`
+  marker is removed.
+- *Recapture:* `snooze-same-day-`, `snooze-next-day-`, `snooze-refused-`,
+  `snooze-refused-unlabelled-<suffix>.png` (§17.1 item 12's four rows), one build,
+  one renderer.
+
+**CF2 — Focused weekday toggle visible on and off.** layouts §8.1 (2026-10-07);
+G-049; tokens 1.3.0 `color.interactive.focusRingOnAccent`.
+- *Acceptance:* resolver test — on → `focusRingOnAccent`, off → `focusRing`,
+  disabled on (time-window inspector's last day) → `focusRingOnAccent`; the
+  `contrastPairs` entries exist (57). Render test, light and dark: the focused on
+  toggle `M` shows a 2pt stroke inset 1pt whose sampled colour is `#FFFFFF` (L) /
+  `#0C0C0D` (D), not the fill; the focused off toggle `T` shows `#0A6CFF` /
+  `#4C9BFF`. The `// SPEC-GAP G-049` marker is removed.
+- *Recapture:* `weekday-toggle-focus-on-{light,dark}-<suffix>.png` (`M`
+  focused) and `weekday-toggle-focus-off-{light,dark}-<suffix>.png` (`T`
+  focused), renders of the editor inspector's row.
+
+**CF3 — Routines canvas cursor mode (minimum).** interactions §1 (2026-10-07),
+§11.1; G-050; DEVIATIONS A36.
+- *Acceptance:* tests — entry at default scroll → 07:00; last cursor time
+  restored when in view, else the first whole hour below the viewport's top; `↑`
+  `↓` ±15 min, clamped at 00:00 and 23:45, the canvas scrolls only to keep the
+  line in view; `←` `→` change nothing; empty-canvas click (active and inactive
+  column) places the cursor and creates nothing on the inactive column; `⎋` from
+  cursor mode unfocuses; a Blocks/Windows switch with a selection and the canvas
+  focused → cursor mode; AX value `07:00`. Re-run the P2-SF1 `⇥` walk of the
+  Routines window: canvas (cursor line), editor inspector (toggle stroke, CF2)
+  both show focus. Line spans all seven columns, not the gutter.
+- *Recapture:* `routines-cursor-<suffix>.png` — live, Blocks mode, nothing
+  selected, `⇥` onto the canvas: the line at 07:00 across Mon–Sun and `07:00` in
+  accent in the gutter where the hour label was.
+
+**CF4 — Default scroll floors to the hour.** layouts §3.1 (2026-10-07), §8;
+G-052.
+- *Acceptance:* `InitialScrollTests` — Day: 07:15 → 06:00, 08:00 → 07:00, 07:59 →
+  06:00, 05:30 → 04:00, 00:30 → 00:00, none → 07:00; Week: Tue 08:00 + Thu 05:30 →
+  **04:00** (SF5's 04:30 updated); Routines: first block 05:30 → **04:00** (SF4's
+  04:30 updated), `Daily routine` → 06:00. The hold is unchanged.
+- *Recapture:* none (06:00 with today's fixtures in every view).
+
+**CF5 — Recapture the listed frames and update INDEX.md.** components §17.1,
+§17.2; DECISIONS 2026-10-05 "Review evidence rules".
+- *Recapture, from the build with CF1–CF4:* items 1
+  (`routine-template-flexibility-`), 3 / 13-wide (`inactive-weekdays-wide-`), 4
+  (`resync-popover-`), 15 (`routine-refusal-errands-`), 16 / 8-Routines
+  (`template-conflict-panel-`), each `-<suffix>.png`; plus CF1's four, CF2's four
+  and CF3's one.
+- *Acceptance:* in every Routines frame, no pixel in the outermost 2px band
+  matches `accent`/`focusRing` (sampled, as SF1); the gutter is painted under
+  `Lunch` and `Sleep` and hatched under `Low energy`; items 3/13, 4, 15 and 16 open
+  at 06:00 by themselves (item 1 is scrolled per §17.1 item 1); nothing selected
+  unless the item asks; item 12's refused rows show no `…`. INDEX.md maps each
+  item to its new file. Delete the superseded files: the five `-p2f20` frames
+  above, `snooze-same-day-p2t48.png`, `snooze-next-day-p2f25.png`,
+  `snooze-refused-p2f25.png`, and any `-p2f20` frame that has a `-p2f25`
+  successor (`inactive-weekdays-780-`, `inactive-weekdays-windows-mode-`,
+  `popover-{normal,late,empty,overflow,live}-`) once INDEX no longer maps to it.
+  DEVIATIONS: A36 → resolved by CF3; log no new A-entry.
+
+### C3. Acceptance
+
+**PHASE 2 ACCEPTED once the closeout fix list is committed and its acceptance tests pass.**
+
+Noted, not ruled (not Phase 2 conditions): STATUS §92's sidebar `⇥` with no row
+selected is the §1 table's "as built" system treatment; focus landing on
+`Re-sync` after `⎋` is built but unobserved because keyboard navigation is off on
+that Mac. Turning it on for CF3's `⇥` walk would let CA observe both.
+
+### C4. Proposed DECISIONS.md entries (ready to paste — yours to write)
+
+```markdown
+## 2026-10-07 — A hard-rule refusal is never truncated.
+The refused snooze row cut off at `Sleep (protect…`: the sentence needs ~290pt and the popover gives 276. A window label is the user's own text, so no one-line copy can be guaranteed to fit. The row breaks after `is inside` and puts the window on its own line (`Sleep (protected)` / `a protected window`), wrapping further if needed and growing the row; nothing in it is ever elided. The moved row stays one line. Closes G-051.
+
+## 2026-10-07 — A focus stroke takes its colour from the fill it sits on.
+`focusRing` equals `accent`, so the focused stroke on an ON weekday toggle was invisible, and `⇥` enters the row on an ON toggle. On an accent fill the stroke is `focusRingOnAccent` (the letter's colour, 4.56 / 6.93 : 1); elsewhere it stays `focusRing` (4.05 / 6.40 : 1 on the off fill). Never the system focus colour on accent, which follows the accent. Closes G-049.
+
+## 2026-10-07 — The Routines canvas has a cursor, as an indicator only.
+Interactions §1 makes a focused region that shows nothing a defect, so the missing cursor isn't deferrable. In Phase 2 it is one accent line across all seven columns with its gutter time, moved by `↑` `↓` only. It creates nothing: keyboard creation of a template block stays unspecified. Closes G-050 and A36 once built.
+
+## 2026-10-07 — The default scroll lands on a whole hour.
+`min(07:00, firstEventStart − 1h)` is rounded down to the hour in every view, so a 07:15 first event opens at 06:00, not 06:15. The viewport then starts on a labelled hour line, and rounding down only adds lead. Closes G-052.
+```

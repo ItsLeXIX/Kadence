@@ -132,6 +132,17 @@ Seven day columns. First weekday from `Calendar.current.firstWeekday` (Monday in
 - The initial position is **held** until the user scrolls or a conflict scroll
   request arrives (P2-F22's build, now spec): a window that lays its canvas out
   several times while settling must still open at the computed hour.
+- **Amended 2026-10-07 (Phase 2 closeout; G-052) — the position is a whole
+  hour.** The rule is `min(07:00, floorToHour(firstEventStart − 1h))`, clamped
+  at 00:00: the result of `firstEventStart − 1h` is rounded **down** to the hour.
+  A Day view whose first event is 07:15 opens at **06:00**, not 06:15. Reasons:
+  the top of the viewport is then an hour line with its label (§3.1's labels sit
+  at the line + 2pt), so the first thing read is a time, not 45 unlabelled
+  minutes; and rounding down only ever adds lead, so "one hour before the first
+  event" stays a minimum. Examples: 08:00 → 07:00; 07:59 → 06:00; 05:30 → 04:00;
+  00:30 → 00:00; no timed event → 07:00. Same rule in Week view and in the
+  Routines window (§8, over `earliestBlockStart`); with today's fixtures every
+  view still opens at 06:00.
 
 ### 3.2 All-day row
 
@@ -454,7 +465,8 @@ sense against each other (`components.md` §13.3).
 showed the window needed.**
 
 - **Default scroll position (G-047).** §3.1's rule, over the template instead of
-  events: `min(07:00, earliestBlockStart − 1h)` at the top of the viewport, where
+  events: `min(07:00, earliestBlockStart − 1h)` — rounded down to the hour per
+  §3.1's 2026-10-07 amendment (G-052) — at the top of the viewport, where
   `earliestBlockStart` is the earliest `startMinutes` of any block in the selected
   template (a template block's time of day is the same on every active weekday;
   inactive weekdays do not change it). In Windows mode the same value is used, so
@@ -523,6 +535,26 @@ placeholder graphic.
     **Amended 2026-10-06:** no ring on the row — `interactions.md` §1 bars
     region rings; the inset stroke is the row's whole focus indicator. Shown
     only while the row has keyboard focus; never on pointer hover.
+    **Amended 2026-10-07 (Phase 2 closeout; G-049) — the stroke's colour
+    follows the fill.** `focusRing` and `accent` are the same value, so on an
+    **on** toggle the stroke was drawn and invisible (1.00:1) — and `⇥` enters
+    the row on `M`, which is on in `Daily routine`, so the row showed no focus on
+    entry. Ruled, same geometry for both states (`size.borderSelected` 2pt,
+    inset 1pt, `radius.chip`), colour by the toggle's fill:
+    - **On** (fill `interactive.accent`): stroke
+      `color.interactive.focusRingOnAccent` (light `#FFFFFF`, dark `#0C0C0D` —
+      the letter's colour, added in `tokens.json` 1.3.0). Measured against the
+      fill it sits on: **4.56:1 light / 6.93:1 dark**.
+    - **Off** (fill `surface.canvasSunken`): stroke `color.interactive.focusRing`,
+      as before. Measured: **4.05:1 light / 6.40:1 dark**.
+    - Both clear WCAG 1.4.11's 3:1 for a non-text indicator, both declared as
+      `contrastPairs` (1.3.0). The rule is by fill, not by meaning: any toggle
+      drawn on `accent` takes `focusRingOnAccent`, anything else `focusRing`;
+      a disabled toggle (§13.5.4's last window weekday) keeps its fill's rule.
+    - The stroke must not use `focusRingSystemName`
+      (`keyboardFocusIndicatorColor`) on an on toggle: it follows the accent and
+      recreates the defect. The same component in the time-window inspector
+      takes the same rule.
   - Each toggle is **not** its own `⇥` stop. `interactions.md` §1's model holds:
     the row is one focus target with an internal focused item.
   - The time-window inspector's row is the same component with the same

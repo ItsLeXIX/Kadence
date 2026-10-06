@@ -71,6 +71,44 @@ The grid is a single focus target. Inside it there are two focus modes:
 
 `⎋` moves selection mode → cursor mode → unfocused grid.
 
+**Amended 2026-10-07 (Phase 2 closeout; G-050) — the Routines canvas's cursor
+mode, minimum form.** The table above says the Routines canvas shows focus by
+its time cursor, and that a focused region showing nothing is a defect; no task
+built that cursor (DEVIATIONS A36), so `⇥` onto the canvas with nothing selected
+showed nothing. Deferring it would leave a defect by this section's own rule, so
+the minimum is specified here and is in Phase 2. It is an **indicator**, not a
+creation path:
+
+- **Drawn:** the main grid's time cursor — 1pt `color.interactive.accent` — as
+  **one line across all seven day columns** (not the gutter), at the cursor's
+  time, with that time printed in the gutter in `hourLabel` /
+  `color.interactive.accent`, suppressing a colliding hour label by
+  `components.md` §7's 12pt rule. All seven, in both Blocks and Windows mode: a
+  template time is a time of day, not a day column, and the window has no focused
+  day (§11.1). The line paints above blocks and window treatments, like the now
+  line, and is transparent to hit-testing (§6.1).
+- **On entry** (focus arrives on the canvas with nothing selected, by `⇥` or by
+  `⎋` from selection mode): the cursor takes the last cursor time of this window
+  session if that time is in the viewport; otherwise the **first whole hour
+  strictly below the viewport's top edge** — 07:00 at the default 06:00 scroll
+  (`layouts.md` §8). An empty-canvas click deselects and places the cursor at the
+  clicked slot's time, as in the main grid (§6.1 step 4) — including on an
+  inactive column, where the click still creates nothing (§11.1).
+- **Keys:** `↑` `↓` move it 15 minutes, clamped to 00:00…23:45, scrolling the
+  canvas only as far as needed to keep the line in view. `←` `→` do nothing
+  (§11.1). `⎋` leaves the canvas unfocused. `⇞` `⇟` scroll as in the main grid
+  and do not move the cursor. Selecting a block (click) leaves cursor mode;
+  dropping the selection on a Blocks/Windows switch (§11.1) enters it if the
+  canvas has focus.
+- **Not in Phase 2:** `↩`, typing, and `⌘N` create nothing at the cursor here —
+  keyboard creation of a template block (which weekdays, which mode) is
+  unspecified and no Phase 2 item needs it; whatever those keys do in the
+  Routines window as built is unchanged.
+- **Accessibility:** the canvas's value in cursor mode is the cursor's time,
+  `07:00`.
+
+This resolves DEVIATIONS A36 once built.
+
 ---
 
 ## 2. Shortcuts
@@ -436,6 +474,10 @@ deletes. `⌘Z` undoes, with names (`Undo Move Routine Block`).
 
 `⌘1` / `⌘2` / `⌘3`, `T`, and `←` `→` do nothing here: a template has no dates and
 no today. They are disabled rather than repurposed.
+
+*(2026-10-07, G-050.)* With nothing selected and the canvas focused, the canvas
+is in §1's cursor mode in its Routines form (§1, amended 2026-10-07): one line
+across all seven columns, `↑` `↓` only.
 
 Switching between Blocks and Windows mode: `⌘[` / `⌘]`, or the mode control.
 The current selection is dropped on mode change, because a selection you can no
