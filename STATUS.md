@@ -8372,3 +8372,58 @@ item 2 → `…windows-mode-p2f25`, 3's Windows half → the same, 11 →
 - No code change. `-only-testing:KadenceTests`: **xcresult 599 passed / 0
   failed**; `generate-tokens --check`: up to date; fresh pre-flight before
   each: all five UI scripts **PASS**.
+
+## 92. Run summary — Phase 2 final (2026-10-06)
+
+### Tasks
+
+| Task | Result | Commit |
+|---|---|---|
+| Step 0 — re-review + DECISIONS 2026-10-06 (both had changes) | committed as-is | `e1ecbba` |
+| B1 snooze never in protected time (G-046; B36) | committed | `738d5b0` |
+| B2 ⎋ closes the Re-sync popover (G-040; B34) | committed | `1cd42d1` |
+| SF4 Routines default scroll (G-047) | committed | `b656e72` |
+| SF5 Week first event is a time of day (G-042) | committed | `8f59e59` |
+| SF2 Windows-mode labels avoid blocks, never omitted (G-044) | committed | `cfca185` |
+| SF3 Routines gutter treatments (G-041; B22) | committed | `65803fe` |
+| SF6 780pt: editor inspector starts collapsed (B37) | committed (build changed) | `7f5608b` |
+| SF1 no region rings; NEXT shows focus; ⇥ walk (B35, B38) | committed | `0066f8d` |
+| RC recaptures + edge check | committed | `c547836` |
+| SF7 housekeeping | committed | `e612592` |
+
+### Tests
+
+**599 passed / 0 failed** (xcresult), against 572 at the start (+27).
+
+### Scripts (last runs, fresh pre-flight each)
+
+`check-routines-window.sh` (now also: collapsed at 1000pt, ⌥⌘I opens),
+`check-conflict-apply-return.sh`, `check-inspector-inset.sh`,
+`check-block-click-selects.sh`, `check-resync-escape.sh` (new) — all
+**PASS**. `capture-p2f25.sh` (new) ran clean. `generate-tokens --check`: up
+to date at every task. Build: only `MonthGridView.swift:153`.
+
+### Still open — for the design agent / Parsa
+
+- **G-051**: the refused snooze row's exact copy truncates
+  (`… inside Sleep (protect…`) in `snooze-refused-p2f25.png`.
+- **G-049**: the focused weekday toggle's stroke is invisible on an ON
+  toggle (`focusRing` = `accent`); ⇥ enters the row on `M`.
+- **G-050 / A36**: the Routines canvas has no cursor mode (§1 table).
+- Sidebar ⇥: no visible change with no row selected ("as built" per §1).
+- Focus *on* `Re-sync` after ⎋ is built but not observed: keyboard
+  navigation is off on this Mac.
+- Day view whose first event is 07:15 now opens at 06:15 (minute-precise
+  §3.1), not 06:00.
+- `snooze-same-day-p2t48.png` (kept as instructed) predates NEXT's focus
+  overlay; the other p2f20 Routines frames (items 1, 3 wide, 4, 15, 16)
+  predate SF1–SF4.
+- Deferred by ruling: A33, A34, A35 (G-048).
+
+### Process notes
+
+- A store deletion inside an ad-hoc `bash -c` probe was refused by Claude
+  Code's removal check; not worked around (probes use the existing store).
+- The SF3 test-host crash came from my B1 test split; fixed in test code.
+- macOS's "Problem Reporter" window from that crash was left untouched.
+- No forbidden git operation.
