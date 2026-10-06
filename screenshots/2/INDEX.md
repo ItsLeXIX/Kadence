@@ -1045,6 +1045,19 @@ trailing edges (DEVIATIONS **B35**); and during the capture `⎋` did not
 close the Re-sync popover, which §13.4 says it does (**B34**) — the script
 closes it with a click on the inspector heading instead.
 
+### Items 10 and 11 — live menu-bar crops (task P2-F19)
+
+From the current build (`827a254`), ~11:52, cropped from the real menu bar
+with `screencapture -R` (scale 2). Parsa hid other menu-bar items to make
+room (§17.2 rule 3); nothing else was changed. The store's already-started
+events today were marked `done` first (the batch 5/7 method), so the next
+item is upcoming — the normal state.
+
+| File | §17 item | Shows |
+|---|---|---|
+| `status-item-live-p2f20.png` | 10 (live) | `12:30 · Stand-up` in **menu-bar tint** (template white on the dark macOS 26 bar), one string, no glyph; the item is only as wide as its text (124pt, from its AX frame) |
+| `popover-live-p2f20.png` | 11 (live) | The open popover under the highlighted item, live chrome, **light**: NEXT `Stand-up` `12:30 – 12:45 · Personal`; `Done` · `Snooze` · **`Open` enabled**; REST OF TODAY six rows `12:50 Check mail` … `19:50 Client call`, then `+2 more` (the normal state with overflow) |
+
 ### Every §17 item — current evidence (2026-10-06)
 
 | §17 item | Current file(s) | Status |
@@ -1058,8 +1071,8 @@ closes it with a click on the inspector heading instead.
 | 7 | `conflict-panel-three-options-p2f20.png` | recaptured |
 | 8 | `conflict-panel-three-options-p2f20.png` (main window) · `template-conflict-panel-p2f20.png` (Routines window) | recaptured |
 | 9 | `needs-attention-count-{0,1,12}.png` (batch 4) | accepted with note; not recaptured |
-| 10 | `status-item-{normal-full,normal-clipped,late-full,late-clipped,empty,degraded-110,degraded-80}-p2t47.png` (batch 8 renders) | renders accepted; live crop: P2-F19 |
-| 11 | `popover-{normal,late,empty,overflow}-p2f20.png` (renders) | renders done; live crop: P2-F19 |
+| 10 | `status-item-{normal-full,normal-clipped,late-full,late-clipped,empty,degraded-110,degraded-80}-p2t47.png` (batch 8 renders) · **`status-item-live-p2f20.png`** (live crop) | renders accepted; live crop done (P2-F19) |
+| 11 | `popover-{normal,late,empty,overflow}-p2f20.png` (renders) · **`popover-live-p2f20.png`** (live crop) | renders done; live crop done (P2-F19) |
 | 12 | `snooze-{same-day,next-day}-p2t48.png` (batch 9 renders) | accepted; not recaptured |
 | 13 | `inactive-weekdays-wide-p2f20.png` · `inactive-weekdays-780-p2f20.png` | recaptured |
 | 14 | `inactive-weekdays-windows-mode-p2f20.png` | recaptured |

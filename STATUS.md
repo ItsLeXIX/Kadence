@@ -7742,3 +7742,25 @@ about 06:15, not 06:00.
   scroll tests, F16's footer walk, F24's and B34's checks): they relied on
   the session's earlier pre-flights rather than one each time. All their
   events also went through `kadence-guard`.
+
+## 80. P2-F19 — live menu-bar captures (PHASE2-REVIEW.md §6 item 19)
+
+- Pre-flight 11:46 and 11:51: unlocked, no full screen. Build `827a254`.
+- The status item was off the visible menu bar (AX x = −4308). It also read
+  late (`272m ago · Breakfast`): the fresh store's 07:15 Breakfast isn't
+  done. Store prepared as batches 5/7 did: today's timed events starting
+  before now + 30 min set to `done` (sqlite, app quit) → normal state,
+  `12:30 · Stand-up`, 124pt.
+- **ASK PARSA**: asked to hide menu-bar items; after "ready" the item was
+  at x 908. Nothing was quit or hidden by me, nothing rendered instead.
+- `status-item-live-p2f20.png`: `screencapture -R 896,0,148,27`. Menu-bar
+  tint (white template text on the dark bar), one string, no glyph, only as
+  wide as its text.
+- `popover-live-p2f20.png`: one guarded click on the item (Kadence
+  frontmost; the AX hit test on Kadence's status item) opened it — its own
+  window, layer 101, 300 × 361; `-R 890,0,328,402` takes it with the bar.
+  Normal state (with `+2 more` overflow), `Open` **enabled**. Closed with a
+  real `⎋` (it closes; contrast B34's Re-sync popover).
+- Both added to INDEX.md Batch 10 under items 10 and 11.
+- No code change: tests stay **572 / 0**; `generate-tokens --check` up to
+  date (below).
