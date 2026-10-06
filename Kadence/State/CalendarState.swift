@@ -469,11 +469,15 @@ final class CalendarState {
     /// The toolbar is deliberately absent — see STATUS.md. Everything else is
     /// gated on whether it is actually on screen.
     ///
-    func availableFocusRegions(allDayRowVisible: Bool) -> Set<FocusRegion> {
+    /// `inspectorTakesFocus` (task P2-SF1, interactions.md §1 amended
+    /// 2026-10-06): false when the inspector shows nothing that can display
+    /// focus (the day summary has no control), so ⇥ skips it rather than
+    /// landing on a region that shows no focus.
+    func availableFocusRegions(allDayRowVisible: Bool, inspectorTakesFocus: Bool = true) -> Set<FocusRegion> {
         var regions: Set<FocusRegion> = [.grid]
         if isSidebarVisible { regions.insert(.sidebar) }
         if allDayRowVisible { regions.insert(.allDayRow) }
-        if isInspectorVisible { regions.insert(.inspector) }
+        if isInspectorVisible && inspectorTakesFocus { regions.insert(.inspector) }
         return regions
     }
 

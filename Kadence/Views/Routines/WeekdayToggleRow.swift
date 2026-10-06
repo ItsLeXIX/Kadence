@@ -76,6 +76,14 @@ struct WeekdayToggleItem: Equatable, Sendable {
 struct WeekdayToggleRow: View {
     /// Display order — `RoutineWeekLayout.orderedWeekdays`.
     let weekdays: [Int]
+    /// Task P2-SF1: the Routines window's ⇥ into its editor inspector lands
+    /// here (interactions.md §11.1: the row "is reached by ⇥ into the
+    /// inspector"). Each increment asks the row to take focus; the row
+    /// reports its focus back through `onFocusChange`. (A second `.focused`
+    /// binding from outside didn't hold — SwiftUI dropped it at once, found
+    /// live — so the row moves its own `@FocusState`.)
+    var focusRequest = 0
+    var onFocusChange: (Bool) -> Void = { _ in }
     let isOn: (Int) -> Bool
     let context: WeekdayToggleItem.Context
     /// Called with the weekday to flip; the caller does the write.
@@ -112,11 +120,17 @@ struct WeekdayToggleRow: View {
             }
         }
         .focusable()
+        // layouts.md §8.1 (amended 2026-10-06; interactions.md §1, G-039):
+        // no ring on the row — the focused toggle's inset stroke is the
+        // row's whole focus indicator.
+        .focusEffectDisabled()
         .focused($rowFocused)
+        .onChange(of: focusRequest) { _, _ in rowFocused = true }
         .onChange(of: rowFocused) { _, focused in
             // Entering the row lands on the first toggle in display order,
             // unless `←`/`→` already chose one earlier.
             if focused, focusedWeekday == nil { focusedWeekday = weekdays.first }
+            onFocusChange(focused)
         }
         // `.onKeyPress` returns `.handled` to stop the key here, or
         // `.ignored` to let it continue up to the window (e.g. `⌫`, `⌘[`).
@@ -149,6 +163,9 @@ struct WeekdayToggleRow: View {
                         // `focusRing`, INSET 1pt inside the toggle at
                         // `radius.chip` — an outside ring would touch the
                         // neighbour `spacing.xs` away. Keyboard focus only.
+                        // SPEC-GAP G-049: `focusRing` == `accent`, so on an
+                        // ON toggle (accent fill) this stroke is invisible.
+                        // Kept as specified until design/ gives a value.
                         RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
                             .strokeBorder(Tokens.Color.Interactive.focusRing, lineWidth: Tokens.Size.borderSelected)
                             .padding(1)
@@ -174,3 +191,4 @@ struct WeekdayToggleRow: View {
         return .handled
     }
 }
+

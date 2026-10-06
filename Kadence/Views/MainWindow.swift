@@ -269,12 +269,22 @@ struct MainWindow: View {
 
     private var inspector: some View {
         inspectorBody
-            .focusable()
+            // interactions.md §1 (amended 2026-10-06, task P2-SF1): the
+            // inspector REGION is a focus target only in conflict mode, where
+            // the focused option card shows focus. In normal mode ⇥ lands on
+            // its first control that accepts key focus (`InspectorView`'s
+            // `focusRegion`), which draws its own control ring — a focused
+            // container would show nothing, which §1 calls a defect.
+            .focusable(activeConflict != nil)
             // Task P2-F02: the inspector's ring had the same one-edge fault
             // (its leading edge only; the other three sit on the window's
             // edges). layouts.md §6: complete or absent — absent.
             .focusEffectDisabled()
-            .focused($focusedRegion, equals: .inspector)
+            // The region binding sits on the container only in conflict mode;
+            // in normal mode it is on the first control (`InspectorView`).
+            // Bound on both, SwiftUI resolved `.inspector` to the
+            // non-focusable container and focus never moved (found live).
+            .inspectorEntry($focusedRegion, when: activeConflict != nil)
             .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
             // interactions.md §10.1/§10.2 — ↑/↓ move+preview between conflict
             // options, ⎋ abandons, and ↩ applies the focused/previewed option
@@ -333,7 +343,9 @@ struct MainWindow: View {
             routineStatus: selectedEvent.flatMap { RoutineInstance.status(of: $0, in: context) },
             onRevertToRoutine: {
                 if let selectedEvent { RoutineInstance.revert(selectedEvent, store: store) }
-            })
+            },
+            focusRegion: $focusedRegion,
+            onTab: cycleFocus)
     }
 
     /// The conflict `state.selectedConflictID` names, if it still exists in
@@ -468,8 +480,12 @@ struct MainWindow: View {
     /// returns `.handled` unconditionally: letting AppKit also advance focus
     /// would move within the sidebar's list instead of out of it.
     private func cycleFocus(_ press: KeyPress) -> KeyPress.Result {
+        // P2-SF1: the inspector is a ⇥ stop only when something in it can
+        // show focus — the conflict panel, or a selected event's controls.
+        // The day summary has none, so ⇥ passes it.
         let available = state.availableFocusRegions(
-            allDayRowVisible: AllDayRowView.isVisible(days: state.visibleDays, fixtures: fixtures))
+            allDayRowVisible: AllDayRowView.isVisible(days: state.visibleDays, fixtures: fixtures),
+            inspectorTakesFocus: activeConflict != nil || selectedEvent != nil)
 
         let current = focusedRegion ?? state.focusedRegion
         let next = CalendarState.FocusRegion.next(

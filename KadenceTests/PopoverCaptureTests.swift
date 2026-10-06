@@ -180,4 +180,42 @@ struct PopoverCaptureTests {
                 .hasPrefix("23:50 – 01:20"))
         try render("snooze-refused", container: c, now: at(23, 40), snooze: row, suffix: "p2f25")
     }
+
+    /// Task P2-SF1 — interactions.md §12 (amended 2026-10-06): with the
+    /// popover's root ring barred, NEXT's focus is `hoverOverlay` behind the
+    /// next-item block at `radius.card`. Rendered with NEXT focused (index
+    /// 0, every open) and with the first rest row focused (index 1): the two
+    /// differ inside the NEXT block, and NEXT-focused draws there something
+    /// other than the plain popover surface.
+    @Test("NEXT focused draws hoverOverlay behind the next-item block")
+    func nextFocusOverlay() throws {
+        let c = try container(restCount: 3)
+        func bitmap(focus: Int) throws -> NSBitmapImageRep {
+            renderedContainers.append(c)
+            let view = MenuBarPopoverView(initialNow: at(17, 10), initialFocusIndex: focus)
+                .modelContainer(c)
+                .environment(UndoStack())
+                .environment(CalendarState())
+                .environment(\.colorScheme, .light)
+            let renderer = ImageRenderer(content: view)
+            renderer.scale = 1
+            return NSBitmapImageRep(cgImage: try #require(renderer.cgImage))
+        }
+        let next = try bitmap(focus: 0)
+        let rest = try bitmap(focus: 1)
+        func px(_ r: NSBitmapImageRep, _ x: Int, _ y: Int) -> [Int] {
+            var p = [Int](repeating: 0, count: 4); r.getPixel(&p, atX: x, y: y); return p
+        }
+        // Rows of the top 40% (NEXT: label, block, action row) that differ.
+        let top = Int(Double(next.pixelsHigh) * 0.4)
+        let x = next.pixelsWide - Int(Tokens.Spacing.lg) - 8   // right side of the block, clear of text
+        let differing = (0..<top).filter { px(next, x, $0) != px(rest, x, $0) }
+        #expect(!differing.isEmpty, "NEXT focused vs not: no difference in the NEXT block")
+        // The overlay is a band (the block's height), not a hairline.
+        #expect(differing.count >= Int(Tokens.Size.popoverNextBlockMinHeight) / 2)
+        // NEXT-focused there is not the plain surface (sampled in the top padding).
+        let surface = px(next, x, 1)
+        #expect(differing.allSatisfy { px(next, x, $0) != surface })
+        #expect(differing.allSatisfy { px(rest, x, $0) == surface }, "unfocused NEXT is plain surface")
+    }
 }

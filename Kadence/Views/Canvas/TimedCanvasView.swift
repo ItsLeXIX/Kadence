@@ -56,7 +56,8 @@ struct TimedCanvasView: View {
         VStack(spacing: 0) {
             DayHeaderRow(days: days, events: events, now: now, trailingReserve: scrollerReserve)
 
-            AllDayRowView(days: days, fixtures: fixtures, now: now, trailingReserve: scrollerReserve)
+            AllDayRowView(days: days, fixtures: fixtures, now: now, trailingReserve: scrollerReserve,
+                          isFocused: focusedRegion.wrappedValue == .allDayRow)
                 .focusable(AllDayRowView.isVisible(days: days, fixtures: fixtures))
                 .focused(focusedRegion, equals: .allDayRow)
                 .onKeyPress(keys: [.tab]) { onTab($0) }

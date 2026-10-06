@@ -8207,3 +8207,82 @@ count inside one parameterised test).
 ### New GAPS / DEVIATIONS
 
 - DEVIATIONS **B37** logged and resolved in this task.
+
+## 89. P2-SF1 — no region or window-root focus ring; NEXT shows focus (interactions.md §1, §12; layouts.md §8, §8.1; G-039; DEVIATIONS B35; PHASE2-REVIEW.md 2026-10-06 R4 SF1)
+
+### Built
+
+- **Routines window:** the focus target is now the **canvas** (`.focusable()
+  .focusEffectDisabled() .focused($canvasFocused)`), no longer the window's
+  root. The root was where B35's edge line came from (its system ring), and
+  it nested the toggle row inside a focusable, which made SwiftUI hand
+  focus straight back to the root. The window's key handlers stay on the
+  (non-focusable) root and still receive keys from focused descendants.
+- **Weekday toggle row:** `.focusEffectDisabled()` (layouts.md §8.1,
+  2026-10-06: no ring on the row). It takes focus on request
+  (`focusRequest`, `onFocusChange`): ⇥ / ⇧⇥ in the Routines window
+  (`cycleRegion`) alternate canvas ↔ the editor inspector's toggle row when
+  the inspector shows one (template summary or a selected window).
+- **Menu-bar popover:** `.focusEffectDisabled()` on its root; `hoverOverlay`
+  behind the next-item block at `radius.card` while NEXT is focused (every
+  open starts there). `initialFocusIndex` (default 0) is what `.onAppear`
+  resets to, so a render can show another row focused.
+- **Main window, ⇥ walk fixes (§1 table):** the inspector region is a focus
+  target only in conflict mode; in normal mode the `.inspector` binding sits
+  on the first control that accepts key focus — `Done` with keyboard
+  navigation on, the Notes editor with it off (⇥ in Notes leaves the region;
+  no tab typed) — and the inspector is skipped when it shows the day summary
+  (`availableFocusRegions(…, inspectorTakesFocus:)`). The all-day row's
+  focused pill takes §6's selected ring; `↑↓←→` move between pills.
+
+### ⇥ walk (live, AX + frames; keyboard navigation OFF on this Mac; dark appearance)
+
+| Window · region | Indicator seen |
+|---|---|
+| Main · grid | `Gym`'s selected ring (selection mode) |
+| Main · inspector (`Gym` selected) | Notes editor focused, its caret; ⇥ moves on with Notes still empty |
+| Main · inspector (nothing selected) | skipped (day summary has no control) |
+| Main · sidebar | no visible change — no row is selected; §1's table says "as built" (reported, not changed) |
+| Main · all-day row | first pill (`Abgabe: ER-…`) draws the selected ring |
+| Routines · canvas | block selected: its ring. Nothing selected: **nothing** — no cursor mode (A36, G-050) |
+| Routines · toggle row | inset stroke visible on an OFF toggle (`→` to `T`); **invisible on an ON toggle** (`focusRing` = `accent`; entry lands on `M`) — G-049 |
+| Re-sync popover | default button; ⎋/↩ (P2-B2) |
+| Menu-bar popover | NEXT `hoverOverlay` — render test; live in P2-RC |
+
+### Tests
+
+- `PopoverCaptureTests.nextFocusOverlay`: the popover rendered with NEXT
+  focused vs the first rest row focused differs across the next-item block
+  (≥ half its min height), NEXT-focused there is not the plain surface,
+  and unfocused NEXT is.
+- `FocusAvailabilityTests.inspectorWithoutFocusableContentIsSkipped`.
+- The live walk above; the edge-pixel check is P2-RC's.
+
+### Debugging notes
+
+- Temporary file logging (`kdebug`, written to the app's sandbox tmp; my
+  own uncommitted edits, removed — `grep kdebug` finds none) showed: ⇥ never
+  reached the Routines handlers while the probe's re-activation had raised
+  the main window (my probe's fault — it now clicks inside the Routines
+  window first); then the toggle row took focus and lost it at once
+  (nested focusable). A second `.focused` binding from outside the row also
+  did not hold, hence the focus request.
+
+### Verified
+
+- `-only-testing:KadenceTests`: **xcresult 599 passed / 0 failed** (597 +
+  2). Build: only the known `MonthGridView.swift:153` warning.
+  `generate-tokens --check`: up to date.
+- Fresh pre-flight before each: `check-routines-window.sh` **PASS**,
+  `check-conflict-apply-return.sh` **STOP** once (its guard: another app
+  came to the front mid-run, nothing sent) then **PASS** on a re-run,
+  `check-inspector-inset.sh` **PASS**, `check-block-click-selects.sh`
+  **PASS**, `check-resync-escape.sh` **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-049** (focused toggle invisible when on) and **G-050** (Routines
+  canvas cursor mode unspecified) opened; `// SPEC-GAP G-049` in
+  `WeekdayToggleRow.swift`.
+- DEVIATIONS **B35** resolved; **B38** logged and resolved; **A36** opened
+  (deferred on G-050).

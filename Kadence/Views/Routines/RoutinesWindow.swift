@@ -184,6 +184,12 @@ struct RoutinesWindow: View {
     /// selected — including the very first tap — since nothing else in this
     /// window claims keyboard focus by default.
     @FocusState private var canvasFocused: Bool
+    /// Task P2-SF1 — interactions.md §1 / §11.1: ⇥ moves between the canvas
+    /// and the editor inspector, landing on the inspector's weekday toggle
+    /// row (whose inset stroke shows focus). The system key loop didn't do
+    /// it: from the window's root, ⇥ went nowhere (found live).
+    @State private var inspectorEntryFocused = false
+    @State private var inspectorFocusRequest = 0
     /// layouts.md §8 → §1.1 (task P2-SF6): the editor inspector auto-collapses
     /// below 1040pt and comes back, as an overlay, only when the user opens
     /// it (⌥⌘I — routed here by `RoutinesInspectorToggle` while this window
@@ -278,6 +284,22 @@ struct RoutinesWindow: View {
                 HStack(spacing: 0) {
                     canvas
                         .frame(minWidth: 0, maxWidth: .infinity)
+                        // Task P2-SF1: the canvas — not the window's root —
+                        // is the focus target. With the root focusable, the
+                        // inspector's toggle row was a focusable INSIDE a
+                        // focusable, and SwiftUI handed focus straight back
+                        // to the root (found live), so ⇥ could never reach
+                        // it. Siblings, as the main window's regions are.
+                        .focusable()
+                        // interactions.md §1 / layouts.md §8 (amended
+                        // 2026-10-06, G-039; DEVIATIONS B35): no region
+                        // ring. macOS 26 drew one around the root's hosting
+                        // rect — the ~1px accent line on the window's outer
+                        // edges in every 2026-10-06 Routines frame. Focus
+                        // shows on the element (selection ring, option
+                        // card, the toggle row's stroke).
+                        .focusEffectDisabled()
+                        .focused($canvasFocused)
                     if isSplit && isInspectorVisible {
                         Rectangle()
                             .fill(Tokens.Color.Separator.region)
@@ -301,9 +323,10 @@ struct RoutinesWindow: View {
             // interactions.md §11.1/§5 — `⌫` deletes the selected block
             // immediately, no confirmation. Attached at this level (rather
             // than per-block) so it fires regardless of which weekday column
-            // the block was last clicked in.
-            .focusable()
-            .focused($canvasFocused)
+            // the block was last clicked in. The window's keys sit on this
+            // non-focusable root: a key pressed in a focused descendant (the
+            // canvas, the toggle row) bubbles up to them.
+            .onKeyPress(keys: [.tab]) { _ in cycleRegion() }
             .onKeyPress(keys: [.delete]) { _ in handleDelete() }
             // Task P2-T46: the conflict panel's keys (interactions.md §10.1).
             // P2-F16: `⌥←`/`⌥→` step the footer (layouts.md §10).
@@ -494,6 +517,26 @@ struct RoutinesWindow: View {
         canvasFocused = true
     }
 
+    /// ⇥ / ⇧⇥ (task P2-SF1): canvas ↔ the editor inspector's toggle row —
+    /// two regions, so both directions alternate. The inspector is a stop
+    /// only when it is showing and draws that row: the template summary
+    /// (nothing selected) or a selected time window. A selected block's
+    /// inspector has no control that takes key focus with keyboard
+    /// navigation off, and the conflict panel's focus is the option card,
+    /// which `↑`/`↓` drive from the canvas; in those cases ⇥ stays.
+    private func cycleRegion() -> KeyPress.Result {
+        let inspectorHasEntry = isInspectorVisible && activeRoutineConflict == nil
+            && (selectedWindow != nil || (selection == nil && selectedTemplate != nil))
+        guard inspectorHasEntry else { return .ignored }
+        if inspectorEntryFocused {
+            canvasFocused = true
+        } else {
+            canvasFocused = false
+            inspectorFocusRequest += 1
+        }
+        return .handled
+    }
+
     /// interactions.md §10.1 in the Routines window: `↑`/`↓` move and
     /// preview, `⎋` abandons, `↩` applies. Returns `.ignored` outside
     /// conflict mode so the window's other keys behave as before.
@@ -605,7 +648,9 @@ struct RoutinesWindow: View {
             }
             .background(Tokens.Color.Surface.inspector)
         } else if let selectedWindow {
-            TimeWindowInspectorView(window: selectedWindow, store: timeWindowStore)
+            TimeWindowInspectorView(window: selectedWindow, store: timeWindowStore,
+                                    focusRequest: inspectorFocusRequest,
+                                    onEntryFocusChange: { inspectorEntryFocused = $0 })
                 .id(selectedWindow.id)
         } else {
             RoutineInspectorView(
@@ -623,7 +668,9 @@ struct RoutinesWindow: View {
                 detachedInstances: detachedInstances,
                 onResync: { instances in
                     RoutineResync.apply(instances, store: EventStore(context: context, undo: undoStack))
-                })
+                },
+                focusRequest: inspectorFocusRequest,
+                onEntryFocusChange: { inspectorEntryFocused = $0 })
         }
     }
 
@@ -2031,6 +2078,9 @@ private struct RoutineInspectorView: View {
     /// Task P2-T44 — §13.7.3's scope and its one-step write.
     let detachedInstances: [Event]
     let onResync: ([Event]) -> Void
+    /// Task P2-SF1: ⇥ into the editor inspector lands on the toggle row.
+    var focusRequest = 0
+    var onEntryFocusChange: (Bool) -> Void = { _ in }
     @State private var isResyncPresented = false
     /// §13.4 (amended 2026-10-06, G-040): `⎋` closes the Re-sync popover
     /// wherever key focus is; see `EscapeKeyMonitor` for why a monitor.
@@ -2159,6 +2209,8 @@ private struct RoutineInspectorView: View {
             label("Weekdays")
             WeekdayToggleRow(
                 weekdays: orderedWeekdays,
+                focusRequest: focusRequest,
+                onFocusChange: onEntryFocusChange,
                 isOn: { template.activeWeekdays.contains($0) },
                 context: .routine,
                 onFlip: { weekday in
@@ -2325,6 +2377,9 @@ private struct RoutineInspectorView: View {
 private struct TimeWindowInspectorView: View {
     let window: TimeWindow
     let store: TimeWindowStore
+    /// Task P2-SF1: ⇥ into the editor inspector lands on the toggle row.
+    var focusRequest = 0
+    var onEntryFocusChange: (Bool) -> Void = { _ in }
 
     /// In-flight label text, seeded from `window.label` when this view
     /// appears (and, via the parent's `.id(selectedWindow.id)`, freshly
@@ -2400,6 +2455,8 @@ private struct TimeWindowInspectorView: View {
             label("Weekdays")
             WeekdayToggleRow(
                 weekdays: orderedWeekdays,
+                focusRequest: focusRequest,
+                onFocusChange: onEntryFocusChange,
                 isOn: { window.weekdays.contains($0) },
                 context: .window,
                 onFlip: { weekday in

@@ -103,10 +103,15 @@ struct MenuBarPopoverView: View {
     /// menu bar can't be set to, so `KadenceTests/PopoverCaptureTests.swift`
     /// renders this same view with them. Swift note: `State(initialValue:)`
     /// is how an initializer seeds an `@State` property.
-    init(initialNow: Date = Date(), initialSnooze: SnoozeConfirmation? = nil) {
+    init(initialNow: Date = Date(), initialSnooze: SnoozeConfirmation? = nil, initialFocusIndex: Int = 0) {
         _now = State(initialValue: initialNow)
+        _focusIndex = State(initialValue: initialFocusIndex)
+        self.initialFocusIndex = initialFocusIndex
         _snoozeConfirmation = State(initialValue: initialSnooze)
     }
+    /// Where focus starts on every open: NEXT (0). Only the render tests
+    /// pass another index (P2-SF1's NEXT-focus check).
+    private let initialFocusIndex: Int
     @State private var isPointerInside = false
     @State private var revertTask: Task<Void, Never>?
     /// See the `.focused($isKeyFocused)`/`.onAppear` pair below for why this
@@ -169,10 +174,15 @@ struct MenuBarPopoverView: View {
         // out of scope for the whole §12 keyboard table per P2-T25's own scope
         // note, and remains so here); see `DEVIATIONS.md`.
         .focusable()
+        // interactions.md §1 / §12 (amended 2026-10-06, G-039): no ring
+        // around the popover's root — it showed as a ~1px accent line on
+        // the live popover's edge. The `hoverOverlay` behind the focused
+        // row (NEXT included) is the popover's only focus indicator.
+        .focusEffectDisabled()
         .focused($isKeyFocused)
         // interactions.md §12 (amended 2026-10-05): key focus on EVERY open,
         // click or keyboard — now spec, no longer a deviation.
-        .onAppear { isKeyFocused = true; focusIndex = 0 }
+        .onAppear { isKeyFocused = true; focusIndex = initialFocusIndex }
         // The whole keyboard table (task P2-F18), decided by the pure
         // `MenuBarPopoverKeys`.
         .onKeyPress(keys: [.return, .upArrow, .downArrow, .escape]) { press in
@@ -246,7 +256,17 @@ struct MenuBarPopoverView: View {
                 }
                 .padding(.leading, Tokens.Spacing.sm)
             }
-            .frame(minHeight: Tokens.Size.popoverNextBlockMinHeight, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: Tokens.Size.popoverNextBlockMinHeight, alignment: .leading)
+            // interactions.md §12 (amended 2026-10-06): while NEXT is focused
+            // (every open starts there), `hoverOverlay` behind the next-item
+            // block's full width at `radius.card` — the rest rows' focus
+            // treatment, so the popover has one focus vocabulary.
+            .background {
+                if focusIndex == 0 {
+                    RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
+                        .fill(Tokens.Color.Interactive.hoverOverlay)
+                }
+            }
 
             actionRow(next: next, isLate: isLate)
         }

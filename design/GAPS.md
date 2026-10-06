@@ -2167,3 +2167,38 @@ carries every title). **Stays OPEN** until built and captured.
   Phase 4 rule must keep.
 - **G-003** — unchanged (contrast checker; not a Phase 2 condition).
 - **G-048** — deferred, above.
+
+## 2026-10-06 — Phase 2 final run (coding agent): gaps found in P2-SF1's ⇥ walk
+
+### G-049 — OPEN. `layouts.md` §8.1 (focused toggle) / `tokens.json` `color.interactive.focusRing`.
+
+**Where it bit:** P2-SF1's live ⇥ walk of the Routines window. ⇥ into the editor
+inspector focuses the weekday toggle row on its first toggle in display order —
+`M`, which is **on** in `Daily routine`. The focused toggle's inset stroke is
+`color.interactive.focusRing`; an on toggle is filled with
+`color.interactive.accent`. Both tokens are the same value (light `#0A6CFF`,
+dark `#4C9BFF`), so the stroke is drawn but cannot be seen on any on toggle
+(`M`, `W`, `F` here). On an off toggle it shows (`→` to `T`: visible). So on
+entry, and on every active weekday, the row shows no focus — which
+`interactions.md` §1 calls a defect.
+
+**Question:** what marks the focused toggle when it is on? (A different stroke
+colour on on-toggles, an outset, a stroke in `text.onSolid`, …) A value is
+needed; the coding agent may not pick one. **Placeholder:** unchanged
+(`focusRing` on both), marked `// SPEC-GAP G-049` in `WeekdayToggleRow.swift`.
+
+### G-050 — OPEN. `interactions.md` §1 table (Routines canvas) vs §11.1.
+
+**Where it bit:** P2-SF1's ⇥ walk. §1's table says the Routines canvas shows
+focus by "cursor mode's time cursor … or selection mode's §6 selected ring",
+and "focus entering the grid with nothing selected enters cursor mode, so the
+cursor is always drawn". The Routines canvas has never had a cursor mode (no
+task built one), so focused with nothing selected it shows nothing.
+
+**Why the coding agent did not build it:** the main grid's cursor is "across the
+focused day column" and its column follows the day; the Routines window has no
+focused day, and §11.1 says `←` `→` "do nothing here" (they page by date in the
+main window). Which weekday column holds the cursor on entry, whether and how it
+moves between columns, and what `↩`/typing does at it (the main grid creates an
+event there; §11.1 routes block creation through the template) are all
+unspecified. **Placeholder:** none drawn; logged as DEVIATIONS A36.

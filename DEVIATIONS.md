@@ -892,6 +892,14 @@ P2-T48 judgement calls that need no marker, because no value was invented:
 
 ### Canvas
 
+- **A36 — interactions.md §1 table (amended 2026-10-06). The Routines
+  canvas has no cursor mode.** *(new 2026-10-06, task P2-SF1's ⇥ walk;
+  blocked on GAPS G-050.)* Focused with nothing selected, the Routines canvas
+  draws nothing; §1 says focus entering it enters cursor mode. Not built:
+  which weekday column holds the cursor, how it moves (§11.1 makes `←`/`→`
+  do nothing here) and what creation at it means are unspecified. With a
+  block selected, focus shows as its selected ring.
+
 - **A34 — components.md §7. A window label scrolled past its top edge does
   not pin to the top of the visible region.** *(new 2026-10-06, P2-HK; a
   Phase 1 rule never built and never logged until the 2026-10-05 review;
@@ -1798,8 +1806,16 @@ Still open, all re-checked against the current spec text this session:
   elsewhere in the window closes it. `Scripts/capture-p2f20.sh` works around
   it that way.
 
-- **B35 — interactions.md §1 / layouts.md §8. The Routines window draws a
-  1px accent line at its outer leading and trailing edges.** *(new
+- ~~**B35 — interactions.md §1 / layouts.md §8. The Routines window draws a
+  1px accent line at its outer leading and trailing edges.**~~ **Resolved
+  2026-10-06, task P2-SF1** (interactions.md §1 amended 2026-10-06, G-039).
+  It was the system focus ring of the window's root, which was
+  `.focusable()`. The focus target is now the canvas alone (a sibling of the
+  editor inspector, as the main window's regions are) with
+  `.focusEffectDisabled()`; the weekday toggle row and the menu-bar
+  popover's root have their rings disabled too (the popover's ~1px line,
+  sampled `#8DBBFB` by the re-review, was the same thing). Edge check: P2-RC.
+  *(was:)* *(new
   2026-10-06, seen in every P2-F20 Routines frame; not in its scope.)*
   Pixel column 0 and the last column of each `screencapture -l` frame are
   ≈ `#80B3FA` (light) top to bottom; the main window's frames have none.
@@ -1835,6 +1851,22 @@ Still open, all re-checked against the current spec text this session:
   explicit choice survives a resize. layouts.md §8 gives this window no
   toolbar inspector button, so none was added. `check-routines-window.sh`
   now asserts collapsed at 1000pt, then ⌥⌘I opens it.
+
+- ~~**B38 — interactions.md §1 (amended 2026-10-06). Regions took ⇥ focus
+  and showed none.**~~ **Resolved 2026-10-06, task P2-SF1** *(found in the
+  task's ⇥ walk; logged and resolved in it).* Main window: the inspector
+  container was the focus target in normal mode (nothing drawn); the
+  all-day row's focused pill drew no ring. Routines window: ⇥ went nowhere
+  (focusable root nesting the toggle row; SwiftUI handed focus back to the
+  root). Now: the main inspector is a stop only in conflict mode (option
+  card) or with a selected event, where ⇥ lands on its first control that
+  accepts key focus — `Done` with keyboard navigation on, the Notes editor
+  with it off (⇥ there leaves the region, no tab typed); the day summary
+  has no control, so ⇥ skips it. The all-day row's focused pill takes §6's
+  selected ring and `↑↓←→` move it. The Routines window cycles canvas ↔ the
+  editor inspector's weekday toggle row. Still short of §1's table: the
+  focused toggle's stroke is invisible on an ON toggle (GAPS G-049), and
+  the Routines canvas has no cursor mode (A36 / G-050).
 
 ---
 

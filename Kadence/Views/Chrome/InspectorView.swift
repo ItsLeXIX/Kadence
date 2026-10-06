@@ -8,6 +8,7 @@
 
 import SwiftUI
 import SwiftData
+import AppKit
 
 struct InspectorView: View {
     let event: Event?
@@ -30,6 +31,20 @@ struct InspectorView: View {
     /// instance's relation to its template. `nil` hides the line.
     var routineStatus: RoutineInstance.Status? = nil
     var onRevertToRoutine: () -> Void = {}
+    /// interactions.md §1 (amended 2026-10-06, task P2-SF1): "⇥ in focuses
+    /// its first control that accepts key focus". The main window's region
+    /// binding is attached to that control, so moving focus to `.inspector`
+    /// focuses it directly. `nil` (renders, tests) attaches nothing.
+    /// Swift note: a `FocusState.Binding` is a reference to another view's
+    /// focus state, like passing a `ref` to it.
+    var focusRegion: FocusState<CalendarState.FocusRegion?>.Binding? = nil
+    /// `⇥` from inside the inspector leaves the region (§1).
+    var onTab: (KeyPress) -> KeyPress.Result = { _ in .ignored }
+
+    /// Which control is first to accept key focus. With macOS keyboard
+    /// navigation on, buttons do, so `Done`; with it off they never take
+    /// focus, so the first is the Notes editor.
+    private var buttonsTakeFocus: Bool { NSApplication.shared.isFullKeyboardAccessEnabled }
 
     var body: some View {
         ScrollView {
@@ -101,6 +116,7 @@ struct InspectorView: View {
             label("Status")
             HStack(spacing: Tokens.Spacing.sm) {
                 Button(event.status == .done ? "Not done" : "Done") { store.toggleDone(event) }
+                    .inspectorEntry(focusRegion, when: buttonsTakeFocus)
                 Button(event.status == .skipped ? "Unskip" : "Skip") { store.toggleSkipped(event) }
             }
             if !event.isMovable {
@@ -121,6 +137,10 @@ struct InspectorView: View {
                 .scrollContentBackground(.hidden)
                 .background(Tokens.Color.Surface.canvas)
                 .clipShape(RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous))
+                .inspectorEntry(focusRegion, when: !buttonsTakeFocus)
+                // ⇥ leaves the region instead of typing a tab (§1: "⇥
+                // always leaves the region").
+                .onKeyPress(keys: [.tab]) { onTab($0) }
         }
     }
 
@@ -230,5 +250,20 @@ struct InspectorView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE d MMMM"
         return formatter
+    }
+}
+
+extension View {
+    /// Attaches the main window's region focus to this control when it is
+    /// the inspector's first control that accepts key focus (task P2-SF1).
+    /// Swift note: `@ViewBuilder` lets an `if` return two different view
+    /// types from one function — the compiler wraps them in one type.
+    @ViewBuilder
+    func inspectorEntry(_ binding: FocusState<CalendarState.FocusRegion?>.Binding?, when isEntry: Bool) -> some View {
+        if let binding, isEntry {
+            focused(binding, equals: .inspector)
+        } else {
+            self
+        }
     }
 }

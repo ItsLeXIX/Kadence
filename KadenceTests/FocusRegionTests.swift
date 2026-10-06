@@ -113,6 +113,23 @@ struct FocusAvailabilityTests {
         #expect(available == [.sidebar, .allDayRow, .grid, .inspector])
     }
 
+    /// Task P2-SF1 (interactions.md §1, amended 2026-10-06): a region that
+    /// takes focus must show it. The inspector's day summary has no control,
+    /// so ⇥ skips the inspector there; with a selected event or a conflict
+    /// it is a stop (its first control / the option card shows focus).
+    @Test("⇥ skips a visible inspector that has nothing to show focus on")
+    func inspectorWithoutFocusableContentIsSkipped() {
+        let state = CalendarState()
+        state.isInspectorVisible = true
+        state.setSidebarVisible(true, isUserAction: true)
+        #expect(!state.availableFocusRegions(allDayRowVisible: false, inspectorTakesFocus: false).contains(.inspector))
+        #expect(state.availableFocusRegions(allDayRowVisible: false, inspectorTakesFocus: true).contains(.inspector))
+        let order = CalendarState.FocusRegion.next(
+            after: .grid, backwards: false,
+            available: state.availableFocusRegions(allDayRowVisible: false, inspectorTakesFocus: false))
+        #expect(order == .sidebar, "grid → sidebar, past the inspector")
+    }
+
     @Test("The toolbar is not a ⇥ stop in Phase 1")
     func toolbarExcluded() {
         // Deliberate and documented in STATUS.md: SwiftUI toolbar items are not
