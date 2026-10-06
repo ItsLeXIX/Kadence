@@ -73,10 +73,10 @@ enum RoutineResync {
         count == 1 ? "Re-sync 1 instance" : "Re-sync \(count) instances"
     }
 
-    /// The popover's rows: up to six dates, then `+N` for the rest.
-    /// Dates read like interactions.md §11.2's example, `Tue 8`: the
-    /// calendar's short weekday symbol (the same source as `Add Sat`) and the
-    /// day of the month. The pair's own day, not the instance's current
+    /// The popover's rows: up to six dates, then `+N more` for the rest
+    /// (components.md §13.4, amended 2026-10-05, closes G-034 — "with `more`,
+    /// matching §15.2's `+N more`"). Dates read `Tue 6`:
+    /// `shortStandaloneWeekdaySymbols` and the day of the month. The pair's own day, not the instance's current
     /// start, which a detaching move may have changed.
     static func dateRows(
         for instances: [Event], calendar: Calendar = .current
@@ -84,10 +84,10 @@ enum RoutineResync {
         let days = instances.compactMap { RoutineEngine.parse(externalID: $0.externalID, calendar: calendar)?.day }
         let labels = days.map { day in
             let weekday = calendar.component(.weekday, from: day)
-            return "\(calendar.shortWeekdaySymbols[weekday - 1]) \(calendar.component(.day, from: day))"
+            return "\(calendar.shortStandaloneWeekdaySymbols[weekday - 1]) \(calendar.component(.day, from: day))"
         }
         let rest = labels.count - maxListedDates
-        return (Array(labels.prefix(maxListedDates)), rest > 0 ? "+\(rest)" : nil)
+        return (Array(labels.prefix(maxListedDates)), rest > 0 ? "+\(rest) more" : nil)
     }
 
     /// Re-sync: every instance in `instances` back to the template's current

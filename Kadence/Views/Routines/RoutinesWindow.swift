@@ -2064,9 +2064,8 @@ private struct RoutineInspectorView: View {
                         .foregroundStyle(Tokens.Color.Text.primary)
                 }
                 if let overflow = rows.overflow {
-                    // SPEC-GAP (design/GAPS.md G-034): §13.4 gives `+N` but
-                    // not its type or colour; `popoverRow` in
-                    // `color.text.secondary` is the placeholder.
+                    // components.md §13.4 (amended 2026-10-05, G-034):
+                    // `+2 more` in `popoverRow` / `color.text.secondary`.
                     Text(overflow)
                         .typeStyle(.popoverRow)
                         .foregroundStyle(Tokens.Color.Text.secondary)
@@ -2079,8 +2078,10 @@ private struct RoutineInspectorView: View {
             // The primary action: ↩ triggers it, and macOS draws it prominent.
             .keyboardShortcut(.defaultAction)
         }
-        // SPEC-GAP (design/GAPS.md G-034): the popover's insets aren't
-        // specified; these are the menu bar popover's (`MenuBarPopoverView`).
+        // components.md §13.4 (amended 2026-10-05, G-034): insets
+        // `spacing.lg` horizontal, `spacing.md` vertical, as built. The
+        // `.popover` above is a system popover (`NSPopover`, its own window),
+        // so it is never clipped by the Routines window's edge.
         .padding(.horizontal, Tokens.Spacing.lg)
         .padding(.vertical, Tokens.Spacing.md)
         .frame(width: Tokens.Size.resyncPopoverWidth, alignment: .leading)

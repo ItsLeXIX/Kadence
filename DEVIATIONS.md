@@ -715,11 +715,6 @@ removed; `increaseContrast` parameter, GAPS G-003).
 placeholders (three behavioural, two accessibility strings), all marked
 `// SPEC-GAP` in `Kadence/`. Before P2-T39 this section read "None".
 
-- **C9 — the Re-sync popover's `+N` row and insets (GAPS G-034).** *(new
-  2026-10-05, task P2-T44.)* `+N` in `popoverRow` / `color.text.secondary`;
-  insets borrowed from the menu bar popover.
-
-
 
 Two P2-T39 judgement calls that need no marker, because no value was invented:
 
@@ -1765,6 +1760,10 @@ stays on record. Moved here by task P2-T38, 2026-10-01.
   `75 min later`, `90 min → 30 min · 60 min lost`; the sentence says `N h MM`
   at or above 60. The tables are built, through one formatter function, so
   either ruling is a one-line change.
+
+- ~~**C9 — the Re-sync popover's `+N` row and insets (GAPS G-034).**~~ **Resolved by `design/GAPS.md` G-034 — CLOSED (2026-10-05), written into `components.md` §13.4; retired by task P2-F17. Changed:** the overflow row reads `+N more` (built: `+N`), dates use `shortStandaloneWeekdaySymbols`; insets and the `popoverRow` / `text.secondary` styling stand as built. Both `SPEC-GAP` markers are gone. *Original entry:* *(new
+  2026-10-05, task P2-T44.)* `+N` in `popoverRow` / `color.text.secondary`;
+  insets borrowed from the menu bar popover.
 
 ## Not a deviation — worth stating
 

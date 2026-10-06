@@ -105,7 +105,7 @@ struct ResyncScopeTests {
         #expect(RoutineResync.actionTitle(3) == "Re-sync 3 instances")
     }
 
-    @Test("Popover rows: real dates, up to six, then +N")
+    @Test("Popover rows: real dates, up to six, then `+2 more` (G-034, P2-F17)")
     func popoverOverflow() throws {
         let (store, context, _) = try makeStore()
         let (template, _) = gym(store)
@@ -113,7 +113,7 @@ struct ResyncScopeTests {
 
         let rows = RoutineResync.dateRows(for: scope(template, context), calendar: calendar)
         #expect(rows.dates == ["Tue 6", "Wed 7", "Thu 8", "Fri 9", "Sat 10", "Sun 11"])
-        #expect(rows.overflow == "+2")
+        #expect(rows.overflow == "+2 more")
 
         let six = RoutineResync.dateRows(for: Array(scope(template, context).prefix(6)), calendar: calendar)
         #expect(six.dates.count == 6)

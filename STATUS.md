@@ -7125,3 +7125,44 @@ queue resumes at **P2-F16**.
   used `git checkout -- <file>`, which the run's rules forbid. It touched
   only that file's uncommitted change (now identical to HEAD); no branch,
   commit or other file was affected.
+
+## 68. P2-F17 — Re-sync popover as a system popover (components.md §13.4, amended 2026-10-05; G-034; PHASE2-REVIEW.md §6 item 17)
+
+### Finding
+
+- The popover was already a SwiftUI `.popover(isPresented:arrowEdge: .bottom)`
+  on the `Re-sync` button — `NSPopover`, its own window — not an in-window
+  overlay. The 2026-10-05 frame was taken with `screencapture -l <window id>`
+  (P2-T48's script), which captures one window; a popover hanging past the
+  Routines window's edge is a second window, so the frame could not show it
+  whole. Item 20 must capture the window's real bounds **plus** the popover
+  (`-R` of their union), not `-l`. This could not be confirmed live: the
+  screen was locked (below).
+
+### Built
+
+- `RoutineResync.dateRows`: the overflow row reads `+2 more` (was `+2`), and
+  dates use `shortStandaloneWeekdaySymbols` (`Tue 6`), both per §13.4.
+- The two G-034 `SPEC-GAP` markers in the popover are replaced by §13.4
+  references (insets `spacing.lg` / `spacing.md`, overflow `popoverRow` /
+  `text.secondary`, as built). No `SPEC-GAP` marker remains in `Kadence/`.
+
+### Tests
+
+- `ResyncTests.popoverOverflow` updated: eight detached instances → six dates
+  (`Tue 6` … `Sun 11`) then `+2 more`; exactly six shows no overflow row.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 559
+  passed / 0 failed** (unchanged count; one test's expectation updated).
+- `generate-tokens --check`: up to date.
+- **Pre-flight: screen locked.** The three UI scripts and the whole-popover
+  screenshot were **not run** (skipped per the run's rules).
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **C9** → "Resolved — retired by a spec ruling" (changed: `+N
+  more`). The "clipped Re-sync popover" entry is written in P2-HK.
+  Recapture of 4 is item 20's.
