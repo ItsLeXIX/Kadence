@@ -2266,3 +2266,24 @@ first block 05:30 → **04:00** (was 04:30).
 - **G-003** — unchanged (contrast checker). 57 pairs now declared.
 - **G-048** — deferred (A35).
 
+
+### G-053 — OPEN (2026-10-07, coding agent, task P2-C5). `PHASE2-REVIEW.md` "Closeout" CF5 acceptance (edge check) vs `components.md` §14.4 / §14.6 (the previewed canvas's inset accent border).
+
+**Where it bit:** CF5's acceptance says "in every Routines frame, no pixel in
+the outermost 2px band matches `accent`/`focusRing` (sampled, as SF1)". Item
+16's frame, `screenshots/2/template-conflict-panel-p2c.png`, is a preview
+frame: §14.6 → §14.4 draws the inset `size.previewCanvasBorder` border in
+`color.interactive.accent` round the canvas while an option is previewed. The
+Routines canvas starts at the window's left edge and runs to its bottom edge,
+so the border's left and bottom sides lie in the window's outer 2px band:
+`Scripts/check-frame-edges.py` flags 5980 `#4C9BFF` (dark accent) pixels, every
+one of them the preview border (its right side, at x 1576–1579 next to the
+inspector, is inside the window). No focus ring is drawn. The frames that
+show no preview (items 1, 3/13, 4, 15 and CF3's cursor frame) pass.
+
+**Question:** does CF5's edge rule exclude the §14.4 preview border (it marks a
+hypothetical, and it is what item 16 is filed to show), or should the border
+not reach the window's edges (an inset from the window edge is a layout value
+the coding agent may not pick)? **Placeholder:** none — the build is
+unchanged; the frame is filed as the build draws it, and the edge check's
+result for it is reported as a failing acceptance line, not waived.

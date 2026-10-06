@@ -1106,7 +1106,7 @@ The other Routines-window p2f20 frames (items 1, 3 wide, 4, 15, 16) predate
 SF1–SF4 (they show the edge line, B35, and no gutter treatment); the
 re-review did not ask for them again.
 
-### Every §17 item — current evidence (2026-10-06)
+### Every §17 item — current evidence (2026-10-06) — *superseded 2026-10-07 by the closeout table at the end of this file*
 
 | §17 item | Current file(s) | Status |
 |---|---|---|
@@ -1128,3 +1128,81 @@ re-review did not ask for them again.
 | 16 | `template-conflict-panel-p2f20.png` | recaptured |
 | 17 | `conflict-single-option-p2f20.png` | recaptured |
 | 18 | `conflict-skip-today-preview-p2f20.png` | recaptured |
+
+## Batch 11 — Phase 2 closeout recapture (tasks P2-C1 … P2-C6, 2026-10-07)
+
+`design/PHASE2-REVIEW.md` "Closeout — 2026-10-07" CF5. Everything below is
+from one build — P2-C1 … P2-C4 plus the extra item P2-C6 (`d9a3752`) — and
+every frame was opened and checked by eye against §17.1 / §17.2 before it
+was filed. Live frames: `Scripts/capture-p2c.sh A` and `… B`, a fresh
+pre-flight before each, fresh store, input only to Kadence through the
+guard, **appearance: dark**. Renders: `PopoverCaptureTests` (light) and
+`WeekdayToggleFocusTests` (light and dark), `TEST_RUNNER_KADENCE_CAPTURE_DIR`.
+
+§17.2 rule 4: the Routines canvas is focused when the window opens, and since
+P2-C3 a focused canvas with nothing selected draws its cursor. Before items 1,
+3/13, 4 and 15 the script presses ⎋ (cursor mode → unfocused, interactions.md
+§1) and checks the canvas reports no cursor value; only `routines-cursor-`
+shows the cursor.
+
+| File | §17 item(s) / task | Shows |
+|---|---|---|
+| `routine-template-flexibility-p2c.png` | 1 | Gym 07:00, Morning review 08:15 and Reading 21:00 in one frame with their flexibility rails (fixed / shiftable / droppable). Scrolled slightly by the script (07:00 near the top); nothing selected, no cursor |
+| `inactive-weekdays-wide-p2c.png` | 3 (Blocks half), 13 (wide) | 1051pt (the screen's clamp; ≥ 1040, inspector docked), Blocks mode, opens at **06:00 by itself**; four notes `Not in this routine` + `Add Tue/Thu/Sat/Sun`; green underlines Mon/Wed/Fri; gutter painted under Lunch and Sleep, hatched under Low energy; nothing selected, no cursor |
+| `resync-popover-p2c.png` | 4 | `3 instances edited` + `Re-sync`, the popover (`Wed 7`, `Fri 9`, `Mon 12`, `Re-sync 3 instances` default); canvas at 06:00 by itself; nothing selected, no cursor. `-R` union of the window and the popover, so a sliver of the main window shows at the top-left corner |
+| `routine-refusal-errands-p2c.png` | 15 | Errands selected (the item asks for it), inspector `Will not run — inside Lunch (protected) on Mon, Wed, Fri`; opens at **06:00 by itself** (shot before item 1's scroll — the first closeout take, after it, sat at 00:30 and was replaced) |
+| `template-conflict-panel-p2c.png` | 16, 8 (Routines half) | Stepped to with the footer from the needs-attention row (`14 of 14`); recommendation `Shift Errands 30 min later in the routine` focused and previewed: ghosts at 12:30 and dashed twins at 13:00 in Mon/Wed/Fri, canvas preview border. Opens at **06:00 by itself** — only since P2-C6 (DEVIATIONS B39): the first take, like `-p2f20`, sat at 00:00 |
+| `routines-cursor-p2c.png` | CF3 (G-050) | Live, Blocks mode, nothing selected, ⇥ to the inspector and ⇥ back onto the canvas: one 1pt accent line at 07:00 across Mon–Sun (not the gutter), `07:00` in accent in the gutter where the hour label was; canvas AX value `07:00` |
+| `snooze-same-day-p2c.png` | 12 (same-day) | Render: `now` 17:10 → NEXT `Training 17:45 – 18:30` above `Moved to 17:45` + `Undo`, one line, 28pt |
+| `snooze-next-day-p2c.png` | 12 (next-day) | Render: `now` 23:40, no windows → NEXT `00:05 – 01:35` above `Moved to tomorrow 00:05` + `Undo` |
+| `snooze-refused-p2c.png` | 12 (refused) | Render, with Sleep: NEXT unchanged `23:50 – 01:20` above **two lines** `Not moved — 00:05 is inside` / `Sleep (protected)`, no `Undo`, **no `…`** |
+| `snooze-refused-unlabelled-p2c.png` | 12 (refused, unlabelled) | Render, Sleep's label empty: `Not moved — 00:05 is inside` / `a protected window`, no `Undo`, no `…` |
+| `weekday-toggle-focus-on-{light,dark}-p2c.png` | CF2 (G-049) | Render of the editor inspector's row (`Daily routine`, Mon-first), `M` (on) focused: 2pt stroke inset 1pt in `focusRingOnAccent` — sampled `#FFFFFF` light / `#0C0C0D` dark |
+| `weekday-toggle-focus-off-{light,dark}-p2c.png` | CF2 (G-049) | The same row, `T` (off) focused: stroke `focusRing` — sampled `#0A6CFF` light / `#4C9BFF` dark |
+
+**Edge check** (`Scripts/check-frame-edges.py`, the SF1 rule made a script;
+it flags the old `inactive-weekdays-windows-mode-p2f20.png` and clears its
+`-p2f25` successor): `routines-cursor-`, `resync-popover-`,
+`inactive-weekdays-wide-`, `routine-template-flexibility-`,
+`routine-refusal-errands-p2c.png` — **no accent pixel** in the outer 2px band.
+`template-conflict-panel-p2c.png` — **flagged**: 5980 `#4C9BFF` px, every one
+of them the §14.4 canvas preview border (its left side at x 0–1 and its
+bottom side along the last two rows coincide with the window edge; its right
+side runs at x 1576–1579, inside the window, beside the inspector). No focus
+ring. Logged as **GAPS G-053** for a ruling; the frame is the build as it is.
+
+**Retired by P2-C5** (`git rm`): `routine-template-flexibility-p2f20.png`,
+`inactive-weekdays-wide-p2f20.png`, `resync-popover-p2f20.png`,
+`routine-refusal-errands-p2f20.png`, `template-conflict-panel-p2f20.png`,
+`snooze-same-day-p2t48.png`, `snooze-next-day-p2f25.png`,
+`snooze-refused-p2f25.png`, and the `-p2f20` frames with `-p2f25`
+successors: `inactive-weekdays-780-p2f20.png`,
+`inactive-weekdays-windows-mode-p2f20.png`,
+`popover-{normal,late,empty,overflow,live}-p2f20.png`. Earlier sections of
+this file that name them are history.
+
+### Every §17 item — current evidence (2026-10-07, Phase 2 closeout)
+
+| §17 item | Current file(s) |
+|---|---|
+| 1 | `routine-template-flexibility-p2c.png` |
+| 2 | `inactive-weekdays-windows-mode-p2f25.png` |
+| 3 | `inactive-weekdays-wide-p2c.png` (Blocks half) · `inactive-weekdays-windows-mode-p2f25.png` (Windows half) |
+| 4 | `resync-popover-p2c.png` |
+| 5 | `detached-instance-inspector-p2f20.png` |
+| 6 | `conflict-panel-two-options-p2f20.png` · `conflict-panel-three-options-p2f20.png` |
+| 7 | `conflict-panel-three-options-p2f20.png` |
+| 8 | `conflict-panel-three-options-p2f20.png` (main window) · `template-conflict-panel-p2c.png` (Routines window) |
+| 9 | `needs-attention-count-{0,1,12}.png` |
+| 10 | `status-item-{normal-full,normal-clipped,late-full,late-clipped,empty,degraded-110,degraded-80}-p2t47.png` (renders) · `status-item-live-p2f20.png` (live crop) |
+| 11 | `popover-{normal,late,empty,overflow}-p2f25.png` (renders) · `popover-live-p2f25.png` (live crop) · `popover-own-window-p2f25.png` (edge check) |
+| 12 | `snooze-same-day-p2c.png` · `snooze-next-day-p2c.png` · `snooze-refused-p2c.png` · `snooze-refused-unlabelled-p2c.png` (renders, one build) |
+| 13 | `inactive-weekdays-wide-p2c.png` · `inactive-weekdays-780-p2f25.png` |
+| 14 | `inactive-weekdays-windows-mode-p2f25.png` |
+| 15 | `routine-refusal-errands-p2c.png` |
+| 16 | `template-conflict-panel-p2c.png` |
+| 17 | `conflict-single-option-p2f20.png` |
+| 18 | `conflict-skip-today-preview-p2f20.png` |
+
+Closeout frames outside the 18 items: `routines-cursor-p2c.png` (CF3) and
+`weekday-toggle-focus-{on,off}-{light,dark}-p2c.png` (CF2).

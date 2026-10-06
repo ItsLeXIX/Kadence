@@ -8593,3 +8593,52 @@ to date at every task. Build: only `MonthGridView.swift:153`.
 - Verify: xcresult **622 passed / 0 failed**; build warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the four UI scripts and `check-routines-cursor.sh` **PASS**.
+
+## 98. P2-C5 — closeout recapture and INDEX.md (components.md §17.1, §17.2; DECISIONS 2026-10-05 evidence rules)
+
+- One build for everything: P2-C1 … P2-C4 + P2-C6 (`d9a3752`). New
+  `Scripts/capture-p2c.sh A|B` (one run per invocation, so each has its own
+  pre-flight; helpers from check-routines-cursor.sh). §17.2 rule 4: the
+  canvas is focused on open and draws its cursor (P2-C3), so before items 1,
+  3/13, 4 and 15 the script presses ⎋ (cursor → unfocused) and checks the
+  canvas reports no value; only `routines-cursor-` shows the cursor.
+- New frames (all opened and checked by eye; live = dark): 
+  `routine-template-flexibility-p2c.png` (1), `inactive-weekdays-wide-p2c.png`
+  (3 Blocks / 13 wide), `resync-popover-p2c.png` (4),
+  `routine-refusal-errands-p2c.png` (15), `template-conflict-panel-p2c.png`
+  (16 / 8 Routines), `routines-cursor-p2c.png` (CF3);
+  renders `snooze-{same-day,next-day,refused,refused-unlabelled}-p2c.png`
+  (12), `weekday-toggle-focus-{on,off}-{light,dark}-p2c.png` (CF2).
+- Taken twice: item 15 (first take shot after item 1's scroll-back, sat at
+  00:30 — the script now shoots it first) and item 16 (first take at 00:00 —
+  a build defect, fixed as P2-C6, B39). Items 3/13, 4, 15 and 16 now open at
+  06:00 by themselves; item 1 shows Gym, Morning review and Reading together;
+  nothing selected unless asked; item 12's refused rows show no `…`; gutter
+  painted under Lunch and Sleep, hatched under Low energy.
+- Edge check, now `Scripts/check-frame-edges.py` (flags the old B35 frame,
+  clears its successor): five Routines frames **clean**;
+  `template-conflict-panel-p2c.png` **flagged** — 5980 `#4C9BFF` px, all the
+  §14.4 preview border (left side x 0–1, bottom rows; right side x 1576–1579
+  inside the window). No focus ring. **GAPS G-053 opened** (CF5's edge rule
+  vs the specified preview border). Build unchanged, frame filed as is.
+- `git rm` (15, all checked tracked with successors in place): the five
+  `-p2f20` Routines frames, `snooze-same-day-p2t48.png`,
+  `snooze-{next-day,refused}-p2f25.png`, `inactive-weekdays-{780,windows-mode}-p2f20.png`,
+  `popover-{normal,late,empty,overflow,live}-p2f20.png`.
+- INDEX.md: Batch 11 (frames, method, edge check, retirements) and a new
+  "Every §17 item — current evidence (2026-10-07)" table; every file it
+  names was checked to exist. The 2026-10-06 table is marked superseded.
+- DEVIATIONS: A36 resolved in P2-C3 (no new A-entry); B39 opened and
+  resolved in P2-C6.
+- **Re-sync focus return (asked of this run):** not observable here.
+  Keyboard navigation is **off** for apps on this Mac at run time:
+  `AppleKeyboardUIMode` = 1 (bit 2 clear), and live, ⇥ into the main
+  inspector with an event selected lands on the Notes text area, not
+  `Done` — the "on" behaviour recorded in P2-SF1. `check-resync-escape.sh`
+  **PASS** in its "off" branch: ⎋ closes the popover from the button and
+  from inside the list, nothing written, focus back where it was (the canvas
+  header text, as before opening); ↩ re-syncs. Focus *on* `Re-sync` stays
+  unobserved; System Settings was not touched (outside Kadence). Not a
+  failure, so no extra fix item.
+- Verify: xcresult **622 passed / 0 failed**; tokens `--check` up to date;
+  fresh pre-flight before each: the four UI scripts **PASS**.
