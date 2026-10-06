@@ -184,6 +184,11 @@ struct RoutinesWindow: View {
     /// selected — including the very first tap — since nothing else in this
     /// window claims keyboard focus by default.
     @FocusState private var canvasFocused: Bool
+    /// Task P2-C3 — interactions.md §1 (amended 2026-10-07, G-050): the
+    /// canvas cursor's time, minutes from midnight. Kept for the whole window
+    /// session (not cleared when cursor mode ends): the next entry restores
+    /// it if it is still in view.
+    @State private var cursorMinute: Int?
     /// Task P2-SF1 — interactions.md §1 / §11.1: ⇥ moves between the canvas
     /// and the editor inspector, landing on the inspector's weekday toggle
     /// row (whose inset stroke shows focus). The system key loop didn't do
@@ -270,6 +275,13 @@ struct RoutinesWindow: View {
         RoutineWeekLayout.orderedWeekdays(firstWeekday: Calendar.current.firstWeekday)
     }
 
+    /// §1 (2026-10-07): the focused canvas with nothing selected.
+    private var isCursorMode: Bool {
+        RoutineCanvasCursor.isCursorMode(
+            canvasFocused: canvasFocused, hasBlockSelection: selection != nil,
+            hasWindowSelection: windowSelection != nil, inConflict: activeRoutineConflict != nil)
+    }
+
     var body: some View {
         GeometryReader { proxy in
             // layouts.md §8: "the editor inspector collapses below 1040pt and
@@ -331,7 +343,10 @@ struct RoutinesWindow: View {
             // Task P2-T46: the conflict panel's keys (interactions.md §10.1).
             // P2-F16: `⌥←`/`⌥→` step the footer (layouts.md §10).
             .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow, .escape, .return]) { press in
-                handleConflictKey(press)
+                // Conflict mode first (it has a selected block, so it is
+                // never cursor mode); then the canvas's own keys.
+                let conflict = handleConflictKey(press)
+                return conflict == .handled ? conflict : handleCanvasKey(press)
             }
             // interactions.md §11.1: "Switching between Blocks and Windows
             // mode: ⌘[ / ⌘], or the mode control." Window-scoped, the same
@@ -461,8 +476,57 @@ struct RoutinesWindow: View {
                 windowSelection: $windowSelection,
                 onAddWeekday: { setWeekday($0, active: true) },
                 conflictPreview: conflictPreview,
-                scrollRequest: routineScrollRequest)
+                scrollRequest: routineScrollRequest,
+                isCursorMode: isCursorMode,
+                cursorMinute: $cursorMinute,
+                onPlaceCursor: placeCursor)
         }
+    }
+
+    /// An empty-canvas click (§1, 2026-10-07; as the main grid's §6.1 step
+    /// 4): deselect, focus the canvas, and put the cursor on the clicked
+    /// slot. The column has already refused to create anything if it is
+    /// inactive (§11.1).
+    private func placeCursor(at minute: Int) {
+        selection = nil
+        windowSelection = nil
+        cursorMinute = minute
+        canvasFocused = true
+    }
+
+    /// The canvas's keys outside conflict mode (task P2-C3; interactions.md
+    /// §1, amended 2026-10-07). `⎋`: a selection → cursor mode (the
+    /// selection is dropped, focus stays); cursor mode → the canvas loses
+    /// focus. In cursor mode `↑` `↓` move the cursor 15 minutes; `←` `→` do
+    /// nothing (§11.1). Modified arrows and `↩` are left alone: nothing
+    /// creates at the cursor in Phase 2.
+    private func handleCanvasKey(_ press: KeyPress) -> KeyPress.Result {
+        guard canvasFocused, activeRoutineConflict == nil else { return .ignored }
+        if press.key == .escape {
+            switch RoutineCanvasCursor.escape(hasSelection: selection != nil || windowSelection != nil) {
+            case .deselect:
+                selection = nil
+                windowSelection = nil
+            case .unfocus:
+                canvasFocused = false
+            }
+            return .handled
+        }
+        // Plain arrows only. Not `modifiers.isEmpty`: AppKit marks every
+        // arrow-key event with the numeric-pad flag, so a bare `↓` arrives
+        // with `.numericPad` set (found live — no arrow moved the cursor).
+        let modified = !press.modifiers.isDisjoint(with: [.command, .option, .control, .shift])
+        guard isCursorMode, !modified, let cursorMinute else { return .ignored }
+        let arrow: RoutineCanvasCursor.Arrow
+        switch press.key {
+        case .upArrow: arrow = .up
+        case .downArrow: arrow = .down
+        case .leftArrow: arrow = .left
+        case .rightArrow: arrow = .right
+        default: return .ignored
+        }
+        self.cursorMinute = RoutineCanvasCursor.apply(arrow, to: cursorMinute)
+        return .handled
     }
 
     // MARK: Template conflicts (components.md §14.6, task P2-T46)
@@ -830,13 +894,19 @@ struct RoutineGutterStrip: View {
     let leadingWeekday: Int
     let hourHeight: CGFloat
     var now: Date = Date()
+    /// interactions.md §1 (amended 2026-10-07, G-050): in cursor mode the
+    /// cursor's time is printed here in `hourLabel` / `accent`, dropping an
+    /// hour label it would overprint (§7's 12pt rule, which `TimeGutterView`
+    /// already applies to its `cursor`). Minutes from midnight; nil = none.
+    var cursorMinute: Int? = nil
 
     var body: some View {
         let day = RoutineWeekLayout.referenceDayStart(weekday: leadingWeekday, now: now)
         TimeGutterView(
             geometry: TimeGeometry(dayStart: day, hourHeight: hourHeight),
             now: now,
-            showsNow: false)
+            showsNow: false,
+            cursor: cursorMinute.map { day.addingTimeInterval(TimeInterval($0 * 60)) })
             // The full 24h height, so the background below has the gutter's
             // real extent (the labels are placed with offsets and don't
             // give the gutter a layout height of their own).
@@ -852,6 +922,29 @@ struct RoutineGutterStrip: View {
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
+    }
+}
+
+/// interactions.md §1 (amended 2026-10-07, G-050): the Routines canvas's
+/// time cursor — the main grid's 1pt `accent` line, drawn as ONE line across
+/// all seven day columns and not across the gutter (the gutter carries the
+/// time instead, `RoutineGutterStrip.cursorMinute`). Laid over the whole
+/// grid (gutter included, so `x` is measured the same way), above blocks and
+/// window treatments like the now line, and transparent to hit-testing.
+/// Internal so `RoutineCanvasCursorTests` can render it.
+struct RoutineCursorLine: View {
+    let minute: Int
+    let hourHeight: CGFloat
+    /// The seven columns' combined width.
+    let columnsWidth: CGFloat
+
+    var body: some View {
+        Rectangle()
+            .fill(Tokens.Color.Interactive.accent)
+            .frame(width: columnsWidth, height: 1)
+            .offset(x: Tokens.Size.timeGutterWidth, y: RoutineCanvasCursor.y(for: minute, hourHeight: hourHeight))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
@@ -874,6 +967,15 @@ private struct RoutinesCanvasView: View {
     var conflictPreview: RoutineConflictPreview? = nil
     /// Task P2-F15 — bring a template conflict's block into view.
     var scrollRequest: RoutineScrollRequest? = nil
+    /// Task P2-C3 — interactions.md §1 (amended 2026-10-07, G-050): whether
+    /// the canvas is in cursor mode (focused, nothing selected), and the
+    /// cursor's time. `cursorMinute` is owned by `RoutinesWindow` and kept
+    /// after cursor mode ends: it is "the last cursor time of this window
+    /// session" that the next entry restores if it is still in view.
+    var isCursorMode = false
+    @Binding var cursorMinute: Int?
+    /// An empty-canvas click's slot time (any column, either mode).
+    var onPlaceCursor: (Int) -> Void = { _ in }
     /// The viewport in content coordinates, for "wholly in view".
     @State private var visibleRect: CGRect = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -925,6 +1027,12 @@ private struct RoutinesCanvasView: View {
                         .overlay(alignment: .top) { ConflictScrollAnchors(hourHeight: hourHeight) }
                 }
                 .scrollIndicators(.automatic)
+                // §1 (2026-10-07): "the canvas's value in cursor mode is the
+                // cursor's time". Set on the scroll view — the canvas's own
+                // element in the tree (AXScrollArea). Found live: on a
+                // SwiftUI container group (`.accessibilityElement(children:
+                // .contain)`) macOS drops the value.
+                .accessibilityValue(isCursorMode ? cursorMinute.map(RoutineCanvasCursor.accessibilityValue) ?? "" : "")
                 // macOS 15 API: calls `action` whenever the value the `of:`
                 // closure extracts from the scroll geometry changes. Here that is
                 // the content's vertical offset — positive once scrolled down.
@@ -979,6 +1087,27 @@ private struct RoutinesCanvasView: View {
                         vertical.scrollTo(ConflictScroll.anchorID(minute: target), anchor: ConflictScroll.oneThird)
                     }
                 }
+                // §1 (2026-10-07): entering cursor mode — by ⇥, by ⎋ from a
+                // selection, by a mode switch dropping one, or on open —
+                // places the cursor (`initial: true` covers the last).
+                .onChange(of: isCursorMode, initial: true) { _, on in
+                    if on { enterCursorMode() }
+                }
+                // `↑` `↓` scroll the canvas only as far as needed to keep
+                // the line in view. A 5-minute scroll anchor sits at every
+                // cursor time (`ConflictScrollAnchors`): its top edge to the
+                // viewport's top when the line went above, its bottom edge
+                // to the viewport's bottom when it went below.
+                .onChange(of: cursorMinute) { _, minute in
+                    guard isCursorMode, let minute,
+                          let edge = RoutineCanvasCursor.scrollEdge(
+                            for: minute, visibleTop: visibleRect.minY,
+                            visibleHeight: visibleRect.height, hourHeight: hourHeight)
+                    else { return }
+                    initialHold.release()   // a keyboard scroll ends the hold, as a user scroll does
+                    vertical.scrollTo(ConflictScroll.anchorID(minute: minute),
+                                      anchor: edge == .top ? .top : .bottom)
+                }
             }
             .modifier(HorizontalScrollIfNeeded(isEnabled: needsHorizontalScroll))
         }
@@ -994,6 +1123,19 @@ private struct RoutinesCanvasView: View {
                     .accessibilityHidden(true)
             }
         }
+    }
+
+    /// §1 (2026-10-07) "On entry": the last cursor time if it is in the
+    /// viewport, else the first whole hour strictly below the viewport's
+    /// top. While the default-scroll hold is still aiming, the viewport is
+    /// about to sit at the hold's target, so that is its top (a window that
+    /// has just opened may not have reported its scroll position yet).
+    private func enterCursorMode() {
+        let top = initialHold.isHolding
+            ? RoutineCanvasCursor.y(for: initialHold.target, hourHeight: hourHeight)
+            : visibleRect.minY
+        cursorMinute = RoutineCanvasCursor.entryMinute(
+            last: cursorMinute, visibleTop: top, visibleHeight: visibleRect.height, hourHeight: hourHeight)
     }
 
     /// One aim at the hold's target, deferred a main-actor turn: inside a
@@ -1032,7 +1174,8 @@ private struct RoutinesCanvasView: View {
             RoutineGutterStrip(
                 windows: timeWindows,
                 leadingWeekday: weekdays.first ?? Calendar.current.firstWeekday,
-                hourHeight: hourHeight)
+                hourHeight: hourHeight,
+                cursorMinute: isCursorMode ? cursorMinute : nil)
 
             ForEach(weekdays, id: \.self) { weekday in
                 RoutineDayColumnView(
@@ -1057,7 +1200,8 @@ private struct RoutinesCanvasView: View {
                     // this column draws, placed canvas-wide by
                     // `placedLabels` — the same placement the main grid uses.
                     windowLabels: placedLabels.filter { $0.columnIndex == weekdays.firstIndex(of: weekday) },
-                    columnIndex: weekdays.firstIndex(of: weekday) ?? 0)
+                    columnIndex: weekdays.firstIndex(of: weekday) ?? 0,
+                    onPlaceCursor: onPlaceCursor)
                     .frame(width: columnWidth)
                     .overlay(alignment: .leading) {
                         Rectangle()
@@ -1069,6 +1213,14 @@ private struct RoutinesCanvasView: View {
         // See `ColumnLabelInputsKey`: each column's block and note frames.
         .onPreferenceChange(ColumnLabelInputsKey.self) { inputs in
             labelInputs = inputs
+        }
+        // §1 (2026-10-07, G-050): the cursor line, above everything in the
+        // columns, across all seven of them, in both modes.
+        .overlay(alignment: .topLeading) {
+            if isCursorMode, let cursorMinute {
+                RoutineCursorLine(minute: cursorMinute, hourHeight: hourHeight,
+                                  columnsWidth: columnWidth * CGFloat(weekdays.count))
+            }
         }
     }
 }
@@ -1121,6 +1273,10 @@ private struct RoutineDayColumnView: View {
     /// Task P2-F06 — this column's placed window labels, and its index.
     let windowLabels: [WindowLabelPlacement.Placed]
     let columnIndex: Int
+    /// Task P2-C3 (§1, 2026-10-07): an empty-canvas click places the
+    /// cursor at the clicked slot — here too on an inactive column, where
+    /// the click still creates nothing (§11.1).
+    var onPlaceCursor: (Int) -> Void = { _ in }
     /// The §13.5.3 note's measured size, for §7 rule 3's stacking.
     @State private var noteSize: CGSize = .zero
 
@@ -1353,7 +1509,10 @@ private struct RoutineDayColumnView: View {
                     .contentShape(Rectangle())
                     .frame(height: geometry.totalHeight)
                     .accessibilityHidden(true)
-                    .onTapGesture { windowSelection = nil }
+                    .onTapGesture { location in
+                        windowSelection = nil
+                        onPlaceCursor(RoutineCanvasCursor.minute(forY: location.y, hourHeight: hourHeight))
+                    }
                     // components.md §13.3 / task P2-T23: "Creating one: drag
                     // on empty canvas..." — a sibling to `createSurface`'s own
                     // create-drag below, on the same Rectangle whose tap
@@ -1809,7 +1968,13 @@ private struct RoutineDayColumnView: View {
                 let start = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15)
                 beginDraft(at: start)
             }
-            .onTapGesture { selection = nil }
+            // The `location` form of `onTapGesture` (macOS 14+) passes the
+            // click point in this view's own coordinates — the column's
+            // content coordinates, since the surface starts at its top.
+            .onTapGesture { location in
+                selection = nil
+                onPlaceCursor(RoutineCanvasCursor.minute(forY: location.y, hourHeight: hourHeight))
+            }
             .gesture(
                 DragGesture(minimumDistance: 6)
                     .onChanged { value in
@@ -1844,7 +2009,11 @@ private struct RoutineDayColumnView: View {
             .frame(height: geometry.totalHeight)
             .cursor(.operationNotAllowed)
             .accessibilityHidden(true)
-            .onTapGesture { selection = nil }
+            // Deselects and places the cursor; still no create gesture.
+            .onTapGesture { location in
+                selection = nil
+                onPlaceCursor(RoutineCanvasCursor.minute(forY: location.y, hourHeight: hourHeight))
+            }
     }
 
     /// Start typing a new block. Nothing is persisted until `commitDraft()`.

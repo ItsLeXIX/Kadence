@@ -903,9 +903,18 @@ P2-T48 judgement calls that need no marker, because no value was invented:
   meeting` in `conflict-single-option-p2f20.png` draw no title. Not built:
   it changes cascade rendering in every view and needs its own captures.
 
-- **A36 — interactions.md §1 table (amended 2026-10-06). The Routines
-  canvas has no cursor mode.** *(new 2026-10-06, task P2-SF1's ⇥ walk;
-  blocked on GAPS G-050.)* Focused with nothing selected, the Routines canvas
+- ~~**A36 — interactions.md §1 table (amended 2026-10-06). The Routines
+  canvas has no cursor mode.**~~ **Resolved 2026-10-07, task P2-C3, by
+  building it** (G-050 CLOSED: interactions.md §1 and §11.1, amended
+  2026-10-07; PHASE2-REVIEW.md "Closeout" CF3). The canvas focused with
+  nothing selected draws one 1pt `accent` line across all seven columns and
+  its time in the gutter; entry at the last cursor time if in view, else the
+  first whole hour below the viewport's top (07:00 at the default scroll);
+  `↑` `↓` ±15 min, clamped; `←` `→` nothing; empty-canvas click places it
+  (inactive columns too, creating nothing); `⎋` selection → cursor →
+  unfocused; AX value `07:00` (on the canvas's scroll area). Checked live
+  by `Scripts/check-routines-cursor.sh`. *(was:)* *(new 2026-10-06, task
+  P2-SF1's ⇥ walk; blocked on GAPS G-050.)* Focused with nothing selected, the Routines canvas
   draws nothing; §1 says focus entering it enters cursor mode. Not built:
   which weekday column holds the cursor, how it moves (§11.1 makes `←`/`→`
   do nothing here) and what creation at it means are unspecified. With a

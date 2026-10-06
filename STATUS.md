@@ -8494,3 +8494,59 @@ to date at every task. Build: only `MonthGridView.swift:153`.
 - Verify: xcresult **610 passed / 0 failed**; build warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the four UI scripts **PASS**.
+
+## 95. P2-C3 — the Routines canvas cursor, minimum form (interactions.md §1, §11.1, both 2026-10-07; G-050; DEVIATIONS A36)
+
+- Rules in `Layout/RoutineCanvasCursor.swift` (pure, minutes from
+  midnight): cursor mode = canvas focused, no block, no window, no conflict;
+  entry = the last time if wholly in view, else the first whole hour
+  strictly below the viewport's top; `↑` `↓` ±15 clamped 00:00…23:45; `←`
+  `→` unchanged; `⎋` = deselect if anything is selected, else unfocus;
+  click → snapped slot (rounded, as `TimeGeometry.snap`); scroll edge (top /
+  bottom / none); AX value `HH:mm`.
+- `RoutinesWindow`: `cursorMinute` kept for the window session;
+  `handleCanvasKey` after the conflict keys (⎋ now also drops a selection
+  into cursor mode, which §1 names as an entry path and nothing did before);
+  `placeCursor` from every empty-canvas tap (Blocks active, Blocks inactive
+  — still no create gesture — and Windows mode). `RoutinesCanvasView`
+  enters cursor mode on `isCursorMode` (`initial: true`; uses the hold's
+  target as the viewport top while the default scroll is still aiming),
+  scrolls via the 5-minute anchors only when the line leaves the viewport
+  (and releases the hold), and overlays `RoutineCursorLine` — 1pt accent
+  across `7 × columnWidth`, offset past the gutter, above everything, not
+  hit-testable. `RoutineGutterStrip.cursorMinute` feeds `TimeGutterView`'s
+  existing cursor time (accent, 12pt label suppression).
+- Found live, fixed: (1) arrow keys did nothing — AppKit flags every arrow
+  event `.numericPad`, so a `modifiers.isEmpty` guard rejected them; now
+  only ⌘⌥⌃⇧ count as modified. (2) The AX value never appeared on the
+  SwiftUI container group (`.accessibilityElement(children: .contain)`
+  drops it on macOS); it is set on the canvas's `ScrollView` and reads
+  `07:00` on its AXScrollArea.
+- Tests: new `RoutineCanvasCursorTests` (10) — entry 07:00 at the default
+  scroll; last restored / not; arrows and clamps; scroll only as needed;
+  click in active and inactive columns (Tuesday refuses create); ⎋ both
+  ways; Blocks/Windows switch with a selection → cursor mode; AX value; a
+  render showing the line in all seven columns and not the gutter (1pt);
+  a render of the gutter with accent text only at 07:00.
+- New `Scripts/check-routines-cursor.sh` (capture-p2f25's pre-flight,
+  guard and helpers): **PASS**, 16 checks — open → `07:00`; ⇥ to the
+  inspector (no cursor) and back (`07:00`); ↓ 07:15; ↑↑ 06:45; ←→
+  unchanged; clamps 00:00 / 23:45; clicks on Monday 10:00 and Tuesday
+  (inactive) 11:00 place the cursor and create no block; ⎋ unfocuses;
+  block click → selection, ⎋ → cursor `11:00`; block click, ⌘] → cursor
+  mode. Two script bugs fixed on the way (the main window's own `Training`
+  and hour labels matched first; the 10:00 label is suppressed with the
+  cursor at 09:45 — correct §7 behaviour, so the script parks at 08:45).
+- **P2-SF1 ⇥ walk re-run (frames looked at):** canvas focused → the line at
+  07:00 across Mon–Sun with `07:00` in accent in the gutter; ⇥ → the editor
+  inspector, focused ON `M` shows CF2's stroke (dark appearance:
+  `#0C0C0D` inside the accent fill), the canvas line gone; ⇥ → the canvas,
+  line back at 07:00. Both regions show focus.
+- Observed, not changed: at the 23:45 clamp the canvas scrolls just enough
+  to keep the **line** in view (§1's wording); the gutter's `23:45` text
+  (drawn from line − 5pt) is clipped by the viewport bottom there.
+- DEVIATIONS: **A36 resolved** (by building it).
+- Verify: xcresult **620 passed / 0 failed**; build warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the four UI scripts **PASS**; `check-routines-cursor.sh`
+  **PASS**.
