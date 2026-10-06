@@ -8464,3 +8464,33 @@ to date at every task. Build: only `MonthGridView.swift:153`.
   (fresh pre-flight before each script): `check-routines-window`,
   `check-conflict-apply-return`, `check-inspector-inset`,
   `check-block-click-selects` all **PASS**.
+
+## 94. P2-C2 — the focused weekday toggle shows focus on and off (layouts.md §8.1, 2026-10-07; G-049; tokens 1.3.0)
+
+- `WeekdayToggleItem.fill` (`accent` when on — disabled doesn't change it —
+  else `canvasSunken`) and `.focusStroke`, resolved **by fill**: accent →
+  `focusRingOnAccent`, else `focusRing`. Never the system focus colour.
+- The toggle's square is now `WeekdayToggleFace` (same file): fill, letter,
+  and the 2pt `borderSelected` stroke inset 1pt at `radius.chip` in the
+  resolved colour. Both inspectors use the row, so both get the rule.
+  `// SPEC-GAP G-049` removed.
+- `WeekdayToggleRow.renderFocusedWeekday` (default nil): render tests only —
+  an offscreen `ImageRenderer` has no first responder, so `@FocusState`
+  can't be true there.
+- Tests: new `WeekdayToggleFocusTests` (3, the render one ×2 appearances):
+  resolver on / off / disabled-on (time-window last day); tokens.json read
+  from the repo: version 1.3.0, **57** `contrastPairs`, both stroke pairs
+  declared at min 3.0, `focusRingOnAccent == text.onSolid`; render of the
+  editor inspector's row (`Daily routine`, Mon-first), sampled 2pt inside
+  the toggle edge: focused ON `M` = `#FFFFFF` / `#0C0C0D`, fill still
+  accent, unfocused ON `W` has no stroke; focused OFF `T` = `#0A6CFF` /
+  `#4C9BFF`. Found on the way: sampling through
+  `NSColor.usingColorSpace(.sRGB)` turned the accent into (0,133,255)
+  (bitmap tagged wider than the values written); raw `getPixel`, as the
+  other render tests do, reads the token values exactly.
+- Renders looked at (`weekday-toggle-focus-{on,off}-{light,dark}-p2c.png`):
+  the stroke is plainly visible on `M` and on `T` in both appearances. Filed
+  in P2-C5.
+- Verify: xcresult **610 passed / 0 failed**; build warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the four UI scripts **PASS**.

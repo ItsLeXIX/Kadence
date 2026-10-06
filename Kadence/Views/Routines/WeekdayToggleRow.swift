@@ -67,6 +67,28 @@ struct WeekdayToggleItem: Equatable, Sendable {
         }
     }
 
+    /// The two fills a toggle can have (layouts.md §8.1). Disabled doesn't
+    /// change the fill: a window's last day (§13.5.4) is still drawn on.
+    enum Fill: Equatable, Sendable { case accent, canvasSunken }
+
+    /// The two colours the focused toggle's inset stroke can take.
+    enum FocusStroke: Equatable, Sendable { case focusRingOnAccent, focusRing }
+
+    var fill: Fill { isOn ? .accent : .canvasSunken }
+
+    /// layouts.md §8.1 (amended 2026-10-07, G-049): the stroke's colour
+    /// follows the fill it sits on, never the meaning — `focusRing` equals
+    /// `accent`, so on an accent fill it would be invisible (1.00:1).
+    /// Accent → `focusRingOnAccent` (4.56 / 6.93 : 1); anything else →
+    /// `focusRing` (4.05 / 6.40 : 1). Never `keyboardFocusIndicatorColor`
+    /// (it follows the accent and would recreate the defect).
+    var focusStroke: FocusStroke {
+        switch fill {
+        case .accent: .focusRingOnAccent
+        case .canvasSunken: .focusRing
+        }
+    }
+
     /// layouts.md §8.1: 7 × `size.weekdayToggleSize` + 6 × `spacing.xs`.
     static func rowWidth(count: Int = 7) -> CGFloat {
         CGFloat(count) * Tokens.Size.weekdayToggleSize + CGFloat(max(0, count - 1)) * Tokens.Spacing.xs
@@ -88,6 +110,11 @@ struct WeekdayToggleRow: View {
     let context: WeekdayToggleItem.Context
     /// Called with the weekday to flip; the caller does the write.
     let onFlip: (Int) -> Void
+    /// Render tests only (`WeekdayToggleFocusTests`, P2-C2): draw the row as
+    /// if it had keyboard focus on this weekday. An offscreen `ImageRenderer`
+    /// has no window and so no first responder, so `@FocusState` can never
+    /// become true there. `nil` (every real use) changes nothing.
+    var renderFocusedWeekday: Int? = nil
 
     /// `@FocusState` is SwiftUI's handle on keyboard focus: SwiftUI sets it
     /// to `true` when this view becomes first responder, and setting it moves
@@ -147,31 +174,10 @@ struct WeekdayToggleRow: View {
     }
 
     private func toggle(_ item: WeekdayToggleItem) -> some View {
-        Button { onFlip(item.weekday) } label: {
-            Text(item.letter)
-                .typeStyle(Self.letterStyle)
-                // On: `text.onSolid` on `interactive.accent` (4.56 / 6.93).
-                // Off: `text.secondary` on `surface.canvasSunken` (5.69 / 8.01).
-                .foregroundStyle(item.isOn ? Tokens.Color.Text.onSolid : Tokens.Color.Text.secondary)
-                .frame(width: Tokens.Size.weekdayToggleSize, height: Tokens.Size.weekdayToggleSize)
-                .background(
-                    RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
-                        .fill(item.isOn ? Tokens.Color.Interactive.accent : Tokens.Color.Surface.canvasSunken))
-                .overlay {
-                    if rowFocused, focusedWeekday == item.weekday {
-                        // layouts.md §8.1 (G-028): `size.borderSelected` in
-                        // `focusRing`, INSET 1pt inside the toggle at
-                        // `radius.chip` — an outside ring would touch the
-                        // neighbour `spacing.xs` away. Keyboard focus only.
-                        // SPEC-GAP G-049: `focusRing` == `accent`, so on an
-                        // ON toggle (accent fill) this stroke is invisible.
-                        // Kept as specified until design/ gives a value.
-                        RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
-                            .strokeBorder(Tokens.Color.Interactive.focusRing, lineWidth: Tokens.Size.borderSelected)
-                            .padding(1)
-                            .allowsHitTesting(false)
-                    }
-                }
+        let focused = renderFocusedWeekday.map { $0 == item.weekday }
+            ?? (rowFocused && focusedWeekday == item.weekday)
+        return Button { onFlip(item.weekday) } label: {
+            WeekdayToggleFace(item: item, isFocused: focused, letterStyle: Self.letterStyle)
                 .contentShape(Rectangle())
         }
         // `.plain` drops the bezel (the square above is the whole look) and
@@ -192,3 +198,52 @@ struct WeekdayToggleRow: View {
     }
 }
 
+
+/// One toggle's square: fill, letter, and the focused inset stroke. Split
+/// out of the row so the stroke rule has one place it is drawn.
+struct WeekdayToggleFace: View {
+    let item: WeekdayToggleItem
+    let isFocused: Bool
+    let letterStyle: TypeStyle
+
+    var body: some View {
+        Text(item.letter)
+            .typeStyle(letterStyle)
+            // On: `text.onSolid` on `interactive.accent` (4.56 / 6.93).
+            // Off: `text.secondary` on `surface.canvasSunken` (5.69 / 8.01).
+            .foregroundStyle(item.isOn ? Tokens.Color.Text.onSolid : Tokens.Color.Text.secondary)
+            .frame(width: Tokens.Size.weekdayToggleSize, height: Tokens.Size.weekdayToggleSize)
+            .background(
+                RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
+                    .fill(Self.color(item.fill)))
+            .overlay {
+                if isFocused {
+                    // layouts.md §8.1 (G-028): `size.borderSelected`, INSET
+                    // 1pt inside the toggle at `radius.chip` — an outside
+                    // ring would touch the neighbour `spacing.xs` away.
+                    // Keyboard focus only. Colour by fill (2026-10-07,
+                    // G-049): see `WeekdayToggleItem.focusStroke`.
+                    // (`strokeBorder` draws the whole line inside the shape;
+                    // `padding(1)` then moves that shape 1pt in.)
+                    RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
+                        .strokeBorder(Self.color(item.focusStroke), lineWidth: Tokens.Size.borderSelected)
+                        .padding(1)
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+
+    static func color(_ fill: WeekdayToggleItem.Fill) -> Color {
+        switch fill {
+        case .accent: Tokens.Color.Interactive.accent
+        case .canvasSunken: Tokens.Color.Surface.canvasSunken
+        }
+    }
+
+    static func color(_ stroke: WeekdayToggleItem.FocusStroke) -> Color {
+        switch stroke {
+        case .focusRingOnAccent: Tokens.Color.Interactive.focusRingOnAccent
+        case .focusRing: Tokens.Color.Interactive.focusRing
+        }
+    }
+}
