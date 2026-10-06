@@ -20,8 +20,9 @@ enum ConflictScroll {
     /// floored to the anchor at or before it (at most 4 min, ≈ 3pt in Week).
     static let anchorStep = 5
 
-    /// Ids for the anchor views, kept clear of the hour anchors (0…23) the
-    /// canvas's initial scroll already uses.
+    /// Ids for the anchor views. Offset by 10 000 so they can't collide with
+    /// another `.id` in the canvas (the time gutter has `.id(0)`). The
+    /// initial scroll uses them too (task P2-F22).
     static func anchorID(minute: Int) -> Int {
         10_000 + (max(0, min(minute, 1439)) / anchorStep) * anchorStep
     }

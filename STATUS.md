@@ -7483,3 +7483,68 @@ INDEX.md's §17 table itself is rewritten by P2-F20.
 ### New GAPS / DEVIATIONS
 
 - DEVIATIONS **B32** logged and resolved in this task.
+
+## 75. P2-F22 — the main grid's initial scroll (layouts.md §3.1; DEVIATIONS B24)
+
+### Confirmed
+
+- Live, before any change: fresh store, 1500 × 900 window — the grid's
+  scroll area starts at y 190 and its `00:00` label is at y 192 (AX), and the
+  frame shows 00:00 at the top. B24 was real: every main-window capture so
+  far opened at midnight.
+
+### Built
+
+- `TimedCanvasView`: the 24 `.offset(y:)` hour anchors are removed; the
+  initial scroll goes to `ConflictScrollAnchors`' anchor at the hour's start
+  with `.top` (those anchors are stacked in a `VStack`, so they have real
+  layout frames — P2-F15's fix).
+- `Kadence/Layout/InitialScroll.swift` (new, pure): `hour(events:days:)` —
+  the old `initialAnchorHour`, unchanged: `min(07:00, firstEventStart − 1h)`,
+  07:00 with no timed event; `Position` (offset + top inset, max offset) and
+  `needsAim`.
+- **Found live — the anchor fix alone wasn't enough.** With it, the scroll
+  still landed at 00:00 on fresh launches and, after a first timing change,
+  on existing stores too. Logging showed why: the window lays the canvas out
+  several times while it settles (viewport 56 → 596 → 675 → 780pt, a 44pt
+  top inset appearing and disappearing), and a `scrollTo` issued during that
+  is either dropped or reset by the next pass; on a fresh store the events
+  (so the hour) also arrive after the first render, because `MainWindow`
+  seeds in its `.task`. So the canvas now **holds** the initial position:
+  every scroll-geometry change re-checks it (`needsAim`) and re-aims one
+  main-actor turn later, until the user's first scroll (`onScrollPhaseChange`
+  leaves `.idle`) or a conflict scroll request; capped at 40 re-aims. A
+  change of the computed hour (events arriving) re-aims while holding.
+- The temporary logging is removed.
+
+### Tests
+
+- `InitialScrollTests` (6): no events → 07:00; Gym 07:00 → 06:00, 05:30 →
+  04:00, 00:20 → 00:00; a 10:00 first event → 07:00; all-day and off-canvas
+  events ignored; each hour's target anchor is laid out at exactly that
+  hour's top; `needsAim` (on target, reset to 0, clamped end, short content).
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`; only the known `MonthGridView.swift:153`
+  warning.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 571
+  passed / 0 failed** (565 + 6).
+- `generate-tokens --check`: up to date.
+- **Live** (pre-flight: unlocked, no full screen): 5 launches (2 fresh, 3
+  existing store) — `06:00` at the scroll area's top every time (Tuesday's
+  first event is `Breakfast` 07:15, so §3.1 gives 06:00, not 07:00). A real
+  scroll-wheel event inside Kadence (guarded) then moved the grid and it
+  stayed, through a window resize. With the window shortened to 560pt
+  (19:50 out of view), activating the needs-attention row still scrolled
+  `Focus review` × `Client call` into view (F15 unaffected).
+- `check-routines-window.sh`: **PASS**. `check-conflict-apply-return.sh`:
+  **PASS**. `check-inspector-inset.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B24** resolved.
+- For the design agent (not changed — behaviour kept as built):
+  `firstEventStart` in Week mode is the earliest *instant* on the visible
+  days, i.e. the first event of the first day that has one, not the
+  earliest time of day across the week. §3.1 doesn't say which.

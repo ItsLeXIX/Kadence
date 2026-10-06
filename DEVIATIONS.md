@@ -1692,8 +1692,21 @@ Still open, all re-checked against the current spec text this session:
   dependency §17.1 (2026-10-05) rules out. Fix: also treat protected spans
   as busy in `journalStart`.
 
-- **B24 — layouts.md §3.1. The canvas's initial-scroll hour anchors are
-  placed with `.offset(y:)`, which `scrollTo` ignores.** *(new 2026-10-06,
+- ~~**B24 — layouts.md §3.1. The canvas's initial-scroll hour anchors are
+  placed with `.offset(y:)`, which `scrollTo` ignores.**~~ **Resolved
+  2026-10-06, task P2-F22.** Confirmed live first: on a fresh launch the
+  grid's `00:00` label sat at the scroll area's top. Fixed in three parts:
+  the 24 offset anchors are gone and the initial scroll targets P2-F15's
+  layout-placed `ConflictScrollAnchors` (the hour's 5-minute anchor,
+  `.top`); the hour moved, unchanged, into the pure
+  `InitialScroll.hour(events:days:)`; and because a single `scrollTo` at
+  appear was still dropped or reset by the window's settling layout passes
+  (and, on a fresh store, ran before the seeded events existed), the canvas
+  now *holds* the position — re-aiming on each scroll-geometry change while
+  off target — until the user's first scroll or a conflict scroll request.
+  Live: 5 of 5 launches (2 fresh, 3 existing store) open with 06:00 at the
+  top (`min(07:00, Breakfast 07:15 − 1h)`); a real scroll then moves and
+  stays; conflict activation still scrolls into view. *(was:)* *(new 2026-10-06,
   found during task P2-F15; not in its scope.)* `scrollTo` targets a view's
   layout frame; an offset moves only its drawing, so every hour anchor sits
   at y = 0. P2-F15's own anchors hit exactly this and now use a `VStack`;

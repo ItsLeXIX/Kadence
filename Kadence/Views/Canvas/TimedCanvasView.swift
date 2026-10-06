@@ -31,7 +31,13 @@ struct TimedCanvasView: View {
     var onTab: (KeyPress) -> KeyPress.Result
 
     @Environment(CalendarState.self) private var state
-    @State private var didInitialScroll = false
+    /// layouts.md §3.1: while true, the canvas keeps `InitialScroll.hour`
+    /// at the top (task P2-F22). Cleared by the user's first scroll or a
+    /// conflict scroll request.
+    @State private var holdsInitialScroll = true
+    /// Bound on the hold's re-aims, so a target that can never be met (it
+    /// shouldn't happen — the target is clamped) can't loop forever.
+    @State private var initialScrollAims = 0
     /// The viewport in content coordinates (task P2-F15).
     @State private var visibleRect: CGRect = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -78,20 +84,42 @@ struct TimedCanvasView: View {
                                 alignment: .leading)
                     }
                     .scrollIndicators(.automatic)
-                    .onAppear {
-                        guard !didInitialScroll else { return }
-                        didInitialScroll = true
-                        vertical.scrollTo(initialAnchorHour, anchor: .top)
-                    }
                     // macOS 15: the visible part of the content, in content
                     // points — what "wholly inside the viewport" is tested
                     // against (interactions.md §10.1, task P2-F15).
                     .onScrollGeometryChange(for: CGRect.self) { $0.visibleRect } action: { _, rect in
                         visibleRect = rect
                     }
+                    // layouts.md §3.1 (task P2-F22, DEVIATIONS B24): open with
+                    // `InitialScroll.hour` at the top, and HOLD it there until
+                    // the user first scrolls. A single `scrollTo` at appear
+                    // isn't enough (found live): the canvas lays out several
+                    // times while the window settles (viewport 56 → 596 → 780pt,
+                    // a 44pt top inset coming and going), any of which can
+                    // drop or reset the scroll, and on a fresh store the
+                    // events — so the hour — arrive after the first render
+                    // (`MainWindow` seeds in its `.task`). So every geometry
+                    // change re-checks the position and re-aims if it's off.
+                    .onScrollGeometryChange(for: InitialScroll.Position.self) { geometry in
+                        InitialScroll.Position(geometry)
+                    } action: { _, position in
+                        holdInitialScroll(position, using: vertical)
+                    }
+                    .onChange(of: InitialScroll.hour(events: events, days: days)) { _, _ in
+                        guard holdsInitialScroll else { return }
+                        aimInitialScroll(using: vertical)
+                    }
+                    // The user's first scroll (trackpad, wheel, scroller) ends
+                    // the hold; a programmatic `scrollTo` stays `.idle`.
+                    .onScrollPhaseChange { _, phase in
+                        if phase == .tracking || phase == .interacting || phase == .decelerating {
+                            holdsInitialScroll = false
+                        }
+                    }
                     // A conflict was activated: bring it into view.
                     .onChange(of: state.conflictScrollRequest) { _, request in
                         guard let request else { return }
+                        holdsInitialScroll = false   // the conflict's scroll wins
                         bringIntoView(request, using: vertical)
                     }
                 }
@@ -167,18 +195,13 @@ struct TimedCanvasView: View {
                 }
             }
         }
-        // Five-minute anchors for bringing a conflict into view (P2-F15).
+        // Five-minute anchors for bringing a conflict into view (P2-F15)
+        // and for the initial scroll position (P2-F22). There used to be a
+        // second set of 24 hour anchors placed with `.offset(y:)`; `scrollTo`
+        // reads layout frames, so they all sat at y = 0 and the canvas always
+        // opened at 00:00 (DEVIATIONS B24).
         .overlay(alignment: .top) {
             ConflictScrollAnchors(hourHeight: hourHeight)
-        }
-        // Anchors for the initial scroll position.
-        .overlay(alignment: .top) {
-            ForEach(0..<24, id: \.self) { hour in
-                Color.clear
-                    .frame(height: 1)
-                    .offset(y: CGFloat(hour) * hourHeight)
-                    .id(hour)
-            }
         }
         // Collect what the columns reported (see `ColumnLabelInputsKey`).
         // Frames depend only on layout, never on where labels go, so this
@@ -222,6 +245,30 @@ struct TimedCanvasView: View {
         .frame(height: hourHeight * 24, alignment: .top)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// One re-check of the initial scroll position (see the modifier's comment).
+    private func holdInitialScroll(_ position: InitialScroll.Position, using proxy: ScrollViewProxy) {
+        guard holdsInitialScroll else { return }
+        let hour = InitialScroll.hour(events: events, days: days)
+        guard InitialScroll.needsAim(position, hour: hour, hourHeight: hourHeight) else { return }
+        aimInitialScroll(using: proxy)
+    }
+
+    private func aimInitialScroll(using proxy: ScrollViewProxy) {
+        guard initialScrollAims < InitialScroll.maxAims else {
+            holdsInitialScroll = false
+            return
+        }
+        initialScrollAims += 1
+        let anchor = ConflictScroll.anchorID(minute: InitialScroll.hour(events: events, days: days) * 60)
+        // Deferred one main-actor turn: inside a layout/geometry callback the
+        // scroll view hasn't finished laying out, and a `scrollTo` then is
+        // silently dropped (found live). `Task { @MainActor in … }` is like
+        // posting a Runnable to the UI thread's queue in Java/C#.
+        Task { @MainActor in
+            proxy.scrollTo(anchor, anchor: .top)
+        }
     }
 
     /// interactions.md §10.1 (amended 2026-10-05, task P2-F15): if the
@@ -277,20 +324,6 @@ struct TimedCanvasView: View {
 
     private func isWeekend(_ day: Date) -> Bool {
         Calendar.current.isDateInWeekend(day)
-    }
-
-    /// Default scroll position: `min(07:00, firstEventStart − 1h)`.
-    private var initialAnchorHour: Int {
-        let calendar = Calendar.current
-        let firstStart = events
-            .filter { event in
-                !event.isAllDay && days.contains { day in calendar.isDate(event.start, inSameDayAs: day) }
-            }
-            .map(\.start)
-            .min()
-        guard let firstStart else { return 7 }
-        let hour = calendar.component(.hour, from: firstStart)
-        return max(0, min(7, hour - 1))
     }
 }
 
