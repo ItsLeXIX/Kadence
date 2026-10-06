@@ -1712,6 +1712,24 @@ Still open, all re-checked against the current spec text this session:
   `WindowGroup(id: "routines")` + `openWindow(id:)` creates a new window
   each time; the new one enters conflict mode, the old one stays as it was.
 
+- ~~**B32 — process (STATUS.md §73). UI scripts sent input outside Kadence.**~~
+  **Resolved 2026-10-06, task P2-F21.** *(logged and resolved in the same
+  task.)* `check-routines-window.sh`, `capture-p2t48.sh`,
+  `check-block-click-selects.sh` and `check-conflict-apply-return.sh` "parked
+  the pointer" with a mouse-down/up at screen (5, 5) before launching
+  Kadence — the menu bar, owned by another process — breaking the rule that
+  no input goes to any app but Kadence. The last two also never activated
+  Kadence before their clicks, and `check-conflict-apply-return.sh` sent `↩`
+  without checking what was frontmost. Fix: `Scripts/lib/kadence-guard.swift`
+  (new), compiled by every input-sending script: `park PID` only *moves* the
+  pointer to Kadence's frontmost window's title-bar strip (bounds from
+  CGWindowList); `check PID X Y` passes only if Kadence is frontmost **and**
+  the accessibility hit test at the point lands on a Kadence element; `front
+  PID` gates keys. Every click, scroll and key in the six input-sending
+  scripts now goes through it, and they stop without sending when it fails.
+  A grep of `Scripts/` finds no other fixed screen coordinate (`{34, 70}` /
+  `{1500, 900}` are AX moves/resizes of Kadence's own window, not events).
+
 ---
 
 ## Resolved — retired by a spec ruling

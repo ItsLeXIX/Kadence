@@ -73,6 +73,14 @@ swiftc -O "$WORK/click.swift" -o "$WORK/kclick" 2>"$WORK/swiftc.log" || {
   cat "$WORK/swiftc.log"; exit 1; }
 
 # ------------------------------------------------------------------ the build
+# P2-F21: every event goes through this guard (Scripts/lib/kadence-guard.swift):
+# a click only if Kadence is frontmost AND the window under it is Kadence's;
+# a key only if Kadence is frontmost.
+swiftc -O Scripts/lib/kadence-guard.swift -o "$WORK/kguard" 2>"$WORK/swiftc-guard.log" || {
+  echo "FAIL: could not compile the input guard"; cat "$WORK/swiftc-guard.log"; exit 1; }
+guarded_click() { "$WORK/kguard" check "$TARGET" "$1" "$2" && "$WORK/kclick" "$1" "$2"; }
+STOP_MSG="STOP: the click would not reach Kadence — nothing sent."
+
 echo "building…"
 xcodebuild -scheme Kadence -destination 'platform=macOS' build >/tmp/kadence-click-build.log 2>&1 || {
   echo "FAIL: build failed — see /tmp/kadence-click-build.log"; exit 1; }
@@ -85,8 +93,6 @@ APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debug
 # answer accessibility queries on behalf of the healthy one.
 for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill -9 "$PID" 2>/dev/null; done
 sleep 2
-# Park the pointer away from the window so nothing is hovered at baseline.
-"$WORK/kclick" 5 5 >/dev/null 2>&1
 # -ApplePersistenceIgnoreState YES: see check-accessibility.sh for why. This
 # Mac's window-restoration has reopened a previously-used window (e.g. the
 # Routines window) as "window 1" ahead of the main window, or produced no
@@ -113,6 +119,11 @@ fi
 
 osascript -e "tell application \"System Events\" to tell (first process whose unix id is $TARGET) to set size of window 1 to {1500, 900}" >/dev/null 2>&1
 sleep 2
+osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $TARGET) to true" >/dev/null 2>&1
+sleep 1
+# Park the pointer inside Kadence's own window so nothing is hovered at
+# baseline (P2-F21; was a click at screen 5,5 — the menu bar, outside Kadence).
+"$WORK/kguard" park "$TARGET" || { pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 echo "driving pid $TARGET"
 
 # ------------------------------------------------------------------ the query
@@ -286,13 +297,13 @@ EMPTY=$(sed -n '4p' "$WORK/plan.txt")
 
 echo ""
 echo "clicking \"$TITLE\" at $CX,$CY …"
-"$WORK/kclick" "$CX" "$CY"
+guarded_click "$CX" "$CY" || { echo "$STOP_MSG"; [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 sleep 2
 query > "$WORK/after.txt"
 
 if [[ -n "$EMPTY" ]]; then
   echo "clicking empty grid at ${EMPTY/ /,} …"
-  "$WORK/kclick" ${EMPTY}
+  guarded_click ${EMPTY} || { echo "$STOP_MSG"; [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
   sleep 2
   query > "$WORK/after-empty.txt"
 else

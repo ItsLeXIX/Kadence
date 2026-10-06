@@ -55,6 +55,11 @@ echo "compiling clicker…"
 swiftc -O "$WORK/click.swift" -o "$WORK/kclick" 2>"$WORK/swiftc.log" || {
   echo "FAIL: could not compile the click helper — see $WORK/swiftc.log"
   cat "$WORK/swiftc.log"; exit 1; }
+# P2-F21: every pointer event goes through this guard (Scripts/lib/kadence-guard.swift).
+swiftc -O Scripts/lib/kadence-guard.swift -o "$WORK/kguard" 2>"$WORK/swiftc-guard.log" || {
+  echo "FAIL: could not compile the input guard"; cat "$WORK/swiftc-guard.log"; exit 1; }
+# guarded_click X Y — clicks only if the click would reach Kadence ($TARGET).
+guarded_click() { "$WORK/kguard" check "$TARGET" "$1" "$2" && "$WORK/kclick" "$1" "$2"; }
 
 echo "building…"
 xcodebuild -scheme Kadence -destination 'platform=macOS' build >/tmp/kadence-routines-build.log 2>&1 || {
@@ -65,7 +70,6 @@ APP=$(ls -td ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debu
 
 for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill -9 "$PID" 2>/dev/null; done
 sleep 2
-"$WORK/kclick" 5 5 >/dev/null 2>&1
 # -ApplePersistenceIgnoreState YES: this script's own baseline depends on the
 # freshly-launched process opening exactly one window (the main window) before
 # it drives ⌘⌥R itself to open the Routines window — the thing it means to
@@ -107,6 +111,9 @@ echo "windows before ⌘⌥R: $BEFORE_COUNT"
 # process first makes this deterministic.
 osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $TARGET) to true" >/dev/null 2>&1
 sleep 1
+# Park the pointer inside Kadence's own window (P2-F21; was a click at screen
+# 5,5, which is the menu bar — outside Kadence).
+"$WORK/kguard" park "$TARGET" || { pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 
 # ⌘⌥R — the same shortcut KadenceCommands.swift binds to "Routines".
 osascript -e "tell application \"System Events\" to tell (first process whose unix id is $TARGET) to keystroke \"r\" using {command down, option down}" >/dev/null 2>&1
@@ -255,7 +262,7 @@ CY=$(sed -n '3p' "$WORK/plan.txt")
 
 echo ""
 echo "clicking \"$TITLE\" at $CX,$CY …"
-"$WORK/kclick" "$CX" "$CY"
+guarded_click "$CX" "$CY" || { echo "STOP: the click would not reach Kadence."; [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 sleep 2
 query > "$WORK/after.txt"
 

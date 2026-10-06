@@ -7432,3 +7432,54 @@ INDEX.md's §17 table itself is rewritten by P2-F20.
   (only a fix may change a script); `capture-p2f20.sh` doesn't do it.
 - One rule breach, recorded in §67: a `git checkout -- <file>` to discard
   my own uncommitted edit to one file.
+
+## 74. P2-F21 — scripts never send input outside Kadence (DEVIATIONS B32)
+
+### Built
+
+- `Scripts/lib/kadence-guard.swift` (new), the single gate for every event
+  a UI script sends:
+  - `park PID` *moves* (never clicks) the pointer to the title-bar strip of
+    Kadence's frontmost window, from that window's real CGWindowList bounds;
+  - `check PID X Y` passes only if Kadence is frontmost **and** the
+    accessibility hit test (`AXUIElementCopyElementAtPosition`) at the point
+    lands on an element Kadence owns;
+  - `front PID` passes only if Kadence is frontmost (for keys).
+- The pre-launch `click 5 5` (screen top-left, the menu bar) is gone from
+  `check-routines-window.sh`, `capture-p2t48.sh`,
+  `check-block-click-selects.sh` and `check-conflict-apply-return.sh`; each
+  now activates Kadence and parks inside it after the window is up. Every
+  click/scroll in those four plus `capture-p2f20.sh` and
+  `check-inspector-inset.sh` is `check`ed first, and keys in
+  `check-conflict-apply-return.sh` are `front`-gated (the other scripts'
+  keys already went through a frontmost check). Refused → nothing sent,
+  the script stops.
+- Grep of `Scripts/` for fixed coordinates: none left. `{34, 70}` and
+  `{1500, 900}` are AX position/size of Kadence's own window, not events.
+- **Found live:** the first `check` version walked CGWindowList front to
+  back and refused every point, because the Dock keeps a full-display,
+  event-transparent layer-20 window over everything. The hit test replaced
+  the walk.
+- **Found live:** one `check-inspector-inset.sh` run failed with `could not
+  create image from window` — the launch-time resize to 1500pt had been sent
+  before the window existed, so the script's "the 1500pt window" lookup
+  found nothing. That script and `capture-p2f20.sh` now poll for the window
+  (as the older scripts do) and stop if the resize didn't take. The next two
+  runs passed.
+
+### Verified
+
+- Pre-flight: unlocked, no full-screen window (10:37).
+- Build: `** BUILD SUCCEEDED **`; only the known `MonthGridView.swift:153`
+  warning.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 565
+  passed / 0 failed** (no code change).
+- `generate-tokens --check`: up to date.
+- `check-routines-window.sh`: **PASS**. `check-conflict-apply-return.sh`:
+  **PASS**. `check-inspector-inset.sh`: **FAIL** once (the lost resize,
+  above), **PASS** after the fix. `check-block-click-selects.sh` (also
+  changed): **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B32** logged and resolved in this task.

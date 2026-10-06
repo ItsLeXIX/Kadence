@@ -105,6 +105,9 @@ SWIFT
 for t in hid axq wins; do
   swiftc -O "$WORK/$t.swift" -o "$WORK/$t" 2>"$WORK/$t.log" || { echo "FAIL: helper $t"; cat "$WORK/$t.log"; exit 1; }
 done
+# P2-F21: every pointer event goes through this guard (Scripts/lib/kadence-guard.swift):
+# it is sent only if Kadence is frontmost AND the window under the point is Kadence's.
+swiftc -O Scripts/lib/kadence-guard.swift -o "$WORK/kguard" 2>"$WORK/kguard.log" || { echo "FAIL: helper kguard"; cat "$WORK/kguard.log"; exit 1; }
 
 echo "building…"
 xcodebuild -scheme Kadence -destination 'platform=macOS' build >"$WORK/build.log" 2>&1 || { echo "FAIL: build"; exit 1; }
@@ -116,9 +119,17 @@ open -n "$APP" --args -ApplePersistenceIgnoreState YES
 sleep 9
 PID=$(pgrep -f "Kadence.app/Contents/MacOS/Kadence" | head -1)
 [[ -z "$PID" ]] && { echo "FAIL: Kadence did not start"; exit 1; }
+# Poll for the first window (a cold launch has taken ~17s to vend one) and
+# check the resize took: a resize sent before the window exists is silently
+# lost, and every later step looks for the 1500pt-wide window.
+for _ in $(seq 1 15); do
+  N=$(osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to count windows" 2>/dev/null)
+  [[ "${N:-0}" -ge 1 ]] && break; sleep 2
+done
 osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to set size of window 1 to {1500, 900}" >/dev/null 2>&1
 osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to set position of window 1 to {34, 70}" >/dev/null 2>&1
 sleep 2
+"$WORK/wins" | awk '$4 == 1500 { f = 1 } END { exit !f }' || { echo "FAIL: the main window is not 1500pt wide — the resize did not take"; quit_app; exit 1; }
 
 front() {
   osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $PID) to true" >/dev/null 2>&1
@@ -126,7 +137,7 @@ front() {
   local name; name=$(osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' 2>/dev/null)
   [[ "$name" == "Kadence" ]] || { echo "STOP: frontmost is '$name', not Kadence — no input sent."; quit_app; exit 1; }
 }
-click() { front; "$WORK/hid" click "$1" "$2"; sleep 1.5; }
+click() { front; "$WORK/kguard" check "$PID" "$1" "$2" || { echo "STOP: a click at $1,$2 would not reach Kadence."; quit_app; exit 1; }; "$WORK/hid" click "$1" "$2"; sleep 1.5; }
 find() {  # find PATTERN → "x y" of the first (leftmost) element whose text contains PATTERN
   "$WORK/axq" "$PID" main > "$WORK/ax.txt"
   python3 - "$WORK/ax.txt" "$1" <<'PY'

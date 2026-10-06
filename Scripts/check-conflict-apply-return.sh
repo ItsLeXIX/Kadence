@@ -143,6 +143,14 @@ swiftc -O "$WORK/hid.swift" -o "$WORK/khid" 2>"$WORK/swiftc.log" || {
   cat "$WORK/swiftc.log"; exit 1; }
 
 KVK_RETURN=36
+# P2-F21: every event goes through this guard (Scripts/lib/kadence-guard.swift):
+# a click only if Kadence is frontmost AND the window under it is Kadence's;
+# a key only if Kadence is frontmost.
+swiftc -O Scripts/lib/kadence-guard.swift -o "$WORK/kguard" 2>"$WORK/swiftc-guard.log" || {
+  echo "FAIL: could not compile the input guard"; cat "$WORK/swiftc-guard.log"; exit 1; }
+guarded_click() { "$WORK/kguard" check "$TARGET" "$1" "$2" && "$WORK/khid" click "$1" "$2"; }
+guarded_key() { "$WORK/kguard" front "$TARGET" && "$WORK/khid" key "$1"; }
+STOP_MSG="STOP: the event would not reach Kadence — nothing sent."
 
 # ------------------------------------------------------------------ the build
 echo "building…"
@@ -167,7 +175,6 @@ STORE_DIR="$HOME/Library/Containers/XIX.Kadence/Data/Library/Application Support
 STORE="$STORE_DIR/default.store"
 rm -f "$STORE" "$STORE-wal" "$STORE-shm"
 
-"$WORK/khid" click 5 5 >/dev/null 2>&1   # park the pointer; nothing hovered at baseline
 # -ApplePersistenceIgnoreState YES: see check-accessibility.sh for why —
 # suppresses this Mac's window-restoration flake so the main window is the
 # only one that can ever appear.
@@ -196,6 +203,11 @@ fi
 
 osascript -e "tell application \"System Events\" to tell (first process whose unix id is $TARGET) to set size of window 1 to {1500, 900}" >/dev/null 2>&1
 sleep 2
+osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $TARGET) to true" >/dev/null 2>&1
+sleep 1
+# Park the pointer inside Kadence's own window so nothing is hovered at
+# baseline (P2-F21; was a click at screen 5,5 — the menu bar, outside Kadence).
+"$WORK/kguard" park "$TARGET" || { pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 echo "driving pid $TARGET"
 
 # Give the freshly-reseeded store a moment before reading it — the app writes
@@ -307,7 +319,7 @@ PY
 
 read -r NA_X NA_Y < "$WORK/plan1.txt"
 echo "clicking needs-attention row at $NA_X,$NA_Y …"
-"$WORK/khid" click "$NA_X" "$NA_Y"
+guarded_click "$NA_X" "$NA_Y" || { echo "$STOP_MSG"; [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 sleep 2
 
 # ----------------------------------------- find + click the recommended option
@@ -358,12 +370,12 @@ read -r OPT_X OPT_Y < "$WORK/plan2.txt"
 # own established way (DEVIATIONS.md's P2-T16 note) to give the inspector
 # real SwiftUI focus — the exact thing this defect needed and never got.
 echo "clicking recommended option (\"Shorten Focus review to 40 min\") at $OPT_X,$OPT_Y …"
-"$WORK/khid" click "$OPT_X" "$OPT_Y"
+guarded_click "$OPT_X" "$OPT_Y" || { echo "$STOP_MSG"; [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 sleep 2
 
 # ---------------------------------------------------------- the real ↩ keypress
 echo "sending a real HID Return keypress…"
-"$WORK/khid" key "$KVK_RETURN"
+guarded_key "$KVK_RETURN" || { echo "$STOP_MSG"; [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 sleep 2
 
 [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null

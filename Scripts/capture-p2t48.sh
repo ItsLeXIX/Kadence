@@ -124,6 +124,9 @@ SWIFT
 for t in hid axq wins; do
   swiftc -O "$WORK/$t.swift" -o "$WORK/$t" 2>"$WORK/$t.log" || { echo "FAIL: helper $t"; cat "$WORK/$t.log"; exit 1; }
 done
+# P2-F21: every pointer event goes through this guard (Scripts/lib/kadence-guard.swift):
+# it is sent only if Kadence is frontmost AND the window under the point is Kadence's.
+swiftc -O Scripts/lib/kadence-guard.swift -o "$WORK/kguard" 2>"$WORK/kguard.log" || { echo "FAIL: helper kguard"; cat "$WORK/kguard.log"; exit 1; }
 
 KVK_RETURN=36; KVK_DOWN=125; KVK_ESC=53; KVK_R=15; KVK_RBRACKET=30; KVK_LBRACKET=33
 
@@ -138,7 +141,6 @@ quit_app() { for p in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill 
 
 launch() {   # launch [extra args…]
   quit_app
-  "$WORK/hid" click 5 5
   open -n "$APP" --args -ApplePersistenceIgnoreState YES "$@"
   sleep 9
   PID=$(pgrep -f "Kadence.app/Contents/MacOS/Kadence" | head -1)
@@ -146,6 +148,9 @@ launch() {   # launch [extra args…]
   osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to set size of window 1 to {1500, 900}" >/dev/null 2>&1
   osascript -e "tell application \"System Events\" to tell (first process whose unix id is $PID) to set position of window 1 to {34, 70}" >/dev/null 2>&1
   sleep 2
+  # Park the pointer inside Kadence's own window, so nothing is hovered at
+  # baseline (P2-F21; was a click at screen 5,5 — the menu bar, outside Kadence).
+  front; "$WORK/kguard" park "$PID" || { echo "STOP: could not park the pointer inside Kadence."; quit_app; exit 1; }
 }
 
 fresh_launch() { quit_app; rm -f "$STORE" "$STORE-wal" "$STORE-shm"; launch "$@"; }
@@ -158,7 +163,7 @@ front() {
   name=$(osascript -e 'tell application "System Events" to get name of first process whose frontmost is true' 2>/dev/null)
   [[ "$name" == "Kadence" ]] || { echo "STOP: frontmost is '$name', not Kadence — no input sent."; quit_app; exit 1; }
 }
-click() { front; "$WORK/hid" click "$1" "$2"; sleep 1.5; }
+click() { front; "$WORK/kguard" check "$PID" "$1" "$2" || { echo "STOP: a click at $1,$2 would not reach Kadence."; quit_app; exit 1; }; "$WORK/hid" click "$1" "$2"; sleep 1.5; }
 key() { front; "$WORK/hid" key "$@"; sleep 1.2; }
 
 # find WINDOWINDEX PATTERN [NTH] → "x y" centre of the NTH (0-based) element
