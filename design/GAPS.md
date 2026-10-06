@@ -2202,3 +2202,17 @@ main window). Which weekday column holds the cursor on entry, whether and how it
 moves between columns, and what `↩`/typing does at it (the main grid creates an
 event there; §11.1 routes block creation through the template) are all
 unspecified. **Placeholder:** none drawn; logged as DEVIATIONS A36.
+
+### G-051 — OPEN. `components.md` §16 (amended 2026-10-06) / §17.1 item 12 (refused row).
+
+**Where it bit:** P2-RC's render `screenshots/2/snooze-refused-p2f25.png`. The
+refused row's exact copy, `Not moved — 00:05 is inside Sleep (protected)`, in
+`popoverRow` on one line is wider than `size.popoverWidth` (300) less the
+popover's `spacing.lg` insets, and §16 fixes the row at the action row's height
+(`size.popoverActionRowHeight`), so it renders `Not moved — 00:05 is inside
+Sleep (protect…`. A longer window label is worse.
+
+**Question:** which gives — the copy (a shorter form), the height (two lines),
+or truncation (and where)? Each is a design value the coding agent may not
+choose. **Placeholder:** SwiftUI's default tail truncation, marked
+`// SPEC-GAP G-051` in `MenuBarPopoverView.swift`.

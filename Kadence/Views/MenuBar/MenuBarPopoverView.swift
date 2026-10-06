@@ -323,6 +323,10 @@ struct MenuBarPopoverView: View {
     @ViewBuilder
     private func snoozeResultRow(_ confirmation: SnoozeConfirmation) -> some View {
         HStack(spacing: Tokens.Spacing.sm) {
+            // SPEC-GAP G-051: the refused copy (`Not moved — 00:05 is inside
+            // Sleep (protected)`) is wider than `popoverWidth` less the
+            // insets in `popoverRow`, and the row's height is fixed, so it
+            // tail-truncates. Left as is until design/ rules.
             Text(confirmation.text)
                 .typeStyle(.popoverRow)
                 .foregroundStyle(Tokens.Color.Text.primary)

@@ -8286,3 +8286,72 @@ count inside one parameterised test).
   `WeekdayToggleRow.swift`.
 - DEVIATIONS **B35** resolved; **B38** logged and resolved; **A36** opened
   (deferred on G-050).
+
+## 90. P2-RC — recaptures (PHASE2-REVIEW.md 2026-10-06 R4: items 12, 14, 13's 780 frame, the SF1 edge check)
+
+Build: `0066f8d` + the `// SPEC-GAP G-051` comment (no behaviour change).
+Fresh pre-flight before every run (all: unlocked, no full screen).
+
+### Frames (all opened and checked by eye against §17.2; filed in screenshots/2/)
+
+- `Scripts/capture-p2f25.sh` (new; capture-p2f20.sh's helpers, fresh store,
+  no scroll): `inactive-weekdays-windows-mode-p2f25.png` (item 14; also 2,
+  3's Windows half), `inactive-weekdays-780-p2f25.png` (item 13's 780 —
+  the build changed in SF6), `routines-blocks-edge-p2f25.png` (edge check,
+  Blocks mode). Item 14 opens at **06:00 by itself**; `Low energy` in
+  Tuesday, uncrossed; gutter shows Sleep's and Lunch's fill and the
+  Low-energy hatch, no Deep-work outline; nothing selected. 780: inspector
+  collapsed, all four notes, Sat/Sun uncovered. **Appearance: dark** (the
+  Mac was in dark mode for this run).
+- Renders (`PopoverCaptureTests`, `TEST_RUNNER_KADENCE_CAPTURE_DIR`, light):
+  `snooze-next-day-p2f25.png` (no windows: `00:05 – 01:35` / `Moved to
+  tomorrow 00:05` + `Undo`) and `snooze-refused-p2f25.png` (with Sleep:
+  NEXT `23:50 – 01:20`, no `Undo`). **The refused copy is tail-truncated**
+  (`… inside Sleep (protect…`): the exact copy doesn't fit `popoverWidth`
+  in `popoverRow` on the fixed-height row — **GAPS G-051** opened, marker in
+  `MenuBarPopoverView.snoozeResultRow`; filed as evidence of the behaviour,
+  not of whole copy.
+- Item 11's four renders re-rendered as `popover-{normal,late,empty,
+  overflow}-p2f25.png`: SF1 changed them (NEXT's focus overlay) — §17.2
+  rule 2. (The renders' default suffix is now `p2f25`.)
+- Live popover: the status item was **visible** (`22:30 · Late lab
+  session`, x 861), so there was no ASK PARSA message and nothing was hidden
+  or quit. Store prepared as P2-F19 (sqlite, app quit: 11 of today's events
+  starting before now + 30 min set `done` → normal state). One guarded
+  click on the status item opened it; `popover-live-p2f25.png` (`-R` with
+  the bar) and `popover-own-window-p2f25.png` (`-l` of its layer-101
+  window). NEXT with its overlay, `Open` enabled. A real `⎋` closed it.
+
+### SF1 edge check — outermost 2px band, opaque pixels (scratch `edge.py`)
+
+Flags any pixel within 30 (sum of |ΔR|+|ΔG|+|ΔB|) of `#0A6CFF`, `#4C9BFF`,
+`#80B3FA`, `#8DBBFB`, or any blue-dominant pixel.
+
+| Frame | Band colours (most common) | Accent-like |
+|---|---|---|
+| `routines-blocks-edge-p2f25.png` | `#212124` 4036, `#242427` 3479, `#1C1C1E` 2481, `#373636` 1531, `#4D4C4C` 1505 | **none** |
+| `inactive-weekdays-windows-mode-p2f25.png` | the same set | **none** |
+| `inactive-weekdays-780-p2f25.png` | `#1C1C1E`, `#242427`, `#333335`, `#49494B` | **none** |
+| `popover-own-window-p2f25.png` | `#404047`, `#3F3F46`, `#3E3E45`, `#3D3D44`, `#37373D` | **none** |
+| main window (scratch frame, dark) | `#212124`, `#242427`, `#1B1B1D`, `#38383A` | **none** |
+| control: `inactive-weekdays-windows-mode-p2f20.png` (old) | `#FFFFFF`, **`#80B3FA` 3707**, `#7CAFF7` 1942 … | **flagged** — the checker bites |
+
+### INDEX.md
+
+Batch 10: a "Phase 2 final run — recaptures" table; the §17 table maps
+item 2 → `…windows-mode-p2f25`, 3's Windows half → the same, 11 →
+`popover-*-p2f25` + `popover-live-p2f25` (+ own-window), 12 →
+`snooze-same-day-p2t48` + `snooze-next-day-p2f25` + `snooze-refused-p2f25`,
+13's 780 → `…-780-p2f25`, 14 → `…windows-mode-p2f25`.
+
+### Verified
+
+- `-only-testing:KadenceTests`: **xcresult 599 passed / 0 failed**.
+  `generate-tokens --check`: up to date.
+- Fresh pre-flight before each: `check-routines-window.sh`,
+  `check-conflict-apply-return.sh`, `check-inspector-inset.sh`,
+  `check-block-click-selects.sh`, `check-resync-escape.sh` — all **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- GAPS **G-051** opened (refused-row copy doesn't fit).

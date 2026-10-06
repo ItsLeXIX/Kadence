@@ -1058,13 +1058,44 @@ item is upcoming — the normal state.
 | `status-item-live-p2f20.png` | 10 (live) | `12:30 · Stand-up` in **menu-bar tint** (template white on the dark macOS 26 bar), one string, no glyph; the item is only as wide as its text (124pt, from its AX frame) |
 | `popover-live-p2f20.png` | 11 (live) | The open popover under the highlighted item, live chrome, **light**: NEXT `Stand-up` `12:30 – 12:45 · Personal`; `Done` · `Snooze` · **`Open` enabled**; REST OF TODAY six rows `12:50 Check mail` … `19:50 Client call`, then `+2 more` (the normal state with overflow) |
 
+### Phase 2 final run — recaptures (task P2-RC, 2026-10-06 evening)
+
+`design/PHASE2-REVIEW.md` "Re-review — 2026-10-06" R4 / R6. Build after
+P2-B1 … P2-SF1 (`0066f8d` + the G-051 marker). Fresh pre-flight before each
+run. **Appearance: dark** for the live frames (this Mac was switched to dark
+between runs; the renders force light). Every frame opened and checked by
+eye against §17.2.
+
+| File | §17 item(s) | Shows |
+|---|---|---|
+| `inactive-weekdays-windows-mode-p2f25.png` | 14, 2, 3 (Windows half) | `Scripts/capture-p2f25.sh`, fresh store, 1051pt (the screen's clamp; ≥ 1040, inspector docked). Opens at **06:00 by itself** — the script never scrolls (G-047). Windows mode: no notes, no underlines, no reweighting; `Sleep`/`Lunch` protected, `Low energy` hatch (stops at Friday), `Deep work` dashed — all three kinds. **`Low energy` in Tuesday, uncrossed** (SF2). The **gutter** carries Sleep's fill (06:00–07:00), Lunch's fill and the Low-energy hatch, and no Deep-work outline (SF3). Nothing selected. No edge line (SF1 edge check: no accent pixel in the outer 2px band) |
+| `inactive-weekdays-780-p2f25.png` | 13 (780) | Recaptured because P2-SF6 changed the build. 780pt, Blocks mode: the editor inspector **starts collapsed**, so nothing covers Sat/Sun; all four notes `Not in this routine` + `Add Tue/Thu/Sat/Sun`; green underlines Mon/Wed/Fri; 06:00; nothing selected; no horizontal scroll |
+| `routines-blocks-edge-p2f25.png` | SF1 edge check (Blocks mode) | The same window in Blocks mode at 1051pt — the edge check's Blocks half; outer 2px band greys only |
+| `snooze-next-day-p2f25.png` | 12 (next-day) | Render, §17.1 fixture: `now` 23:40, `Prep: relational algebra` 23:50–01:20, **no time windows** → NEXT `00:05 – 01:35 · Planned study` above `Moved to tomorrow 00:05` + `Undo` |
+| `snooze-refused-p2f25.png` | 12 (refused) | Render, the same fixture **with `Sleep`**: NEXT unchanged `23:50 – 01:20` above the refused row, no `Undo`. **The copy is tail-truncated** — `Not moved — 00:05 is inside Sleep (protect…` — at `popoverWidth` in `popoverRow` on the fixed-height row: GAPS **G-051** (open). Evidence for the behaviour (no write, no Undo), not for whole copy |
+| `popover-{normal,late,empty,overflow}-p2f25.png` | 11 (renders) | Re-rendered because P2-SF1 changed what they show: NEXT now draws `hoverOverlay` at `radius.card` (it is focused on every open). Otherwise as the p2f20 renders (states, `Open` enabled, `Re-offer` prominent, `+3 more`) |
+| `popover-live-p2f25.png` | 11 (live), SF1 edge check | Live crop from the real menu bar (`-R`), **dark**: status item `22:30 · Late lab session`; the popover opened by one guarded click on it — NEXT `Late lab session` `22:30 – 23:30 · University timetable` with NEXT's focus overlay; `Done` · `Snooze` · **`Open` enabled**; nothing else left today (store prepared as P2-F19: today's started events marked `done`). Closed with a real `⎋`. No room-making was needed: the item was visible |
+| `popover-own-window-p2f25.png` | SF1 edge check | The same popover's own window (`-l`, layer 101): outer 2px band popover-material greys only (`#404047`, `#3F3F46`, `#3E3E45` …), **no accent / `#8DBBFB` pixel** |
+
+Item 12's same-day row stays `snooze-same-day-p2t48.png` (§17.1 item 12:
+"unchanged"); note it predates NEXT's focus overlay (P2-SF1).
+
+**Retired by P2-SF7** (`git rm`, R6): the 15 superseded `-p2t48` frames,
+`snooze-next-day-p2t48.png`, and the 2026-09-27 crops
+`status-item-{normal,late,empty}.png`. Superseded but kept (not in R6's
+list): `inactive-weekdays-{windows-mode,780}-p2f20.png`,
+`popover-{normal,late,empty,overflow}-p2f20.png`, `popover-live-p2f20.png`.
+The other Routines-window p2f20 frames (items 1, 3 wide, 4, 15, 16) predate
+SF1–SF4 (they show the edge line, B35, and no gutter treatment); the
+re-review did not ask for them again.
+
 ### Every §17 item — current evidence (2026-10-06)
 
 | §17 item | Current file(s) | Status |
 |---|---|---|
 | 1 | `routine-template-flexibility-p2f20.png` | recaptured |
-| 2 | `inactive-weekdays-windows-mode-p2f20.png` (item 14's frame, review ruling) | recaptured |
-| 3 | `inactive-weekdays-wide-p2f20.png` (Blocks half) · `inactive-weekdays-windows-mode-p2f20.png` (Windows half) | recaptured |
+| 2 | `inactive-weekdays-windows-mode-p2f25.png` (item 14's frame, review ruling) | recaptured (P2-RC) |
+| 3 | `inactive-weekdays-wide-p2f20.png` (Blocks half) · `inactive-weekdays-windows-mode-p2f25.png` (Windows half) | recaptured |
 | 4 | `resync-popover-p2f20.png` | recaptured |
 | 5 | `detached-instance-inspector-p2f20.png` | recaptured |
 | 6 | `conflict-panel-two-options-p2f20.png` · `conflict-panel-three-options-p2f20.png` | recaptured |
@@ -1072,10 +1103,10 @@ item is upcoming — the normal state.
 | 8 | `conflict-panel-three-options-p2f20.png` (main window) · `template-conflict-panel-p2f20.png` (Routines window) | recaptured |
 | 9 | `needs-attention-count-{0,1,12}.png` (batch 4) | accepted with note; not recaptured |
 | 10 | `status-item-{normal-full,normal-clipped,late-full,late-clipped,empty,degraded-110,degraded-80}-p2t47.png` (batch 8 renders) · **`status-item-live-p2f20.png`** (live crop) | renders accepted; live crop done (P2-F19) |
-| 11 | `popover-{normal,late,empty,overflow}-p2f20.png` (renders) · **`popover-live-p2f20.png`** (live crop) | renders done; live crop done (P2-F19) |
-| 12 | `snooze-{same-day,next-day}-p2t48.png` (batch 9 renders) | accepted; not recaptured |
-| 13 | `inactive-weekdays-wide-p2f20.png` · `inactive-weekdays-780-p2f20.png` | recaptured |
-| 14 | `inactive-weekdays-windows-mode-p2f20.png` | recaptured |
+| 11 | `popover-{normal,late,empty,overflow}-p2f25.png` (renders) · **`popover-live-p2f25.png`** (live crop) · `popover-own-window-p2f25.png` (edge check) | re-rendered and live-recaptured (P2-RC) |
+| 12 | `snooze-same-day-p2t48.png` · `snooze-next-day-p2f25.png` · `snooze-refused-p2f25.png` (renders) | next-day and refused rendered (P2-RC); refused copy truncated — G-051 |
+| 13 | `inactive-weekdays-wide-p2f20.png` · `inactive-weekdays-780-p2f25.png` | 780 recaptured (P2-RC, SF6) |
+| 14 | `inactive-weekdays-windows-mode-p2f25.png` | recaptured (P2-RC) |
 | 15 | `routine-refusal-errands-p2f20.png` | recaptured |
 | 16 | `template-conflict-panel-p2f20.png` | recaptured |
 | 17 | `conflict-single-option-p2f20.png` | recaptured |

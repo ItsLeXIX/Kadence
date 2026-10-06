@@ -60,7 +60,7 @@ private func container(restCount: Int, next: Bool = true) throws -> ModelContain
 
 @MainActor
 private func render(_ name: String, container: ModelContainer, now: Date,
-                    snooze: MenuBarPopoverView.SnoozeConfirmation? = nil, suffix: String = "p2f20") throws {
+                    snooze: MenuBarPopoverView.SnoozeConfirmation? = nil, suffix: String = "p2f25") throws {
     renderedContainers.append(container)
     let view = MenuBarPopoverView(initialNow: now, initialSnooze: snooze)
         .modelContainer(container)
@@ -76,9 +76,9 @@ private func render(_ name: String, container: ModelContainer, now: Date,
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     if let tiff = image.tiffRepresentation,
        let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
-        // The batch suffix of the files written (task P2-F20 re-rendered item
-        // 11 after P2-F18; P2-B1 re-renders item 12 as `-p2f25`; the P2-T48
-        // files keep their own names).
+        // The batch suffix of the files written: `-p2f25` since the Phase 2
+        // final run (P2-SF1 added NEXT's focus overlay, so item 11 is
+        // re-rendered; P2-B1's item 12 rows). Earlier batches keep their names.
         try png.write(to: directory.appendingPathComponent("\(name)-\(suffix).png"))
     }
 }
