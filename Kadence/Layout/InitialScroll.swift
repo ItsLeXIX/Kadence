@@ -37,7 +37,21 @@ enum InitialScroll {
             }
             .min()
         guard let firstMinute else { return 7 * 60 }
-        return max(0, min(7 * 60, firstMinute - 60))
+        return flooredDefault(firstStartMinute: firstMinute)
+    }
+
+    /// layouts.md §3.1 (amended 2026-10-07, G-052): `min(07:00,
+    /// floorToHour(firstEventStart − 1h))`, clamped at 00:00 — the top of
+    /// the viewport is always a labelled hour line. 07:15 → 06:00, 07:59 →
+    /// 06:00, 08:00 → 07:00, 05:30 → 04:00, 00:30 → 00:00. Shared by Day,
+    /// Week and the Routines window (§8).
+    static func flooredDefault(firstStartMinute: Int) -> Int {
+        let lead = firstStartMinute - 60
+        // Swift's `/` on Ints truncates toward zero, so a negative lead
+        // (an event before 01:00) is floored by rounding a Double down
+        // instead; the clamp then takes it to 00:00 either way.
+        let hourFloor = Int((Double(lead) / 60).rounded(.down)) * 60
+        return max(0, min(7 * 60, hourFloor))
     }
 
     /// Where the canvas is scrolled, from the scroll view's geometry.
@@ -72,7 +86,7 @@ enum InitialScroll {
     /// so the weekdays don't enter into it. No blocks → 07:00.
     static func minute(blockStartMinutes: [Int]) -> Int {
         guard let earliest = blockStartMinutes.min() else { return 7 * 60 }
-        return max(0, min(7 * 60, earliest - 60))
+        return flooredDefault(firstStartMinute: earliest)
     }
 
     /// True when `position` isn't at `minute`'s top — clamped to the

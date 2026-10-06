@@ -8550,3 +8550,22 @@ to date at every task. Build: only `MonthGridView.swift:153`.
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the four UI scripts **PASS**; `check-routines-cursor.sh`
   **PASS**.
+
+## 96. P2-C4 — the default scroll floors to the hour (layouts.md §3.1, §8, both 2026-10-07; G-052)
+
+- `InitialScroll.flooredDefault(firstStartMinute:)` = `min(07:00,
+  floorToHour(first − 1h))`, clamped at 00:00 (a Double floor, since Int
+  `/` truncates toward zero for leads before 01:00). Both
+  `minute(events:days:)` (Day, Week) and `minute(blockStartMinutes:)`
+  (Routines) use it. The hold is unchanged.
+- Tests: new `dayFloorsToTheHour` — 07:15 → 06:00, 08:00 → 07:00, 07:59 →
+  06:00, 05:30 → 04:00, 00:30 → 00:00, none → 07:00, `Daily routine` →
+  06:00, and every 5-minute input gives a whole hour. Updated to the ruling:
+  Week Tue 08:00 + Thu 05:30 → **04:00** (SF5's 04:30); Routines first block
+  05:30 → **04:00** (SF4's 04:30, and the hold-retarget test); the
+  carry-over test's 07:15 breakfast → 06:00 in Day and in Week (was 06:15 —
+  the second one surfaced as the only failure of the first run, 620/1).
+- No recapture (06:00 with today's fixtures in every view).
+- Verify: xcresult **621 passed / 0 failed**; build warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the four UI scripts **PASS**.

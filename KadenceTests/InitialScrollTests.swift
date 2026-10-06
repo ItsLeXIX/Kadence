@@ -26,15 +26,35 @@ struct InitialScrollTests {
         Event(title: "E", start: start, end: start.addingTimeInterval(3600), isAllDay: allDay)
     }
 
+    /// CF4's acceptance line (layouts.md §3.1, amended 2026-10-07; G-052).
+    @Test func dayFloorsToTheHour() {
+        func day(_ h: Int, _ m: Int) -> Int {
+            InitialScroll.minute(events: [event(at(monday, h, m))], days: [monday])
+        }
+        #expect(day(7, 15) == 6 * 60)
+        #expect(day(8, 0) == 7 * 60)
+        #expect(day(7, 59) == 6 * 60)
+        #expect(day(5, 30) == 4 * 60)
+        #expect(day(0, 30) == 0)
+        #expect(InitialScroll.minute(events: [], days: [monday]) == 7 * 60)
+        // The Routines window over `Daily routine` (Gym 07:00): 06:00.
+        let daily = MockData.makeRoutineTemplates()[0].blocks.map(\.startMinutes)
+        #expect(InitialScroll.minute(blockStartMinutes: daily) == 6 * 60)
+        // Every result is a whole hour.
+        for minute in stride(from: 0, to: 1440, by: 5) {
+            #expect(InitialScroll.flooredDefault(firstStartMinute: minute) % 60 == 0)
+        }
+    }
+
     @Test func noEventsOpensAtSeven() {
         #expect(InitialScroll.minute(events: [], days: [monday]) == 7 * 60)
     }
 
     @Test func anEarlyEventOpensAnHourBeforeIt() {
-        // Gym at 07:00 → 06:00. Minute-precise since P2-SF5 (§3.1's
-        // `firstEventStart − 1h`): 05:30 → 04:30, not P2-F22's 04:00.
+        // Gym at 07:00 → 06:00. Floored to the hour since P2-C4 (§3.1,
+        // amended 2026-10-07, G-052): 05:30 → 04:00 (P2-SF5 had 04:30).
         #expect(InitialScroll.minute(events: [event(at(monday, 7))], days: [monday]) == 6 * 60)
-        #expect(InitialScroll.minute(events: [event(at(monday, 5, 30))], days: [monday]) == 4 * 60 + 30)
+        #expect(InitialScroll.minute(events: [event(at(monday, 5, 30))], days: [monday]) == 4 * 60)
         #expect(InitialScroll.minute(events: [event(at(monday, 0, 20))], days: [monday]) == 0)
     }
 
@@ -57,9 +77,10 @@ struct InitialScrollTests {
 
     @Test func weekUsesTheEarliestTimeOfDayAcrossColumns() {
         // Tue 08:00 is the first instant; Thu 05:30 is the earliest time of
-        // day. Built before (earliest instant): 07:00. Now: 04:30.
+        // day. Built before (earliest instant): 07:00. P2-SF5: 04:30.
+        // P2-C4 (G-052, floored to the hour): 04:00.
         let events = [event(at(day(1), 8)), event(at(day(3), 5, 30))]
-        #expect(InitialScroll.minute(events: events, days: week) == 4 * 60 + 30)
+        #expect(InitialScroll.minute(events: events, days: week) == 4 * 60)
     }
 
     @Test func aPreviousDayCarryOverDoesNotCount() {
@@ -67,9 +88,9 @@ struct InitialScrollTests {
         // starts at 00:00 only by clipping. Tuesday's Day view ignores it…
         let late = Event(title: "Late", start: at(day(0), 23, 50), end: at(day(1), 1, 20))
         let breakfast = event(at(day(1), 7, 15))
-        #expect(InitialScroll.minute(events: [late, breakfast], days: [day(1)]) == 6 * 60 + 15)
+        #expect(InitialScroll.minute(events: [late, breakfast], days: [day(1)]) == 6 * 60)   // 07:15 → 06:00 (G-052)
         // …and in a week it counts as 23:50, its own start time of day.
-        #expect(InitialScroll.minute(events: [late, breakfast], days: week) == 6 * 60 + 15)
+        #expect(InitialScroll.minute(events: [late, breakfast], days: week) == 6 * 60)   // 07:15 → 06:00 (G-052)
     }
 
     @Test func allDayIsIgnoredInAWeek() {
@@ -146,8 +167,9 @@ struct InitialScrollTests {
         #expect(InitialScroll.minute(blockStartMinutes: []) == 7 * 60)
     }
 
-    @Test func routinesFirstBlockAtFiveThirtyOpensAtFourThirty() {
-        #expect(InitialScroll.minute(blockStartMinutes: [9 * 60, 5 * 60 + 30]) == 4 * 60 + 30)
+    @Test func routinesFirstBlockAtFiveThirtyOpensAtFour() {
+        // P2-C4 (G-052): 04:00, not P2-SF4's 04:30.
+        #expect(InitialScroll.minute(blockStartMinutes: [9 * 60, 5 * 60 + 30]) == 4 * 60)
         #expect(InitialScroll.minute(blockStartMinutes: [20]) == 0, "never above 00:00")
         #expect(InitialScroll.minute(blockStartMinutes: [10 * 60]) == 7 * 60, "never below 07:00")
     }
@@ -190,7 +212,7 @@ struct InitialScrollTests {
         #expect(!aim(&hold, .init(top: 0, contentHeight: day), hourHeight: hh, viewportHeight: 780))
         // Another template: held again at its own default.
         hold.retarget(InitialScroll.minute(blockStartMinutes: [5 * 60 + 30]))
-        #expect(hold.target == 4 * 60 + 30)
+        #expect(hold.target == 4 * 60)
         #expect(hold.isHolding)
         #expect(aim(&hold, .init(top: 0, contentHeight: day), hourHeight: hh, viewportHeight: 780))
     }
