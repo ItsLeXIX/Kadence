@@ -55,6 +55,7 @@ private func render(_ name: String, container: ModelContainer, now: Date,
     let view = MenuBarPopoverView(initialNow: now, initialSnooze: snooze)
         .modelContainer(container)
         .environment(UndoStack())
+        .environment(CalendarState())   // P2-F18: `Open` reads it
         .environment(\.colorScheme, .light)
     let renderer = ImageRenderer(content: view)
     renderer.scale = 2

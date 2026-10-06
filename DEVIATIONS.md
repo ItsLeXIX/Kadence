@@ -332,6 +332,13 @@ action; the remaining keyboard rows (`↑`/`↓`/`↩`/`⌘↩`/`⎋`); componen
 needing animation state shared across two SwiftUI scenes). See `STATUS.md`
 §27.
 
+**Resolved 2026-10-06, task P2-F18** (interactions.md §12 and components.md
+§15.2, amended 2026-10-05): key focus on every open is now the spec (the
+click-vs-keyboard distinction was withdrawn), so the paragraph above no longer
+describes a deviation. `Open` is wired and always enabled, and the rest of the
+keyboard table (`↑`/`↓`/`↩`/`⌘↩`/`⎋`) is built. §16's third bullet is
+deferred by ruling: **A33**.
+
 *(Noted 2026-09-18, task P2-T13 — a fourth exception: `ConflictEngine`
 (`Kadence/State/ConflictEngine.swift`) now detects every routine-vs-manual/
 imported overlap and builds each one's ranked resolution options
@@ -1153,6 +1160,15 @@ P2-T48 judgement calls that need no marker, because no value was invented:
   What is missing is every *transient* cursor — the ones that change during a
   gesture rather than on hover — plus the divider. The hover cases are done.
 
+- **A33 — components.md §16, third bullet. A popover snooze doesn't run the
+  block-move transition in an open main window.** *(new 2026-10-06, task
+  P2-F18; deferred out of Phase 2 by interactions.md §12 (2026-10-05) and
+  DECISIONS 2026-10-05.)* "If the main window is open and showing the
+  destination day, the block-move transition runs there too" needs animation
+  state shared across the `MenuBarExtra` scene and `MainWindow`'s
+  `WindowGroup`. Nothing is lost meanwhile: the popover's result row says
+  where the block went, and the main window shows it there on its next
+  render. Still normative.
 - **A19 — interactions.md §9. Undo does not restore selection.** §9 says undo
   restores "the selection state that was in effect". Mutations are named and
   undoable; `⌘Z` puts the data back, not the user. Re-verified: no selection

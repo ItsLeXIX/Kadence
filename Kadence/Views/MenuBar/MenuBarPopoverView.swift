@@ -20,26 +20,21 @@
 //  global `⌘Z` both undo the snooze as the one named step
 //  `EventStore.snooze` pushes.
 //
-//  Still explicitly deferred, same discipline as P2-T25's own scope note:
-//  the `Open` button's action; the rest of interactions.md §12's keyboard
-//  table (`↑`/`↓`/`↩`/`⌘↩`/`⎋` — only the `⌥⌘↩` binding is wired here); any
-//  change to `RoutineEngine`, `ConflictEngine` or `TimeWindow`; and
-//  components.md §16's third bullet — "if the main window is open and
-//  showing the destination day, the block-move transition runs there too" —
-//  which needs animation state coordinated across two separate SwiftUI
-//  scenes (this popover's `MenuBarExtra` and `MainWindow`'s `WindowGroup`)
-//  and is a separate concern from this task's in-popover result row.
+//  Task P2-F18 (components.md §15.2, interactions.md §12, both amended
+//  2026-10-05): `Open` is wired and always enabled; the whole keyboard table
+//  (`↑`/`↓`/`↩`/`⌘↩`/`⌥⌘↩`/`⎋`) runs through `MenuBarPopoverKeys`;
+//  `Re-offer` is the late state's prominent primary action. Key focus on
+//  every open is now spec, not a deviation.
 //
-//  One deviation this task's own wiring required: making `⌥⌘↩` reachable at
-//  all needs the popover to actually hold key focus, and nothing before this
-//  task ever granted it any (confirmed live — see the `.focused`/`.onAppear`
-//  pair below). `design/`'s "only when opened by keyboard, not by click"
-//  distinction is not built here either — this task does not attempt it, the
-//  same as P2-T25 left the whole rule alone — so this build claims focus
-//  unconditionally on every open instead. See `DEVIATIONS.md`.
+//  Still deferred, by ruling (interactions.md §12, 2026-10-05; logged in
+//  DEVIATIONS as an A-entry): components.md §16's third bullet — "if the
+//  main window is open and showing the destination day, the block-move
+//  transition runs there too" — which needs animation state shared across
+//  two scenes (this `MenuBarExtra` and `MainWindow`'s `WindowGroup`).
 //
 
 import SwiftUI
+import AppKit
 import SwiftData
 import Combine
 
@@ -47,6 +42,13 @@ struct MenuBarPopoverView: View {
     @Environment(\.modelContext) private var context
     @Environment(UndoStack.self) private var undoStack
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Task P2-F18: `Open` selects the item in the main window.
+    @Environment(CalendarState.self) private var calendarState
+    @Environment(\.openWindow) private var openWindow
+    /// Closes the `MenuBarExtra` window (interactions.md §12's `⎋`).
+    @Environment(\.dismiss) private var dismiss
+    /// interactions.md §12: 0 is NEXT, 1… the rest rows (`↑`/`↓`).
+    @State private var focusIndex = 0
     @Query(sort: \Event.start) private var events: [Event]
     @State private var now = Date()
 
@@ -138,13 +140,61 @@ struct MenuBarPopoverView: View {
         // note, and remains so here); see `DEVIATIONS.md`.
         .focusable()
         .focused($isKeyFocused)
-        .onAppear { isKeyFocused = true }
-        .onKeyPress(keys: [.return]) { press in
-            guard press.modifiers.contains(.command), press.modifiers.contains(.option) else { return .ignored }
-            guard let next = result.next else { return .ignored }
-            performSnooze(next)
-            return .handled
+        // interactions.md §12 (amended 2026-10-05): key focus on EVERY open,
+        // click or keyboard — now spec, no longer a deviation.
+        .onAppear { isKeyFocused = true; focusIndex = 0 }
+        // The whole keyboard table (task P2-F18), decided by the pure
+        // `MenuBarPopoverKeys`.
+        .onKeyPress(keys: [.return, .upArrow, .downArrow, .escape]) { press in
+            handleKey(press)
         }
+    }
+
+    /// NEXT, then the listed rest rows — what `↑`/`↓` move through.
+    private var focusableItems: [Event] {
+        guard let next = result.next else { return [] }
+        return [next] + NextUpProvider.restDisplay(result.restOfToday).rows
+    }
+
+    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
+        let items = focusableItems
+        guard let action = MenuBarPopoverKeys.action(
+            key: press.key, modifiers: press.modifiers, focus: focusIndex, rowCount: items.count)
+        else { return .ignored }
+        switch action {
+        case .focus(let index): focusIndex = index
+        case .open(let index): open(items[index])
+        case .done: if let next = result.next { store.toggleDone(next) }
+        case .snooze: if let next = result.next { performSnooze(next) }
+        case .close: dismiss()
+        }
+        return .handled
+    }
+
+    private func perform(_ kind: MenuBarPopoverKeys.ActionButton.Kind, on next: Event) {
+        switch kind {
+        case .reoffer: store.markSkipped(next)
+        case .done: store.toggleDone(next)
+        case .snooze: performSnooze(next)
+        case .open: open(next)
+        }
+    }
+
+    /// components.md §15.2 (amended 2026-10-05): `Open` is always enabled —
+    /// activate the main window (opening it if it is closed), page to the
+    /// item's day and select it. The popover then closes, as a menu does when
+    /// it takes you somewhere.
+    private func open(_ event: Event) {
+        calendarState.reveal(event)
+        NSApplication.shared.activate()
+        if let main = NSApplication.shared.windows.first(where: {
+            $0.isVisible && $0.canBecomeMain && !RoutinesWindowOpener.isRoutinesWindow(identifier: $0.identifier?.rawValue)
+        }) {
+            main.makeKeyAndOrderFront(nil)
+        } else {
+            openWindow(id: "main")
+        }
+        dismiss()
     }
 
     // MARK: NEXT
@@ -200,16 +250,18 @@ struct MenuBarPopoverView: View {
     @ViewBuilder
     private func normalActionRow(next: Event, isLate: Bool) -> some View {
         HStack(spacing: Tokens.Spacing.sm) {
-            // §15.2 — "the late popover always offers Re-offer ... the
-            // primary action in that state," leading the row.
-            if isLate {
-                Button("Re-offer") { store.markSkipped(next) }
+            ForEach(MenuBarPopoverKeys.actionButtons(isLate: isLate), id: \.kind) { button in
+                let action = { perform(button.kind, on: next) }
+                // §15.2 (amended 2026-10-05): `Re-offer` is the late state's
+                // primary — `.borderedProminent` (accent), leading, NO key
+                // equivalent (`↩` opens the focused item). The rest are
+                // `.bordered`; `Open` is always enabled.
+                if button.isProminent {
+                    Button(button.title, action: action).buttonStyle(.borderedProminent)
+                } else {
+                    Button(button.title, action: action).buttonStyle(.bordered)
+                }
             }
-            Button("Done") { store.toggleDone(next) }
-            Button("Snooze") { performSnooze(next) }
-            // Disabled/inert per this task's own scope — see the file header.
-            Button("Open") {}
-                .disabled(true)
         }
         .frame(height: Tokens.Size.popoverActionRowHeight)
     }
@@ -294,19 +346,33 @@ struct MenuBarPopoverView: View {
             // list is 5 monospaced-digit characters (`HH:mm`), so every row
             // already lines up, with no literal number to get wrong or to
             // have to defend later.
-            Grid(alignment: .leading, horizontalSpacing: Tokens.Spacing.sm, verticalSpacing: 0) {
-                ForEach(rest.rows, id: \.id) { event in
-                    GridRow {
+            // One `HStack` per row (task P2-F18: was a `Grid`, whose
+            // `GridRow` backgrounds are per cell, so a focused row could not
+            // be one full-width highlight). The time column still lines up:
+            // every time is 5 monospaced-digit characters (`HH:mm`).
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(rest.rows.enumerated()), id: \.element.id) { offset, event in
+                    HStack(spacing: Tokens.Spacing.sm) {
                         Text(MenuBarFormatting.time(event.start))
                             .typeStyle(.popoverRow)
                             .foregroundStyle(Tokens.Color.Text.primary)
-                            .frame(height: Tokens.Size.popoverRestRowHeight, alignment: .leading)
                         Text(event.title)
                             .typeStyle(.popoverRow)
                             .foregroundStyle(Tokens.Color.Text.primary)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .frame(height: Tokens.Size.popoverRestRowHeight, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Tokens.Size.popoverRestRowHeight,
+                           maxHeight: Tokens.Size.popoverRestRowHeight, alignment: .leading)
+                    // interactions.md §12 (amended 2026-10-05): the focused
+                    // rest row draws `hoverOverlay` behind its full width at
+                    // `radius.chip` — the hovered-row treatment. Index 0 is
+                    // NEXT, so rest row `offset` is focus index `offset + 1`.
+                    .background {
+                        if focusIndex == offset + 1 {
+                            RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
+                                .fill(Tokens.Color.Interactive.hoverOverlay)
+                        }
                     }
                 }
             }

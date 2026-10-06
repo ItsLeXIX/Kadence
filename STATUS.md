@@ -7166,3 +7166,53 @@ queue resumes at **P2-F16**.
 - DEVIATIONS **C9** → "Resolved — retired by a spec ruling" (changed: `+N
   more`). The "clipped Re-sync popover" entry is written in P2-HK.
   Recapture of 4 is item 20's.
+
+## 69. P2-F18 — popover: `Open`, keyboard, and the primary `Re-offer` (components.md §15.2, interactions.md §12, both amended 2026-10-05; PHASE2-REVIEW.md §6 item 18)
+
+### Built
+
+- `Kadence/Views/MenuBar/MenuBarPopoverKeys.swift` (new, pure): the §12
+  table — `↑`/`↓` move focus between NEXT (0) and the rest rows (stopping
+  at the ends), `↩` opens the focused item, `⌘↩` Done, `⌥⌘↩` Snooze, `⎋`
+  close; and `actionButtons(isLate:)`, the action row in order (late:
+  `Re-offer` leading and prominent; every button enabled).
+- `MenuBarPopoverView`: one `onKeyPress` over `↩ ↑ ↓ ⎋` driven by the key
+  model; the focused rest row draws `hoverOverlay` behind its full width at
+  `radius.chip` (rest rows are now one `HStack` each — a `GridRow`'s
+  background is per cell); the action row is drawn from `actionButtons`:
+  `Re-offer` `.borderedProminent` with no key equivalent, the rest
+  `.bordered`, `Open` enabled.
+- `Open` (button, or `↩` on NEXT or a focused rest row):
+  `CalendarState.reveal(_:)` pages to the item's day (only if it isn't
+  visible; same mode) and selects it; the app is activated and the main
+  window brought forward, or reopened with `openWindow(id: "main")` if it
+  was closed; the popover closes. The main `WindowGroup` now has `id:
+  "main"` for that, and the popover gets `CalendarState` from the
+  environment.
+- File header and the stale scope notes updated. Key focus on every open is
+  now spec.
+
+### Tests
+
+- `MenuBarPopoverKeysTests` (6): `Open` enabled in the normal and late
+  states (overflow is the normal state plus `+N more`); late's first button
+  is the prominent `Re-offer` and nothing else is prominent; arrows move and
+  stop at the ends; `↩` / `⌘↩` / `⌥⌘↩` / `⎋`; an empty popover answers
+  only `⎋`; `reveal` pages to the day, selects the item and leaves conflict
+  mode, without changing the view mode.
+- `PopoverCaptureTests` now injects a `CalendarState` (the popover reads it).
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`, no new warnings.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 565
+  passed / 0 failed** (559 + 6).
+- `generate-tokens --check`: up to date.
+- **Pre-flight: screen still locked.** The three UI scripts and a live
+  `Open` check were **not run** (skipped per the run's rules).
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **A33** (new): §16's third bullet, deferred by ruling. The
+  P2-T26 key-focus paragraph gets a dated "resolved" note. The "`Open`
+  disabled" entry is written in P2-HK. Recapture of 11 is item 20's.

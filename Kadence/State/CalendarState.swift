@@ -227,6 +227,18 @@ final class CalendarState {
         return list[next]
     }
 
+    /// components.md §15.2 / interactions.md §12 (amended 2026-10-05, task
+    /// P2-F18): the popover's `Open` — page to the item's day (same view,
+    /// only when it isn't visible) and select it.
+    func reveal(_ event: Event) {
+        if !visibleDays.contains(where: { calendar.isDate($0, inSameDayAs: event.start) }) {
+            anchor = event.start
+        }
+        selectedConflictID = nil
+        selectedConflictOptionID = nil
+        selectedEventID = event.id
+    }
+
     /// A request for the canvas to bring a conflict into view
     /// (interactions.md §10.1, amended 2026-10-05). `token` makes every
     /// request a change, so stepping back onto the same conflict scrolls

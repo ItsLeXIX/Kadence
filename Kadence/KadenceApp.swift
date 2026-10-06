@@ -43,7 +43,9 @@ struct KadenceApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        // `id: "main"` (task P2-F18) so the menu bar popover's `Open` can
+        // reopen the main window with `openWindow(id:)` when it is closed.
+        WindowGroup(id: "main") {
             MainWindow()
                 .environment(calendar)
                 .environment(undoStack)
@@ -93,6 +95,8 @@ struct KadenceApp: App {
         MenuBarExtra {
             MenuBarPopoverView()
                 .environment(undoStack)
+                // Task P2-F18: `Open` selects the item in the main window.
+                .environment(calendar)
         } label: {
             MenuBarStatusItemView(container: container)
         }
