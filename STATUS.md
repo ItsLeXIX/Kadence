@@ -7278,3 +7278,56 @@ INDEX.md's §17 table itself is rewritten by P2-F20.
 - No code changed. `generate-tokens --check`: up to date. Tests unchanged
   (565 passed, from §69).
 
+
+## 71. P2-F20 — recapture and re-index (PHASE2-REVIEW.md §6 item 20) — PARTIAL: live captures blocked (screen locked)
+
+### Done
+
+- **Item 11, four renders** (`popover-{normal,late,empty,overflow}-p2f20.png`,
+  light, scale 2) from `PopoverCaptureTests` after P2-F18: `Open` enabled in
+  all three action states; `Re-offer` leading and prominent in the late
+  state; overflow `+3 more`. `PopoverCaptureTests` now writes the `-p2f20`
+  suffix.
+- **Retired** (`git rm`): batch 7's `popover-{normal,late,empty}.png` and
+  `snooze-{same-day,next-day}.png`.
+- **`Scripts/capture-p2f20.sh`** (new, **not yet run**): every live item
+  (1, 4, 5, 6 both halves, 7, 8 both halves, 13 wide + 780, 14, 15, 16, 17,
+  18) by the reproducible method — fresh store, real input only to a
+  frontmost Kadence, AX tree, `screencapture -l` of the window (`-R` of the
+  window + popover union for item 4). Conflicts are reached by walking the
+  list once with the footer's `Next conflict` (order depends on the weekday,
+  so it captures each as it comes up), never by the test hook. Item 17 uses
+  P2-T48's store edit (Training ±15, Supervisor 16:45–18:45). Two bugs were
+  caught by reading before any run: a forward-only search that would skip
+  Training on a Mon/Wed/Fri, and a template-panel match (`lands in`) that the
+  main grid's spoken labels also contain.
+- `screenshots/2/INDEX.md`: new "Batch 10" section and a §17 table that
+  says where each item's evidence stands (done / pending → file name /
+  accepted).
+
+### Not done, and why
+
+- **Every live recapture** — items 1, 4, 5, 6, 7, 8, 13, 14, 15, 16, 17,
+  18 (and through 14 and 13, items 2 and 3). **The screen has been locked
+  since about 02:30** (`CGSSessionScreenIsLocked = 1` at every pre-flight).
+  The run's rules say to skip a blocked UI step and record it, and never to
+  wait for a time.
+- **The six files review §6 item 20 retires** (`routine-template-flexibility`,
+  `routine-windows-all-three-kinds`, `routine-blocks-mode-inactive-windows`,
+  `routine-windows-mode-inactive-blocks`, `conflict-panel-two-options`,
+  `conflict-panel-preview-active`) are **kept** until their recaptures exist,
+  so items 1, 2, 3, 6 and 8 aren't left without any frame.
+
+### To finish (needs an unlocked screen, no full-screen app)
+
+1. `Scripts/capture-p2f20.sh` — then check every frame by eye against §17.2
+   (subject in view, no stray selection).
+2. `git rm` the six files above and the `-p2t48` frames the new ones
+   replace; rewrite INDEX.md's Batch 10 table rows from "pending" to the new
+   files (item 2 → item 14's frame; item 3 → item 13 wide + item 14).
+
+### Verified
+
+- `-only-testing:KadenceTests/PopoverCaptureTests`: `** TEST SUCCEEDED **`.
+- `bash -n Scripts/capture-p2f20.sh`: clean. Not run (locked).
+- `generate-tokens --check`: up to date.

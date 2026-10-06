@@ -958,3 +958,66 @@ design agent's review: see `design/PHASE2-REVIEW.md` (§2 per item, §6 fix
 list). The fixes are P2-F02 (inspector inset), P2-F13/F14 (selected row,
 chip on line 3), P2-F08 (weekday toggles), P2-F04 (text confinement),
 P2-F17 (Re-sync popover), and the recapture is P2-F20.
+
+## Batch 10 — the Phase 2 review recapture (task P2-F20, 2026-10-06) — PARTIAL
+
+`design/PHASE2-REVIEW.md` §6 item 20. **Only the offscreen half is done.**
+The screen was locked from about 02:30 on 2026-10-06, so no live window
+could be captured, and the run's rules forbid waiting for it.
+
+**Done — item 11, four offscreen renders** (§17.2 rule 3: renders are
+evidence of layout and copy). Made by `KadenceTests/PopoverCaptureTests.swift`
+with `TEST_RUNNER_KADENCE_CAPTURE_DIR` set (`ImageRenderer`, scale 2,
+**light** appearance), the real `MenuBarPopoverView` against §17.1's
+fixtures, content asserted in the same test, after P2-F18:
+
+| File | §17.1 fixture | Shows |
+|---|---|---|
+| `popover-normal-p2f20.png` | 17:10, three rest rows | `Training` `17:30 – 18:15 · Daily routine`; `Done` · `Snooze` · `Open`, **`Open` enabled**; three rows, no `+N` |
+| `popover-late-p2f20.png` | 17:42, same next item | `Started 12m ago · Daily routine` in now-red; **`Re-offer` leading, prominent (accent)**; `Done` · `Snooze` · `Open` bordered |
+| `popover-empty-p2f20.png` | 23:40, nothing next | NEXT + `Nothing left today` only; no actions, no rest section |
+| `popover-overflow-p2f20.png` | 17:10, nine rest rows | rows `18:30` … `21:00`, then `+3 more`; `Open` enabled |
+
+**Retired** (`git rm`): the batch-7 frames `popover-{normal,late,empty}.png`
+and `snooze-{same-day,next-day}.png` — superseded builds (review §6 item 20).
+Items 11 and 12 are covered by the `-p2f20` popover renders and the batch-9
+`snooze-*-p2t48.png` renders.
+
+**Not done — every live item.** `Scripts/capture-p2f20.sh` is written and
+ready, **not yet run** (it needs an unlocked screen). It reaches every
+conflict by stepping with the footer's `Next conflict` button, not by
+`-KadenceConflictUnderTest`; it captures the Re-sync popover with its window
+(`-R` of their union, since a system popover is its own window); and it
+leaves nothing selected except where an item asks for a selection (5, 15,
+18). Run it, check each frame by eye, then retire the six files review §6
+item 20 names (`routine-template-flexibility.png`,
+`routine-windows-all-three-kinds.png`, `routine-blocks-mode-inactive-windows.png`,
+`routine-windows-mode-inactive-blocks.png`, `conflict-panel-two-options.png`,
+`conflict-panel-preview-active.png`) and the `-p2t48` frames it replaces.
+They are kept until then so no item is left with no frame at all.
+
+### Every §17 item — where the evidence stands (2026-10-06)
+
+| §17 item | Current file(s) | Status |
+|---|---|---|
+| 1 | `routine-template-flexibility.png` (batch 1) | **pending** → `routine-template-flexibility-p2f20.png` |
+| 2 | → item 14's frame (review ruling) | **pending** (item 14) |
+| 3 | → item 13 (wide) for the Blocks-mode half, item 14 for the Windows half | **pending** (items 13, 14) |
+| 4 | `resync-popover-p2t48.png` | **pending** → `resync-popover-p2f20.png` |
+| 5 | `detached-instance-inspector-p2t48.png` | **pending** → `detached-instance-inspector-p2f20.png` |
+| 6 | `conflict-panel-two-options.png` (batch 2) · `conflict-panel-three-options-p2t48.png` | **pending** → `conflict-panel-two-options-p2f20.png`, `conflict-panel-three-options-p2f20.png` |
+| 7 | `conflict-panel-three-options-p2t48.png` | **pending** → `conflict-panel-three-options-p2f20.png` |
+| 8 | `conflict-panel-preview-active.png` (batch 3) · `template-conflict-preview-p2t48.png` | **pending** → `conflict-preview-active-p2f20.png`, `template-conflict-preview-p2f20.png` |
+| 9 | `needs-attention-count-{0,1,12}.png` (batch 4) | accepted with note; not recaptured |
+| 10 | `status-item-*-p2t47.png` (batch 8 renders) · batch-7 crops | renders accepted; the **live** crop is P2-F19's (pending) |
+| 11 | `popover-{normal,late,empty,overflow}-p2f20.png` | **done** (renders); the **live** crop is P2-F19's (pending) |
+| 12 | `snooze-{same-day,next-day}-p2t48.png` | accepted; not recaptured |
+| 13 | `inactive-weekdays-{wide,780}-p2t48.png` | **pending** → `inactive-weekdays-{wide,780}-p2f20.png` |
+| 14 | `inactive-weekdays-windows-mode-p2t48.png` | **pending** → `inactive-weekdays-windows-mode-p2f20.png` |
+| 15 | `routine-refusal-errands-p2t48.png` | **pending** → `routine-refusal-errands-p2f20.png` |
+| 16 | `template-conflict-panel-p2t48.png` | **pending** → `template-conflict-panel-p2f20.png` |
+| 17 | `conflict-single-option-p2t48.png` | **pending** → `conflict-single-option-p2f20.png` |
+| 18 | `conflict-skip-today-preview-p2t48.png` | **pending** → `conflict-skip-today-preview-p2f20.png` |
+
+Appearance: the `-p2f20` popover renders are **light**; the live frames take
+the system appearance (this Mac: dark) and must say so when indexed.

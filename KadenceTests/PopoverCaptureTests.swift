@@ -66,7 +66,9 @@ private func render(_ name: String, container: ModelContainer, now: Date,
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     if let tiff = image.tiffRepresentation,
        let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
-        try png.write(to: directory.appendingPathComponent("\(name)-p2t48.png"))
+        // The batch suffix of the files written (task P2-F20 re-rendered item
+        // 11 after P2-F18; the P2-T48 files keep their own names).
+        try png.write(to: directory.appendingPathComponent("\(name)-p2f20.png"))
     }
 }
 
