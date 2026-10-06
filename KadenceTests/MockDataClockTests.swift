@@ -50,6 +50,11 @@ struct MockDataClockTests {
               "5 7:00", "5 12:00", "5 16:50", "5 19:45", "5 20:00", "5 20:50", "5 23:30",
               "7 7:00", "7 13:10", "7 17:00", "7 23:30",
               "8 7:00", "8 12:00", "8 16:50", "8 20:00", "8 23:30",
+              // Task P2-F23 (B23): night seeding — Mon/Wed (template days)
+              // and Thu, before and after midnight — plus 11:50 on a Mon,
+              // which used to put Journal inside Lunch.
+              "5 22:00", "5 11:50", "6 2:00", "6 5:30",
+              "7 22:00", "8 2:00", "8 5:30", "9 1:30",
           ])
     func stableAcrossClock(_ label: String) throws {
         // "<day of Oct 2026> <hour>:<minute>". Monday 5 Oct is a template day
@@ -81,6 +86,26 @@ struct MockDataClockTests {
         let journal = try #require(events.first { $0.title == "Journal" })
         #expect(journal.start >= now.addingTimeInterval(MockData.journalLead))
         #expect(journal.duration == MockData.journalDuration)
+        // …and never inside a protected window (Sleep, Lunch) or overlapping
+        // either half of any conflict fixture (P2-F23, B23), so what it
+        // looks like never depends on the seeding clock.
+        let journalSpan = DateInterval(start: journal.start, end: journal.end)
+        let protected = try seededWindows(at: now).filter { $0.kind == .protected }
+        for offset in -1...2 {
+            let day = try #require(Calendar.current.date(byAdding: .day, value: offset, to: now))
+            for window in protected {
+                for span in window.spans(on: day) {
+                    #expect(!(span.start < journalSpan.end && journalSpan.start < span.end),
+                            "Journal \(journal.start) lands in \(window.label)")
+                }
+            }
+        }
+        for conflict in conflicts {
+            for half in [conflict.routineEvent, conflict.otherEvent] {
+                #expect(!(half.start < journal.end && journal.start < half.end),
+                        "Journal overlaps \(half.title)")
+            }
+        }
 
         // The template conflict (Errands × Lunch) is there at every clock time too.
         let templateConflicts = TemplateConflictEngine.detect(

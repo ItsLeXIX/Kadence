@@ -1680,8 +1680,18 @@ Still open, all re-checked against the current spec text this session:
   are per day column only, so `Lunch` and `Low energy` stop at the gutter's
   edge there.
 
-- **B23 — components.md §17.1. The `Journal` fixture lands in `Sleep` when
-  the store is seeded at night.** *(new 2026-10-06, found during task
+- ~~**B23 — components.md §17.1. The `Journal` fixture lands in `Sleep` when
+  the store is seeded at night.**~~ **Resolved 2026-10-06, task P2-F23.**
+  `MockData.journalStart` now also treats every protected window span
+  (`Sleep`, and `Lunch` on Mon/Wed/Fri — a daytime case the entry missed)
+  from today to the day after tomorrow as busy
+  (`protectedBusyIntervals`), so Journal moves to the first free slot after
+  it: seeded at night, the next morning after the routine blocks; still ≥
+  `now + 4 min`, still 15 min, still in no conflict. `MockDataClockTests`
+  sweeps 22:00, 23:30, 01:30, 02:00, 05:30 and 11:50 on template and
+  non-template days and asserts Journal overlaps no protected span and
+  neither half of any conflict, with the count still 13 + 1 = 14. Without
+  the fix 12 of the 24 sweep cases fail. *(was:)* *(new 2026-10-06, found during task
   P2-F10; not in that fix's scope.)* `MockData.journalStart` puts `Journal`
   at `now + 4 min` and steers it clear of day conflicts only
   (`conflictBusyIntervals`). Seeded at 01:30 it sits at 01:34–01:49, inside

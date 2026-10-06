@@ -282,9 +282,18 @@ enum MockData {
         //     clock (DEVIATIONS.md B18). `journalStart` keeps "a few minutes
         //     after `now`" but skips forward past anything a conflict could
         //     involve, so Journal never creates or joins one.
+        //
+        //     Task P2-F23 (DEVIATIONS B23): protected windows are busy too.
+        //     Seeded at night, `now + 4` used to sit inside `Sleep`
+        //     (22:00–07:00) and drew `conflicted` with `lands in Sleep`; at
+        //     11:50 on a Mon/Wed/Fri it would sit in `Lunch`. Now it moves
+        //     to the first free slot after the protected span — the next
+        //     morning when seeded at night, where it is still the next item
+        //     a few minutes or hours ahead for the status item and popover.
         let journalStart = journalStart(
             now: now,
-            busy: conflictBusyIntervals(events: events, now: now, calendar: calendar))
+            busy: conflictBusyIntervals(events: events, now: now, calendar: calendar)
+                + protectedBusyIntervals(now: now, calendar: calendar))
         events.append(Event(
             title: "Journal",
             start: journalStart, end: journalStart.addingTimeInterval(journalDuration),
@@ -353,6 +362,23 @@ enum MockData {
             }
         }
         return busy
+    }
+
+    /// Every protected `TimeWindow` span (`Sleep`, `Lunch`) from today to
+    /// the day after tomorrow — far enough for a Journal pushed out of
+    /// tonight's `Sleep` and then past tomorrow morning's routine blocks
+    /// (task P2-F23, DEVIATIONS B23). `spans(on:)` already returns the
+    /// morning half of an overnight window on the day it ends.
+    @MainActor
+    static func protectedBusyIntervals(now: Date, calendar: Calendar) -> [DateInterval] {
+        let today = calendar.startOfDay(for: now)
+        let windows = makeTimeWindows().filter { $0.kind == .protected }
+        return (0...2).flatMap { offset -> [DateInterval] in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { return [] }
+            return windows.flatMap { window in
+                window.spans(on: day, calendar: calendar).map { DateInterval(start: $0.start, end: $0.end) }
+            }
+        }
     }
 
     // MARK: Seeding everything + the launch pass (task P2-T40)

@@ -7548,3 +7548,47 @@ INDEX.md's §17 table itself is rewritten by P2-F20.
   `firstEventStart` in Week mode is the earliest *instant* on the visible
   days, i.e. the first event of the first day that has one, not the
   earliest time of day across the week. §3.1 doesn't say which.
+
+## 76. P2-F23 — `Journal` never lands in protected time (components.md §17.1; DEVIATIONS B23)
+
+### Built
+
+- `MockData.protectedBusyIntervals(now:calendar:)` (new): every protected
+  `TimeWindow` span from `makeTimeWindows()` — `Sleep` 22:00–07:00 daily,
+  `Lunch` 12:00–13:00 Mon/Wed/Fri — on today, tomorrow and the day after
+  (`spans(on:)` already gives the morning half of an overnight window).
+- `journalStart` is passed those spans on top of
+  `conflictBusyIntervals`. The rule is unchanged ("earliest start ≥ now + 4
+  min overlapping nothing busy"), so in the daytime Journal is where P2-T34
+  put it — a few minutes after seeding, the status item's and popover's
+  next item. Seeded inside protected time, it now goes to the first free
+  slot after the span: the next morning, past that day's routine blocks.
+  `Lunch` was a second, daytime instance of B23 (seeded 11:50 on a Mon).
+
+### Tests
+
+- `MockDataClockTests.stableAcrossClock`: 8 new sweep times — Mon 22:00,
+  Mon 11:50, Tue 02:00, Tue 05:30, Wed 22:00, Thu 02:00, Thu 05:30, Fri
+  01:30 (16 → 24 arguments; template and non-template days, both sides of
+  midnight). New assertions in every case: Journal overlaps no protected
+  span (days −1…+2) and neither half of any conflict; the existing ones
+  still hold — 13 day conflicts, 1 template conflict, needs-attention **14**,
+  Journal ≥ now + 4 min and 15 min long, in no conflict.
+- Shown to bite: with the protected spans temporarily removed (my own
+  uncommitted edit, edited back), 12 of the 24 cases fail.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`; only the known `MonthGridView.swift:153`
+  warning.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 571
+  passed / 0 failed** (unchanged: xcresult counts a parameterised test
+  once).
+- `generate-tokens --check`: up to date.
+- Pre-flight unlocked, no full screen. `check-routines-window.sh`: **PASS**.
+  `check-conflict-apply-return.sh`: **PASS**. `check-inspector-inset.sh`:
+  **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B23** resolved.
