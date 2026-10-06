@@ -339,25 +339,79 @@ struct EventStore {
     /// with real scheduling — see `design/GAPS.md`'s new entry for this task.
     static let snoozeOffset: TimeInterval = 15 * 60
 
+    /// What a snooze did. components.md §16 (amended 2026-10-06, G-046): the
+    /// result row shows either where the block landed or why it didn't move.
+    ///
+    /// Swift note: an `enum` with associated values is a tagged union — like
+    /// a sealed class hierarchy in Java/C#, but a value type; `switch` over it
+    /// must handle every case.
+    enum SnoozeResult: Equatable {
+        /// Written, one "Snooze" undo step: the block now starts at `to`.
+        case moved(to: Date)
+        /// Nothing written, no undo step: the destination starting at
+        /// `start` strictly overlaps the protected window labelled
+        /// `windowLabel` (may be empty).
+        case refused(start: Date, windowLabel: String)
+        /// Nothing written, nothing to show (a locked/imported event).
+        case unchanged
+    }
+
     /// Named separately from `move` (its own step, "Snooze") so the Edit menu
     /// and the popover's result row both read correctly, even though the
-    /// mechanics are the same shift-by-offset. Returns the new start so the
-    /// caller (the menu bar popover) can compose "Moved to HH:mm" without a
-    /// second read of the `@Model` after the fact.
+    /// mechanics are the same shift-by-offset.
+    ///
+    /// components.md §16 (amended 2026-10-06, G-046): the destination is
+    /// chosen automatically, so CONTEXT.md's hard rule applies — if the
+    /// shifted interval strictly overlaps any `.protected` span (§13.6.1's
+    /// test, over `TimeWindow.spans(on:)` so an overnight window counts on
+    /// both days), nothing is written and no undo step is recorded. Not a
+    /// search for a free slot: that is Phase 4's rule, which must keep this
+    /// guarantee.
     @discardableResult
-    func snooze(_ event: Event) -> Date {
-        guard event.isMovable else { return event.start }
+    func snooze(_ event: Event, calendar: Calendar = .current) -> SnoozeResult {
+        guard event.isMovable else { return .unchanged }
         let id = event.id
         let oldStart = event.start
         let oldEnd = event.end
         let newStart = oldStart.addingTimeInterval(Self.snoozeOffset)
         let newEnd = oldEnd.addingTimeInterval(Self.snoozeOffset)
+        let windows = (try? context.fetch(FetchDescriptor<TimeWindow>())) ?? []
+        if let window = Self.protectedWindow(overlapping: newStart, newEnd, windows: windows, calendar: calendar) {
+            return .refused(start: newStart, windowLabel: window.label)
+        }
         // A snooze moves the start, a template-owned field (§13.7.1).
         let (oldLink, newLink) = Self.linkChange(forTemplateFieldEditOf: event)
         undo.perform("Snooze",
                      redo: { edit(id) { $0.start = newStart; $0.end = newEnd; $0.routineLink = newLink } },
                      undo: { edit(id) { $0.start = oldStart; $0.end = oldEnd; $0.routineLink = oldLink } })
-        return newStart
+        return .moved(to: newStart)
+    }
+
+    /// The `.protected` window whose span strictly overlaps `[start, end)`,
+    /// or nil. Touching endpoints don't count (a block starting at 07:00 is
+    /// not inside a window ending at 07:00) — the same test `ConflictEngine`
+    /// and `ProtectedWindowRule` use. Every calendar day the interval touches
+    /// is checked, so a snooze crossing midnight meets both halves of an
+    /// overnight `Sleep`. With several, the one whose span starts first wins
+    /// (then `windows`' order), so the label named is the one the block
+    /// would enter first.
+    static func protectedWindow(
+        overlapping start: Date, _ end: Date, windows: [TimeWindow], calendar: Calendar = .current
+    ) -> TimeWindow? {
+        guard end > start else { return nil }
+        var best: (window: TimeWindow, spanStart: Date)?
+        var day = calendar.startOfDay(for: start)
+        while day < end {
+            for window in windows where window.kind == .protected {
+                for span in window.spans(on: day, calendar: calendar)
+                where start < span.end && span.start < end {
+                    if best == nil || span.start < best!.spanStart { best = (window, span.start) }
+                }
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return best?.window
     }
 
     /// The drag clamps rather than inverting; minimum resulting duration is 15 min.

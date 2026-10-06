@@ -7841,3 +7841,60 @@ count inside one parameterised test).
   re-run cleanly. Ad-hoc live checks relied on earlier pre-flights rather
   than one each (§79).
 - No forbidden git operation this run.
+
+## 82. P2-B1 — a snooze never lands in protected time (components.md §16, §17.1 item 12, amended 2026-10-06; G-046; PHASE2-REVIEW.md 2026-10-06 R4 B1)
+
+### Built
+
+- `EventStore.snooze` returns `SnoozeResult` — `.moved(to:)`,
+  `.refused(start:windowLabel:)`, `.unchanged` (was the new start, or the
+  unchanged one for a locked event). Before writing, the +15 interval
+  (G-016, unchanged) is tested by `EventStore.protectedWindow(overlapping:)`
+  against every `.protected` `TimeWindow` span on each calendar day the
+  interval touches (`spans(on:)`, so `Sleep` counts on both days), strict
+  overlap, as §13.6.1 and `ConflictEngine`. Overlap → no write, no undo
+  step, `.refused` with the destination start and the window's label (the
+  earliest-starting overlapped span names it).
+- `MenuBarFormatting.snoozeRefused(start:windowLabel:)`: `Not moved — 00:05
+  is inside Sleep (protected)`; empty label → `Not moved — 00:05 is inside a
+  protected window`.
+- `MenuBarPopoverView.SnoozeConfirmation` (now internal) gains `isRefusal`,
+  `make(for:oldStart:result:)` and `perform(_:store:)`. The result row is
+  the same height and hold (§12.1, pausing on hover); a refusal draws no
+  `Undo`. The `Snooze` button and `⌥⌘↩` both call `performSnooze` →
+  `SnoozeConfirmation.perform`. A refusal's `expectedStart` is the unchanged
+  start, so the row stays matched to NEXT and NEXT reads `23:50 – 01:20`.
+- `initialSnooze` (the render hook) now takes a `SnoozeConfirmation`.
+
+### Tests
+
+- `SnoozeProtectedTests` (8): 23:50 with `Sleep` → `.refused(00:05,
+  "Sleep")`, store and undo stack unchanged, row text exact, no `Undo`; Mon
+  11:50 against `Lunch` → refused; 17:30 with `Sleep` + `Lunch` → moved to
+  17:45 (`Undo Snooze`); touching 22:00 → moves; a low-energy window never
+  refuses; empty label → `inside a protected window`; `⌥⌘↩` maps to
+  `.snooze` and the shared `perform` refuses with no write; the overlap test
+  sees both halves of an overnight window.
+- `PopoverCaptureTests`: item 12 split into same-day, next-day (no windows,
+  `now` 23:40 per §17.1 → `00:05 – 01:35` / `Moved to tomorrow 00:05`) and
+  refused (with `Sleep` → NEXT `23:50 – 01:20` / `Not moved — …`). The
+  renders are written as `-p2f25` in P2-RC.
+- Existing `EventStoreSnoozeTests` / `SnoozeMidnightTests` moved to the new
+  return type (no window in their stores, so their expectations hold).
+
+### Verified
+
+- Build: `** TEST SUCCEEDED **`; no warning in a touched file (the
+  test-target `#NoUsage` warnings are pre-existing).
+- `-only-testing:KadenceTests`: **xcresult 582 passed / 0 failed** (572 +
+  10).
+- `generate-tokens --check`: up to date.
+- Fresh pre-flight before each (unlocked, no full screen):
+  `check-routines-window.sh` **PASS**, `check-conflict-apply-return.sh`
+  **PASS**, `check-inspector-inset.sh` **PASS**,
+  `check-block-click-selects.sh` **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B36** logged and resolved in this task (the review's Blocker
+  B1 defect).

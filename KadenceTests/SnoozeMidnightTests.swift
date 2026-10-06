@@ -48,7 +48,7 @@ struct SnoozeMidnightTests {
         context.insert(prep)
         try context.save()
         let oldStart = prep.start
-        let newStart = store.snooze(prep)
+        let newStart = try #require(store.snooze(prep).movedTo)
         let text = MenuBarFormatting.snoozeResult(oldStart: oldStart, newStart: newStart)
         return (store, context, undo, prep, newStart, text)
     }
@@ -104,7 +104,7 @@ struct SnoozeMidnightTests {
         context.insert(gym)
         context.insert(later)
         try context.save()
-        let newStart = store.snooze(gym)
+        let newStart = try #require(store.snooze(gym).movedTo)
         let now = at(17, 20)
         let plain = NextUpProvider.evaluate(events: all(context), now: now)
         let pinned = NextUpProvider.pinning(plain, events: all(context), to: (gym.id, newStart))

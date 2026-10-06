@@ -1788,6 +1788,21 @@ Still open, all re-checked against the current spec text this session:
   rings). Not investigated further; for the design agent's re-review with
   G-039.
 
+- ~~**B36 — components.md §16 (amended 2026-10-06; G-046). A snooze could
+  write into protected time.**~~ **Resolved 2026-10-06, task P2-B1** *(logged
+  and resolved in the same task, from the 2026-10-06 re-review's Blocker
+  B1).* `EventStore.snooze` shifted by G-016's +15 with no check, so a
+  23:50–01:20 block went to 00:05–01:35, inside `Sleep` — what
+  `snooze-next-day-p2t48.png` showed, against CONTEXT.md's hard rule. Now
+  the shifted interval is tested against every `.protected` span on each day
+  it touches (`TimeWindow.spans(on:)`, strict overlap, as §13.6.1); on
+  overlap nothing is written, no undo step is recorded, and it returns
+  `.refused(start:windowLabel:)`. The popover's result row then reads `Not
+  moved — 00:05 is inside Sleep (protected)` (`inside a protected window`
+  for an empty label), same height and hold, no `Undo`. The button and
+  `⌥⌘↩` share one path (`SnoozeConfirmation.perform`). Tests:
+  `SnoozeProtectedTests`, `PopoverCaptureTests` (item 12's three rows).
+
 ---
 
 ## Resolved — retired by a spec ruling

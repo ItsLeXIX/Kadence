@@ -55,4 +55,13 @@ enum MenuBarFormatting {
         }
         return "Moved to tomorrow \(time(newStart))"
     }
+
+    /// components.md §16 (amended 2026-10-06, G-046) — the refused row:
+    /// `Not moved — 00:05 is inside Sleep (protected)`; an empty label reads
+    /// `inside a protected window`. `start` is the destination that was
+    /// refused, in the same `HH:mm` form as the moved row.
+    static func snoozeRefused(start: Date, windowLabel: String) -> String {
+        let place = windowLabel.isEmpty ? "a protected window" : "\(windowLabel) (protected)"
+        return "Not moved — \(time(start)) is inside \(place)"
+    }
 }

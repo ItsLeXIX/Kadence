@@ -51,7 +51,7 @@ private func container(restCount: Int, next: Bool = true) throws -> ModelContain
 
 @MainActor
 private func render(_ name: String, container: ModelContainer, now: Date,
-                    snooze: (eventID: UUID, start: Date, text: String)? = nil) throws {
+                    snooze: MenuBarPopoverView.SnoozeConfirmation? = nil, suffix: String = "p2f20") throws {
     let view = MenuBarPopoverView(initialNow: now, initialSnooze: snooze)
         .modelContainer(container)
         .environment(UndoStack())
@@ -67,8 +67,9 @@ private func render(_ name: String, container: ModelContainer, now: Date,
     if let tiff = image.tiffRepresentation,
        let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) {
         // The batch suffix of the files written (task P2-F20 re-rendered item
-        // 11 after P2-F18; the P2-T48 files keep their own names).
-        try png.write(to: directory.appendingPathComponent("\(name)-p2f20.png"))
+        // 11 after P2-F18; P2-B1 re-renders item 12 as `-p2f25`; the P2-T48
+        // files keep their own names).
+        try png.write(to: directory.appendingPathComponent("\(name)-\(suffix).png"))
     }
 }
 
@@ -113,34 +114,60 @@ struct PopoverCaptureTests {
         try render("popover-empty", container: c, now: at(23, 40))
     }
 
-    @Test("Item 12: the snooze result row, same-day and next-day, after P2-T49")
-    func snoozeRows() throws {
-        // Same-day: Training 17:30 snoozed at 17:10 by G-016's 15 minutes.
+    @Test("Item 12, same-day: Training 17:30 snoozed at 17:10 → Moved to 17:45")
+    func snoozeSameDay() throws {
+        // `snooze-same-day-p2t48.png` stays the filed evidence (§17.1 item
+        // 12: "unchanged"); this keeps the render path tested.
         let same = try container(restCount: 3)
         let training = try #require(try same.mainContext.fetch(FetchDescriptor<Event>()).first { $0.title == "Training" })
-        let sameOld = training.start
-        let sameNew = EventStore(context: same.mainContext, undo: UndoStack()).snooze(training)
-        let sameText = MenuBarFormatting.snoozeResult(oldStart: sameOld, newStart: sameNew)
-        #expect(sameText == "Moved to 17:45")
-        try render("snooze-same-day", container: same, now: at(17, 10), snooze: (training.id, sameNew, sameText))
+        let row = try #require(MenuBarPopoverView.SnoozeConfirmation.perform(
+            training, store: EventStore(context: same.mainContext, undo: UndoStack())))
+        #expect(row.text == "Moved to 17:45")
+        try render("snooze-same-day", container: same, now: at(17, 10), snooze: row)
+    }
 
-        // Next-day: the capture's own `Prep: relational algebra`, 23:50–01:20,
-        // snoozed at 23:45 — the row and the block now name the same 00:05.
-        let next = try ModelContainer(
+    /// §17.1 item 12's next-day fixture: `Prep: relational algebra`
+    /// 23:50–01:20, `now` 23:40; `withSleep` adds Sleep 22:00–07:00 daily.
+    private func prepContainer(withSleep: Bool) throws -> (ModelContainer, Event) {
+        let c = try ModelContainer(
             for: Schema(KadenceSchema.models),
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         let prep = Event(title: "Prep: relational algebra", start: at(23, 50), end: at(1, 20, day: 6),
                          origin: .planned, flexibility: .droppable, sourceKey: .purple)
-        next.mainContext.insert(prep)
-        try next.mainContext.save()
-        let nextOld = prep.start
-        let nextNew = EventStore(context: next.mainContext, undo: UndoStack()).snooze(prep)
-        let nextText = MenuBarFormatting.snoozeResult(oldStart: nextOld, newStart: nextNew)
-        #expect(nextText == "Moved to tomorrow 00:05")
+        c.mainContext.insert(prep)
+        if withSleep {
+            c.mainContext.insert(TimeWindow(weekdays: Set(1...7), startMinutes: 22 * 60, endMinutes: 7 * 60,
+                                            kind: .protected, label: "Sleep"))
+        }
+        try c.mainContext.save()
+        return (c, prep)
+    }
+
+    @Test("Item 12, next-day (no time windows): 00:05 – 01:35 above Moved to tomorrow 00:05")
+    func snoozeNextDay() throws {
+        let (c, prep) = try prepContainer(withSleep: false)
+        let row = try #require(MenuBarPopoverView.SnoozeConfirmation.perform(
+            prep, store: EventStore(context: c.mainContext, undo: UndoStack())))
+        #expect(row.text == "Moved to tomorrow 00:05")
+        #expect(!row.isRefusal)
         let pinned = NextUpProvider.pinning(
-            NextUpProvider.evaluate(events: [prep], now: at(23, 45)), events: [prep], to: (prep.id, nextNew))
-        #expect(MenuBarFormatting.nextMeta(for: try #require(pinned.next), now: at(23, 45), isLate: false)
+            NextUpProvider.evaluate(events: [prep], now: at(23, 40)), events: [prep], to: (prep.id, row.expectedStart))
+        #expect(MenuBarFormatting.nextMeta(for: try #require(pinned.next), now: at(23, 40), isLate: false)
                 .hasPrefix("00:05 – 01:35"))
-        try render("snooze-next-day", container: next, now: at(23, 45), snooze: (prep.id, nextNew, nextText))
+        try render("snooze-next-day", container: c, now: at(23, 40), snooze: row, suffix: "p2f25")
+    }
+
+    @Test("Item 12, refused (with Sleep): NEXT unchanged 23:50 – 01:20 above Not moved — 00:05 is inside Sleep (protected)")
+    func snoozeRefused() throws {
+        let (c, prep) = try prepContainer(withSleep: true)
+        let row = try #require(MenuBarPopoverView.SnoozeConfirmation.perform(
+            prep, store: EventStore(context: c.mainContext, undo: UndoStack())))
+        #expect(row.text == "Not moved — 00:05 is inside Sleep (protected)")
+        #expect(row.isRefusal)
+        let pinned = NextUpProvider.pinning(
+            NextUpProvider.evaluate(events: [prep], now: at(23, 40)), events: [prep], to: (prep.id, row.expectedStart))
+        #expect(MenuBarFormatting.nextMeta(for: try #require(pinned.next), now: at(23, 40), isLate: false)
+                .hasPrefix("23:50 – 01:20"))
+        try render("snooze-refused", container: c, now: at(23, 40), snooze: row, suffix: "p2f25")
     }
 }

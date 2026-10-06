@@ -58,10 +58,42 @@ struct MenuBarPopoverView: View {
     /// `NextUpProvider` resolved a different event into NEXT), the result
     /// row stops matching and the normal action row renders again with no
     /// extra bookkeeping needed.
-    private struct SnoozeConfirmation: Equatable {
+    ///
+    /// A refusal (components.md §16, amended 2026-10-06) is held the same
+    /// way: nothing moved, so `expectedStart` is the unchanged start and the
+    /// row shows until the hold ends; `isRefusal` drops `Undo`.
+    struct SnoozeConfirmation: Equatable {
         let eventID: UUID
         let expectedStart: Date
         let text: String
+        var isRefusal = false
+
+        /// The row for what `EventStore.snooze` returned, or nil when there
+        /// is nothing to show (`.unchanged`: no write, no row). The button
+        /// and `⌥⌘↩` both come through here, so they can't disagree.
+        static func make(for event: Event, oldStart: Date,
+                         result: EventStore.SnoozeResult) -> SnoozeConfirmation? {
+            switch result {
+            case .moved(let newStart):
+                return SnoozeConfirmation(
+                    eventID: event.id, expectedStart: newStart,
+                    text: MenuBarFormatting.snoozeResult(oldStart: oldStart, newStart: newStart))
+            case .refused(let start, let label):
+                return SnoozeConfirmation(
+                    eventID: event.id, expectedStart: oldStart,
+                    text: MenuBarFormatting.snoozeRefused(start: start, windowLabel: label),
+                    isRefusal: true)
+            case .unchanged:
+                return nil
+            }
+        }
+
+        /// Snoozes `event` and returns the row to show. The one path both
+        /// the `Snooze` button and `⌥⌘↩` take (via `performSnooze`).
+        static func perform(_ event: Event, store: EventStore) -> SnoozeConfirmation? {
+            let oldStart = event.start
+            return make(for: event, oldStart: oldStart, result: store.snooze(event))
+        }
     }
     @State private var snoozeConfirmation: SnoozeConfirmation?
 
@@ -71,11 +103,9 @@ struct MenuBarPopoverView: View {
     /// menu bar can't be set to, so `KadenceTests/PopoverCaptureTests.swift`
     /// renders this same view with them. Swift note: `State(initialValue:)`
     /// is how an initializer seeds an `@State` property.
-    init(initialNow: Date = Date(), initialSnooze: (eventID: UUID, start: Date, text: String)? = nil) {
+    init(initialNow: Date = Date(), initialSnooze: SnoozeConfirmation? = nil) {
         _now = State(initialValue: initialNow)
-        _snoozeConfirmation = State(initialValue: initialSnooze.map {
-            SnoozeConfirmation(eventID: $0.eventID, expectedStart: $0.start, text: $0.text)
-        })
+        _snoozeConfirmation = State(initialValue: initialSnooze)
     }
     @State private var isPointerInside = false
     @State private var revertTask: Task<Void, Never>?
@@ -268,13 +298,17 @@ struct MenuBarPopoverView: View {
 
     /// components.md §16: "the action row is replaced in place by a result
     /// row of the same height: `Moved to 19:15` + `Undo`, `popoverRow` type."
+    /// A refusal (amended 2026-10-06) is the same row with no `Undo` —
+    /// nothing was written, so there is nothing to undo.
     @ViewBuilder
     private func snoozeResultRow(_ confirmation: SnoozeConfirmation) -> some View {
         HStack(spacing: Tokens.Spacing.sm) {
             Text(confirmation.text)
                 .typeStyle(.popoverRow)
                 .foregroundStyle(Tokens.Color.Text.primary)
-            Button("Undo") { undoSnooze() }
+            if !confirmation.isRefusal {
+                Button("Undo") { undoSnooze() }
+            }
         }
         .frame(height: Tokens.Size.popoverActionRowHeight)
     }
@@ -282,17 +316,10 @@ struct MenuBarPopoverView: View {
     // MARK: Snooze
 
     private func performSnooze(_ event: Event) {
-        let oldStart = event.start
-        let newStart = store.snooze(event)
-        // A no-op `snooze` (e.g. a locked/imported event — see
-        // `EventStore.snooze`'s own guard) returns the unchanged start; there
-        // is nothing to confirm, so no result row and no undo step were
-        // pushed. Matches every other guarded verb in `EventStore`.
-        guard newStart != oldStart else { return }
-        let confirmation = SnoozeConfirmation(
-            eventID: event.id,
-            expectedStart: newStart,
-            text: MenuBarFormatting.snoozeResult(oldStart: oldStart, newStart: newStart))
+        // `.unchanged` (a locked/imported event — see `EventStore.snooze`'s
+        // own guard) gives no row; nothing was written, no undo step pushed.
+        // `.refused` gives the `Not moved — …` row, also with no write.
+        guard let confirmation = SnoozeConfirmation.perform(event, store: store) else { return }
         snoozeConfirmation = confirmation
         scheduleAutoRevert(matching: confirmation)
     }

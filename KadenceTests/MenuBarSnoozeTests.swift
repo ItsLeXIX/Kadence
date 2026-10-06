@@ -103,9 +103,9 @@ struct EventStoreSnoozeTests {
         let (store, context, _) = try makeStore()
         let event = makeEvent("Gym", start: time(17, 30), end: time(18, 15), in: context)
 
-        let newStart = store.snooze(event)
+        let result = store.snooze(event)
 
-        #expect(newStart == time(17, 30).addingTimeInterval(EventStore.snoozeOffset))
+        #expect(result == .moved(to: time(17, 30).addingTimeInterval(EventStore.snoozeOffset)))
         #expect(event.start == time(17, 30).addingTimeInterval(EventStore.snoozeOffset))
         #expect(event.end == time(18, 15).addingTimeInterval(EventStore.snoozeOffset))
         // Duration is preserved — this is a shift, not a resize.
@@ -144,7 +144,7 @@ struct EventStoreSnoozeTests {
         let (store, context, undo) = try makeStore()
         let event = makeEvent("Gym", start: time(17, 30), end: time(18, 15), in: context)
 
-        let newStart = store.snooze(event)
+        let newStart = try #require(store.snooze(event).movedTo)
         undo.undo()
         undo.redo()
 
@@ -159,7 +159,7 @@ struct EventStoreSnoozeTests {
 
         let result = store.snooze(event)
 
-        #expect(result == originalStart)
+        #expect(result == .unchanged)
         #expect(event.start == originalStart)
         #expect(undo.undoSteps.isEmpty, "a no-op snooze must not push an undo step")
     }
