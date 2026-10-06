@@ -1670,8 +1670,15 @@ Still open, all re-checked against the current spec text this session:
   of one window can't show a popover's own window). P2-F20 captures the
   popover with its window. Its overflow row now reads `+N more`.
 
-- **B22 — components.md §7 rule 2. The Routines canvas does not paint window
-  treatments into its time gutter.** *(new 2026-10-06, found during task
+- ~~**B22 — components.md §7 rule 2. The Routines canvas does not paint window
+  treatments into its time gutter.**~~ **Resolved 2026-10-06, task P2-SF3**
+  (layouts.md §8 amended 2026-10-06, G-041). The Routines gutter is now
+  `RoutineGutterStrip`: the hour labels and lines over a
+  `BackgroundWindowsLayer` of the leading column's windows (as the main
+  grid's `windowsBackdrop`), `showsPeakFocus: false` in both modes, no
+  label. `RoutineGutterStripTests` renders it and samples the pixels:
+  protected fill at `Sleep` and `Lunch`, hatch at `Low energy`, plain canvas
+  at `Deep work`. *(was:)* *(new 2026-10-06, found during task
   P2-F05; not in that fix's scope.)* §7 says protected and low-energy windows
   span the full column width including the gutter, and §7 rule 1
   (2026-10-05) counts the gutter strip as part of each span. The main Week

@@ -8104,3 +8104,55 @@ count inside one parameterised test).
 ### New GAPS / DEVIATIONS
 
 - None.
+
+## 87. P2-SF3 — the Routines gutter carries window treatments (layouts.md §8, amended 2026-10-06; components.md §7 rule 2; G-041; DEVIATIONS B22; PHASE2-REVIEW.md 2026-10-06 R4 SF3)
+
+### Built
+
+- `RoutineGutterStrip` (new, `RoutinesWindow.swift`, internal for the
+  test): `TimeGutterView` (hour labels, hour lines) at its full 24h height
+  over a `BackgroundWindowsLayer` of the **leading column's** windows — the
+  main grid's `windowsBackdrop` rule (one gutter shared by seven columns).
+  `showsPeakFocus: false` in both modes (§8: the peak-focus outline does not
+  enter the gutter); no `WindowLabelsLayer` (labels never do). The Routines
+  canvas's `gridBody` uses it in place of the bare `TimeGutterView`.
+
+### Tests
+
+- `RoutineGutterStripTests` (2): the strip rendered at 1× over
+  `surface.canvas` (light, Monday leading, the seeded windows) — every
+  pixel of the left 8pt of a row is the protected fill at `Sleep` (03:40,
+  23:20) and `Lunch` (12:40, identical to Sleep's); mixed canvas and line
+  pixels, never the fill, at `Low energy` (13:40); plain canvas at `Deep
+  work` (15:40, 16:40). And label placement only ever names a day column.
+
+### Found and fixed — a test-host crash (test code only)
+
+- The first test run crashed the host: `EXC_BREAKPOINT` in
+  `_SwiftData_SwiftUI` from a notification posted by
+  `PopoverCaptureTests.container(restCount:)`'s `save()` (crash report
+  `Kadence-2026-10-06-205028.ips`), and every test in flight was reported
+  failed. Cause: an offscreen render's `@Query` leaves a SwiftData observer
+  behind, and once that render's in-memory container was freed, another
+  test's save reached it. P2-B1 split item 12 into three render tests,
+  which made it likelier. Fix: `PopoverCaptureTests` keeps every container
+  it renders alive for the process. Two full runs after: 597 / 0, no new
+  crash report.
+- macOS showed its "Problem Reporter" window for that crash; it was
+  frontmost at the next pre-flight. I left it alone (no input sent to it;
+  every script input goes to Kadence only).
+
+### Verified
+
+- `-only-testing:KadenceTests`: **xcresult 597 passed / 0 failed** (595 +
+  2), twice. No warning in a touched file. `generate-tokens --check`: up to
+  date.
+- Fresh pre-flight before each: `check-routines-window.sh` **PASS**,
+  `check-conflict-apply-return.sh` **PASS**, `check-inspector-inset.sh`
+  **PASS**, `check-block-click-selects.sh` **PASS**,
+  `check-resync-escape.sh` **PASS**.
+- The frame (item 14's gutter with all three treatments) is P2-RC's.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B22** resolved.

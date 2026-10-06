@@ -49,9 +49,19 @@ private func container(restCount: Int, next: Bool = true) throws -> ModelContain
     return container
 }
 
+/// Every container a render used, kept alive for the whole test process.
+/// Found in P2-SF3's run: a rendered view's `@Query` leaves a SwiftData
+/// observer behind; once its container was freed, the next test's `save()`
+/// on another in-memory container posted a notification that observer
+/// handled and trapped (`EXC_BREAKPOINT` in `_SwiftData_SwiftUI`, under
+/// `container(restCount:)`), crashing the test host. Never freeing them
+/// removes the dangling observer. A handful of in-memory stores is cheap.
+@MainActor private var renderedContainers: [ModelContainer] = []
+
 @MainActor
 private func render(_ name: String, container: ModelContainer, now: Date,
                     snooze: MenuBarPopoverView.SnoozeConfirmation? = nil, suffix: String = "p2f20") throws {
+    renderedContainers.append(container)
     let view = MenuBarPopoverView(initialNow: now, initialSnooze: snooze)
         .modelContainer(container)
         .environment(UndoStack())

@@ -724,6 +724,49 @@ private struct RoutineWeekdayHeaderRow: View {
     }
 }
 
+// MARK: - The time gutter (layouts.md §8, amended 2026-10-06; G-041)
+
+/// The Routines canvas's time gutter: hour labels and lines over the window
+/// treatments. layouts.md §8 (2026-10-06, DEVIATIONS B22): "Hour grid exactly
+/// as §3.1" includes components.md §7 rule 2 — protected fill and edges and
+/// the low-energy hatch span the gutter at the window's height, as in the main
+/// window. Peak focus's dashed outline does not enter it (an outline of the
+/// editable span, not a background), and labels never do (§7).
+///
+/// The gutter is one strip shared by all seven columns, so — as the main
+/// grid's `windowsBackdrop` does — it shows the leading column's windows.
+/// Internal (not `private`) so `RoutineGutterStripTests` can render it.
+struct RoutineGutterStrip: View {
+    let windows: [TimeWindow]
+    /// Calendar weekday (1 = Sunday … 7 = Saturday) of the leading column.
+    let leadingWeekday: Int
+    let hourHeight: CGFloat
+    var now: Date = Date()
+
+    var body: some View {
+        let day = RoutineWeekLayout.referenceDayStart(weekday: leadingWeekday, now: now)
+        TimeGutterView(
+            geometry: TimeGeometry(dayStart: day, hourHeight: hourHeight),
+            now: now,
+            showsNow: false)
+            // The full 24h height, so the background below has the gutter's
+            // real extent (the labels are placed with offsets and don't
+            // give the gutter a layout height of their own).
+            .frame(width: Tokens.Size.timeGutterWidth, height: hourHeight * 24, alignment: .top)
+            .background(alignment: .top) {
+                // Below the labels and hour lines (z-order, §7 table).
+                // `showsPeakFocus: false` in both modes: no outline here.
+                BackgroundWindowsLayer(
+                    windows: windows,
+                    day: day,
+                    geometry: TimeGeometry(dayStart: day, hourHeight: hourHeight),
+                    showsPeakFocus: false)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+    }
+}
+
 // MARK: - The seven-column canvas
 
 private struct RoutinesCanvasView: View {
@@ -898,11 +941,10 @@ private struct RoutinesCanvasView: View {
 
     private func gridBody(columnWidth: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 0) {
-            TimeGutterView(
-                geometry: TimeGeometry(dayStart: Date(), hourHeight: hourHeight),
-                now: Date(),
-                showsNow: false)
-                .frame(width: Tokens.Size.timeGutterWidth)
+            RoutineGutterStrip(
+                windows: timeWindows,
+                leadingWeekday: weekdays.first ?? Calendar.current.firstWeekday,
+                hourHeight: hourHeight)
 
             ForEach(weekdays, id: \.self) { weekday in
                 RoutineDayColumnView(
