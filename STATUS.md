@@ -8569,3 +8569,27 @@ to date at every task. Build: only `MonthGridView.swift:153`.
 - Verify: xcresult **621 passed / 0 failed**; build warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the four UI scripts **PASS**.
+
+## 97. P2-C6 (extra closeout item) — a Routines window opened by a template conflict keeps its default scroll (interactions.md §10.1; layouts.md §3.1, §8; DEVIATIONS B39)
+
+- Found in P2-C5's first item 16 take: `template-conflict-panel-p2c.png`
+  opened at **00:00** (so did `-p2f20`), against CF5's "items 3/13, 4, 15
+  and 16 open at 06:00 by themselves". Cause: `scrollRequest` (`initial:
+  true`) is served before layout — `visibleRect` is zero, so Errands
+  (12:30–13:15) counted as not wholly in view, the hold was released, and
+  the `scrollTo` issued before layout was dropped.
+- Fix (`RoutinesCanvasView.serveScrollRequest`): the request is kept as
+  `pendingScrollRequest` and served once the viewport has a height
+  (`onChange(of: visibleRect)`), judged against the hold's target while
+  the hold still holds; wholly in view → nothing moves and the hold stays;
+  otherwise release + the §10.1 one-third scroll as before.
+- Test: `InitialScrollTests.aConflictAlreadyInViewKeepsTheDefaultScroll`
+  (Errands at the 06:00 default in 769pt → no scroll; a zero viewport → the
+  old scroll; 23:30 below the viewport → still scrolls). My first version
+  used 22:00, which is in view (06:00 + 769pt ≈ 23:28): 621/1, test
+  corrected.
+- Recaptured item 16 from this build: opens at **06:00**, recommendation
+  focused and previewed (ghosts + dashed twins Mon/Wed/Fri), `14 of 14`.
+- Verify: xcresult **622 passed / 0 failed**; build warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the four UI scripts and `check-routines-cursor.sh` **PASS**.

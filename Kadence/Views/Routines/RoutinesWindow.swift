@@ -978,6 +978,9 @@ private struct RoutinesCanvasView: View {
     var onPlaceCursor: (Int) -> Void = { _ in }
     /// The viewport in content coordinates, for "wholly in view".
     @State private var visibleRect: CGRect = .zero
+    /// Task P2-C6: a conflict scroll request not yet served (see
+    /// `serveScrollRequest`).
+    @State private var pendingScrollRequest: RoutineScrollRequest?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// layouts.md §8 (amended 2026-10-06, G-047): open at
     /// `min(07:00, earliestBlockStart − 1h)` and hold it (§3.1's hold) until
@@ -1076,16 +1079,13 @@ private struct RoutinesCanvasView: View {
                 // `initial: true`: the request is usually set in the same
                 // update that opens this window on the conflict.
                 .onChange(of: scrollRequest, initial: true) { _, request in
-                    if request != nil { initialHold.release() }   // the conflict's scroll wins
-                    guard let request,
-                          let target = ConflictScroll.targetMinute(
-                            occurrence: request.occurrence, earliestStart: request.earliestStart,
-                            visibleTop: visibleRect.minY, visibleHeight: visibleRect.height,
-                            hourHeight: hourHeight)
-                    else { return }
-                    withAnimation(ConflictScroll.animation(reduceMotion: reduceMotion)) {
-                        vertical.scrollTo(ConflictScroll.anchorID(minute: target), anchor: ConflictScroll.oneThird)
-                    }
+                    pendingScrollRequest = request
+                    serveScrollRequest(using: vertical)
+                }
+                // Task P2-C6: a request that arrived before the viewport had
+                // a size is served once it has one.
+                .onChange(of: visibleRect) { _, _ in
+                    serveScrollRequest(using: vertical)
                 }
                 // §1 (2026-10-07): entering cursor mode — by ⇥, by ⎋ from a
                 // selection, by a mode switch dropping one, or on open —
@@ -1122,6 +1122,31 @@ private struct RoutinesCanvasView: View {
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
+        }
+    }
+
+    /// interactions.md §10.1 / layouts.md §3.1, §8 (task P2-C6): bring the
+    /// conflict's block into view only if it is not wholly in view; otherwise
+    /// the default scroll stands. Found in the closeout recapture: a window
+    /// opened BY the request got it before layout (`visibleRect` zero), so
+    /// the block always counted as out of view, the hold was released, and
+    /// the `scrollTo` issued before layout was dropped — the window sat at
+    /// 00:00 (`template-conflict-panel-p2f20.png` and `-p2c` first take).
+    /// Now the request waits for a laid-out viewport and is judged against
+    /// where the canvas is going: the hold's target while it still holds.
+    private func serveScrollRequest(using proxy: ScrollViewProxy) {
+        guard let request = pendingScrollRequest, visibleRect.height > 0 else { return }
+        pendingScrollRequest = nil
+        let top = initialHold.isHolding
+            ? RoutineCanvasCursor.y(for: initialHold.target, hourHeight: hourHeight)
+            : visibleRect.minY
+        guard let target = ConflictScroll.targetMinute(
+            occurrence: request.occurrence, earliestStart: request.earliestStart,
+            visibleTop: top, visibleHeight: visibleRect.height, hourHeight: hourHeight)
+        else { return }   // wholly in view: nothing moves, the hold stays
+        initialHold.release()   // the conflict's scroll wins
+        withAnimation(ConflictScroll.animation(reduceMotion: reduceMotion)) {
+            proxy.scrollTo(ConflictScroll.anchorID(minute: target), anchor: ConflictScroll.oneThird)
         }
     }
 

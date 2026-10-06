@@ -1875,6 +1875,17 @@ Still open, all re-checked against the current spec text this session:
   focused toggle's stroke is invisible on an ON toggle (GAPS G-049), and
   the Routines canvas has no cursor mode (A36 / G-050).
 
+- ~~**B39 — interactions.md §10.1; layouts.md §3.1, §8. A Routines window
+  opened by a template conflict sat at 00:00.**~~ **Resolved 2026-10-07,
+  task P2-C6** *(found in the closeout recapture, P2-C5; logged and
+  resolved in P2-C6).* The scroll request arrived before layout, so the
+  zero viewport counted Errands as out of view: the default-scroll hold was
+  released and the `scrollTo`, issued before layout, was dropped. Item 16
+  opened at 00:00 in `template-conflict-panel-p2f20.png` and in the first
+  `-p2c` take. Now the request waits for a laid-out viewport and is judged
+  against the hold's target; a block already wholly in view moves nothing,
+  so the window opens at 06:00.
+
 ---
 
 ## Resolved — retired by a spec ruling

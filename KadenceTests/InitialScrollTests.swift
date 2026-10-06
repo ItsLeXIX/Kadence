@@ -46,6 +46,27 @@ struct InitialScrollTests {
         }
     }
 
+    /// Task P2-C6: the Routines window opened BY a template conflict is
+    /// judged against the default scroll's viewport (the hold's target), not
+    /// against the zero rect it has before layout. `Daily routine`'s Errands
+    /// (12:30–13:15) at the 06:00 default in a 769pt viewport is wholly in
+    /// view → no conflict scroll, so the window keeps 06:00.
+    @Test func aConflictAlreadyInViewKeepsTheDefaultScroll() {
+        let hh: CGFloat = 44
+        let daily = MockData.makeRoutineTemplates()[0].blocks.map(\.startMinutes)
+        let defaultTop = CGFloat(InitialScroll.minute(blockStartMinutes: daily)) / 60 * hh
+        #expect(defaultTop == 6 * hh)
+        #expect(ConflictScroll.targetMinute(occurrence: 750..<795, earliestStart: 720,
+                                            visibleTop: defaultTop, visibleHeight: 769, hourHeight: hh) == nil)
+        // What the build did: a zero viewport counts everything as out of view.
+        #expect(ConflictScroll.targetMinute(occurrence: 750..<795, earliestStart: 720,
+                                            visibleTop: 0, visibleHeight: 0, hourHeight: hh) == 720)
+        // A conflict below the default viewport (06:00 + 769pt ≈ 23:28)
+        // still scrolls.
+        #expect(ConflictScroll.targetMinute(occurrence: 23 * 60 + 30..<24 * 60, earliestStart: 23 * 60 + 30,
+                                            visibleTop: defaultTop, visibleHeight: 769, hourHeight: hh) == 23 * 60 + 30)
+    }
+
     @Test func noEventsOpensAtSeven() {
         #expect(InitialScroll.minute(events: [], days: [monday]) == 7 * 60)
     }
