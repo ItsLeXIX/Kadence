@@ -7614,3 +7614,57 @@ No code change. Build under test: `2d6a088` (F16–F18 plus F21–F23).
   the frames of P2-F20 (item 4) and P2-F19 (the live popover).
 
 No script failed, so no P2-F24.
+
+## 78. P2-F24 — the conflict scroll reads the real viewport (interactions.md §10.1; DEVIATIONS B33)
+
+Found while checking P2-F20's first capture run: item 17's frame started at
+about 06:15, not 06:00.
+
+### Cause (measured)
+
+- Replaying run C: the grid opened at 06:00 (`06:00` label at the scroll
+  area's top, y 192); opening the first conflict (`Client call` × `Focus
+  review`, 20:00–21:00 — wholly in view) moved it 12pt.
+- Temporary logging of every `ScrollGeometry` report: they alternate
+  between the real layout (`offset 264, inset 0, container 780`) and a
+  second one (`offset 220, inset 44, container 631`), and the second came
+  last. `bringIntoView` (P2-F15) tested against `visibleRect` = 220 + 675,
+  so 21:00 (924) read as cut off, it asked for 19:50 at one third, and the
+  content end clamped that to 276 = 264 + 12.
+
+### Built
+
+- `TimedCanvasView`: the viewport's top is `InitialScroll.Position.top`
+  (offset + inset, identical in both reports); its height is the enclosing
+  `GeometryReader`'s — the scroll view's laid-out frame — passed into
+  `bringIntoView`. The `visibleRect` state is gone.
+- `InitialScroll.Position` now carries the content height, and `needsAim`
+  clamps with the real viewport height (otherwise, with a target past the
+  clamp, the phantom's shorter container would make the hold re-aim until
+  its cap).
+- Temporary logging removed.
+
+### Tests
+
+- `InitialScrollTests`: `needsAim` cases updated to the new signature,
+  including the 07:00-past-the-clamp case (276 in a 780pt viewport is "on
+  target"); new `focusReviewIsWhollyVisibleInTheRealViewport` — the real
+  viewport needs no scroll, the phantom one did.
+
+### Verified
+
+- Build: `** BUILD SUCCEEDED **`; only the known `MonthGridView.swift:153`
+  warning.
+- `-only-testing:KadenceTests`: `** TEST SUCCEEDED **`, **xcresult 572
+  passed / 0 failed** (571 + 1).
+- `generate-tokens --check`: up to date.
+- Live: fresh and existing store — opens at 06:00, and opening the first
+  conflict leaves it at 06:00. Window shortened (19:50 out of view):
+  activation still scrolls `Focus review` into view (clamped by 24:00, as
+  P2-F15 noted).
+- `check-routines-window.sh`: **PASS**. `check-conflict-apply-return.sh`:
+  **PASS**. `check-inspector-inset.sh`: **PASS**.
+
+### New GAPS / DEVIATIONS
+
+- DEVIATIONS **B33** logged and resolved in this task.

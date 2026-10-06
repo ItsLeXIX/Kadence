@@ -1753,6 +1753,20 @@ Still open, all re-checked against the current spec text this session:
   A grep of `Scripts/` finds no other fixed screen coordinate (`{34, 70}` /
   `{1500, 900}` are AX moves/resizes of Kadence's own window, not events).
 
+- ~~**B33 — interactions.md §10.1. Activation scrolled a conflict that was
+  already wholly in view.**~~ **Resolved 2026-10-06, task P2-F24** *(found
+  and fixed in the same task, while checking P2-F20's frames).* After
+  P2-F22 opened the grid at 06:00, opening `Client call` × `Focus review`
+  (20:00–21:00, in view) still scrolled 12pt, to the content's end. The
+  "wholly visible" test read `ScrollGeometry.visibleRect`, and on macOS 26
+  the geometry reports alternate between the real layout (no inset, 780pt
+  viewport in a 900pt window) and a second one (44pt top inset, 631pt
+  container); the second is often reported last, so the viewport read
+  675pt tall and 21:00 read as cut off. Now the viewport's top is offset +
+  inset (equal in both reports) and its height the scroll view's laid-out
+  height (its `GeometryReader`); the initial-scroll hold clamps with the same
+  height. Item 17's first P2-F20 frame showed it (grid at ≈06:15).
+
 ---
 
 ## Resolved — retired by a spec ruling

@@ -38,8 +38,9 @@ struct TimedCanvasView: View {
     /// Bound on the hold's re-aims, so a target that can never be met (it
     /// shouldn't happen — the target is clamped) can't loop forever.
     @State private var initialScrollAims = 0
-    /// The viewport in content coordinates (task P2-F15).
-    @State private var visibleRect: CGRect = .zero
+    /// The content y at the top of the viewport (task P2-F15; P2-F24 —
+    /// see `InitialScroll.Position` for why it's offset + inset).
+    @State private var visibleTop: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Every column's block frames, reported up through
     /// `ColumnLabelInputsKey` — what §7 rule 2's label placement needs.
@@ -84,12 +85,6 @@ struct TimedCanvasView: View {
                                 alignment: .leading)
                     }
                     .scrollIndicators(.automatic)
-                    // macOS 15: the visible part of the content, in content
-                    // points — what "wholly inside the viewport" is tested
-                    // against (interactions.md §10.1, task P2-F15).
-                    .onScrollGeometryChange(for: CGRect.self) { $0.visibleRect } action: { _, rect in
-                        visibleRect = rect
-                    }
                     // layouts.md §3.1 (task P2-F22, DEVIATIONS B24): open with
                     // `InitialScroll.hour` at the top, and HOLD it there until
                     // the user first scrolls. A single `scrollTo` at appear
@@ -103,7 +98,10 @@ struct TimedCanvasView: View {
                     .onScrollGeometryChange(for: InitialScroll.Position.self) { geometry in
                         InitialScroll.Position(geometry)
                     } action: { _, position in
-                        holdInitialScroll(position, using: vertical)
+                        // Also what "wholly inside the viewport" is tested
+                        // against (interactions.md §10.1, task P2-F15).
+                        visibleTop = position.top
+                        holdInitialScroll(position, using: vertical, viewportHeight: proxy.size.height)
                     }
                     .onChange(of: InitialScroll.hour(events: events, days: days)) { _, _ in
                         guard holdsInitialScroll else { return }
@@ -120,7 +118,7 @@ struct TimedCanvasView: View {
                     .onChange(of: state.conflictScrollRequest) { _, request in
                         guard let request else { return }
                         holdsInitialScroll = false   // the conflict's scroll wins
-                        bringIntoView(request, using: vertical)
+                        bringIntoView(request, using: vertical, viewportHeight: proxy.size.height)
                     }
                 }
                 // Below the column floor the grid scrolls horizontally; it never
@@ -248,10 +246,10 @@ struct TimedCanvasView: View {
     }
 
     /// One re-check of the initial scroll position (see the modifier's comment).
-    private func holdInitialScroll(_ position: InitialScroll.Position, using proxy: ScrollViewProxy) {
+    private func holdInitialScroll(_ position: InitialScroll.Position, using proxy: ScrollViewProxy, viewportHeight: CGFloat) {
         guard holdsInitialScroll else { return }
         let hour = InitialScroll.hour(events: events, days: days)
-        guard InitialScroll.needsAim(position, hour: hour, hourHeight: hourHeight) else { return }
+        guard InitialScroll.needsAim(position, hour: hour, hourHeight: hourHeight, viewportHeight: viewportHeight) else { return }
         aimInitialScroll(using: proxy)
     }
 
@@ -276,7 +274,21 @@ struct TimedCanvasView: View {
     /// sits one third from the top, over `motion.paging` (instant under
     /// Reduce Motion). Paging to its week already happened in
     /// `CalendarState.open(_:)`; a day not on this canvas is ignored.
-    private func bringIntoView(_ request: CalendarState.ConflictScrollRequest, using proxy: ScrollViewProxy) {
+    ///
+    /// The viewport's height is the scroll view's laid-out height (the
+    /// enclosing `GeometryReader`), NOT `ScrollGeometry`'s: on macOS 26 the
+    /// geometry callback alternates between the real layout (no inset, 780pt
+    /// in a 900pt window) and a second one with a 44pt top inset and a 631pt
+    /// container, and the second is often the last one reported — so the
+    /// viewport read 675pt tall, Focus review at 20:00–21:00 read as cut off,
+    /// and activation scrolled when nothing was due (task P2-F24, found while
+    /// capturing P2-F20). Both reports agree on offset + inset, so the top
+    /// is still taken from the geometry.
+    private func bringIntoView(
+        _ request: CalendarState.ConflictScrollRequest,
+        using proxy: ScrollViewProxy,
+        viewportHeight: CGFloat
+    ) {
         let calendar = Calendar.current
         guard let day = days.first(where: { calendar.isDate($0, inSameDayAs: request.occurrenceStart) }) else { return }
         let dayStart = calendar.startOfDay(for: day)
@@ -284,8 +296,8 @@ struct TimedCanvasView: View {
         guard let target = ConflictScroll.targetMinute(
             occurrence: minute(request.occurrenceStart)..<max(minute(request.occurrenceEnd), minute(request.occurrenceStart) + 1),
             earliestStart: minute(request.earliestStart),
-            visibleTop: visibleRect.minY,
-            visibleHeight: visibleRect.height,
+            visibleTop: visibleTop,
+            visibleHeight: viewportHeight,
             hourHeight: hourHeight)
         else { return }
         withAnimation(ConflictScroll.animation(reduceMotion: reduceMotion)) {

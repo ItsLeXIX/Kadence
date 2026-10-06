@@ -63,13 +63,29 @@ struct InitialScrollTests {
 
     @Test func theHoldReAimsOnlyWhenOffTarget() {
         let hh: CGFloat = 44
+        let day: CGFloat = 24 * hh   // 1056, the live content height
         // At 06:00 exactly (offset 220 + the 44pt inset seen live): no aim.
-        #expect(!InitialScroll.needsAim(.init(top: 264, maxTop: 425), hour: 6, hourHeight: hh))
+        #expect(!InitialScroll.needsAim(.init(top: 264, contentHeight: day), hour: 6, hourHeight: hh, viewportHeight: 780))
         // Reset to the top by a layout pass: aim.
-        #expect(InitialScroll.needsAim(.init(top: 0, maxTop: 425), hour: 6, hourHeight: hh))
-        // A viewport too tall to reach 07:00: the clamped end counts as there.
-        #expect(!InitialScroll.needsAim(.init(top: 200, maxTop: 200), hour: 7, hourHeight: hh))
+        #expect(InitialScroll.needsAim(.init(top: 0, contentHeight: day), hour: 6, hourHeight: hh, viewportHeight: 780))
+        // A 780pt viewport can't reach 07:00 (308 > 1056 − 780 = 276): the
+        // clamped end counts as there — the clamp uses the real viewport,
+        // not the shorter phantom container, so the hold doesn't fight it.
+        #expect(!InitialScroll.needsAim(.init(top: 276, contentHeight: day), hour: 7, hourHeight: hh, viewportHeight: 780))
         // Content shorter than the viewport: 0 is the only position.
-        #expect(!InitialScroll.needsAim(.init(top: 0, maxTop: 0), hour: 7, hourHeight: hh))
+        #expect(!InitialScroll.needsAim(.init(top: 0, contentHeight: day), hour: 7, hourHeight: hh, viewportHeight: 1200))
+    }
+
+    /// P2-F24: the conflict scroll's "wholly in view" check, fed the real
+    /// viewport (780pt, top 264 = 06:00) instead of the phantom 675pt one,
+    /// leaves Focus review (20:00–21:00) alone; the phantom made it scroll.
+    @Test func focusReviewIsWhollyVisibleInTheRealViewport() {
+        let hh: CGFloat = 44
+        #expect(ConflictScroll.targetMinute(
+            occurrence: (20 * 60)..<(21 * 60), earliestStart: 19 * 60 + 50,
+            visibleTop: 264, visibleHeight: 780, hourHeight: hh) == nil)
+        #expect(ConflictScroll.targetMinute(
+            occurrence: (20 * 60)..<(21 * 60), earliestStart: 19 * 60 + 50,
+            visibleTop: 220, visibleHeight: 675, hourHeight: hh) == 19 * 60 + 50)
     }
 }

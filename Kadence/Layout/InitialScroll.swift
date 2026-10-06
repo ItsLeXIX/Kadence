@@ -32,29 +32,35 @@ enum InitialScroll {
 
     /// Where the canvas is scrolled, from the scroll view's geometry.
     /// `Equatable` so `onScrollGeometryChange` calls back only when it changes.
+    ///
+    /// Only the top and the content height are read from `ScrollGeometry`.
+    /// On macOS 26 its reports alternate between the real layout and a second
+    /// one with a 44pt top inset (and negative offset) and a shorter
+    /// container; offset + inset is the same in both, the container height
+    /// isn't, so the viewport height comes from the scroll view's own
+    /// laid-out frame instead (task P2-F24).
     struct Position: Equatable {
-        /// The content y at the top of the visible content area. The scroll
-        /// view sometimes reports a top inset (44pt while the window
-        /// settles) with a negative offset, so offset + inset.
+        /// The content y at the top of the viewport: offset + top inset.
         var top: CGFloat
-        /// The largest `top` the content allows.
-        var maxTop: CGFloat
+        var contentHeight: CGFloat
 
-        init(top: CGFloat, maxTop: CGFloat) {
+        init(top: CGFloat, contentHeight: CGFloat) {
             self.top = top
-            self.maxTop = maxTop
+            self.contentHeight = contentHeight
         }
 
         init(_ geometry: ScrollGeometry) {
             top = geometry.contentOffset.y + geometry.contentInsets.top
-            maxTop = max(0, geometry.contentSize.height - geometry.containerSize.height)
+            contentHeight = geometry.contentSize.height
         }
     }
 
-    /// True when `position` isn't at the hour's top (clamped to what the
-    /// content allows), within half a point.
-    static func needsAim(_ position: Position, hour: Int, hourHeight: CGFloat) -> Bool {
-        let target = min(CGFloat(hour) * hourHeight, position.maxTop)
+    /// True when `position` isn't at the hour's top — clamped to the
+    /// largest top the content allows in a `viewportHeight` viewport —
+    /// within half a point.
+    static func needsAim(_ position: Position, hour: Int, hourHeight: CGFloat, viewportHeight: CGFloat) -> Bool {
+        let maxTop = max(0, position.contentHeight - viewportHeight)
+        let target = min(CGFloat(hour) * hourHeight, maxTop)
         return abs(position.top - target) >= 0.5
     }
 
