@@ -7764,3 +7764,80 @@ about 06:15, not 06:00.
 - Both added to INDEX.md Batch 10 under items 10 and 11.
 - No code change: tests stay **572 / 0**; `generate-tokens --check` up to
   date (below).
+
+## 81. Run summary — P2-F19 … P2-F24 (2026-10-06)
+
+### Tasks
+
+| Task | Result | Commit |
+|---|---|---|
+| F21 scripts never send input outside Kadence (B32) | committed | `48541df` |
+| F22 main grid's initial scroll (B24) | committed | `fec9555` |
+| F23 Journal never in protected time (B23) | committed | `2d6a088` |
+| F16–F18 UI verification | committed (all PASS, no app failure) | `0dc6b63` |
+| F24 conflict scroll reads the real viewport (B33) — found in F20 | committed | `8531c18` |
+| F20 recapture complete | committed | `827a254` |
+| F19 live menu-bar captures | committed | `5f50ea8` |
+
+### Tests
+
+**572 passed / 0 failed** (xcresult), against 565 at the start (+7:
+`InitialScrollTests` 7; the 8 new `MockDataClockTests` sweep arguments
+count inside one parameterised test).
+
+### Scripts (last runs)
+
+- `check-routines-window.sh`, `check-conflict-apply-return.sh`,
+  `check-inspector-inset.sh`: **PASS** (after F19, clean pre-flight).
+- `check-block-click-selects.sh` (changed in F21): **PASS** at F21.
+- `capture-p2f20.sh`: ran clean (fourth run; 12 frames).
+- `generate-tokens --check`: up to date at every task.
+
+### §17 items → files (INDEX.md Batch 10)
+
+1 `routine-template-flexibility-p2f20` · 2 `inactive-weekdays-windows-mode-p2f20`
+· 3 `inactive-weekdays-wide-p2f20` + `inactive-weekdays-windows-mode-p2f20`
+· 4 `resync-popover-p2f20` · 5 `detached-instance-inspector-p2f20`
+· 6 `conflict-panel-two-options-p2f20` + `conflict-panel-three-options-p2f20`
+· 7 `conflict-panel-three-options-p2f20` · 8 `conflict-panel-three-options-p2f20`
++ `template-conflict-panel-p2f20` · 9 `needs-attention-count-{0,1,12}`
+· 10 `status-item-*-p2t47` (7 renders) + `status-item-live-p2f20`
+· 11 `popover-{normal,late,empty,overflow}-p2f20` + `popover-live-p2f20`
+· 12 `snooze-{same-day,next-day}-p2t48` · 13 `inactive-weekdays-{wide,780}-p2f20`
+· 14 `inactive-weekdays-windows-mode-p2f20` · 15 `routine-refusal-errands-p2f20`
+· 16 `template-conflict-panel-p2f20` · 17 `conflict-single-option-p2f20`
+· 18 `conflict-skip-today-preview-p2f20`.
+
+### DEVIATIONS / GAPS
+
+- Resolved: **B23** (F23), **B24** (F22). Logged and resolved in-task:
+  **B32** (F21), **B33** (F24).
+- Opened, still open: **B34** (`⎋` doesn't dismiss the Re-sync popover),
+  **B35** (Routines window 1px accent line at its outer edges).
+- Still open from before, untouched: B21 / G-039, B22, A33, A34.
+- GAPS: none opened.
+
+### For the design agent's re-review
+
+- G-039 / B21 together with **B35** (the Routines window's edge line looks
+  like the same whole-window focus ring).
+- **B34**: is `⎋` on the Re-sync popover a fix for the next run?
+- layouts.md §3.1: in Week mode `firstEventStart` is built as the earliest
+  instant on the visible days (first event of the first day that has one),
+  not the earliest time of day across the week; today both give 06:00.
+- Routines-window block titles clip without an ellipsis at 1400pt
+  (`Morning revie`) — visible in items 1, 4, 13, 14, 15, 16.
+- The batch-9 `-p2t48` frames of items 4–6, 8, 11, 13–18 are superseded
+  but still in the folder (review §6 item 20 named only the six retired
+  files); whether to `git rm` them is Parsa's call.
+- B22 (Routines gutter) unchanged; F06's `Low energy` label over `Errands`
+  in Windows mode is visible again in item 14's frame.
+
+### Process notes
+
+- One UI script run (F20) started with Opera in full screen; my runner
+  printed the pre-flight but didn't stop. No input reached Opera (all
+  events via `kadence-guard`); the runner now refuses, and the script was
+  re-run cleanly. Ad-hoc live checks relied on earlier pre-flights rather
+  than one each (§79).
+- No forbidden git operation this run.
