@@ -256,6 +256,15 @@ extension TypeStyle {
         textStyle: Tokens.Typography.PopoverRow.textStyle,
         lineLimit: Tokens.Typography.PopoverRow.lineLimit,
         monospacedDigit: Tokens.Typography.PopoverRow.monospacedDigit)
+
+    /// `popoverRow` with no line limit (tokens 1.3.0, G-051): the refused
+    /// snooze row only, which wraps rather than truncates.
+    static let popoverRefusalRow = TypeStyle(
+        size: Tokens.Typography.PopoverRefusalRow.size,
+        weight: Tokens.Typography.PopoverRefusalRow.weight,
+        textStyle: Tokens.Typography.PopoverRefusalRow.textStyle,
+        lineLimit: Tokens.Typography.PopoverRefusalRow.lineLimit,
+        monospacedDigit: Tokens.Typography.PopoverRefusalRow.monospacedDigit)
 }
 
 // MARK: - Applying a style

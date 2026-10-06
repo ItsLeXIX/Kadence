@@ -56,12 +56,36 @@ enum MenuBarFormatting {
         return "Moved to tomorrow \(time(newStart))"
     }
 
-    /// components.md §16 (amended 2026-10-06, G-046) — the refused row:
-    /// `Not moved — 00:05 is inside Sleep (protected)`; an empty label reads
-    /// `inside a protected window`. `start` is the destination that was
-    /// refused, in the same `HH:mm` form as the moved row.
+    /// components.md §16 (amended 2026-10-06, G-046) — the refused row as
+    /// one sentence: `Not moved — 00:05 is inside Sleep (protected)`; an
+    /// unlabelled window reads `inside a protected window`. `start` is the
+    /// destination that was refused, in the same `HH:mm` form as the moved
+    /// row. Since 2026-10-07 (G-051) this is the row's accessibility label;
+    /// the row itself draws `snoozeRefusedLines`.
     static func snoozeRefused(start: Date, windowLabel: String) -> String {
-        let place = windowLabel.isEmpty ? "a protected window" : "\(windowLabel) (protected)"
-        return "Not moved — \(time(start)) is inside \(place)"
+        let lines = snoozeRefusedLines(start: start, windowLabel: windowLabel)
+        // "line break replaced by a space" (§16, 2026-10-07). The no-break
+        // space is a layout instruction, not part of the spoken sentence.
+        return lines.first + " " + lines.second.replacingOccurrences(of: "\u{00A0}", with: " ")
+    }
+
+    /// The refused row's two drawn lines (components.md §16, amended
+    /// 2026-10-07, G-051). Line 1 is fixed and always fits; line 2 is the
+    /// window. The label is drawn verbatim; an empty or whitespace-only label
+    /// is "unlabelled". The space before `(protected)` is U+00A0 (no-break
+    /// space), so when a long label wraps, the qualifier always stays on the
+    /// same line as the label's last word and never sits alone.
+    static func snoozeRefusedLines(start: Date, windowLabel: String) -> RefusalLines {
+        let unlabelled = windowLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return RefusalLines(
+            first: "Not moved — \(time(start)) is inside",
+            second: unlabelled ? "a protected window" : "\(windowLabel)\u{00A0}(protected)")
+    }
+
+    /// Two strings rather than one with a `\n` in it, so the fixed break is
+    /// a fact of the data the tests can check, not of string parsing.
+    struct RefusalLines: Equatable, Sendable {
+        let first: String
+        let second: String
     }
 }

@@ -8427,3 +8427,40 @@ to date at every task. Build: only `MonthGridView.swift:153`.
 - The SF3 test-host crash came from my B1 test split; fixed in test code.
 - macOS's "Problem Reporter" window from that crash was left untouched.
 - No forbidden git operation.
+
+## 93. P2-C1 — the refused snooze row: two lines, never truncated (components.md §16, §17.1 item 12, both 2026-10-07; G-051; tokens 1.3.0)
+
+- Step 0 first: the uncommitted design/ + DECISIONS.md changes committed
+  unedited as `613d0af design: Phase 2 closeout rulings`. Tokens.swift
+  regenerated from tokens.json 1.3.0 (`focusRingOnAccent`,
+  `typography.popoverRefusalRow`); `--check` up to date.
+- `MenuBarFormatting.snoozeRefusedLines` → line 1 `Not moved — 00:05 is
+  inside`, line 2 `Sleep (protected)` with U+00A0 before `(protected)`, or
+  `a protected window` for an empty **or whitespace-only** label (was:
+  `isEmpty` only). `snoozeRefused` (the one-line sentence) is built from
+  the same lines, NBSP → space, and is the row's accessibility label.
+- `SnoozeConfirmation` carries `refusalLines` (`isRefusal` is now derived
+  from it). The result row moved into its own view,
+  `Views/MenuBar/SnoozeResultRow.swift`, so tests measure what the popover
+  draws: refused = one `Text` (`line1\nline2`, `popoverRefusalRow`,
+  `fixedSize(vertical)`), `spacing.xs` above/below, `minHeight` 28, one AX
+  element. Moved row unchanged (`popoverRow`, `Undo`, 28pt). The popover is
+  a window-style `MenuBarExtra`, which sizes to its content, so the taller
+  row grows it for the hold with no code of its own. `// SPEC-GAP G-051`
+  removed.
+- Tests: new `SnoozeRefusalRowTests` (7) — (a)–(f) of the acceptance line at
+  276pt: ideal width of each line ≤ 276, SwiftUI line count 2 / 2 / ≥ 3,
+  TextKit line fragments (same font) never `(protected)` alone, row height
+  = text + 8 and ≥ 28, AX sentence, moved rows 28pt with ideal width ≤ 276.
+  `PopoverCaptureTests`: item 12's four rows now render with suffix `-p2c`
+  (one build, one renderer); new refused-unlabelled render through the real
+  store (`Sleep` with label ""). Renders looked at: both refused rows read
+  in full on two lines, no `…`; the moved row is unchanged. They are filed
+  in P2-C5.
+- Verify: `-only-testing:KadenceTests` xcresult **607 passed / 0 failed**
+  (599 + 8); build warnings: only `MonthGridView.swift:153`; tokens
+  `--check` up to date; new `Scripts/preflight.sh` (the capture scripts'
+  lock + full-screen check, factored out) and `Scripts/run-ui-checks.sh`
+  (fresh pre-flight before each script): `check-routines-window`,
+  `check-conflict-apply-return`, `check-inspector-inset`,
+  `check-block-click-selects` all **PASS**.

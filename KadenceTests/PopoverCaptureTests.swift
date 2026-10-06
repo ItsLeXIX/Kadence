@@ -83,6 +83,10 @@ private func render(_ name: String, container: ModelContainer, now: Date,
     }
 }
 
+/// The batch suffix of this closeout run's item 12 renders (P2-C1): all
+/// four rows from one build and one renderer (§17.1 item 12, 2026-10-07).
+private let closeoutSuffix = "p2c"
+
 @Suite("§17 items 11 and 12 — the popover, rendered from §17.1's fixtures")
 @MainActor
 struct PopoverCaptureTests {
@@ -126,19 +130,19 @@ struct PopoverCaptureTests {
 
     @Test("Item 12, same-day: Training 17:30 snoozed at 17:10 → Moved to 17:45")
     func snoozeSameDay() throws {
-        // `snooze-same-day-p2t48.png` stays the filed evidence (§17.1 item
-        // 12: "unchanged"); this keeps the render path tested.
+        // P2-C1: all four item 12 rows come from one build and one renderer
+        // (§17.1 item 12, amended 2026-10-07), so this one is re-rendered too.
         let same = try container(restCount: 3)
         let training = try #require(try same.mainContext.fetch(FetchDescriptor<Event>()).first { $0.title == "Training" })
         let row = try #require(MenuBarPopoverView.SnoozeConfirmation.perform(
             training, store: EventStore(context: same.mainContext, undo: UndoStack())))
         #expect(row.text == "Moved to 17:45")
-        try render("snooze-same-day", container: same, now: at(17, 10), snooze: row)
+        try render("snooze-same-day", container: same, now: at(17, 10), snooze: row, suffix: closeoutSuffix)
     }
 
     /// §17.1 item 12's next-day fixture: `Prep: relational algebra`
     /// 23:50–01:20, `now` 23:40; `withSleep` adds Sleep 22:00–07:00 daily.
-    private func prepContainer(withSleep: Bool) throws -> (ModelContainer, Event) {
+    private func prepContainer(withSleep: Bool, sleepLabel: String = "Sleep") throws -> (ModelContainer, Event) {
         let c = try ModelContainer(
             for: Schema(KadenceSchema.models),
             configurations: ModelConfiguration(isStoredInMemoryOnly: true))
@@ -147,7 +151,7 @@ struct PopoverCaptureTests {
         c.mainContext.insert(prep)
         if withSleep {
             c.mainContext.insert(TimeWindow(weekdays: Set(1...7), startMinutes: 22 * 60, endMinutes: 7 * 60,
-                                            kind: .protected, label: "Sleep"))
+                                            kind: .protected, label: sleepLabel))
         }
         try c.mainContext.save()
         return (c, prep)
@@ -164,7 +168,7 @@ struct PopoverCaptureTests {
             NextUpProvider.evaluate(events: [prep], now: at(23, 40)), events: [prep], to: (prep.id, row.expectedStart))
         #expect(MenuBarFormatting.nextMeta(for: try #require(pinned.next), now: at(23, 40), isLate: false)
                 .hasPrefix("00:05 – 01:35"))
-        try render("snooze-next-day", container: c, now: at(23, 40), snooze: row, suffix: "p2f25")
+        try render("snooze-next-day", container: c, now: at(23, 40), snooze: row, suffix: closeoutSuffix)
     }
 
     @Test("Item 12, refused (with Sleep): NEXT unchanged 23:50 – 01:20 above Not moved — 00:05 is inside Sleep (protected)")
@@ -174,11 +178,23 @@ struct PopoverCaptureTests {
             prep, store: EventStore(context: c.mainContext, undo: UndoStack())))
         #expect(row.text == "Not moved — 00:05 is inside Sleep (protected)")
         #expect(row.isRefusal)
+        #expect(row.refusalLines?.second == "Sleep\u{00A0}(protected)")
         let pinned = NextUpProvider.pinning(
             NextUpProvider.evaluate(events: [prep], now: at(23, 40)), events: [prep], to: (prep.id, row.expectedStart))
         #expect(MenuBarFormatting.nextMeta(for: try #require(pinned.next), now: at(23, 40), isLate: false)
                 .hasPrefix("23:50 – 01:20"))
-        try render("snooze-refused", container: c, now: at(23, 40), snooze: row, suffix: "p2f25")
+        try render("snooze-refused", container: c, now: at(23, 40), snooze: row, suffix: closeoutSuffix)
+    }
+
+    @Test("Item 12, refused unlabelled: Sleep's label empty → `… is inside` / `a protected window`")
+    func snoozeRefusedUnlabelled() throws {
+        let (c, prep) = try prepContainer(withSleep: true, sleepLabel: "")
+        let row = try #require(MenuBarPopoverView.SnoozeConfirmation.perform(
+            prep, store: EventStore(context: c.mainContext, undo: UndoStack())))
+        #expect(row.text == "Not moved — 00:05 is inside a protected window")
+        #expect(row.refusalLines == MenuBarFormatting.RefusalLines(
+            first: "Not moved — 00:05 is inside", second: "a protected window"))
+        try render("snooze-refused-unlabelled", container: c, now: at(23, 40), snooze: row, suffix: closeoutSuffix)
     }
 
     /// Task P2-SF1 — interactions.md §12 (amended 2026-10-06): with the

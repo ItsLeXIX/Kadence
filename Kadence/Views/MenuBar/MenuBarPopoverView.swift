@@ -62,11 +62,17 @@ struct MenuBarPopoverView: View {
     /// A refusal (components.md §16, amended 2026-10-06) is held the same
     /// way: nothing moved, so `expectedStart` is the unchanged start and the
     /// row shows until the hold ends; `isRefusal` drops `Undo`.
+    ///
+    /// `text` is the one-line sentence in both cases. For a refusal it is
+    /// the accessibility label, and the row draws `refusalLines` instead
+    /// (§16, amended 2026-10-07, G-051: two lines, never truncated).
     struct SnoozeConfirmation: Equatable {
         let eventID: UUID
         let expectedStart: Date
         let text: String
-        var isRefusal = false
+        var refusalLines: MenuBarFormatting.RefusalLines? = nil
+
+        var isRefusal: Bool { refusalLines != nil }
 
         /// The row for what `EventStore.snooze` returned, or nil when there
         /// is nothing to show (`.unchanged`: no write, no row). The button
@@ -82,7 +88,7 @@ struct MenuBarPopoverView: View {
                 return SnoozeConfirmation(
                     eventID: event.id, expectedStart: oldStart,
                     text: MenuBarFormatting.snoozeRefused(start: start, windowLabel: label),
-                    isRefusal: true)
+                    refusalLines: MenuBarFormatting.snoozeRefusedLines(start: start, windowLabel: label))
             case .unchanged:
                 return nil
             }
@@ -318,23 +324,13 @@ struct MenuBarPopoverView: View {
 
     /// components.md §16: "the action row is replaced in place by a result
     /// row of the same height: `Moved to 19:15` + `Undo`, `popoverRow` type."
-    /// A refusal (amended 2026-10-06) is the same row with no `Undo` —
-    /// nothing was written, so there is nothing to undo.
+    /// A refusal (amended 2026-10-06) has no `Undo` — nothing was written,
+    /// so there is nothing to undo — and (amended 2026-10-07) is two lines
+    /// that grow the row. Drawn by `SnoozeResultRow` so the render tests
+    /// measure the exact view the popover shows.
     @ViewBuilder
     private func snoozeResultRow(_ confirmation: SnoozeConfirmation) -> some View {
-        HStack(spacing: Tokens.Spacing.sm) {
-            // SPEC-GAP G-051: the refused copy (`Not moved — 00:05 is inside
-            // Sleep (protected)`) is wider than `popoverWidth` less the
-            // insets in `popoverRow`, and the row's height is fixed, so it
-            // tail-truncates. Left as is until design/ rules.
-            Text(confirmation.text)
-                .typeStyle(.popoverRow)
-                .foregroundStyle(Tokens.Color.Text.primary)
-            if !confirmation.isRefusal {
-                Button("Undo") { undoSnooze() }
-            }
-        }
-        .frame(height: Tokens.Size.popoverActionRowHeight)
+        SnoozeResultRow(confirmation: confirmation, undo: undoSnooze)
     }
 
     // MARK: Snooze
