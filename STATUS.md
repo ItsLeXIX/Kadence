@@ -8723,3 +8723,27 @@ preview border — G-053.
   tokens `--check` **red as expected** until task 1 (Tokens.swift is
   1.3.0, tokens.json 1.6.0 — the plan's "green from task 1 on"); fresh
   pre-flight before each: the six UI scripts **PASS**.
+
+## 101. P3-H2 — `check-frame-edges.py` implements §17.2 rule 6 (PHASE3-PLAN.md housekeeping H2)
+
+- The exemption, from rule 6's three conditions and no per-file list:
+  1. `--preview` — the caller says the frame is filed under an item that
+     asks for an active preview (an item property, not a file name);
+  2. the flagged pixels must form a **complete rectangle**: candidate sides
+     are 2–6 px wide runs (2pt at 1x–3x) of ≥ 100 px; a rectangle counts
+     only when each of its four sides is flagged along ≥ 90% of its length
+     (the window's transparent rounded corners eat a few px);
+  3. every flagged px in the 2px band must lie on that rectangle's strips
+     (±1 px antialias slack); accent anywhere else in the band fails.
+  Without `--preview` the old rule is unchanged.
+- New `Scripts/test-check-frame-edges.py` (synthetic frames, PIL) — all 8
+  **PASS**: `template-conflict-panel-p2c.png` passes with `--preview`
+  (5980 px, rectangle x 0–1579, y 192–1729: left and bottom on the window
+  edge, top under the day header, right at 1576–1579 beside the inspector)
+  and still fails without it; a one-edge line in the band fails (with and
+  without `--preview`); a preview rectangle missing its inner side fails;
+  a complete rectangle passes; a complete rectangle plus accent on the
+  inspector's outer edge, or in the title-bar band, fails.
+- Verify: script-only; the app and tests are unchanged since §100's run
+  (622 / 0, six UI scripts PASS); tokens `--check` red until task 1, as
+  in §100.
