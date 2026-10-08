@@ -9201,3 +9201,40 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS** (launching `-KadenceReview
   phase2`).
+
+## 113. P3-T11 — status presentation model and copy (components.md §19.1–§19.5; layouts.md §12.1)
+
+- `Kadence/Views/Sources/SourceStatusPresentation.swift`, pure:
+  `SourceStatusCopy` holds §19.1's 18 titles and bodies verbatim (with
+  `{calendar}`'s one / two / "and N other calendars" forms, both
+  `redirected` bodies, digits and `1 event`), the primary action per state,
+  §19.2's glyph by kind (nothing for `offline`), §19.5's forms (`just now`,
+  `today 14:02` / `14:02` after `Synced`, `yesterday 14:02`, `Mon 14:02`,
+  `6 Oct 14:02`, `6 Oct 2025 14:02`; `{next}` as `HH:mm` / `tomorrow
+  HH:mm`), the status line (`Synced …` / `Last synced …` / `Never synced`),
+  the last-change line (zero terms omitted, nil without a write since the
+  Import), §19.4's stale line (actionable, or older than `max(24 h, 2 ×
+  interval)`; never for `offline`/`transient` inside that; two then `+N
+  more sources not synced`), hover help and the VoiceOver value.
+  `SourceStatusPresentation(source:now:)` assembles one source's block;
+  `ConnectFailurePresentation` is §12.1's step-1 table (body + focus,
+  `Password` contents selected for `unauthorized` etc.).
+- `stateDetail` (§21.1, "the substituted body sentence") is now written by
+  `SyncApplier.apply` / `recordFailure` with every fact substituted (host,
+  user, calendars, `{otherHost}`, `{code}`, `{k}`/`{n}`), leaving only
+  `{next}` / `{last}` for the display because they move with time. Its
+  inputs are hosts, names and counts — never a password.
+- Tests (`SourceStatusTests.swift`, 24): one per §19.1 row with the exact
+  strings (`{host}` `cis.technikum-wien.at`, `{user}` `user01`, `{calendar}`
+  `LVPlan` + the two- and three-calendar forms, `{otherHost}`
+  `login.example.invalid`, both redirect bodies); kinds; primary actions;
+  §12.1's rows (body + focus); plurals; all seven last-change combinations
+  and nil after the Import; the five time forms at fixed clocks; the stale
+  line at 23 h 59 / 24 h 01 (30 min), at 2 × 1 day, never for `offline`
+  alone, and untruncated for a 60-character name; hover help and the AX
+  value; no output for any state contains the sentinel held in the secret
+  store. First run 771/1 — my own test arithmetic (60 s is not "within the
+  last minute").
+- Verify: xcresult **772 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

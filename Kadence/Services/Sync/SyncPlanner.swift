@@ -63,6 +63,8 @@ nonisolated struct SyncPlan: Sendable {
     /// when nothing counts (or this is the Import, which is not a change).
     var change: (added: Int, updated: Int, removed: Int)?
     var lastFeedEventCount: Int?
+    /// VEVENTs read in this fetch (`partialImport`'s `{n}` with the problems).
+    var objectCount = 0
     var adoptedCalendars: [SourceCalendar] = []
     var capabilities: SourceCapabilities?
     var isImport = false
@@ -97,6 +99,7 @@ nonisolated enum SyncPlanner {
         var plan = SyncPlan()
         plan.isImport = isImport
         plan.problems = result.problems
+        plan.objectCount = result.objectCount
         plan.adoptedCalendars = result.adoptedCalendars
         plan.capabilities = result.capabilities
         plan.principalHref = result.principalHref
@@ -243,6 +246,11 @@ enum SyncApplier {
         outcome.wrote = plan.writesEvents
 
         // Bookkeeping, written on every poll (§20.8.3).
+        var facts = SourceStatusPresentation.facts(of: source)
+        if !plan.stateDetailCalendars.isEmpty { facts.calendars = plan.stateDetailCalendars }
+        facts.k = plan.problems.count
+        facts.n = plan.state == .emptyFeed ? source.lastEventCount : plan.objectCount + plan.problems.count
+        source.stateDetail = SourceStatusPresentation.storedDetail(plan.state, facts)
         source.lastAttemptAt = now
         source.state = plan.state
         source.problems = plan.problems
@@ -290,6 +298,14 @@ enum SyncApplier {
     /// A failed fetch writes only the bookkeeping fields (§20.8.3).
     static func recordFailure(_ error: ScheduleSourceError, calendars: [String] = [], to source: Source,
                               context: ModelContext, now: Date) {
+        var facts = SourceStatusPresentation.facts(of: source)
+        if !calendars.isEmpty { facts.calendars = calendars }
+        switch error {
+        case .redirected(let other): facts.otherHost = other
+        case .serverError(let code): facts.code = code
+        default: break
+        }
+        source.stateDetail = SourceStatusPresentation.storedDetail(error.state, facts)
         source.lastAttemptAt = now
         source.state = error.state
         if error.state.pausesAutomaticSync { source.isAutoSyncPaused = true }
