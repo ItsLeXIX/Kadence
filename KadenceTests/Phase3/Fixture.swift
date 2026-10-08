@@ -36,3 +36,19 @@ enum Fixture {
             .deletingLastPathComponent().deletingLastPathComponent()
     }
 }
+
+/// PHASE3-PLAN.md: "The test clock is 2026-10-08 10:00 Europe/Vienna".
+enum TestClock {
+    static let zone = TimeZone(identifier: "Europe/Vienna")!
+
+    /// `yyyy-MM-dd HH:mm` in Europe/Vienna.
+    static func date(_ text: String) -> Date {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = zone
+        f.dateFormat = "yyyy-MM-dd HH:mm"
+        return f.date(from: text)!
+    }
+
+    static var now: Date { date("2026-10-08 10:00") }
+}

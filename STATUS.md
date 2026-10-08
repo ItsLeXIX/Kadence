@@ -8862,3 +8862,47 @@ preview border — G-053.
 - Verify: xcresult **649 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 105. P3-T04 — feed derivation and content hashes (components.md §20.2, §20.5, §20.7.1, §20.8.4, §20.10)
+
+- `Kadence/Services/ICS/FeedDerivation.swift`, pure: `[FeedObject]` →
+  `DerivedFeed { events: [ExternalEvent], problems, mergedCount, objectCount }`.
+  Exact-duplicate tie-break (SEQUENCE, stamp, later VEVENT) across objects
+  and calendars; identity per VEVENT (content mode when the UID contains its
+  own DTSTART as written; flat series `UID|start`; uid mode); the CIS profile
+  (course code title, lecturers split on `/`, trimmed group, `WEBINAR\d+`
+  online, `-EXAM` → exam, any other suffix → lecture, no description); the
+  co-teaching merge by content key (lecturers unioned in ascending-UID order,
+  cancelled only if all are); the §20.5 recurrence subset (DAILY/WEEKLY,
+  INTERVAL, COUNT, UNTIL, BYDAY w/o ordinals, WKST, RDATE, EXDATE,
+  RECURRENCE-ID overrides, orphans imported alone, open-ended bounded at
+  today + 366 days, wall-clock expansion in the event's zone); unsupported
+  rules skip the series with §20.5's sentence. Problem technical lines are
+  prefixed `Object {name}, `. `EventHash` (14 fields, U+001F/U+001E,
+  SHA-256 hex) for `ExternalEvent` and `Event`; `FeedHash`.
+  `Event.applyUpstream` (Services/Sync/EventUpstream.swift) writes the
+  upstream fields, never `status`.
+- Golden: SWQM-ILV's event hash
+  `907da4033bbcf4527e97f7c2727156684180455c13ab5020d79004e3ed521775`,
+  cross-checked with an independent Python SHA-256 of the same string.
+- Tests (`FeedDerivationTests.swift`, 18): 12 events / merged 1 / objects 13;
+  BPREF order-independent `[L05, L06]`; content keys; profile; whole file =
+  split; hrefs not identity (renamed, halves in two calendars); RW-EXAM
+  duplicate across calendars → one; feed hash invariant under order and LF;
+  one lecturer added → exactly one event hash differs; stored-event hash =
+  upstream hash; golden; merge survival (add/remove co-teacher, room change);
+  kind fallback; generic merge; flat series; weekly across DST at 09:00
+  local; open-ended daily = 362 occurrences; MONTHLY → 6 events, 4 problems.
+  First run 664/3 (occurrences lacked their externalID; golden unpinned) —
+  fixed.
+- Verify: xcresult **667 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.
+
+## 106. Run paused — usage limit (2026-10-08)
+
+The run stopped after P3-T04 because the session's usage limit was reached,
+not because of a STOP RULE. Tasks 5–17 are not started in the repo. Drafts
+for tasks 5–6 (HTTPTransport, WebDAV XML, CalDAVSession, CalDAVDiscovery,
+MockCalDAVServer, review template, URLProtocol stub and tests) exist only in
+the session scratchpad and are not committed. Resume at P3-T05.
