@@ -2644,3 +2644,14 @@ sentences.
 `fixtures/cis-2026WS-redacted.ics`, the value after `UID:` is **185**
 characters (the whole content line is 189). The test asserts 185 and says so.
 Please correct the number in the spec.
+
+### G-071 — OPEN (coding agent, P3-T05). The Import window: "− 366 days" vs the pinned value.
+
+`components.md` §20.8.2 defines the Import window's `start` as
+`startOfDay(today) − 366 days` and gives `20251007T220000Z` for today = 8 Oct
+2026; `caldav-mocks.md` §2 and `PHASE3-PLAN.md` task 5 pin the same value.
+366 days before 8 Oct 2026 is **7 Oct 2025** (`20251006T220000Z`): the pinned
+value is one calendar year back (365 days here). Built as **one calendar
+year** (`Calendar.date(byAdding: .year, value: -1)`), so the pinned value
+holds; DEVIATIONS D7. Either reading holds any semester. Please confirm which
+the spec means and correct the other.

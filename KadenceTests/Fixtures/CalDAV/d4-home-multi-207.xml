@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/">
+  <d:response>
+    <d:href>/webdav/lvplan.php/calendars/user01/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype>
+          <d:collection/>
+        </d:resourcetype>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop>
+        <d:displayname/>
+        <cal:supported-calendar-component-set/>
+        <cs:getctag/>
+        <d:sync-token/>
+      </d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/webdav/lvplan.php/calendars/user01/LVPlan-user01/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype>
+          <d:collection/>
+          <cal:calendar/>
+        </d:resourcetype>
+        <d:displayname>LVPlan</d:displayname>
+        <cal:supported-calendar-component-set>
+          <cal:comp name="VEVENT"/>
+          <cal:comp name="VTODO"/>
+        </cal:supported-calendar-component-set>
+        <cs:getctag>LVPlan-user01-1791454967</cs:getctag>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop>
+        <d:sync-token/>
+      </d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/webdav/lvplan.php/calendars/user01/outbox/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype>
+          <d:collection/>
+          <cal:schedule-outbox/>
+        </d:resourcetype>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop>
+        <d:displayname/>
+        <cal:supported-calendar-component-set/>
+        <cs:getctag/>
+        <d:sync-token/>
+      </d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/webdav/lvplan.php/calendars/user01/Pruefungen-user01/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype>
+          <d:collection/>
+          <cal:calendar/>
+        </d:resourcetype>
+        <d:displayname>Prüfungen</d:displayname>
+        <cal:supported-calendar-component-set>
+          <cal:comp name="VEVENT"/>
+        </cal:supported-calendar-component-set>
+        <cs:getctag>Pruefungen-user01-1791454967</cs:getctag>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop>
+        <d:sync-token/>
+      </d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/webdav/lvplan.php/calendars/user01/Aufgaben-user01/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype>
+          <d:collection/>
+          <cal:calendar/>
+        </d:resourcetype>
+        <d:displayname>Aufgaben</d:displayname>
+        <cal:supported-calendar-component-set>
+          <cal:comp name="VTODO"/>
+        </cal:supported-calendar-component-set>
+        <cs:getctag>Aufgaben-user01-1791454967</cs:getctag>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop>
+        <d:sync-token/>
+      </d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/webdav/lvplan.php/calendars/user01/inbox/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype>
+          <d:collection/>
+          <cal:schedule-inbox/>
+        </d:resourcetype>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+    <d:propstat>
+      <d:prop>
+        <d:displayname/>
+        <cal:supported-calendar-component-set/>
+        <cs:getctag/>
+        <d:sync-token/>
+      </d:prop>
+      <d:status>HTTP/1.1 404 Not Found</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>

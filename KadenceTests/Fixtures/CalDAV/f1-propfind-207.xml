@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/">
+  <d:response>
+    <d:href>/webdav/lvplan.php/calendars/user01/LVPlan-user01/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype>
+          <d:collection/>
+          <cal:calendar/>
+        </d:resourcetype>
+        <cs:getctag>LVPlan-user01-1791454967</cs:getctag>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/webdav/lvplan.php/calendars/user01/LVPlan-user01/r01.ics</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype/>
+        <d:getetag>"rev-01-a"</d:getetag>
+        <d:getcontenttype>text/calendar; charset=utf-8; component=vevent</d:getcontenttype>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <!-- r02.ics … r14.ics -->
+</d:multistatus>

@@ -2104,3 +2104,24 @@ continues the sections above (D after D5, A after A36, B after B39).
   `RANGE=THISANDFUTURE` override are `// SPEC-GAP G-069` placeholders
   (`ICSParser.swift`, `FeedDerivation.swift`). The technical lines follow
   §19.1's form.
+- **D7 — components.md §20.8.2: the Import window's formula vs its pinned
+  value.** "`startOfDay(today) − 366 days` (`20251007T220000Z` for 8 Oct
+  2026)": the formula gives `20251006T220000Z`. Built as one calendar year
+  back, which matches the pinned value, caldav-mocks.md and task 5's test.
+  GAPS **G-071**.
+- **B40 — components.md §21.4 / interactions.md §13.1: the password is
+  answered as an `Authorization` header Kadence builds, not as a
+  `URLCredential` handed to Foundation.** §21.4 says the password "goes into
+  a `URLCredential` with `.none` persistence". Built instead:
+  `URLSessionTransport`'s delegate declines every password challenge
+  (`.rejectProtectionSpace`; server trust keeps the default evaluation), so
+  the `401` reaches `CalDAVSession`, whose `ChallengeResponder` answers it —
+  Basic, or Digest (MD5, `qop=auth`) — only for the source's host, port and
+  `https`, retries that request once (not counted), and carries the header
+  on later requests of the same session (§13.1's reading). Why: the same code
+  path then runs against the real server and against the tests' `URLProtocol`
+  stub (which cannot drive Foundation's challenge machinery), so "the first
+  request carries no `Authorization`, it is sent only after a `401` from that
+  host" is asserted on every recorded request; and no Foundation credential
+  store is involved at all. Every rule of §13.1 is kept. Open for the design
+  agent to accept or rule.

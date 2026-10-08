@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/">
+  <d:response>
+    <d:href>/webdav/lvplan.php/principals/user01/</d:href>
+    <d:propstat>
+      <d:prop>
+        <cal:calendar-home-set>
+          <d:href>/webdav/lvplan.php/calendars/user01/</d:href>
+        </cal:calendar-home-set>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>

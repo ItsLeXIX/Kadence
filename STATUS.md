@@ -8902,7 +8902,62 @@ preview border — G-053.
 ## 106. Run paused — usage limit (2026-10-08)
 
 The run stopped after P3-T04 because the session's usage limit was reached,
-not because of a STOP RULE. Tasks 5–17 are not started in the repo. Drafts
-for tasks 5–6 (HTTPTransport, WebDAV XML, CalDAVSession, CalDAVDiscovery,
-MockCalDAVServer, review template, URLProtocol stub and tests) exist only in
-the session scratchpad and are not committed. Resume at P3-T05.
+not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
+
+## 107. P3-T05 — HTTP transport and WebDAV XML (components.md §20.8.2, §21.4; interactions.md §13.1; caldav-mocks.md §1–§2)
+
+- `Kadence/Services/CalDAV/HTTPTransport.swift`: `HTTPRequest` /
+  `HTTPResponse` values, `TransportError` (offline, timeout, unreachable,
+  certificate, tooLarge, cancelled — no URL, header or body in any case),
+  `protocol HTTPTransport`. `URLSessionTransport`: an ephemeral
+  configuration, `urlCache = nil`, `urlCredentialStorage = nil`, cookies in
+  the session's own memory store; one instance = one session = one connect
+  or sync (`invalidate()` ends it); the delegate **never follows** a
+  redirect (returns the `3xx`) and declines every password challenge, while
+  server trust keeps the system's evaluation; a response over 20 MiB →
+  `tooLarge`. The delegate methods use the completion-handler forms: the
+  `async` forms crash Swift 6.4's SIL generation (reproduced in this run).
+  `ChallengeResponder`: Basic and Digest (MD5, `qop=auth`), only for the
+  source's host, port and `https` — DEVIATIONS **B40** (header built by
+  Kadence instead of a `URLCredential`).
+- `Kadence/Services/CalDAV/WebDAV.swift`: `MultistatusParser` (XMLParser,
+  namespaces on, prefixes irrelevant, CDATA kept) → `[DAVResponse]`;
+  `CalDAVRequests` for D1–D4, F0 (`time-range` with `start` only), F1
+  `PROPFIND`, `calendar-multiget` in batches of 100, F2 `GET`;
+  `Windows.syncStart` / `importStart`; `SyncDiagnostics` (ETag set = first 8
+  hex of SHA-256 over sorted `href=etag`); `SourceLogger` (unified log
+  category `sync`, `.public` — nothing secret; takes a `Source` or an
+  account string, never a request; test sinks).
+- **Import window:** §20.8.2's formula (− 366 days) gives `20251006T220000Z`,
+  its pinned value is `20251007T220000Z` (one calendar year). Built as one
+  calendar year, so the pinned value and caldav-mocks.md hold — GAPS
+  **G-071**, DEVIATIONS **D7**.
+- Fixtures `KadenceTests/Fixtures/CalDAV/`: `d2-root-207.xml`,
+  `d3-principal-207.xml`, `d4-home-207.xml`, `f1-propfind-207.xml` copied
+  byte for byte from caldav-mocks.md's blocks (extracted by script);
+  `report-cis-2026WS.xml` generated from the real export exactly as §2 says
+  (13 objects, CRLF inside `calendar-data`); `d4-home-multi-207.xml` = D4 +
+  §3's three responses. No username but `user01`.
+- Test stub `KadenceTests/Phase3/StubURLProtocol.swift`: a per-test
+  `StubServer` found through a session header the stub strips, records every
+  request (host, scheme, headers, body), tracks the in-flight maximum,
+  answers, fails before delivery (TLS, offline: not recorded) or never
+  answers (timeout).
+- Tests (`WebDAVTests.swift`, 16): D2/D3/D4/report-cis parse to the expected
+  values (principal, 404 home-set, three resourcetypes, `LVPlan`,
+  VEVENT+VTODO, getctag, 404 sync-token, 13 hrefs/ETags, LF data); the
+  .xml's VEVENT lines equal the .ics's line for line; other prefixes parse
+  identically; a web page is not a multistatus; request bodies equal
+  caldav-mocks.md's on meaning (root, property set, filter, Depth, method;
+  extracted from the .md itself); 250 hrefs → 100/100/50; windows
+  (`20261007T220000Z`, `20251007T220000Z`, `20261101T230000Z`); a 301 is
+  returned and the delegate declines; 20 MiB + 1 → `tooLarge`; error
+  mapping; the challenge declines `login.example.invalid`,
+  `http://cis…`, another port, `Negotiate`; Digest's response; fresh
+  sessions (separate cookie stores; no cache, no credential storage). First
+  runs: the Swift 6.4 crash above, then 681/2 (import window; cookie
+  injection through a `URLProtocol` doesn't reach URLSession's jar, so the
+  test checks the jars directly).
+- Verify: xcresult **683 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.
