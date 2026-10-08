@@ -53,12 +53,20 @@ final class UndoStack {
     struct Step {
         var name: String
         var changes: [Change]
+        /// The events this step reads or writes (Phase 3, components.md
+        /// §20.9): a sync that deletes one of them drops the step, so the
+        /// Edit menu never offers an action that would do nothing.
+        var addresses: Set<UUID> = []
     }
 
     /// Handed to the body of `perform` so it can record changes as it makes them.
     @MainActor
     final class Group {
         fileprivate var changes: [Change] = []
+        fileprivate var addresses: Set<UUID> = []
+
+        /// Records that this step addresses `id` (§20.9).
+        func address(_ id: UUID) { addresses.insert(id) }
 
         /// Apply a change now and record how to reverse it.
         func perform(redo: @escaping () -> Void, undo: @escaping () -> Void) {
@@ -116,7 +124,7 @@ final class UndoStack {
     /// **outermost** name is the one the user sees. That is what lets Phase 2
     /// compose conflict resolution out of the existing verbs without either
     /// duplicating them or leaving three separate steps on the stack.
-    func perform(_ name: String, _ body: (Group) -> Void) {
+    func perform(_ name: String, addressing ids: Set<UUID> = [], _ body: (Group) -> Void) {
         // Never record the work an undo/redo is itself doing.
         if isReplaying {
             body(Group())
@@ -124,11 +132,13 @@ final class UndoStack {
         }
 
         if let openGroup {
+            openGroup.addresses.formUnion(ids)
             body(openGroup)
             return
         }
 
         let group = Group()
+        group.addresses = ids
         openGroup = group
         body(group)
         openGroup = nil
@@ -136,12 +146,13 @@ final class UndoStack {
         // A call that changed nothing (a no-op move, a rename to the same text)
         // must not leave an empty step for the user to press ⌘Z through.
         guard !group.changes.isEmpty else { return }
-        push(Step(name: name, changes: group.changes))
+        push(Step(name: name, changes: group.changes, addresses: group.addresses))
     }
 
     /// Convenience for the common single-change case.
-    func perform(_ name: String, redo: @escaping () -> Void, undo: @escaping () -> Void) {
-        perform(name) { group in
+    func perform(_ name: String, addressing ids: Set<UUID> = [], redo: @escaping () -> Void,
+                 undo: @escaping () -> Void) {
+        perform(name, addressing: ids) { group in
             group.perform(redo: redo, undo: undo)
         }
     }
@@ -185,5 +196,13 @@ final class UndoStack {
     func removeAll() {
         undoSteps.removeAll()
         redoSteps.removeAll()
+    }
+
+    /// components.md §20.9: drops every undo and redo step that addresses an
+    /// event a sync deleted. Nothing else on the stack changes.
+    func dropSteps(addressing deleted: Set<UUID>) {
+        guard !deleted.isEmpty else { return }
+        undoSteps.removeAll { !$0.addresses.isDisjoint(with: deleted) }
+        redoSteps.removeAll { !$0.addresses.isDisjoint(with: deleted) }
     }
 }

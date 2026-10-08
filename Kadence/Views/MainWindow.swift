@@ -429,8 +429,8 @@ struct MainWindow: View {
     /// which pairs are conflicts. `static` and `@MainActor` for the same
     /// reason as `conflictedEventIDs`: `KadenceTests` drives it directly.
     @MainActor
-    static func sortedConflicts(events: [Event], routineBlocks: [RoutineBlock]) -> [Conflict] {
-        ConflictOrdering.sorted(ConflictEngine.detect(events: events, routineBlocks: routineBlocks))
+    static func sortedConflicts(events: [Event], routineBlocks: [RoutineBlock], now: Date? = nil) -> [Conflict] {
+        ConflictOrdering.sorted(ConflictEngine.detect(events: events, routineBlocks: routineBlocks, today: now))
     }
 
     /// Writes `Self.sortedConflicts(...)` into `state.conflicts`. Called from
@@ -441,7 +441,7 @@ struct MainWindow: View {
     /// `.onChange` runs after the view update that triggered it, which is
     /// the supported place to feed a query result into stored state.
     private func refreshConflicts() {
-        state.conflicts = Self.sortedConflicts(events: events, routineBlocks: routineBlocks)
+        state.conflicts = Self.sortedConflicts(events: events, routineBlocks: routineBlocks, now: state.now)
     }
 
     /// components.md §13.6.2 / §14.6 (task P2-T46).

@@ -140,7 +140,7 @@ struct EventStore {
         let snapshot = EventSnapshot(event)
         let id = event.id
         let pair = RoutineTombstones.pair(of: event)
-        undo.perform("Delete Event") { group in
+        undo.perform("Delete Event", addressing: [id]) { group in
             group.perform(redo: { remove(id) }, undo: { insert(snapshot) })
             if let pair {
                 group.perform(
@@ -473,7 +473,7 @@ struct EventStore {
         guard notes != event.notes else { return }
         let id = event.id
         let old = event.notes
-        undo.perform("Edit Notes",
+        undo.perform("Edit Notes", addressing: [id],
                      redo: { edit(id) { $0.notes = notes } },
                      undo: { edit(id) { $0.notes = old } })
     }
@@ -482,7 +482,7 @@ struct EventStore {
         let id = event.id
         let old = event.status
         let new: EventStatus = old == .done ? .scheduled : .done
-        undo.perform(old == .done ? "Mark Not Done" : "Mark Done",
+        undo.perform(old == .done ? "Mark Not Done" : "Mark Done", addressing: [id],
                      redo: { edit(id) { $0.status = new } },
                      undo: { edit(id) { $0.status = old } })
     }
@@ -493,7 +493,7 @@ struct EventStore {
         let id = event.id
         let old = event.status
         let new: EventStatus = old == .skipped ? .scheduled : .skipped
-        undo.perform(old == .skipped ? "Unskip" : "Skip",
+        undo.perform(old == .skipped ? "Unskip" : "Skip", addressing: [id],
                      redo: { edit(id) { $0.status = new } },
                      undo: { edit(id) { $0.status = old } })
     }
@@ -515,7 +515,7 @@ struct EventStore {
         let id = event.id
         let old = event.status
         guard old != .skipped else { return }
-        undo.perform("Skip",
+        undo.perform("Skip", addressing: [id],
                      redo: { edit(id) { $0.status = .skipped } },
                      undo: { edit(id) { $0.status = old } })
     }

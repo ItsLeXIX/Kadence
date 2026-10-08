@@ -9056,3 +9056,62 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **709 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 110. P3-T08 — sync planner and applier: change by content, windows, guards, deselection (components.md §20.1, §20.6, §20.8.3, §20.8.4, guards, §20.9, §20.10, §18.1, §21.5)
+
+- `Kadence/Services/Sync/SyncPlanner.swift`:
+  - `SyncPlanner.plan(existing:source:result:kind:now:zone:)`, pure. Kind
+    `.import` / `.sync` / `.editSave(deselected:)`. The write window (Import:
+    every event; otherwise start ≥ `startOfDay(today)`), the feed hash,
+    **step 4** (equal to `Source.feedHash` with every calendar read in full →
+    stop, nothing written, `lastChange*` untouched), then the diff by
+    externalID and event hash: creates, updates (only differing hashes;
+    status reset to `.scheduled` when start/end moved in place, §18.1),
+    deletes only on proof of absence (every calendar read in full, no
+    problems, not `emptyFeed`; never before today). Edit-mode deselection
+    deletes whatever, past included, is absent from the kept calendars' full
+    Import-window read. The state: the earliest §19.1 row among failed
+    calendars, else `emptyFeed`, else `partialImport`, else `upToDate`.
+    `feedHash` only after a full read. Last-change counts only events on or
+    after today, never for the Import.
+  - `SyncApplier.apply` — creates (`.imported`, `.fixed`, source's slot),
+    updates via `Event.applyUpstream`, deletes, bookkeeping, then one
+    `context.save()`; a failed save rolls back. `recordFailure` (bookkeeping
+    only; 401/403 set the pause), `remove` (events incl. history + the
+    source, one save), `finish` (§20.9: deselect a deleted selected event;
+    drop undo/redo steps addressing deleted events).
+- Existing code, minimal: `UndoStack` steps carry `addresses` and
+  `dropSteps(addressing:)`; `EventStore`'s done/skip/delete/notes verbs
+  address their event; `CalendarState.applyOrHoldSyncWrite` holds a sync's
+  write while a conflict option is previewed and runs it when the preview
+  ends; `ConflictEngine.detect(…, today:)` excludes cancelled, all-day and
+  — with a clock — pre-today events (DEVIATIONS note). **History never
+  conflicts:** the Phase 2 engine did *not* exclude past days; the test
+  shows the pair conflicting without a clock and not with one.
+- Tests (`SyncPlannerTests.swift`, 15, real in-memory container, clock
+  2026-10-08 10:00 Vienna, fetches through the stub): Import 12 / 3 history
+  / no deletes / not a change; same content a day later writes nothing,
+  re-stores the hash, ids unchanged, a third sync stops at step 4;
+  `etagsOnly` writes nothing; `ctagOnly` (two F1 polls, ctag +55; the
+  multiget content is byte-identical, so the ETag set is the same) — poll 2
+  writes nothing, `lastChange*` unchanged, and with step 4 disabled step 5
+  still writes nothing; **reportChanged**: SWEN3-LAB's done event replaced
+  by a `.scheduled` one in `EDV_F4.26`, EPC-ILV (D+3) deleted, SWQM-ILV
+  updated in place (`[L09]`, id and skipped status kept), SWRM-ILV
+  `[L05]` in place and still one block, KOKU-UE created, H1 untouched, last
+  change `2 / 2 / 2`; guards: partialImport (no deletes, old and new
+  SWEN3-LAB side by side), emptyFeed, one calendar missing (no deletes,
+  feedHash kept), a thrown error (bookkeeping only; 401 pauses), removal
+  deletes history; edit Save: deselecting Prüfungen deletes its unique past
+  and future events, RW-EXAM (merged) stays, a non-full read deletes
+  nothing, no past event is created; selection cleared and the undo step
+  addressing the deleted event dropped (the other kept); a sync during a
+  preview is held until the preview ends; history and cancelled never
+  conflict; **after the review Import: 14 day conflicts, needs-attention
+  15, Friday's rows `Shift Training 45 min later` (recommended) · `Shorten
+  Training to 45 min` · `Skip Training today`, at index k = 9 = d + 1**.
+  First runs: an init-capture compile error, then one wrong expectation of
+  mine (ctagOnly's ETag set; caldav-mocks.md says only the ctags differ).
+- Verify: xcresult **724 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

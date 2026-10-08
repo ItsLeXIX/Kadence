@@ -143,7 +143,30 @@ final class CalendarState {
     /// consequence of "changing this id" (the proposed frame it previews,
     /// what reverting it means) lives there and in
     /// `moveSelectedConflictOption(by:)`/`abandonConflictPreview()` below.
-    var selectedConflictOptionID: UUID?
+    var selectedConflictOptionID: UUID? {
+        // components.md §20.9: a sync that finished during a preview is
+        // applied when the preview ends (applied or abandoned).
+        didSet { if selectedConflictOptionID == nil { releaseHeldSyncWrites() } }
+    }
+
+    /// components.md §20.9 — "A sync never lands during a preview." Writes
+    /// that arrive while a conflict option is previewed wait here.
+    /// Swift note: `@ObservationIgnored` keeps closures out of SwiftUI's
+    /// change tracking — nothing draws them.
+    @ObservationIgnored private var heldSyncWrites: [() -> Void] = []
+
+    var isConflictPreviewActive: Bool { selectedConflictOptionID != nil }
+
+    /// Runs `write` now, or when the active preview ends.
+    func applyOrHoldSyncWrite(_ write: @escaping () -> Void) {
+        if isConflictPreviewActive { heldSyncWrites.append(write) } else { write() }
+    }
+
+    private func releaseHeldSyncWrites() {
+        let writes = heldSyncWrites
+        heldSyncWrites.removeAll()
+        for write in writes { write() }
+    }
 
     /// Test hook, not a product behaviour (task P2-T41). Launching with
     /// `-KadenceConflictUnderTest "Focus review"` makes the needs-attention

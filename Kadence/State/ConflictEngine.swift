@@ -180,7 +180,17 @@ enum ConflictEngine {
     /// store and no `UndoStack`. O(n²) over `events` — deliberately simple
     /// pairwise comparison; nothing in scope needs this to run over more than
     /// one day's or one week's worth of events at a time.
-    static func detect(events: [Event], routineBlocks: [RoutineBlock]) -> [Conflict] {
+    ///
+    /// Phase 3 (components.md §20.9, task P3-T08): cancelled events (§20.6)
+    /// and all-day events (§20.4) never take part; with `today` given, nor
+    /// does anything that starts before `startOfDay(today)` — history never
+    /// conflicts (§20.1), since resolving it would write the past. `today` is
+    /// optional so Phase 2's callers and tests keep their behaviour.
+    static func detect(events allEvents: [Event], routineBlocks: [RoutineBlock], today: Date? = nil) -> [Conflict] {
+        let startOfToday = today.map { Calendar.current.startOfDay(for: $0) }
+        let events = allEvents.filter { event in
+            !event.isCancelled && !event.isAllDay && (startOfToday.map { event.start >= $0 } ?? true)
+        }
         var conflicts: [Conflict] = []
         for i in events.indices {
             for j in (i + 1)..<events.count {

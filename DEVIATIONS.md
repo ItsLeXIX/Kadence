@@ -2125,3 +2125,10 @@ continues the sections above (D after D5, A after A36, B after B39).
   host" is asserted on every recorded request; and no Foundation credential
   store is involved at all. Every rule of §13.1 is kept. Open for the design
   agent to accept or rule.
+- **Note (not a deviation) — ConflictEngine gains a clock.**
+  `ConflictEngine.detect(…, today:)` now excludes cancelled and all-day
+  events always, and with `today` given anything that starts before
+  `startOfDay(today)` (components.md §20.9, §20.4, §20.6). Before task 8 the
+  Phase 2 engine had no such rule (STATUS §110 records the test that shows
+  it). `MainWindow` passes its clock; Phase 2's tests call it without one and
+  keep their behaviour.
