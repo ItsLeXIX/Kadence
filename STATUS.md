@@ -9238,3 +9238,50 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **772 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 114. P3-T12 — Settings ▸ Sources and removal (layouts.md §11; interactions.md §13.2; components.md §19.3, §21.4)
+
+- `Kadence/Views/Sources/SourcesSettings.swift`: the `Settings` scene (one
+  tab, `Sources`, symbol `link`, 640 × 440) replaces the Phase 1 placeholder
+  (removed). The list (200 wide) shows connected sources only — swatch,
+  name, §19.2 status slot — with `+` / `−` below; one source is selected
+  whenever any exist. The detail: the §19.3 status block inline
+  (`SourceStatusBlock`: title in the new `sourceStatusTitle` type style,
+  body, status and last-change lines, the primary action as a `.bordered`
+  default button, `Show Details` → `ProblemList`, 8 then `+N more`), a
+  hairline, the form — `Name` (commits on ↩ / blur, empty reverts, the
+  Keychain label follows), `Account` `user01 @ cis.technikum-wien.at`
+  (selectable text, `Edit Account…` → edit mode, Password focus), `Calendar`
+  / `Calendars`, `Sync` (the seven values) — and `Remove Source…`. The
+  empty state: `No timetable connected.` + `Connect Timetable…`. No password
+  row, not even bullets.
+- Removal: a warning `NSAlert` — `Remove “University timetable”?`, §13.2's
+  informative text, `Cancel` the default (added first, so it is the
+  rightmost and takes ↩; ⎋ presses it through a local key monitor),
+  `Remove` destructive. `Remove` cancels the source's sync, deletes its
+  events (history included) and the source in one save, deletes the
+  Keychain item, drops undo steps / selection for the deleted events; a
+  Keychain failure still removes the source and shows §13.2's follow-up.
+- `SourcesRouter` (selected source, sheet request) is shared by Settings,
+  File ▸ **Connect Timetable…** (new, no key equivalent) and later the
+  sidebar and popovers. The connect sheet is a Cancel-only stub until task
+  13.
+- Tests (`SourcesSettingsTests.swift`, 9): rename (commit, empty revert,
+  Keychain label); the Account row and no password/bullets in any row,
+  label, help or AX value; `Calendar` / `Calendars`; the seven intervals and
+  the default; `Remove` — events + source gone, Keychain item gone, the blue
+  slot free again, day conflicts 14 → 13; the alert (title, text, warning,
+  `Cancel` default with ↩, `Remove` destructive without); a Keychain delete
+  failure still removes and gives the follow-up copy; review mode: the
+  source is the one connected source, `Up to date`; the details cap.
+- Captures (fresh pre-flight before each; review mode, mocked server):
+  `screenshots/3/settings-sources-uptodate-p3t12.png` (item 8: `Up to
+  date`, `Synced just now · 13 events`, Account, `Calendar LVPlan`, `Every 30
+  minutes`; nothing in the form focused — the source list has focus and its
+  selection), `settings-sources-empty-p3t12.png` (`-KadenceReview phase2`),
+  `remove-source-alert-p3t12.png` (item 18; ⎋ then cancelled it and the
+  source was still there). New `Scripts/capture-p3.sh` + `Scripts/lib/p3-lib.sh`
+  (helpers from check-resync-escape.sh, every click through kadence-guard).
+- Verify: xcresult **781 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

@@ -257,6 +257,15 @@ extension TypeStyle {
         lineLimit: Tokens.Typography.PopoverRow.lineLimit,
         monospacedDigit: Tokens.Typography.PopoverRow.monospacedDigit)
 
+    /// Tokens 1.4.0: a source state's title (components.md §19.3, layouts.md
+    /// §11, §12.1). No line limit: a state the user must act on is never
+    /// truncated.
+    static let sourceStatusTitle = TypeStyle(
+        size: Tokens.Typography.SourceStatusTitle.size,
+        weight: Tokens.Typography.SourceStatusTitle.weight,
+        textStyle: Tokens.Typography.SourceStatusTitle.textStyle,
+        lineLimit: Tokens.Typography.SourceStatusTitle.lineLimit)
+
     /// `popoverRow` with no line limit (tokens 1.3.0, G-051): the refused
     /// snooze row only, which wraps rather than truncates.
     static let popoverRefusalRow = TypeStyle(

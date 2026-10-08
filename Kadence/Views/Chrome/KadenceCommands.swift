@@ -13,6 +13,9 @@ struct KadenceCommands: Commands {
     var undo: UndoStack
     /// Phase 3 task 9: View ▸ Sync Now.
     var sync: SyncCoordinator
+    /// Phase 3 task 12: File ▸ Connect Timetable….
+    var router: SourcesRouter
+    @Environment(\.openSettings) private var openSettings
 
     /// interactions.md §2 (amended 2026-10-08): `⌘R` Sync Now.
     static let syncNowTitle = "Sync Now"
@@ -47,6 +50,12 @@ struct KadenceCommands: Commands {
                 NotificationCenter.default.post(name: .kadenceNewEvent, object: start)
             }
             .keyboardShortcut("n", modifiers: .command)
+            // interactions.md §13.1: no key equivalent; the item exists so
+            // connecting is reachable from the keyboard and Help search.
+            Button("Connect Timetable…") {
+                router.sheet = .connect
+                openSettings()
+            }
         }
 
         // These go INTO the system View menu rather than a CommandMenu named
@@ -125,20 +134,4 @@ struct KadenceCommands: Commands {
 extension Notification.Name {
     static let kadenceNewEvent = Notification.Name("kadence.newEvent")
     static let kadenceGoToFirstConflict = Notification.Name("kadence.goToFirstConflict")
-}
-
-struct SettingsPlaceholderView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Spacing.lg) {
-            Text("Settings")
-                .typeStyle(.inspectorTitle)
-            // Sources, travel mode, notification rules and focus limits are
-            // Phase 3–6. Saying so beats an empty pane with tabs that do nothing.
-            Text("Sources, travel, notifications and focus limits arrive with later phases.")
-                .typeStyle(.inspectorValue)
-                .foregroundStyle(Tokens.Color.Text.secondary)
-        }
-        .padding(Tokens.Spacing.huge)
-        .frame(width: 420, height: 200)
-    }
 }

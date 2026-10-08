@@ -27,6 +27,8 @@ struct KadenceApp: App {
     /// Phase 3 (interactions.md §13.3): the one sync coordinator. Built in
     /// `init` because it needs the container's main context.
     @State private var sync: SyncCoordinator
+    /// Phase 3: which source Settings shows and which sheet it presents.
+    @State private var router = SourcesRouter()
 
     init() {
         do {
@@ -65,12 +67,13 @@ struct KadenceApp: App {
                 .environment(calendar)
                 .environment(undoStack)
                 .environment(sync)
+                .environment(router)
                 .frame(
                     minWidth: Tokens.Size.windowMinWidth,
                     minHeight: Tokens.Size.windowMinHeight)
         }
         .modelContainer(container)
-        .commands { KadenceCommands(calendar: calendar, undo: undoStack, sync: sync) }
+        .commands { KadenceCommands(calendar: calendar, undo: undoStack, sync: sync, router: router) }
 
         // layouts.md §8 — "a separate window, not a sheet and not a Settings
         // pane," opened with ⌘⌥R or Window ▸ Routines (see KadenceCommands).
@@ -96,9 +99,15 @@ struct KadenceApp: App {
             width: Tokens.Size.routineEditorMinWidth,
             height: Tokens.Size.routineEditorMinHeight)
 
+        // layouts.md §11 — Settings ▸ Sources (Phase 3 task 12).
         Settings {
-            SettingsPlaceholderView()
+            SettingsView()
+                .environment(sync)
+                .environment(router)
+                .environment(calendar)
+                .environment(undoStack)
         }
+        .modelContainer(container)
 
         // components.md §15 / DECISIONS.md 2026-09-10 "Menu bar requirement
         // split between status item and popover." `.window` (not the default
