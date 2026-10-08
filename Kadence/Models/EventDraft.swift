@@ -17,6 +17,9 @@ struct EventDraft: Identifiable, Equatable, Sendable {
     var start: Date
     var end: Date
     var title: String
+    /// components.md §5.1 (Phase 3): an all-day draft commits an all-day
+    /// event (G-055). `⌘⌥N` itself is not built (DEVIATIONS A37).
+    var isAllDay = false
 
     init(id: UUID = UUID(), start: Date, end: Date, title: String = "") {
         self.id = id

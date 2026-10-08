@@ -87,6 +87,7 @@ struct EventStore {
             title: draft.trimmedTitle,
             start: draft.start,
             end: draft.end,
+            isAllDay: draft.isAllDay,
             origin: .manual,
             sourceKey: .graphite)
         let snapshot = EventSnapshot(template)

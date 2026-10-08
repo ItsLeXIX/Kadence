@@ -142,7 +142,10 @@ extension Event {
 
     /// components.md §2.1 — data origin maps to a *visual* class.
     var blockKind: BlockKind {
-        switch origin {
+        // components.md §2.1 (amended 2026-10-08): an all-day Event is
+        // `.eventAllDay`, whatever its origin.
+        if isAllDay && (origin == .imported || origin == .manual) { return .eventAllDay }
+        return switch origin {
         case .manual, .imported: .fixedTimed
         case .routine: .routineTimed
         case .planned: .plannedTimed
@@ -153,13 +156,16 @@ extension Event {
     /// and a manual event share `.fixedTimed` but differ by symbol.
     var glyphOverride: String? {
         switch origin {
-        case .imported: "building.columns"
+        // §2.1: an imported exam (CIS `-EXAM`, §20.7.1) takes the exam glyph.
+        case .imported: importKind == .exam ? "graduationcap.fill" : "building.columns"
         case .manual: "calendar"
         default: nil
         }
     }
 
     func blockStatus(now: Date) -> BlockStatus {
+        // §6: cancelled is never inProgress, done or skipped on the grid.
+        if isCancelled { return .cancelled }
         switch status {
         case .done: return .done
         case .skipped: return .skipped

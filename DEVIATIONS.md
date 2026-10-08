@@ -2166,3 +2166,12 @@ continues the sections above (D after D5, A after A36, B after B39).
   focus itself (the list does), so the popover is reached by the slot, the
   context menu's `Show Sync Status`, or the inspector's sync line in
   practice. Not observed live.
+- **A37 — interactions.md §2: `⌘⌥N` (new all-day event) was never built.**
+  Found in P3-T15 (G-055's regression test names it). No Phase 1–2 entry
+  existed. The store path now honours an all-day draft
+  (`EventDraft.isAllDay` → `EventStore.commit`), which the G-055 test uses;
+  the key command and its inline-title flow remain unbuilt.
+- **Placeholder — GAPS G-074** (done meta on solid fills), `// SPEC-GAP`.
+- **Review tooling — `-KadenceAppearance light|dark`** (review mode only)
+  sets Kadence's own colour scheme for item 19's light and dark frames; no
+  capture touches the system appearance.

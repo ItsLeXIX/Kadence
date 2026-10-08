@@ -24,6 +24,9 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
     var sourceName: String
     var glyphOverride: String?
     var isMovable: Bool
+    /// Phase 3 (components.md §18.2, §20.7.1): for imported events.
+    var importKind: ImportKind?
+    var isOnline = false
     /// What this block conflicts with, for the spoken label (§11). Only read
     /// when the presentation is `.conflicted`. Empty by default; the call
     /// sites that know the other half fill it in.
@@ -36,6 +39,10 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
 
     /// §3.4 — `Source · Location`, or just the source when there is no location.
     var metaLine: String {
+        // §6 `cancelled` at `.full`: `Cancelled · University timetable`.
+        if status == .cancelled { return "Cancelled · \(sourceName)" }
+        // §18.2: an online event reads `Online` where the location would.
+        if isOnline { return "\(sourceName) · Online" }
         guard let location = locationName, !location.isEmpty else { return sourceName }
         return "\(sourceName) · \(location)"
     }
@@ -43,7 +50,17 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
     /// §3.4 — `Title · HH:mm–HH:mm · Source · Kind`.
     var hoverHelp: String {
         let range = "\(BlockFormatters.time.string(from: start))–\(BlockFormatters.time.string(from: end))"
-        return "\(title) · \(range) · \(sourceName) · \(accessibilityKindLabel)"
+        return "\(title) · \(range) · \(sourceName) · \(hoverKindLabel)"
+    }
+
+    /// §20.7.1: hover help's Kind reads `Exam` / `Lecture` for imported
+    /// events; every other kind keeps its spoken word.
+    var hoverKindLabel: String {
+        switch importKind {
+        case .exam?: "Exam"
+        case .lecture?: "Lecture"
+        case nil: accessibilityKindLabel
+        }
     }
 
     /// components.md §11 — label order: title, time range, kind, source, status,
@@ -61,6 +78,7 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
         case .done: parts.append("done")
         case .skipped: parts.append("skipped, re-offered")
         case .inProgress: parts.append("in progress")
+        case .cancelled: parts.append("cancelled")
         case .scheduled: break
         }
         if presentation.contains(.conflicted) {
@@ -82,7 +100,9 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
 
     var accessibilityKindLabel: String {
         switch kind {
-        case .fixedTimed: glyphOverride == "building.columns" ? "lecture" : "event"
+        case .fixedTimed:
+            importKind == .exam ? "exam" : (glyphOverride == "building.columns" ? "lecture" : "event")
+        case .eventAllDay: importKind == .exam ? "exam" : (importKind == .lecture ? "lecture" : "event")
         case .routineTimed: "routine block"
         case .plannedTimed: "planned study session"
         case .travelBand: "travel"
@@ -136,7 +156,9 @@ extension GridBlockModel {
             source: event.sourceKey,
             sourceName: SourceCatalog.name(for: event.sourceKey),
             glyphOverride: event.glyphOverride,
-            isMovable: event.isMovable)
+            isMovable: event.isMovable,
+            importKind: event.origin == .imported ? event.importKind : nil,
+            isOnline: event.isOnline)
     }
 }
 

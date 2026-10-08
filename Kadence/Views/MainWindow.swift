@@ -195,14 +195,14 @@ struct MainWindow: View {
                 MonthGridView(
                     days: state.visibleDays,
                     events: visible,
-                    fixtures: fixtures,
+                    fixtures: canvasFixtures,
                     now: state.now,
                     anchorMonth: state.anchor)
             case .week:
                 TimedCanvasView(
                     days: state.visibleDays,
                     events: visible,
-                    fixtures: fixtures,
+                    fixtures: canvasFixtures,
                     hourHeight: Tokens.Size.hourHeightWeek,
                     now: state.now,
                     store: store,
@@ -214,7 +214,7 @@ struct MainWindow: View {
                 TimedCanvasView(
                     days: state.visibleDays,
                     events: visible,
-                    fixtures: fixtures,
+                    fixtures: canvasFixtures,
                     hourHeight: Tokens.Size.hourHeightDay,
                     now: state.now,
                     store: store,
@@ -434,6 +434,11 @@ struct MainWindow: View {
     /// and the list fed to the sidebar/inspector can never disagree about
     /// which pairs are conflicts. `static` and `@MainActor` for the same
     /// reason as `conflictedEventIDs`: `KadenceTests` drives it directly.
+    /// The fixtures plus the store's all-day events (components.md §5.1, G-055).
+    private var canvasFixtures: MockFixtures {
+        fixtures.adding(events: events.filter { state.isVisible($0) }, now: state.now)
+    }
+
     @MainActor
     static func sortedConflicts(events: [Event], routineBlocks: [RoutineBlock], now: Date? = nil) -> [Conflict] {
         ConflictOrdering.sorted(ConflictEngine.detect(events: events, routineBlocks: routineBlocks, today: now))
@@ -490,7 +495,7 @@ struct MainWindow: View {
         // show focus — the conflict panel, or a selected event's controls.
         // The day summary has none, so ⇥ passes it.
         let available = state.availableFocusRegions(
-            allDayRowVisible: AllDayRowView.isVisible(days: state.visibleDays, fixtures: fixtures),
+            allDayRowVisible: AllDayRowView.isVisible(days: state.visibleDays, fixtures: canvasFixtures),
             inspectorTakesFocus: activeConflict != nil || selectedEvent != nil)
 
         let current = focusedRegion ?? state.focusedRegion

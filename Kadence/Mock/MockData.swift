@@ -649,5 +649,24 @@ struct MockFixtures: Equatable, Sendable {
             let end = calendar.startOfDay(for: item.endDay)
             return start <= target && target <= end
         }
+        .sorted(by: Self.allDayOrder)
+    }
+
+    /// components.md §5.1: by start day, then `.examAllDay`,
+    /// `.deadlineAllDay`, `.eventAllDay`, then title.
+    static func allDayOrder(_ a: AllDayFixture, _ b: AllDayFixture) -> Bool {
+        func rank(_ k: AllDayKind) -> Int { switch k { case .exam: 0; case .deadline: 1; case .event: 2 } }
+        if a.startDay != b.startDay { return a.startDay < b.startDay }
+        if rank(a.kind) != rank(b.kind) { return rank(a.kind) < rank(b.kind) }
+        return a.title < b.title
+    }
+
+    /// The fixtures plus the store's all-day events (G-055: manual and
+    /// imported all-day events now draw).
+    @MainActor
+    func adding(events: [Event], now: Date) -> MockFixtures {
+        var copy = self
+        copy.allDay += events.filter(\.isAllDay).map { AllDayFixture(event: $0, now: now) }
+        return copy
     }
 }

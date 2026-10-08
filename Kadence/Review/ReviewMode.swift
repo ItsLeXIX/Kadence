@@ -38,6 +38,14 @@ nonisolated enum ReviewMode {
         defaults.string(forKey: "KadenceReview").flatMap(Dataset.init(rawValue:))
     }
 
+    /// Review captures only: `-KadenceAppearance light|dark` sets Kadence's
+    /// own appearance (§22 item 19's light and dark frames), so no capture
+    /// ever changes the system's. Ignored without `-KadenceReview`.
+    static func appearance(_ defaults: UserDefaults = .standard) -> String? {
+        guard dataset(defaults) != nil else { return nil }
+        return defaults.string(forKey: "KadenceAppearance")
+    }
+
     static func mockCase(_ defaults: UserDefaults = .standard) -> MockCalDAVServer.Case {
         defaults.string(forKey: "KadenceMockCalDAV").flatMap(MockCalDAVServer.Case.init(rawValue:)) ?? .reportOK
     }

@@ -25,6 +25,7 @@ struct AllDayItemView: View {
             presentation: presentation,
             source: fixture.source,
             renderedHeight: Tokens.Size.allDayRowHeight,
+            glyphOverride: fixture.glyph,
             increaseContrast: contrast == .increased)
     }
 
@@ -80,7 +81,7 @@ struct AllDayItemView: View {
             }
         }
         // §3.4 — the pill has no room for the source name, so hover help carries it.
-        .help("\(fixture.title) · \(SourceCatalog.name(for: fixture.source)) · \(fixture.kind == .exam ? "exam" : "deadline")")
+        .help("\(fixture.title) · \(SourceCatalog.name(for: fixture.source)) · \(kindWord)")
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityLabel)
         // Without a trait this is vended as an unlabelled AXUnknown (A20).
@@ -100,8 +101,18 @@ struct AllDayItemView: View {
                     .fill(Tokens.Color.Text.onSolid.opacity(0.18)))
     }
 
+    /// The pill's kind, spoken and in hover help.
+    private var kindWord: String {
+        switch fixture.kind {
+        case .exam: "exam"
+        case .deadline: "deadline"
+        case .event: fixture.importKind == .exam ? "Exam" : (fixture.importKind == .lecture ? "Lecture" : "event")
+        }
+    }
+
     private var accessibilityLabel: String {
-        var parts = [fixture.title, fixture.kind == .exam ? "exam" : "deadline", fixture.source.displayName]
+        var parts = [fixture.title, kindWord.lowercased(), fixture.source.displayName]
+        if fixture.status == .cancelled { parts.append("cancelled") }
         if let countdown = fixture.countdownLabel(now: now) {
             parts.append(countdown == "today" ? "today" : countdown.replacingOccurrences(of: "T−", with: "in ").replacingOccurrences(of: "d", with: " days"))
         }

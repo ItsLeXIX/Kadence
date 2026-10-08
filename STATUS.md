@@ -9413,3 +9413,49 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **804 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 117. P3-T15 — imported events on the canvas (components.md §2.1, §5.1, §6, §18.2, §20.4, §20.6)
+
+- `BlockKind.eventAllDay` (resolver: `.solid` fill, no border, no rail, the
+  timed block's glyph, `allDayPill` radius) and `BlockStatus.cancelled`
+  (skipped's blend and dashed `separator.strong` border, `xmark.circle`,
+  label/meta/glyph `text.primary`; never conflicted or in progress; a past
+  cancelled block takes `past` only). `done` on the three solid kinds:
+  label and checkmark `text.primary` (G-054) — and the meta too, as a
+  `// SPEC-GAP` placeholder: GAPS **G-074** (white meta on the light blend
+  was unreadable, seen in the first light frame).
+- `Event`: an all-day event is `.eventAllDay`; an imported exam's glyph is
+  `graduationcap.fill`; `isCancelled` → `.cancelled`. `GridBlockModel`:
+  `importKind`, `isOnline`; the `.full` meta line `University timetable ·
+  Online` / `· HS_A3.15` / `Cancelled · University timetable`; hover Kind
+  `Exam` / `Lecture` for imported events; VoiceOver appends `cancelled`.
+- All-day events draw (G-055): `MockFixtures.adding(events:now:)` turns the
+  store's visible all-day events into all-day pills (`AllDayKind.event`,
+  `DTEND` exclusive), merged into what every canvas gets; the all-day row
+  sorts by start day, then exam, deadline, event, then title. `⌘⌥N` itself
+  was never built — DEVIATIONS **A37**; `EventDraft.isAllDay` gives the store
+  path the regression test uses.
+- Cancelled events never count for next-up or the first-event scroll (and,
+  since task 8, conflicts). Imported blocks are not movable, so hover draws
+  no resize handles.
+- Tests (`ImportedCanvasTests.swift`, 11; `CanvasRenderTests.swift`, 1):
+  glyphs; `.eventAllDay` for manual, imported and exam (fill, glyph, no
+  rail, no chip); meta and hover kinds; `cancelled`; `done` per kind; no
+  handles; the G-055 regression through the store; the all-day sort;
+  cancelled excluded from next-up / first-event / conflicts; the merged
+  `SWRM-ILV` is one event.
+- Captures (review mode): `week-M-p3t15.png` (item 11: 12–18 Oct; lectures,
+  `REQEN-EXAM` with the exam glyph, `INNO3-EL` — its `.full` meta is
+  tail-truncated at this column width, so `Online` isn't visible in Week
+  view: noted for review —, Friday's merged `SWRM-ILV` one block, conflicted
+  against `Training` (its title band is covered by `Training`, the deferred
+  A35/G-048), `Studieninformationstag` on Wed 14), `week-M-after-change`
+  (item 12, after ⌘R on `reportChanged`), `allday-and-done-light` /
+  `-dark` (item 19: the pill and `SWQM-ILV` marked done with ⌘↩; light and
+  dark via a review-only `-KadenceAppearance` argument, never the system
+  setting; first light take was dark — `-AppleInterfaceStyle Light` doesn't
+  override a dark system), render `cancelled-block-p3t15.png` (item 20, from
+  `edge-cases.ics`).
+- Verify: xcresult **815 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

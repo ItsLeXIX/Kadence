@@ -45,7 +45,7 @@ enum NextUpProvider {
     ///     testable with a fixed reference time.
     static func evaluate(events: [Event], now: Date, calendar: Calendar = .current) -> Result {
         let today = events
-            .filter { !$0.isAllDay }
+            .filter { !$0.isAllDay && !$0.isCancelled }   // §20.6: never NEXT
             .filter { $0.status != .done && $0.status != .skipped }
             .filter { calendar.isDate($0.start, inSameDayAs: now) }
             .sorted { $0.start < $1.start }

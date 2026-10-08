@@ -25,9 +25,27 @@ enum AllDayKind: Sendable, Equatable {
     case deadline
     /// `WorkItem.kind == .exam` — a fixed date you ramp toward.
     case exam
+    /// components.md §5.1 (Phase 3): an all-day `Event`, imported or manual.
+    case event
 }
 
 /// Stands in for the all-day projection of `WorkItem` (Phase 3).
+extension AllDayFixture {
+    /// An all-day `Event` as an all-day pill (§5.1): `DTEND` is exclusive,
+    /// so the last day is the day before `end`.
+    @MainActor
+    init(event: Event, now: Date, calendar: Calendar = .current) {
+        let last = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: event.end))
+            .map { max($0, calendar.startOfDay(for: event.start)) } ?? event.start
+        self.init(title: event.title, startDay: calendar.startOfDay(for: event.start), endDay: last, kind: .event,
+                  source: event.sourceKey, status: event.blockStatus(now: now))
+        eventID = event.id
+        glyph = event.glyphOverride
+        importKind = event.origin == .imported ? event.importKind : nil
+        id = event.id
+    }
+}
+
 struct AllDayFixture: Identifiable, Equatable, Sendable {
     var id = UUID()
     var title: String
@@ -38,11 +56,16 @@ struct AllDayFixture: Identifiable, Equatable, Sendable {
     var kind: AllDayKind
     var source: SourceKey
     var status: BlockStatus = .scheduled
+    /// `.event` only: the event it draws, and its glyph (§2.1).
+    var eventID: UUID?
+    var glyph: String?
+    var importKind: ImportKind?
 
     var blockKind: BlockKind {
         switch kind {
         case .deadline: .deadlineAllDay
         case .exam: .examAllDay
+        case .event: .eventAllDay
         }
     }
 

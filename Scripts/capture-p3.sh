@@ -242,6 +242,48 @@ item_source_popover_forbidden() { popover_item forbidden source-popover-forbidde
 item_source_popover_last_change() { popover_item reportChanged source-popover-last-change "2 added · 2 updated · 2 removed" syncnow; }
 item_source_popover_calendar_missing() { popover_item calendarGone source-popover-calendar-missing "Choose Calendar…"; }
 
+# ---- The week of M (items 11, 12, 19).
+KVK_2=19; KVK_RIGHT=124
+to_week_m() {
+  key $KVK_2 cmd; sleep 1
+  key $KVK_RIGHT cmd; sleep 2   # M is the Monday of the next week (today + 2 … + 8)
+}
+item_week_m() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK
+  sleep 3
+  to_week_m
+  has "SWRM-ILV" || { echo "FAIL: no SWRM-ILV in week M"; quit_app; exit 1; }
+  has "REQEN-EXAM" || { echo "FAIL: no REQEN-EXAM"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "week-M-$SUFFIX.png"
+  quit_app
+}
+item_week_m_after_change() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportChanged
+  sleep 3
+  key $KVK_R cmd; sleep 3
+  to_week_m
+  has "EPC-ILV" && "$WORK/axq" "$PID" | grep -c "EPC-ILV" | grep -q "^1$" || true
+  shoot_window "$(main_id)" "week-M-after-change-$SUFFIX.png"
+  quit_app
+}
+# Item 19 — the all-day pill (Studieninformationstag, M + 2) and a done
+# lecture, light and dark. The appearance is set for Kadence alone through
+# its own review argument (`-KadenceAppearance`), never in System Settings.
+allday_and_done() {  # allday_and_done Light|Dark NAME
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK -KadenceAppearance "$1"
+  sleep 3
+  to_week_m
+  local xy; xy=$(find_el "SWQM-ILV") || { echo "FAIL: no SWQM-ILV block"; quit_app; exit 1; }
+  click $xy
+  key $KVK_RETURN cmd; sleep 1      # ⌘↩ Done (allowed on an imported event, §18.1)
+  key $KVK_ESC; key $KVK_ESC        # selection → cursor → unfocused (§17.2 rule 4)
+  has "Studieninformationstag" || { echo "FAIL: no all-day pill"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "$2-$SUFFIX.png"
+  quit_app
+}
+item_allday_and_done_light() { allday_and_done light allday-and-done-light; }
+item_allday_and_done_dark() { allday_and_done dark allday-and-done-dark; }
+
 item_dump_sidebar_ax() {   # diagnostics only: no capture
   launch_fresh -KadenceReview phase3 -KadenceMockCalDAV forbidden
   sleep 3

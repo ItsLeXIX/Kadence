@@ -124,6 +124,22 @@ func resolveBlockStyle(
             glyphColor: source.text,
             cornerRadius: Tokens.Radius.allDayPill)
 
+    case .eventAllDay:
+        // §5.1: solid fill like its timed sibling `.fixedTimed`, no border,
+        // no rail, the timed block's glyph, no trailing chip.
+        style = BlockStyle(
+            fill: source.solid,
+            border: nil,
+            borderWidth: 0,
+            borderDash: nil,
+            rail: nil,
+            railStyle: .none,
+            label: Tokens.Color.Text.onSolid,
+            meta: Tokens.Color.Text.onSolid.opacity(0.8),
+            glyph: glyphOverride ?? "calendar",
+            glyphColor: Tokens.Color.Text.onSolid,
+            cornerRadius: Tokens.Radius.allDayPill)
+
     case .examAllDay:
         style = BlockStyle(
             fill: source.solid,
@@ -148,7 +164,7 @@ func resolveBlockStyle(
     // G-011): the threshold was 16, an independent number that no longer matched
     // any tier edge; it now follows the ladder's `.glyphOnly` top at 18, so
     // there is one boundary to keep rather than two.
-    if renderedHeight < 18 && kind != .deadlineAllDay && kind != .examAllDay {
+    if renderedHeight < 18 && kind != .deadlineAllDay && kind != .examAllDay && kind != .eventAllDay {
         style.cornerRadius = Tokens.Radius.blockCompact
     }
 
@@ -164,7 +180,9 @@ func resolveBlockStyle(
         style.elevation = .level2
     }
 
-    if presentation.contains(.conflicted) {
+    // §6 `cancelled`: never conflicted (§20.9), never inProgress.
+    let isCancelled = status == .cancelled
+    if presentation.contains(.conflicted) && !isCancelled {
         // Fill is never changed — it still has to carry source and movability.
         style.border = Tokens.Color.Semantic.alert
         style.borderWidth = Tokens.Size.borderEmphasis
@@ -194,8 +212,31 @@ func resolveBlockStyle(
     case .done:
         style.fillBlendWithCanvas = Tokens.Opacity.blockDoneFillBlend
         style.glyph = "checkmark.circle.fill"
-        style.glyphColor = Tokens.Color.Text.secondary
-        style.label = Tokens.Color.Text.secondary
+        // Amended 2026-10-08 (G-054): on the solid-fill kinds the done label
+        // and its glyph take `text.primary` — `text.secondary` measures
+        // 3.06–3.32:1 on a blended solid fill.
+        let solid = kind == .fixedTimed || kind == .examAllDay || kind == .eventAllDay
+        style.glyphColor = solid ? Tokens.Color.Text.primary : Tokens.Color.Text.secondary
+        style.label = solid ? Tokens.Color.Text.primary : Tokens.Color.Text.secondary
+        // SPEC-GAP G-074: §6's done amendment names the label and glyph only;
+        // the meta (time, source) kept `text.onSolid` at 0.8 and is unreadable
+        // on the light blend. Placeholder: the label's `text.primary`.
+        if solid { style.meta = Tokens.Color.Text.primary }
+
+    case .cancelled:
+        // §6 (Phase 3): skipped's blend and border; `xmark.circle`; label
+        // and meta `text.primary` (≥ 7.67:1). A cancelled block that is past
+        // takes `past` only.
+        if !presentation.contains(.past) {
+            style.fillBlendWithCanvas = Tokens.Opacity.blockSkippedFillBlend
+            style.border = Tokens.Color.Separator.strong
+            style.borderWidth = Tokens.Size.borderRegular
+            style.borderDash = [3, 3]
+            style.glyph = "xmark.circle"
+            style.glyphColor = Tokens.Color.Text.primary
+            style.label = Tokens.Color.Text.primary
+            style.meta = Tokens.Color.Text.primary
+        }
 
     case .skipped:
         // A skipped item must never look worse than a done one.
@@ -212,7 +253,7 @@ func resolveBlockStyle(
     // were restated in tier names by GAPS.md G-011, and the 16 it used to carry
     // is no longer a tier edge. A narrow cascaded block reaches `.glyphOnly` by
     // width, and the rule is just as true there: there is one glyph slot.
-    if presentation.contains(.conflicted), style.contentTier == .glyphOnly {
+    if presentation.contains(.conflicted), !isCancelled, style.contentTier == .glyphOnly {
         style.glyph = "exclamationmark.triangle.fill"
         style.glyphColor = Tokens.Color.Semantic.alert
         style.badge = nil

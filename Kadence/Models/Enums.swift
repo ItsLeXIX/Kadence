@@ -86,6 +86,9 @@ enum BlockKind: String, CaseIterable, Sendable {
     case travelBand
     case deadlineAllDay
     case examAllDay
+    /// components.md §5.1 (Phase 3; closes G-055): an all-day `Event`,
+    /// imported or manual.
+    case eventAllDay
 }
 
 /// The status channel the resolver consumes. `.inProgress` is derived from the
@@ -95,6 +98,9 @@ enum BlockStatus: String, CaseIterable, Sendable {
     case inProgress
     case done
     case skipped
+    /// components.md §6 (Phase 3): an imported event its source marks
+    /// `STATUS:CANCELLED` (§20.6).
+    case cancelled
 }
 
 /// Transient states that compose on top of the resolved style.

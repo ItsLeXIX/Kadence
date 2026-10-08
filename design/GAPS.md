@@ -2680,3 +2680,13 @@ Built: review mode's phase-3 seeding detaches that one event from the source
 (`sourceID` nil — still `.imported`, blue, read-only, drawn as before), so no
 sync owns it (DEVIATIONS B42). Alternatives for the design agent: add it to
 the template, or drop it from the review dataset.
+
+### G-074 — OPEN (coding agent, P3-T15). The meta line of a `done` block on a solid fill.
+
+`components.md` §6's 2026-10-08 amendment (G-054) gives the `done` label and
+its `checkmark.circle.fill` `color.text.primary` on `.fixedTimed`,
+`.examAllDay` and `.eventAllDay`. The block's meta (time range, source ·
+room) is not mentioned and keeps `.fixedTimed`'s `text.onSolid` at 0.8 —
+white on the 0.55-blended fill, unreadable in light appearance (seen in
+`allday-and-done-light-p3t15.png`, SWQM-ILV). Built as a `// SPEC-GAP G-074`
+placeholder: the meta takes `text.primary` too. Please rule.

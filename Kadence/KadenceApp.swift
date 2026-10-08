@@ -70,6 +70,7 @@ struct KadenceApp: App {
                 .environment(undoStack)
                 .environment(sync)
                 .environment(router)
+                .preferredColorScheme(Self.reviewColorScheme)
                 .frame(
                     minWidth: Tokens.Size.windowMinWidth,
                     minHeight: Tokens.Size.windowMinHeight)
@@ -129,6 +130,17 @@ struct KadenceApp: App {
         }
         .modelContainer(container)
         .menuBarExtraStyle(.window)
+    }
+}
+
+extension KadenceApp {
+    /// `-KadenceAppearance` in review mode; nil (follow the system) otherwise.
+    static var reviewColorScheme: ColorScheme? {
+        switch ReviewMode.appearance() {
+        case "light": .light
+        case "dark": .dark
+        default: nil
+        }
     }
 }
 
