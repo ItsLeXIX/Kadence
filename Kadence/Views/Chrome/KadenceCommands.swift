@@ -11,6 +11,12 @@ import SwiftUI
 struct KadenceCommands: Commands {
     var calendar: CalendarState
     var undo: UndoStack
+    /// Phase 3 task 9: View ▸ Sync Now.
+    var sync: SyncCoordinator
+
+    /// interactions.md §2 (amended 2026-10-08): `⌘R` Sync Now.
+    static let syncNowTitle = "Sync Now"
+    static let syncNowKey: KeyEquivalent = "r"
 
     /// layouts.md §8 — opens the Routines window (`WindowGroup(id: "routines")`
     /// in `KadenceApp.swift`). `Commands` bodies read environment values the
@@ -57,6 +63,11 @@ struct KadenceCommands: Commands {
 
             Button("Today") { calendar.goToToday() }
                 .keyboardShortcut("t", modifiers: .command)
+            // §13.3: every connected source, regardless of interval and
+            // pause; disabled while every source is already syncing.
+            Button(Self.syncNowTitle) { sync.syncNowAll() }
+                .keyboardShortcut(Self.syncNowKey, modifiers: .command)
+                .disabled(sync.isSyncNowDisabled)
             Button("Previous") { calendar.page(by: -1) }
                 .keyboardShortcut(.leftArrow, modifiers: .command)
             Button("Next") { calendar.page(by: 1) }

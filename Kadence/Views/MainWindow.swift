@@ -13,6 +13,7 @@ import Combine
 struct MainWindow: View {
     @Environment(CalendarState.self) private var state
     @Environment(UndoStack.self) private var undoStack
+    @Environment(SyncCoordinator.self) private var sync
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -123,6 +124,10 @@ struct MainWindow: View {
             // makes; whichever window opens first does it.
             RoutineBlockStore(context: context, undo: undoStack).repairShiftRanges()
             isMaterializationReady = true
+            // interactions.md §13.3 "Launch": after the store loads.
+            sync.calendarState = state
+            sync.undo = undoStack
+            sync.launched()
         }
         // §13.6.5's other two triggers: a template/block/window edit, and a
         // change to the visible range (paging, Today, switching mode).

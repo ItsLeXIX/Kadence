@@ -9115,3 +9115,51 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **724 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 111. P3-T09 — sync coordinator and scheduling (interactions.md §13.3; components.md §19.1, §20.8.2; G-061)
+
+- `Kadence/Services/Sync/SyncCoordinator.swift` (`@MainActor @Observable`):
+  triggers interval / launch / wake / network regained / Sync Now; one sync
+  per source (a trigger during one is dropped); the 401/403 pause
+  (automatic triggers skip a paused source, Sync Now doesn't, a successful
+  Sync Now clears it); offline is a state with no transport call; launch
+  and wake only when the last attempt is older than the interval; network
+  regained after `unreachable`/`offline` or when stale; `get` mode:
+  `max(interval, 6 h)` for the scheduler and ≥ 6 h between automatic
+  polls, Sync Now unlimited; 120 s per sync (600 s in `get` mode) →
+  `unreachable`, raced with two unstructured tasks (a task group would wait
+  for a stuck fetch); sleep / removal cancel, and a cancelled sync writes
+  nothing. `applyFetched` is the Import / edit `Save` path — no transport
+  call. A finished sync's write goes through
+  `CalendarState.applyOrHoldSyncWrite` (§20.9).
+- Seams with fakes: `SyncScheduling` (`NSBackgroundActivityScheduler`, one
+  per source, `repeats`, tolerance 10%, `.utility`), `PathMonitoring`
+  (`NWPathMonitor`), injected clock and zone; wake/sleep from
+  `NSWorkspace` notifications.
+- **G-061 (CA judgement), recorded:** one scheduler per source, re-created
+  (invalidate + schedule) when its effective interval changes; the wake
+  wait = "the next path-satisfied callback" with a 60 s give-up task; the
+  CalDAV fetch runs off the main actor (`CalDAVScheduleSource` and the
+  `CalDAVSession` actor) and only the planner's diff is applied on the main
+  actor in one `ModelContext.save()`.
+- Wiring: `KadenceApp` builds one coordinator on the container's main
+  context and passes it to `MainWindow` (which hands it the selection and
+  undo stack and calls `launched()` once the store has loaded) and to
+  `KadenceCommands`: **View ▸ Sync Now `⌘R`**, disabled while every
+  connected source is syncing (so also with none connected).
+- Tests (`SyncCoordinatorTests.swift`, 13 + parameterised): default 1800 s
+  (tolerance 180); launch stale/fresh; interval change re-creates with 10%;
+  a trigger during a run is dropped (and the menu is disabled meanwhile);
+  pause after unauthorized/forbidden, Sync Now still syncs and clears it;
+  the eight states that do not pause; passwordMissing with zero transport
+  calls (real `CalDAVScheduleSource`); offline (no fetch) and network
+  regained; wake waits for the path; `get`-mode spacing; Import makes no
+  call; sleep mid-chain writes nothing; the sync limit → unreachable; the
+  menu item's title and key. First runs: a typed-throws conversion in the
+  race, a missing `SwiftUI` import (`KeyEquivalent` literal), the fake
+  scheduler not invalidating (now the coordinator invalidates explicitly),
+  and one test literal Swift resolved through a SwiftUI overload (made
+  explicit).
+- Verify: xcresult **738 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

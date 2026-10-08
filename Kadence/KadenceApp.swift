@@ -24,6 +24,9 @@ struct KadenceApp: App {
     /// One stack for the whole app: the Edit menu and every view mutate through
     /// the same instance, so ⌘Z means the same thing everywhere.
     @State private var undoStack = UndoStack()
+    /// Phase 3 (interactions.md §13.3): the one sync coordinator. Built in
+    /// `init` because it needs the container's main context.
+    @State private var sync: SyncCoordinator
 
     init() {
         do {
@@ -40,6 +43,9 @@ struct KadenceApp: App {
                 ?? ModelContainer.emptyFallback()
             StoreHealth.shared.failedToOpenPersistentStore = true
         }
+        // Swift note: `_sync` is the property wrapper's own storage; assigning
+        // `State(initialValue:)` there is how an `init` seeds a `@State`.
+        _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext))
     }
 
     var body: some Scene {
@@ -49,12 +55,13 @@ struct KadenceApp: App {
             MainWindow()
                 .environment(calendar)
                 .environment(undoStack)
+                .environment(sync)
                 .frame(
                     minWidth: Tokens.Size.windowMinWidth,
                     minHeight: Tokens.Size.windowMinHeight)
         }
         .modelContainer(container)
-        .commands { KadenceCommands(calendar: calendar, undo: undoStack) }
+        .commands { KadenceCommands(calendar: calendar, undo: undoStack, sync: sync) }
 
         // layouts.md §8 — "a separate window, not a sheet and not a Settings
         // pane," opened with ⌘⌥R or Window ▸ Routines (see KadenceCommands).
