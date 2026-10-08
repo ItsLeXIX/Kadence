@@ -284,6 +284,127 @@ allday_and_done() {  # allday_and_done Light|Dark NAME
 item_allday_and_done_light() { allday_and_done light allday-and-done-light; }
 item_allday_and_done_dark() { allday_and_done dark allday-and-done-dark; }
 
+# ---- The inspector for imported events (items 13–16).
+KVK_DELETE=51
+select_block() {  # select_block TITLE — on week M
+  local xy; xy=$(find_el "$1") || { echo "FAIL: no $1 block"; quit_app; exit 1; }
+  click $xy
+}
+item_inspector_imported() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK
+  sleep 3; to_week_m
+  select_block "SWQM-ILV"
+  has "Read-only — from University timetable" || { echo "FAIL: no read-only line"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "inspector-imported-$SUFFIX.png"
+  quit_app
+}
+item_inspector_lecturers() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK
+  sleep 3; to_week_m
+  select_block "INNO3-EL"
+  has "Show all 22 lecturers" || { echo "FAIL: not collapsed (no 'Show all 22 lecturers' button)"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "inspector-lecturers-collapsed-$SUFFIX.png"
+  local xy; xy=$(find_el "Show all 22 lecturers") || { echo "FAIL: no 'and 19 more' button"; quit_app; exit 1; }
+  click $xy
+  has "Show fewer lecturers" || { echo "FAIL: not expanded"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "inspector-lecturers-expanded-$SUFFIX.png"
+  quit_app
+}
+# Item 15 — ⌫ on SWQM-ILV: nothing deleted; the read-only line emphasised for
+# 0.6 s, so the frame is taken straight after the key (no settle wait).
+item_inspector_refusal_emphasis() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK
+  sleep 3; to_week_m
+  select_block "SWQM-ILV"
+  echo "  before ⌫, focus: $("$WORK/focus" "$PID")"
+  local id; id=$(main_id)
+  front; "$WORK/hid" key $KVK_DELETE
+  shoot_window "$id" "inspector-refusal-emphasis-$SUFFIX.png"
+  sleep 1
+  has "SWQM-ILV" || { echo "FAIL: ⌫ deleted the imported event"; quit_app; exit 1; }
+  echo "  ⌫ refused; SWQM-ILV still there"
+  quit_app
+}
+# Item 16 — Friday's conflict previewed (the script hook picks it).
+item_conflict_lecture_training() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK -KadenceConflictUnderTest "SWRM-ILV"
+  sleep 3
+  local xy; xy=$(find_el "needs-attention-row") || { echo "FAIL: no Needs attention row"; quit_app; exit 1; }
+  click $xy; sleep 2
+  has "Shift Training 45 min later" || { echo "FAIL: not Friday's conflict"; quit_app; exit 1; }
+  # A click on the recommended row previews it (§10.1; check-conflict-apply-return.sh does the same).
+  xy=$(find_el "Shift Training 45 min later") || { echo "FAIL: no recommended row"; quit_app; exit 1; }
+  click $xy; sleep 1.5
+  shoot_window "$(main_id)" "conflict-lecture-training-$SUFFIX.png"
+  quit_app
+}
+
+# ---- Task 17 extras.
+# Item 11's `INNO3-EL` reading `Online` at `.full`: in Week view its column is
+# too narrow for the meta line, so a Day frame of M + 2 shows it whole.
+KVK_3=20
+item_day_inno3_online() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK
+  sleep 3
+  key $KVK_3 cmd; sleep 1
+  for _ in 1 2 3 4 5 6; do key $KVK_RIGHT cmd; done   # today (8 Oct) → Wed 14 Oct = M + 2
+  sleep 1
+  has "Online" || { echo "FAIL: INNO3-EL's meta doesn't read Online"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "day-inno3-online-$SUFFIX.png"
+  quit_app
+}
+# Item 17's one live popover frame: a guarded click on Kadence's own status
+# item. Skipped (not failed) when the menu bar has no room for it.
+cat > "$WORK/extras.swift" <<'SWIFT'
+import ApplicationServices
+let app = AXUIElementCreateApplication(pid_t(CommandLine.arguments[1])!)
+func attr(_ e: AXUIElement, _ a: String) -> AnyObject? { var v: AnyObject?; AXUIElementCopyAttributeValue(e, a as CFString, &v); return v }
+guard let bar = attr(app, "AXExtrasMenuBar") else { exit(1) }
+for item in (attr(bar as! AXUIElement, "AXChildren") as? [AXUIElement]) ?? [] {
+    var p = CGPoint.zero, z = CGSize.zero
+    if let v = attr(item, "AXPosition") { AXValueGetValue(v as! AXValue, .cgPoint, &p) }
+    if let v = attr(item, "AXSize") { AXValueGetValue(v as! AXValue, .cgSize, &z) }
+    print(Int(p.x), Int(p.y), Int(z.width), Int(z.height))
+}
+SWIFT
+swiftc -O "$WORK/extras.swift" -o "$WORK/extras" 2>/dev/null
+item_popover_live() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK
+  sleep 3
+  local box; box=$("$WORK/extras" "$PID" | head -1)
+  [[ -z "$box" ]] && { echo "  SKIP: no status item found"; quit_app; return; }
+  read -r ix iy iw ih <<<"$box"
+  if (( ix < 0 )); then echo "  SKIP: the status item is off the visible menu bar (x $ix)"; quit_app; return; fi
+  click $((ix + iw / 2)) $((iy + ih / 2)); sleep 1.5
+  local pop; pop=$("$WORK/wins" | awk '$6 > 0 && $4 > 200 && $4 < 400 { print $2, $3, $4, $5; exit }')
+  [[ -z "$pop" ]] && { echo "  SKIP: the popover did not open"; quit_app; return; }
+  read -r px py pw ph <<<"$pop"
+  screencapture -x -R "$((px - 10)),0,$((pw + 20)),$((py + ph + 10))" "$OUT/popover-live-$SUFFIX.png"
+  echo "  captured popover-live-$SUFFIX.png"
+  key $KVK_ESC
+  quit_app
+}
+
+item_debug_emphasis() {   # diagnostics only
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK
+  sleep 3; to_week_m
+  select_block "SWQM-ILV"
+  local id; id=$(main_id)
+  front; "$WORK/hid" key $KVK_DELETE
+  for i in 1 2 3 4 5 6; do screencapture -x -o -l "$id" "$WORK/burst$i.png"; done
+  for i in 1 2 3 4 5 6; do python3 -c "
+from PIL import Image
+im=Image.open('$WORK/burst$i.png').convert('RGB'); print('burst $i', max(im.crop((2390,180,2800,210)).getdata()))"; done
+  quit_app
+}
+item_debug_delete() {   # diagnostics only: does ⌫ reach the grid?
+  launch_fresh -KadenceReview phase2
+  local xy; xy=$(find_el "Coffee with Nora") || { echo "no coffee"; quit_app; exit 1; }
+  click $xy
+  front; "$WORK/hid" key $KVK_DELETE; sleep 1.5
+  has "Coffee with Nora" && echo "  ⌫ did NOT delete the manual event" || echo "  ⌫ deleted the manual event"
+  quit_app
+}
 item_dump_sidebar_ax() {   # diagnostics only: no capture
   launch_fresh -KadenceReview phase3 -KadenceMockCalDAV forbidden
   sleep 3

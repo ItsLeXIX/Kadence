@@ -94,9 +94,22 @@ struct MenuBarPopoverView: View {
             }
         }
 
+        /// components.md §18.3: `⌥⌘↩` on an imported NEXT moves nothing and
+        /// shows §16's refusal row form: `Not moved — SWQM-ILV` / `is
+        /// read-only (University timetable)`, no `Undo`, never truncated.
+        static func readOnly(_ event: Event, sourceName: String) -> SnoozeConfirmation {
+            let lines = MenuBarFormatting.RefusalLines(first: "Not moved — \(event.title)",
+                                                       second: "is read-only (\(sourceName))")
+            return SnoozeConfirmation(eventID: event.id, expectedStart: event.start,
+                                      text: "\(lines.first) \(lines.second)", refusalLines: lines)
+        }
+
         /// Snoozes `event` and returns the row to show. The one path both
         /// the `Snooze` button and `⌥⌘↩` take (via `performSnooze`).
         static func perform(_ event: Event, store: EventStore) -> SnoozeConfirmation? {
+            if event.origin == .imported {
+                return readOnly(event, sourceName: SourceCatalog.name(for: event.sourceKey))
+            }
             let oldStart = event.start
             return make(for: event, oldStart: oldStart, result: store.snooze(event))
         }
@@ -309,7 +322,7 @@ struct MenuBarPopoverView: View {
     @ViewBuilder
     private func normalActionRow(next: Event, isLate: Bool) -> some View {
         HStack(spacing: Tokens.Spacing.sm) {
-            ForEach(MenuBarPopoverKeys.actionButtons(isLate: isLate), id: \.kind) { button in
+            ForEach(MenuBarPopoverKeys.actionButtons(isLate: isLate, isImported: next.origin == .imported), id: \.kind) { button in
                 let action = { perform(button.kind, on: next) }
                 // §15.2 (amended 2026-10-05): `Re-offer` is the late state's
                 // primary — `.borderedProminent` (accent), leading, NO key

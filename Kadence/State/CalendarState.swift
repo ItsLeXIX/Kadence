@@ -10,6 +10,7 @@
 //
 
 import SwiftUI
+import AppKit
 import Observation
 
 @MainActor
@@ -156,6 +157,44 @@ final class CalendarState {
     @ObservationIgnored private var heldSyncWrites: [() -> Void] = []
 
     var isConflictPreviewActive: Bool { selectedConflictOptionID != nil }
+
+    // MARK: Refusing edits to imported events (interactions.md §13.4)
+
+    /// (b): the inspector's read-only line is emphasised while this is true —
+    /// `motion.outlineHold` (0.6 s), then back.
+    var readOnlyEmphasis = false
+    /// When the current emphasis ends (tests read it).
+    @ObservationIgnored private(set) var readOnlyEmphasisUntil: Date?
+    /// (a): the system alert sound. Tests replace it.
+    @ObservationIgnored var playRefusalSound: () -> Void = { NSSound.beep() }
+    @ObservationIgnored private var emphasisTask: Task<Void, Never>?
+
+    /// A refusal: the sound for keyboard and menu gestures, and the emphasis.
+    /// Never opens the inspector (a refusal that rearranges the window would
+    /// read as the opposite of "nothing happened").
+    func refuseReadOnlyEdit(sound: Bool, now: Date = Date()) {
+        if sound { playRefusalSound() }
+        let hold = Tokens.Motion.OutlineHold.duration
+        readOnlyEmphasis = true
+        readOnlyEmphasisUntil = now.addingTimeInterval(hold)
+        emphasisTask?.cancel()
+        emphasisTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(hold))
+            guard !Task.isCancelled else { return }
+            self?.readOnlyEmphasis = false
+        }
+    }
+
+    /// Applies `ReadOnlyGate` to `gesture` on `event`: true when it may go
+    /// ahead; otherwise refuses visibly and returns false.
+    func permits(_ gesture: ReadOnlyGate.Gesture, on event: Event, now: Date = Date()) -> Bool {
+        switch ReadOnlyGate.decide(gesture, origin: event.origin, isCancelled: event.isCancelled) {
+        case .allow: return true
+        case .refuse(let sound):
+            refuseReadOnlyEdit(sound: sound, now: now)
+            return false
+        }
+    }
 
     /// Runs `write` now, or when the active preview ends.
     func applyOrHoldSyncWrite(_ write: @escaping () -> Void) {

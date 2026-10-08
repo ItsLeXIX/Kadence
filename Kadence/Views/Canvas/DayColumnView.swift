@@ -48,6 +48,9 @@ struct DayColumnView: View {
         var snapMinutes: Int = 15
     }
 
+    /// The imported block whose drag is being refused (its cursor pushed).
+    @State private var refusedDragID: UUID?
+
     var body: some View {
         GeometryReader { proxy in
             let width = proxy.size.width
@@ -285,6 +288,14 @@ struct DayColumnView: View {
             state.selectedEventID = event.id
             state.timeCursor = nil
         }
+        // interactions.md §13.4: double-click on an imported block selects
+        // it, opens no title edit, and emphasises the read-only line.
+        // `simultaneousGesture` so single clicks are not delayed.
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
+            guard event.origin == .imported else { return }
+            state.selectedEventID = event.id
+            _ = state.permits(.doubleClick, on: event)
+        })
         .gesture(blockGesture(event: event, laidOut: laidOut))
         .animation(
             reduceMotion ? nil : .spring(
@@ -346,7 +357,15 @@ struct DayColumnView: View {
     private func blockGesture(event: Event, laidOut: LaidOutBlock) -> some Gesture {
         DragGesture(minimumDistance: 3)
             .onChanged { value in
-                guard event.isMovable else { return }
+                guard event.isMovable else {
+                    // interactions.md §13.4: `.operationNotAllowed` from the
+                    // drag threshold on; no movement, no drop preview.
+                    if event.origin == .imported, refusedDragID != event.id {
+                        refusedDragID = event.id
+                        NSCursor.operationNotAllowed.push()
+                    }
+                    return
+                }
                 let handle = Tokens.Size.blockResizeHandleHeight
                 let localY = value.startLocation.y - laidOut.frame.minY
                 let mode: DragSession.Mode =
@@ -369,6 +388,13 @@ struct DayColumnView: View {
             }
             .onEnded { _ in
                 defer { drag = nil }
+                if refusedDragID == event.id {
+                    refusedDragID = nil
+                    NSCursor.pop()
+                    // (b) on release.
+                    _ = state.permits(.drag, on: event)
+                    return
+                }
                 guard let session = drag, session.eventID == event.id else { return }
                 switch session.mode {
                 case .move:

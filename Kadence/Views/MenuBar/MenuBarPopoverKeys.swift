@@ -62,7 +62,13 @@ enum MenuBarPopoverKeys {
         var isEnabled: Bool = true
     }
 
-    static func actionButtons(isLate: Bool) -> [ActionButton] {
+    /// components.md §18.3 (Phase 3): an imported NEXT gets `Done` · `Open`
+    /// — no `Snooze` (it moves the event) and, late, no `Re-offer`.
+    static func actionButtons(isLate: Bool, isImported: Bool = false) -> [ActionButton] {
+        if isImported {
+            return [ActionButton(kind: .done, title: "Done", isProminent: false),
+                    ActionButton(kind: .open, title: "Open", isProminent: false)]
+        }
         var buttons: [ActionButton] = []
         if isLate { buttons.append(ActionButton(kind: .reoffer, title: "Re-offer", isProminent: true)) }
         buttons += [

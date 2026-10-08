@@ -634,24 +634,24 @@ struct MainWindow: View {
             stepConflict(1); return .handled
 
         case .leftArrow where option:
-            if let selected { store.move(selected, by: -86400); return .handled }
+            if let selected { if state.permits(.moveKey, on: selected) { store.move(selected, by: -86400) }; return .handled }
             return .ignored
         case .rightArrow where option:
-            if let selected { store.move(selected, by: 86400); return .handled }
+            if let selected { if state.permits(.moveKey, on: selected) { store.move(selected, by: 86400) }; return .handled }
             return .ignored
 
         case .upArrow where option && shift:
-            if let selected { store.resize(selected, newEnd: selected.end.addingTimeInterval(-900)); return .handled }
+            if let selected { if state.permits(.resizeKey, on: selected) { store.resize(selected, newEnd: selected.end.addingTimeInterval(-900)) }; return .handled }
             return .ignored
         case .downArrow where option && shift:
-            if let selected { store.resize(selected, newEnd: selected.end.addingTimeInterval(900)); return .handled }
+            if let selected { if state.permits(.resizeKey, on: selected) { store.resize(selected, newEnd: selected.end.addingTimeInterval(900)) }; return .handled }
             return .ignored
 
         case .upArrow where option:
-            if let selected { store.move(selected, by: -900); return .handled }
+            if let selected { if state.permits(.moveKey, on: selected) { store.move(selected, by: -900) }; return .handled }
             return .ignored
         case .downArrow where option:
-            if let selected { store.move(selected, by: 900); return .handled }
+            if let selected { if state.permits(.moveKey, on: selected) { store.move(selected, by: 900) }; return .handled }
             return .ignored
 
         case .leftArrow:
@@ -666,15 +666,17 @@ struct MainWindow: View {
         case .downArrow:
             return moveCursorOrSelection(by: 1)
 
-        case .delete:
-            if let selected { deleteSelection(selected); return .handled }
+        // P3-T16 (DEVIATIONS B44): the ⌫ key arrives as U+007F, not
+        // `KeyEquivalent.delete` (U+0008), so this case never matched it.
+        case .delete, KeyEquivalent("\u{7F}"):
+            if let selected { if state.permits(.delete, on: selected) { deleteSelection(selected) }; return .handled }
             return .ignored
 
         case .return where command && option:
-            if let selected { store.toggleSkipped(selected); return .handled }
+            if let selected { if state.permits(.skip, on: selected) { store.toggleSkipped(selected) }; return .handled }
             return .ignored
         case .return where command:
-            if let selected { store.toggleDone(selected); return .handled }
+            if let selected { if state.permits(.done, on: selected) { store.toggleDone(selected) }; return .handled }
             return .ignored
         case .return:
             if selected != nil {

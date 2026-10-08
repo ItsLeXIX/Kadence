@@ -2175,3 +2175,14 @@ continues the sections above (D after D5, A after A36, B after B39).
 - **Review tooling — `-KadenceAppearance light|dark`** (review mode only)
   sets Kadence's own colour scheme for item 19's light and dark frames; no
   capture touches the system appearance.
+- ~~**B44 — interactions.md §2: ⌫ never deleted the selected event.**~~
+  **Found and resolved in P3-T16.** `MainWindow.handleKey`'s `case .delete`
+  matched `KeyEquivalent.delete` (U+0008), but the ⌫ key arrives as U+007F,
+  so ⌫ did nothing on the grid since Phase 1 (seen live: a selected manual
+  event survived ⌫). The case now matches both; ⌫ deletes a manual event
+  and, on an imported one, is refused visibly (§13.4).
+- **A38 — interactions.md §13.4: "Edit ▸ Delete is disabled in the menu while
+  an imported event is selected".** The app has no Edit ▸ Delete item for
+  events (⌫ is the only path; the system's own pasteboard `Delete` is not
+  wired to the grid), so there is no item to disable. Not built; open for
+  the design agent (add the item, or drop the clause).

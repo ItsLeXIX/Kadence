@@ -57,6 +57,8 @@ struct InspectorView: View {
                         onSelectOption: onSelectConflictOption,
                         footer: conflictFooter,
                         onStep: onStepConflict)
+                } else if let event, event.origin == .imported {
+                    ImportedInspectorDetails(event: event, now: now, store: store)
                 } else if let event {
                     details(for: event)
                 } else {

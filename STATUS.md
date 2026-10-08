@@ -9459,3 +9459,56 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **815 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 118. P3-T16 — inspector, refusals and the menu bar for imported events (layouts.md §6.1; interactions.md §13.4, §13.5; components.md §18.1, §18.3)
+
+- `Kadence/Views/Sources/ImportedInspector.swift`:
+  - `ReadOnlyGate` (pure): drag / ⌥-drag / double-click → refused with no
+    sound (the cursor speaks); ⌫ / the ⌥ move keys / the ⌥⇧ resize keys /
+    snooze → refused with the sound; Done / Skip allowed, refused on a
+    cancelled event. `CalendarState.permits(_:on:)` applies it:
+    `NSSound.beep()` (a replaceable hook) and `readOnlyEmphasis` for
+    `motion.outlineHold` (0.6 s); it never opens the inspector.
+  - `ImportedInspectorDetails` (§6.1's rows): the title as selectable text
+    (3 lines), `Read-only — from University timetable` (or `Cancelled by …`)
+    emphasised to `text.primary` on refusal, time as text, `Lecturer(s)`
+    with the collapse rule (≤ 4 all; above, three + `and N more` in
+    `interactive.link`; `Show fewer`; a new selection collapses; AX value
+    lists every name, buttons `Show all 22 lecturers` / `Show fewer
+    lecturers`), `Group`, `Room` / `Location` (`Online · WEBINAR01`), Source +
+    sync line (`Synced 09:02` or the state title; it opens the source
+    popover), `Origin Imported`, Done / Skip (disabled when cancelled),
+    `Description` (never `notes`), `Link` (host, `interactive.link`,
+    `NSWorkspace` through a stub-able `LinkOpener`).
+- Wiring: `MainWindow.handleKey` gates ⌫, ⌥←→↑↓, ⌥⇧↑↓, ⌘↩ and ⌥⌘↩;
+  `DayColumnView` refuses a drag (`.operationNotAllowed` from the threshold,
+  emphasis on release) and a double-click on an imported block (a
+  simultaneous gesture, so single clicks aren't delayed). The popover's
+  action row for an imported NEXT is `Done` · `Open` (late too: no
+  `Re-offer`); `⌥⌘↩` shows §16's refusal row form `Not moved — SWQM-ILV` /
+  `is read-only (University timetable)`, AX the one-line sentence, no Undo.
+- **DEVIATIONS B44 (found and fixed):** ⌫ arrives as U+007F, not
+  `KeyEquivalent.delete`, so ⌫ never deleted anything on the grid since
+  Phase 1 (seen live). **A38:** there is no Edit ▸ Delete item for events
+  to disable.
+- Tests (`ImportedInspectorTests.swift`, 10; `InspectorRenderTests.swift`,
+  3): every refusal row (store unchanged, sound on keyboard paths, emphasis
+  until now + 0.6 s, inspector not opened; done/skip allowed, refused when
+  cancelled; the store refuses moves of imported events anyway); lecturer
+  rows 1 / 2–4 / 5 / 22 / expanded + AX; Room vs Location, `Online ·
+  WEBINAR01`, the read-only and cancelled lines; no description for CIS and
+  never `notes`; the link host and the stubbed opener; the popover's action
+  sets and the refusal row's exact text, nothing written; done/skip are
+  named undo steps; the sync line (`Access refused` / `Synced 09:02`);
+  VoiceOver `cancelled`.
+- Captures (review mode): `inspector-imported` (item 13), `inspector-lecturers-collapsed`
+  / `-expanded` (item 14), `inspector-refusal-emphasis` (item 15: taken
+  right after ⌫; the line measures #F2F2F4 against #A8ADB5 at rest),
+  `conflict-lecture-training` (item 16: `9 of 15`, the recommended row
+  clicked so it previews; edge check `--preview` **ok** — a complete border
+  x 480–2357, y 104–1799); renders `inspector-cancelled`,
+  `popover-imported-next`, `popover-stale-line` (item 17, 20). First emphasis
+  takes showed nothing — that is how B44 was found.
+- Verify: xcresult **827 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.
