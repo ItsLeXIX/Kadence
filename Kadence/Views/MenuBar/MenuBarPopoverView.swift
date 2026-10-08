@@ -148,6 +148,9 @@ struct MenuBarPopoverView: View {
             } else {
                 emptySection
             }
+            // components.md §19.4 (Phase 3 task 14): a stalled source says so.
+            StaleSourceLines(now: now)
+                .padding(.horizontal, Tokens.Spacing.lg)
         }
         .padding(.vertical, Tokens.Spacing.md)
         .frame(width: Tokens.Size.popoverWidth, alignment: .leading)

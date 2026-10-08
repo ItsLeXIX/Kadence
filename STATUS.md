@@ -9365,3 +9365,51 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **795 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 116. P3-T14 — sidebar rows, the source popover, the stale line (layouts.md §2.1; components.md §19.2–§19.4)
+
+- `Kadence/Views/Sources/SourceRows.swift`: `SidebarSourceRow` — swatch,
+  name (tail truncation), the §19.2 status slot (16pt, reserved on local
+  rows too, `spacing.xs` before the checkbox), checkbox; on a connected row
+  the slot is a borderless button (≥ 24 × 24, hittable when empty) that
+  opens `SourcePopover` (280 wide, `spacing.xl`, §19.3's block with
+  `Settings…`), hover help (`University timetable — Synced 14:02` …), the
+  AX label with the state title (note in DEVIATIONS), `↩`, and the context
+  menu `Sync Now` · `Show Sync Status` · `Edit Source…` · `Remove Source…`
+  (the same alert as Settings). `ConnectTimetableRow` (accent, link-style,
+  aligned with the names) while no connected source exists.
+  `SourceActionRouting` (pure) maps a primary action to its effect:
+  `Update Password…` → edit focused on Password, a state's `Edit Account…`
+  → Server, `Choose Calendar…` → edit already connecting, `Settings…` →
+  Settings on the source. The spinner shows only after 0.5 s.
+- Menu bar popover: `StaleSourceLines` as its last element — §19.4's lines
+  (`popoverRefusalRow`, `text.secondary`, never truncated, two then `+N
+  more sources not synced`).
+- Tests (`SourceRowsTests.swift`, 7): slot per kind (nothing for offline),
+  the 0.5 s spinner rule; the popover's default-button effects; details cap
+  8 + `+N more`; the first-run row present/absent; stale lines incl. a
+  60-character name; source errors don't change needs-attention; no
+  password in hover help or AX values. Render tests
+  (`SourceRenderTests.swift`, 2) through a new hosted-view renderer
+  (`Phase3Render`: `ImageRenderer` can't draw AppKit controls) and
+  `Scripts/capture-p3-renders.sh`.
+- Captures: renders `sidebar-row-states-p3t14.png` (item 9: syncing spinner
+  — a held sync started 2 s earlier —, upToDate empty slot, transient
+  secondary glyph, actionable alert glyph; checkboxes in one column) and
+  `source-popover-partial-details-p3t14.png` (item 10, details expanded; no
+  review case produces `partialImport`, so a render); live (review mode)
+  `sidebar-first-run` (`phase2`: the `Connect Timetable…` row),
+  `sidebar-live` (`forbidden`: alert glyph), `source-popover-forbidden`
+  (item 10), `source-popover-last-change` (item 12: after ⌘R on
+  `reportChanged`, `Last change just now: 2 added · 2 updated · 2
+  removed`), `source-popover-calendar-missing` (item 21: `Choose Calendar…`
+  default; that launch's Import itself hit the 404, so its status line
+  reads `Never synced`). The popover frames are the main window with the
+  popover in place. Popover focus: `Settings…` holds key focus on open
+  (§19.3: "it takes focus on open").
+- First UI-script run: `check-routines-window` failed and the next pre-flight
+  refused — another app (Opera) had gone full screen mid-run (environment).
+  Rerun after a passing pre-flight: all PASS.
+- Verify: xcresult **804 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

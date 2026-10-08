@@ -185,6 +185,69 @@ item_connect_edit() {
   quit_app
 }
 
+# ---- Sidebar and source popover (items 1, 9, 10, 12, 21).
+main_id() { window_id 1500; }
+# The popover is its own window: the smallest on-screen Kadence window that is
+# neither the main window nor a menu.
+popover_id() { "$WORK/wins" | awk '$4 != 1500 && $4 > 100 && $4 < 600 { print $4 * $5, $1 }' | sort -n | head -1 | cut -d' ' -f2; }
+# The status slot sits just left of the row's checkbox (layouts.md §2.1:
+# slot 16pt, spacing.xs, then the checkbox). The row is one combined AX
+# element whose value starts with the source's name.
+open_source_popover() {
+  "$WORK/axq" "$PID" > "$WORK/ax-row.txt"
+  local xy; xy=$(python3 - "$WORK/ax-row.txt" <<'PY2'
+import sys
+best = None
+for line in open(sys.argv[1]).read().splitlines():
+    p = line.split("~")
+    if len(p) != 9: continue
+    x, y, w, h = map(int, p[5:9])
+    if p[0] == "AXCheckBox" and any(f.startswith("University timetable") for f in p[1:3]) and w > 100:
+        best = (x, y, w, h); break
+if not best: sys.exit(1)
+x, y, w, h = best
+# The combined row element spans swatch … checkbox; checkbox ~16 +
+# spacing.xs 4 → the slot's centre is 28pt in from its right edge.
+print(x + w - 28, y + h // 2)
+PY2
+) || { echo "FAIL: no source row"; quit_app; exit 1; }
+  click $xy; sleep 1.5
+}
+
+item_sidebar_first_run() {
+  launch_fresh -KadenceReview phase2
+  has "Connect Timetable…" || { echo "FAIL: no first-run row"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "sidebar-first-run-$SUFFIX.png"
+  quit_app
+}
+item_sidebar_live() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV forbidden
+  sleep 3
+  has "Connect Timetable…" && { echo "FAIL: the first-run row is still there"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "sidebar-live-$SUFFIX.png"
+  quit_app
+}
+popover_item() {  # popover_item CASE NAME EXPECT [syncnow]
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV "$1"
+  sleep 3
+  if [[ "${4:-}" == "syncnow" ]]; then key $KVK_R cmd; sleep 3; fi
+  open_source_popover
+  has "$3" || { echo "FAIL: the popover doesn't show '$3'"; quit_app; exit 1; }
+  echo "  focus: $("$WORK/focus" "$PID")"
+  shoot_window "$(popover_id)" "$2-$SUFFIX.png"
+  quit_app
+}
+KVK_R=15
+item_source_popover_forbidden() { popover_item forbidden source-popover-forbidden "Access refused"; }
+item_source_popover_last_change() { popover_item reportChanged source-popover-last-change "2 added · 2 updated · 2 removed" syncnow; }
+item_source_popover_calendar_missing() { popover_item calendarGone source-popover-calendar-missing "Choose Calendar…"; }
+
+item_dump_sidebar_ax() {   # diagnostics only: no capture
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV forbidden
+  sleep 3
+  "$WORK/axq" "$PID" | awk -F'~' '$6 < 400' | grep -iv "^AXStaticText~~~~~" | head -60
+  quit_app
+}
 for item in "$@"; do
   Scripts/preflight.sh || { echo "STOPPED before $item: pre-flight failed"; exit 2; }
   fn="item_${item//-/_}"

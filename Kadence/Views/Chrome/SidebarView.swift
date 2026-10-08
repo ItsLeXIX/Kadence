@@ -15,7 +15,9 @@ struct SidebarView: View {
     /// palette order (the order slots are handed out, §21.1).
     @Query private var sourceRecords: [Source]
 
-    private var sources: [CalendarSource] {
+    private var sources: [CalendarSource] { sortedRecords.map(\.calendarSource) }
+
+    private var sortedRecords: [Source] {
         sourceRecords
             .sorted { lhs, rhs in
                 let order = SourceKey.allCases
@@ -23,7 +25,6 @@ struct SidebarView: View {
                 let r = order.firstIndex(of: rhs.paletteKey) ?? order.count
                 return l != r ? l < r : lhs.displayName < rhs.displayName
             }
-            .map(\.calendarSource)
     }
 
     var body: some View {
@@ -82,25 +83,14 @@ struct SidebarView: View {
             }
 
             Section {
-                ForEach(sources) { source in
-                    HStack(spacing: Tokens.Spacing.sm) {
-                        SourceSwatch(key: source.key, symbol: source.symbol,
-                                     isOn: !state.hiddenSources.contains(source.key))
-                        Text(source.name)
-                            .typeStyle(.sidebarItem)
-                            .foregroundStyle(Tokens.Color.Text.primary)
-                        Spacer(minLength: 0)
-                        Toggle("", isOn: Binding(
-                            get: { !state.hiddenSources.contains(source.key) },
-                            set: { isOn in
-                                if isOn { state.hiddenSources.remove(source.key) }
-                                else { state.hiddenSources.insert(source.key) }
-                            }))
-                            .labelsHidden()
-                            .toggleStyle(.checkbox)
-                    }
-                    .frame(height: 24)
-                    .accessibilityElement(children: .combine)
+                // layouts.md §2.1 (Phase 3 task 14): every row carries the
+                // status slot; connected rows add hover help, the popover, ↩
+                // and the context menu.
+                ForEach(sortedRecords, id: \.id) { source in
+                    SidebarSourceRow(source: source)
+                }
+                if SidebarSourcesRule.showsConnectRow(connectedCount: sortedRecords.filter(\.isConnected).count) {
+                    ConnectTimetableRow()
                 }
             } header: {
                 Text("Sources")

@@ -2155,3 +2155,14 @@ continues the sections above (D after D5, A after A36, B after B39).
 - **Note — review mode uses the mock in `phase2` too.** So the connect sheet
   can never reach the network in a review launch (task 13's captures run on
   the Phase 2 dataset, which has no connected source).
+- **Note — the sidebar row's VoiceOver value.** components.md §19.2: "the
+  row's value appends the state title (`University timetable, Access
+  refused`)". The combined row surfaces as the visibility checkbox, whose AX
+  value is its on/off state, so the state title rides on the row's label
+  (`University timetable, Access refused`) instead. Spoken the same; open
+  for the design agent.
+- **Note — `↩` on a focused connected row** (layouts.md §2.1) is built as an
+  `onKeyPress(.return)` on the row; a sidebar `List` row rarely holds key
+  focus itself (the list does), so the popover is reached by the slot, the
+  context menu's `Show Sync Status`, or the inspector's sync line in
+  practice. Not observed live.

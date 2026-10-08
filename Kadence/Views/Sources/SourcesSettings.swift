@@ -388,27 +388,18 @@ struct SourceStatusBlock: View {
             .buttonStyle(.bordered)
     }
 
+    /// The effect comes from `SourceActionRouting` (tested): a state's
+    /// `Edit Account…` focuses `Server`, Settings' focuses `Password`
+    /// (layouts.md §12.3).
     private func perform(_ action: PrimaryAction) {
-        switch action {
-        case .syncNow:
-            sync.trigger(.syncNow, sourceID: source.id)
-        case .showDetails:
-            showDetails.toggle()
-        case .updatePassword:
-            openEdit(.password, autoConnect: false)
-        case .editAccount:
-            openEdit(showsSettingsButton ? .server : .password, autoConnect: false)
-        case .chooseCalendar:
-            openEdit(.none, autoConnect: true)
+        let effect = SourceActionRouting.effect(of: action, sourceID: source.id, fromPopover: showsSettingsButton)
+        if effect.syncsNow { sync.trigger(.syncNow, sourceID: source.id) }
+        if effect.togglesDetails { showDetails.toggle() }
+        if let sheet = effect.sheet {
+            router.selectedSourceID = source.id
+            router.sheet = sheet
         }
-    }
-
-    /// layouts.md §12.3's focus table: a state's `Edit Account…` focuses
-    /// `Server`; Settings' own `Edit Account…` focuses `Password`.
-    private func openEdit(_ focus: SourcesRouter.EditFocus, autoConnect: Bool) {
-        router.selectedSourceID = source.id
-        router.sheet = .edit(sourceID: source.id, focus: focus, autoConnect: autoConnect)
-        if showsSettingsButton {
+        if effect.opensSettings {
             dismiss?()
             openSettings()
         }
