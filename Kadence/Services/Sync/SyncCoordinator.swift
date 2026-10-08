@@ -110,6 +110,8 @@ final class SyncCoordinator {
     /// Builds the fetcher for a source (the CalDAV one in the app; a mock in
     /// review mode and tests).
     @ObservationIgnored let makeSource: (CalDAVAccount) -> any ScheduleSource
+    /// The connect sheet's transport (a fresh one per connect, §21.4).
+    @ObservationIgnored let makeTransport: @Sendable () -> any HTTPTransport
     @ObservationIgnored weak var calendarState: CalendarState?
     @ObservationIgnored weak var undo: UndoStack?
 
@@ -127,7 +129,10 @@ final class SyncCoordinator {
 
     init(context: ModelContext, secrets: any SecretStore, scheduling: any SyncScheduling, path: any PathMonitoring,
          clock: @escaping () -> Date = { Date() }, zone: @escaping () -> TimeZone = { .current },
-         limits: Limits = Limits(), makeSource: @escaping (CalDAVAccount) -> any ScheduleSource) {
+         limits: Limits = Limits(),
+         makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionTransport() },
+         makeSource: @escaping (CalDAVAccount) -> any ScheduleSource) {
+        self.makeTransport = makeTransport
         self.context = context
         self.secrets = secrets
         self.scheduling = scheduling
@@ -148,7 +153,7 @@ final class SyncCoordinator {
         -> SyncCoordinator {
         let coordinator = SyncCoordinator(
             context: context, secrets: secrets, scheduling: BackgroundActivityScheduling(),
-            path: NetworkPathMonitoring()) { account in
+            path: NetworkPathMonitoring(), makeTransport: makeTransport) { account in
                 CalDAVScheduleSource(account: account, secrets: secrets, makeTransport: makeTransport)
             }
         coordinator.observeWorkspace()

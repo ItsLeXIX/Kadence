@@ -9285,3 +9285,83 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **781 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 115. P3-T13 — the connect sheet (layouts.md §12; interactions.md §13.1, §13.2; components.md §19.1, §20.1, §20.8.1)
+
+- `Kadence/Views/Sources/ConnectSheetModel.swift` (`@Observable`, every
+  decision; nothing persisted before `Import`/`Save` — fields, discovery
+  result, fetched objects and the typed password live only here):
+  - Step 1: `Name` (default `University timetable`), `Server` prefilled
+    `cis.technikum-wien.at`, `Username` (focus starts here), `Password`.
+    §12.1's validation table as guidance (not red): `http://`, other scheme /
+    spaces / no host, `user@`, the WebDAV share, the duplicate account
+    (`{user} @ {host} is already connected as {name}.`, the source itself
+    excluded in edit mode); `Connect` enabled per the table. The footnote
+    with `{host}` live (and its unparsable form). `Connect` = discovery +
+    the Import-window fetch of every listed calendar, one step, one
+    `CalDAVSession`; `Connecting to {host}…`; `Cancel` cancels the task and
+    leaves the fields as typed. Failures show §12.1's title/body
+    (`ConnectFailurePresentation`) and move focus (contents selected where
+    the table says).
+  - Step 2: `{user} @ {host}`; one calendar → the confirmed row
+    (`ConfirmedCalendarRow`: `checkmark` + name, not a control, AX `Calendar:
+    LVPlan`); several → checkboxes, all checked (edit mode: the current
+    selection, new ones unchecked, missing ones named above the list); the
+    range line (`13 events, 2 Oct 2026 – 23 Oct 2026`, one date when equal,
+    `Choose at least one calendar.` with none checked, the empty-calendar
+    lines); the history / co-teaching / problem / deselection sentences with
+    their singular forms; toggling recomputes from fetched data, no request.
+  - `Import`: Keychain → `Source` (first free palette slot, checked
+    calendars, principal/home hrefs, capabilities) → events via the
+    coordinator's `applyFetched(kind: .import)` — no transport call. A
+    Keychain failure writes nothing else (`Password not saved` copy).
+    `Back` keeps every field, the password too.
+  - Edit mode: prefilled, `Password` empty with `Saved in Keychain`; empty
+    uses the saved password unless server/username changed (then `Connect`
+    is disabled); `Choose Calendar…` connects at once; `Save` replaces the
+    Keychain item (new, then old; in place when the account is unchanged),
+    updates the source, resets `fetchMode` to `report`, clears the pause and
+    applies as a sync plus the deselection (`.editSave`).
+- `ConnectSheet.swift` draws it (two steps, `motion.viewChange` / Reduce
+  Motion fade). The coordinator now carries the transport factory the
+  sheet uses. Review mode serves the mock in `phase2` too, and accepts any
+  password for `user01` there (DEVIATIONS **B43**).
+- Tests (`ConnectSheetTests.swift`, 14, one parameterised over 10
+  failures, all through `MockCalDAVTransport` with a counting wrapper):
+  validation rows and `Connect` enablement; cancel mid-discovery writes
+  nothing (no Keychain save, no source, no event); every failure's body and
+  focus; step 2 on the template (`13 events`, history 2, merges 1), on
+  `reportCIS` (`12 events, 14 Sep 2026 – 29 Jan 2027`, 3, 1), on
+  `multiCalendar` (two checked, unchecking `Prüfungen` keeps 13, unchecking
+  both → `Choose at least one calendar.` and `Import` disabled, `1 event, 23
+  Oct 2026` for `Prüfungen` alone, no transport call while toggling);
+  empty-calendar and singular copy; `Import` makes no call and writes
+  Keychain → source → 13 events with calendars/hrefs; a Keychain failure;
+  `Back`; edit mode prefill / saved-password rule / `Choose Calendar…`
+  auto-connect / unchecked new calendars / the deselection sentence /
+  `Save` (in place; new-then-old when the account changes; pause cleared,
+  `fetchMode` reset, 11 events written today onward); no sentinel in any
+  model string.
+- **The "not a control" and "no password in any AX value" checks run on the
+  live app's AX tree** (SwiftUI vends no AX tree for an offscreen hosting
+  view in the test host — tried, recorded): `capture-p3.sh` asserts
+  `Calendar: LVPlan` is present and no `AXCheckBox` lies inside the sheet's
+  window on step 2, and that the typed filler appears nowhere in the AX
+  tree after filling and after each failure (the focused SecureField's AX
+  value reads empty).
+- Captures (`-p3t13`, fresh pre-flight each, review mode): `connect-step1-empty`,
+  `-filled` (bullets), `-connecting` (`slow`), `-unauthorized` (Password
+  focused, contents selected), `-certificate` (focus on Connect),
+  `-nocaldav` (`wellKnown404`; Server focused), `-webdav-hint`,
+  `connect-step2-single` (`reportOK`), `-checklist` (`multiCalendar`;
+  `Aufgaben` absent), `connect-edit` (from the `unauthorized` source's
+  `Update Password…`; Password focused with `Saved in Keychain`; the system
+  shows its "Passwords…" AutoFill suggestion under a focused password field
+  — system chrome, noted for review). First takes: the footnote truncated
+  (`.lineLimit(nil)` placed after `typeStyle` loses to the style's own
+  limit — moved inside; same fix in the Settings block) and two script
+  mistakes (the WebDAV item clicked the footnote; the checkbox check counted
+  the main window's sidebar) — all recaptured.
+- Verify: xcresult **795 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

@@ -295,8 +295,8 @@ struct SourceDetailView: View {
                 let calendars = SourcesSettingsModel.calendarRow(source)
                 LabeledContent(calendars.label) {
                     Text(calendars.value)
+                        .lineLimit(nil)  // before the style: the innermost line limit wins
                         .typeStyle(.inspectorValue)
-                        .lineLimit(nil)
                 }
                 Picker("Sync", selection: Binding(get: { source.pollInterval }, set: { setInterval($0) })) {
                     ForEach(SourcesSettingsModel.intervals, id: \.seconds) { option in
@@ -346,8 +346,8 @@ struct SourceStatusBlock: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let body = p.body {
                     Text(body)
+                        .lineLimit(nil)  // before the style: the innermost line limit wins
                         .typeStyle(.inspectorValue)
-                        .lineLimit(nil)
                         .foregroundStyle(Tokens.Color.Text.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, Tokens.Spacing.sm)

@@ -72,6 +72,10 @@ nonisolated final class MockCalDAVServer: Sendable {
     /// When true the `REPORT` ignores its time-range (task 7's
     /// `timeRangeHonoured == false` case).
     let ignoresTimeRange: Bool
+    /// Review mode only: any password for `user01` is accepted, so the
+    /// captures type a non-secret filler instead of a password (DEVIATIONS
+    /// B43). Tests leave it off and check the sentinel.
+    let acceptsAnyPassword: Bool
 
     private struct State {
         var reports = 0
@@ -82,7 +86,9 @@ nonisolated final class MockCalDAVServer: Sendable {
     private let state = Mutex(State())
 
     init(case mockCase: Case, password: Password, feed: [Object], changed: [Object] = [],
-         pruefungen: [Object] = [], html: Data = Data(), ignoresTimeRange: Bool = false) {
+         pruefungen: [Object] = [], html: Data = Data(), ignoresTimeRange: Bool = false,
+         acceptsAnyPassword: Bool = false) {
+        self.acceptsAnyPassword = acceptsAnyPassword
         self.mockCase = mockCase
         expectedAuthorization = password.withPlaintext {
             "Basic " + Data("\(Self.username):\($0)".utf8).base64EncodedString()
@@ -113,7 +119,9 @@ nonisolated final class MockCalDAVServer: Sendable {
 
         // Every other request: 401 without (the right) Authorization.
         let auth = request.header("Authorization")
-        if mockCase == .unauthorized || auth != expectedAuthorization {
+        let accepted = auth == expectedAuthorization
+            || (acceptsAnyPassword && auth.map(Self.isBasicForUser01) == true)
+        if mockCase == .unauthorized || !accepted {
             return reply(401, headers: ["WWW-Authenticate": "Basic realm=\"\(Self.realm)\""])
         }
 
@@ -148,6 +156,13 @@ nonisolated final class MockCalDAVServer: Sendable {
                          body: Data(object.data.utf8))
         }
         return reply(404)
+    }
+
+    /// `Basic base64("user01:…")`, any password.
+    static func isBasicForUser01(_ header: String) -> Bool {
+        guard header.hasPrefix("Basic "), let data = Data(base64Encoded: String(header.dropFirst(6))),
+              let text = String(data: data, encoding: .utf8) else { return false }
+        return text.hasPrefix(username + ":")
     }
 
     // MARK: Discovery

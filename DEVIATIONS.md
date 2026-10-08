@@ -2145,3 +2145,13 @@ continues the sections above (D after D5, A after A36, B after B39).
   mock answers `403` to every authenticated request (D2 and later), so a
   sync with cached discovery reaches `forbidden` too (review item 10's
   popover). Discovery behaviour is unchanged.
+- **B43 — review mode's mock accepts any password for `user01`.** The plan
+  allows the review password string only in the review seeding and its test,
+  so the capture script cannot type it. In review mode only
+  (`ReviewMode.server`), `MockCalDAVServer.acceptsAnyPassword` is on and the
+  captures type a non-secret filler (`filler-not-a-secret`) into the
+  `SecureField`; the frames show bullets. Tests keep the check on: the stub
+  answers only the sentinel.
+- **Note — review mode uses the mock in `phase2` too.** So the connect sheet
+  can never reach the network in a review launch (task 13's captures run on
+  the Phase 2 dataset, which has no connected source).

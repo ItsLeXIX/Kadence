@@ -56,7 +56,7 @@ nonisolated enum ReviewMode {
             pruefungen: [ReviewFeed.reportReview(template: template, today: now, zone: zone).last].compactMap {
                 $0.map { MockCalDAVServer.Object(href: MockCalDAVServer.pruefungen + "p01.ics", etag: "\"p-01-a\"", data: $0.data) }
             },
-            html: Data(signInPage.utf8))
+            html: Data(signInPage.utf8), acceptsAnyPassword: true)
     }
 
     /// A web page where calendar data was expected (`htmlOK`, `propfindNot207`).

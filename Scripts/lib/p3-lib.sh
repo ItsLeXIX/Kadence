@@ -48,6 +48,18 @@ case "scroll":
                     wheel1: Int32(a[4])!, wheel2: 0, wheel3: 0)!
     e.flags = []
     e.post(tap: .cghidEventTap)
+case "type":
+    // Types a string as Unicode key events (layout-independent).
+    for scalar in a[2].unicodeScalars {
+        var unit = Array(String(scalar).utf16)
+        for down in [true, false] {
+            let e = CGEvent(keyboardEventSource: src, virtualKey: 0, keyDown: down)!
+            e.keyboardSetUnicodeString(stringLength: unit.count, unicodeString: &unit)
+            e.flags = []
+            e.post(tap: .cghidEventTap)
+            usleep(15_000)
+        }
+    }
 default: exit(2)
 }
 SWIFT
@@ -177,3 +189,7 @@ shoot_window() {  # shoot_window ID FILE
   [[ -z "$1" ]] && { echo "  (no window for $2)"; return 1; }
   screencapture -x -o -l "$1" "$OUT/$2"; echo "  captured $2"
 }
+
+type_text() { front; "$WORK/hid" type "$1"; sleep 0.8; }
+# The id of Kadence's on-screen window with this exact width (the sheet: 440).
+window_of_width() { "$WORK/wins" | awk -v want="$1" '$4 == want { print $1; exit }'; }

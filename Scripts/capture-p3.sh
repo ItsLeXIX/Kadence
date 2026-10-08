@@ -69,6 +69,122 @@ item_remove_source_alert() {
   quit_app
 }
 
+# ---- The connect sheet (items 2–7). Review mode serves the mock even in
+# phase2, so nothing here can reach the network. The review mock accepts any
+# password for user01, so the script types a non-secret filler (B43).
+FILLER="filler-not-a-secret"
+KVK_A=0
+
+open_connect_sheet() {  # open_connect_sheet DATASET CASE
+  launch_fresh -KadenceReview "$1" -KadenceMockCalDAV "$2"
+  open_settings >/dev/null
+  local xy; xy=$(find_el "Connect Timetable…") || { echo "FAIL: no Connect Timetable… button"; quit_app; exit 1; }
+  click $xy; sleep 1.5
+  has "Connect a timetable" || { echo "FAIL: the connect sheet did not open"; quit_app; exit 1; }
+}
+sheet_id() { window_of_width 440; }
+fill_sheet() {  # username, then password (focus starts in Username, §12.1)
+  type_text "user01"
+  key $KVK_TAB
+  type_text "$FILLER"
+}
+# No AX value or title anywhere in the app holds what was typed into the SecureField.
+assert_no_password_in_ax() {
+  "$WORK/axq" "$PID" > "$WORK/ax-secret.txt"
+  grep -q -- "$FILLER" "$WORK/ax-secret.txt" && { echo "FAIL: the typed password is in the accessibility tree"; quit_app; exit 1; }
+  echo "  AX tree: no password"
+}
+press_connect() { local xy; xy=$(find_el "AXButton~Connect~") || xy=$(find_el "Connect" 1); key $KVK_RETURN; }
+
+item_connect_step1_empty() {
+  open_connect_sheet phase2 reportOK
+  shoot_window "$(sheet_id)" "connect-step1-empty-$SUFFIX.png"
+  quit_app
+}
+item_connect_step1_filled() {
+  open_connect_sheet phase2 reportOK
+  fill_sheet
+  assert_no_password_in_ax
+  shoot_window "$(sheet_id)" "connect-step1-filled-$SUFFIX.png"
+  quit_app
+}
+item_connect_step1_connecting() {
+  open_connect_sheet phase2 slow
+  fill_sheet
+  key $KVK_RETURN; sleep 0.8
+  has "Connecting to cis.technikum-wien.at" || { echo "FAIL: not connecting"; quit_app; exit 1; }
+  shoot_window "$(sheet_id)" "connect-step1-connecting-$SUFFIX.png"
+  quit_app
+}
+connect_failure() {  # connect_failure CASE NAME EXPECT
+  open_connect_sheet phase2 "$1"
+  fill_sheet
+  key $KVK_RETURN; sleep 2.5
+  has "$3" || { echo "FAIL: no '$3'"; quit_app; exit 1; }
+  echo "  focus: $("$WORK/focus" "$PID")"
+  assert_no_password_in_ax
+  shoot_window "$(sheet_id)" "$2-$SUFFIX.png"
+  quit_app
+}
+item_connect_step1_unauthorized() { connect_failure unauthorized connect-step1-unauthorized "Sign-in failed"; }
+item_connect_step1_certificate() { connect_failure certificate connect-step1-certificate "Secure connection failed"; }
+item_connect_step1_nocaldav() { connect_failure wellKnown404 connect-step1-nocaldav "No calendar server found"; }
+item_connect_step1_webdav_hint() {
+  open_connect_sheet phase2 reportOK
+  key $KVK_TAB shift      # Username → Server (focus starts in Username)
+  key $KVK_A cmd
+  type_text "https://cis.technikum-wien.at/Webdav/Lvplan"
+  key $KVK_TAB
+  has "That's the WebDAV share" || { echo "FAIL: no WebDAV-share message"; quit_app; exit 1; }
+  shoot_window "$(sheet_id)" "connect-step1-webdav-hint-$SUFFIX.png"
+  quit_app
+}
+item_connect_step2_single() {
+  open_connect_sheet phase2 reportOK
+  fill_sheet
+  key $KVK_RETURN; sleep 3
+  has "Import University timetable" || { echo "FAIL: not on step 2"; quit_app; exit 1; }
+  has "Calendar: LVPlan" || { echo "FAIL: no confirmed row 'Calendar: LVPlan' in the AX tree"; quit_app; exit 1; }
+  "$WORK/axq" "$PID" > "$WORK/ax-step2.txt"
+  # Only the sheet's own window counts (the main window's sidebar has checkboxes).
+  local frame; frame=$("$WORK/wins" | awk '$6 == 0 && $4 == 640 { print $2, $3, $4, $5; exit }')
+  python3 - "$WORK/ax-step2.txt" $frame <<'PY2' || { echo "FAIL: a checkbox on the single-calendar step"; quit_app; exit 1; }
+import sys
+path, x0, y0, w, h = sys.argv[1], *map(int, sys.argv[2:6])
+for line in open(path).read().splitlines():
+    p = line.split("~")
+    if len(p) == 9 and p[0] == "AXCheckBox":
+        x, y = int(p[5]), int(p[6])
+        if x0 <= x < x0 + w and y0 <= y < y0 + h: print("checkbox in the sheet:", line); sys.exit(1)
+PY2
+  echo "  AX: 'Calendar: LVPlan', no checkbox"
+  shoot_window "$(sheet_id)" "connect-step2-single-$SUFFIX.png"
+  quit_app
+}
+item_connect_step2_checklist() {
+  open_connect_sheet phase2 multiCalendar
+  fill_sheet
+  key $KVK_RETURN; sleep 3
+  has "Prüfungen" || { echo "FAIL: no checklist"; quit_app; exit 1; }
+  has "Aufgaben" && { echo "FAIL: Aufgaben listed"; quit_app; exit 1; }
+  shoot_window "$(sheet_id)" "connect-step2-checklist-$SUFFIX.png"
+  quit_app
+}
+# Item 7 — edit mode from `Update Password…`: Server and Username prefilled,
+# Password empty with `Saved in Keychain`, focused. Reached through the
+# source's `unauthorized` state, whose primary action is Update Password….
+item_connect_edit() {
+  launch_fresh -KadenceReview phase3 -KadenceMockCalDAV unauthorized
+  sleep 3
+  open_settings >/dev/null
+  local xy; xy=$(find_el "Update Password…") || { echo "FAIL: no Update Password… button"; quit_app; exit 1; }
+  click $xy; sleep 1.5
+  has "Edit University timetable" || { echo "FAIL: edit mode did not open"; quit_app; exit 1; }
+  echo "  focus: $("$WORK/focus" "$PID")"
+  shoot_window "$(sheet_id)" "connect-edit-$SUFFIX.png"
+  quit_app
+}
+
 for item in "$@"; do
   Scripts/preflight.sh || { echo "STOPPED before $item: pre-flight failed"; exit 2; }
   fn="item_${item//-/_}"

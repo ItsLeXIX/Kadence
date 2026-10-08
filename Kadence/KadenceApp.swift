@@ -47,9 +47,11 @@ struct KadenceApp: App {
         }
         // Swift note: `_sync` is the property wrapper's own storage; assigning
         // `State(initialValue:)` there is how an `init` seeds a `@State`.
-        if ReviewMode.dataset() == .phase3 {
+        if ReviewMode.dataset() != nil {
             // Review mode (task 10): the mocked CIS server, the review
-            // password in memory — no network, no Keychain.
+            // password in memory — no network, no Keychain. `phase2` too:
+            // it has no connected source, but its connect sheet must still
+            // never reach the network (the task 13 captures).
             let server = ReviewMode.server(case: ReviewMode.mockCase(), now: Date())
             _sync = State(initialValue: SyncCoordinator.live(
                 context: container.mainContext, secrets: ReviewMode.secrets,
