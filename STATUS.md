@@ -8697,3 +8697,29 @@ preview border — G-053.
   Claude Code's removal check; not worked around — later runs wrote to new
   scratch directories instead.
 - No forbidden git operation. Nothing sent to any app but Kadence.
+
+## 100. P3-H1 — `check-resync-escape.sh`'s matcher (PHASE3-PLAN.md housekeeping H1)
+
+- Step 0 first: the Phase 3 design work (DECISIONS 2026-10-08, design/,
+  `fixtures/cis-2026WS-redacted.ics`) committed unedited as `3888557`.
+- Cause: the focus helper prints `role~title~description`, and SwiftUI's
+  `Button("Re-sync")` surfaces its label as **AXDescription**, not AXTitle
+  — live this run: `AXButton~~Re-sync`. The old pattern
+  `AXButton~Re-sync~*` only matched the title slot. New
+  `is_resync_button`: role exactly `AXButton`, label exactly `Re-sync` in
+  either slot (never a prefix, so the popover's `Re-sync 3 instances`
+  can't pass for it). Checked offline on four strings first.
+- Run with keyboard navigation **on** (`AppleKeyboardUIMode` = 2, read,
+  never written): **PASS** — after ⎋ focus is `AXButton "Re-sync"`; ⎋ from
+  the date list and ↩ re-sync also PASS. This is the first live
+  observation of focus *on* `Re-sync` (P2-B2, P2-C5 could only check the
+  "off" branch).
+- Also needed for a green suite: the design commit moved `tokens.json` to
+  1.6.0 (63 pairs), which turned `WeekdayToggleFocusTests.tokens()` red
+  (621/1 at the start of this run). That test pins the JSON's version and
+  pair count; updated to `1.6.0` / `63`. Tokens.swift itself is regenerated
+  in task 1.
+- Verify: xcresult **622 passed / 0 failed**; build warnings: none new;
+  tokens `--check` **red as expected** until task 1 (Tokens.swift is
+  1.3.0, tokens.json 1.6.0 — the plan's "green from task 1 on"); fresh
+  pre-flight before each: the six UI scripts **PASS**.

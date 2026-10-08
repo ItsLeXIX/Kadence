@@ -309,8 +309,20 @@ popover_open && fail "⎋ left the popover open (B34)"
 has "3 instances edited" || fail "⎋ wrote something: '3 instances edited' is gone"
 FOCUS=$("$WORK/focus" "$PID")
 echo "after ⎋, focus: $FOCUS"
+# P3-H1: the focus helper prints role~title~description. A SwiftUI Button's
+# label can surface as AXTitle or as AXDescription (observed live 2026-10-07:
+# `AXButton "Re-sync"` with keyboard navigation on, yet the old title-only
+# pattern `AXButton~Re-sync~*` reported FAIL). Match the role exactly and the
+# label exactly in either slot — never a prefix, so the popover's own
+# `Re-sync 3 instances` button can't pass for it.
+is_resync_button() {
+  local head="${1%%  \[*}"   # drop the "  [value … parents …]" detail
+  local role title desc
+  IFS='~' read -r role title desc <<<"$head"
+  [[ "$role" == "AXButton" && ( "$title" == "Re-sync" || "$desc" == "Re-sync" ) ]]
+}
 if [[ $KBNAV -ne 0 ]]; then
-  [[ "$FOCUS" == "AXButton~Re-sync~"* ]] || fail "focus is not on the Re-sync button after ⎋ ($FOCUS)"
+  is_resync_button "$FOCUS" || fail "focus is not on the Re-sync button after ⎋ ($FOCUS)"
   echo "PASS: ⎋ closed the popover, nothing written, focus on Re-sync."
 else
   [[ "$FOCUS" == "$BEFORE" ]] || fail "focus after ⎋ isn't where it was before the popover opened ($FOCUS)"
