@@ -8789,3 +8789,37 @@ preview border — G-053.
 - Verify: xcresult **631 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` **up to date**; fresh
   pre-flight before each: the six UI scripts **PASS**.
+
+## 103. P3-T02 — `SecretStore`: Keychain internet-password item, in-memory double (components.md §21.4; interactions.md §13.1)
+
+- `Kadence/Services/Secrets/SecretStore.swift`:
+  - `Password` — `description`, `debugDescription`, `String(reflecting:)`
+    and `dump` all print `Password(•)` (custom `Mirror` with no
+    children); the text is reachable only through `withPlaintext { }`.
+  - `SecretAccount` (host, port 443, username) and `SecretItemInfo`
+    (label `Kadence — {displayName}`, comment = `Source.id`).
+  - `protocol SecretStore`: `save` / `read` (nil = no item) / `delete` /
+    `updateInfo` (rename → label), typed `throws(SecretStoreError)` whose
+    text is an `OSStatus` only. `replace(old, with:new, …)` writes the new
+    item first, then deletes the old.
+  - `KeychainSecretStore`: §21.4's attributes exactly; every query carries
+    server, port, protocol HTTPS, auth type default, account, security
+    domain `Kadence`, creator `'Kdnc'` (0x4B646E63), not synchronizable.
+    The dictionaries are static functions, so tests assert them without
+    the Keychain. Save = `SecItemAdd`, falling back to `SecItemUpdate` on a
+    duplicate.
+  - `InMemorySecretStore` (`Mutex`-guarded, `Sendable`) with
+    `failNext(_:)` hooks — tests and review mode.
+- Tests (`SecretStoreTests.swift`, 6 Swift Testing + 2 XCTest): in-memory
+  round trip/replace/delete; replace order (an injected `delete` failure
+  leaves the old item readable, an injected `save` failure leaves it alone
+  and adds nothing); relabel; save/read/delete dictionaries carry every
+  attribute (13 keys on save, value = UTF-8 sentinel only); no sentinel in
+  any description/dump/error; **live Keychain** (XCTest so `XCTSkip` and
+  `tearDown` work as the plan asks): round trip on `user01-tests`, and a
+  foreign item (same server and account, no domain/creator) is neither
+  read nor deleted. Both ran (not skipped); `security
+  find-internet-password -a user01-tests` afterwards: not found.
+- Verify: xcresult **639 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.
