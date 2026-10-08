@@ -9013,3 +9013,46 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **694 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 109. P3-T07 — CalDAV client: fetch, the fallback chain, re-discovery, the cap (components.md §20.8.1–§20.8.4, §21.5; caldav-mocks.md §2–§4)
+
+- `Kadence/Services/CalDAV/CalDAVClient.swift`:
+  - `protocol ScheduleSource` / `ScheduleFetchResult` exactly as §21.5
+    (plus the hrefs a re-discovery learned); `MockScheduleSource` returns a
+    fixture result directly.
+  - `CalDAVClient.fetch(calendar:…mode:)`: F0 `REPORT` → F1 `PROPFIND` +
+    `calendar-multiget` (batches of 100) → F2 `GET` one at a time, falling
+    back **only on 405/501**; any other status ends the chain at that step
+    (`404`/`410` and `301`/`308` to the same host → re-discover; another
+    host or `http:` → `redirected`; 5xx → `serverError`; a web page →
+    `notACalendar`). Member failures and unreadable objects are problems,
+    not failures. `timeRangeHonoured` = no returned event ends on or before
+    `start`. Mode memory: a fetch starts at the recorded mode. The cap's
+    technical line names the calendar (`… reading LVPlan one object at a
+    time` in `get` mode).
+  - `CalDAVScheduleSource` (password from the `SecretStore` first —
+    `passwordMissing` sends nothing; a fresh transport per sync) and its
+    body `run(account:windowStart:session:…)`, shared with the connect
+    sheet: calendars sequentially in `Source.calendars` order, one
+    re-discovery per sync matched by href then unique display name
+    (`adoptedCalendars`), `failedCalendars` / `calendarsReadInFully`,
+    derivation across all calendars, `SyncDiagnostics` for §20.8.4's line.
+- Tests (`CalDAVClientTests.swift`, 15 + 25 parameterised hygiene cases):
+  reportOK (1 counted request, `Depth: 1`, `start="20261007T220000Z"`,
+  no `end`, 9 objects, report mode, honoured; the log line's exact shape
+  with `user01 @ cis.technikum-wien.at` and no password); time-range
+  ignored → `false` and 12 events; reportRefused (3, multiget, no problem,
+  the unfiltered events, ctag logged); multigetRefused (3 + 13, one in
+  flight at a time, `get`, CRLF hash = LF hash); allRefused's technical
+  line; overCap (exactly 300, 297 GETs, the cap line); mode memory
+  (multiget starts at `PROPFIND`, 2 requests); calendarMoved (1 + 4 + 1,
+  the `-ws26` href adopted); calendarGone (`calendarMissing`, nothing read
+  in full); htmlOK; one `truncated.ics` object → one problem
+  (`Object obj-13.ics: not calendar data`), 8 read; serverError 503;
+  timeout → unreachable; two calendars, one a web page → the first's
+  events, only it read in full; passwordMissing with zero records; every
+  mock case: no sentinel in results/errors/problems, wire rules hold.
+  All green on the first run.
+- Verify: xcresult **709 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.
