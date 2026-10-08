@@ -9163,3 +9163,41 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **738 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 112. P3-T10 — review mode: mocked CalDAV server, the review dataset, an empty real store (components.md §22.1; caldav-mocks.md; G-057)
+
+- `Kadence/Review/ReviewMode.swift`: `-KadenceReview phase3` seeds the
+  Phase 2 dataset, turns `timetable` into a `caldav` source (`user01`,
+  `https://cis.technikum-wien.at`, principal, home, `[LVPlan]`, never
+  imported — its first sync is the Import, §21.1) whose password is the
+  review password in `ReviewMode.secrets` (an `InMemorySecretStore`), and
+  adds the manual all-day `Studieninformationstag` on `M + 2` (graphite).
+  `-KadenceMockCalDAV <case>` picks the mock's case (default `reportOK`).
+  `MockCalDAVTransport` answers through `MockCalDAVServer` (delays for
+  `slow`, the 30 s timeout for `timeout`, `URLError`s for TLS/offline).
+  `KadenceApp` builds the review coordinator on it; no network, no Keychain.
+- **G-057:** without `-KadenceReview` nothing is seeded — both windows now
+  call `ReviewMode.seedIfRequested`, which only materialises routines. An
+  empty store stays empty. `-KadenceReview phase2` (DEVIATIONS **B41**) is
+  the Phase 2 dataset alone; every Phase 2 UI and capture script launches
+  with it now (the launch line only).
+- `MockData`: the seeded `Datenmodellierung` carries the template's
+  `{{TODAY}}` content key (the review Import updates it in place; its
+  travel band is found by title). The mock's `forbidden` answers 403 to
+  every authenticated request (note in DEVIATIONS). Phase 2's `Statistik
+  übung` is detached from the review source — GAPS **G-073**, DEVIATIONS
+  **B42** — or the review's `reportChanged` sync reads `3 removed`.
+- Tests (`ReviewModeTests.swift`, 9, two parameterised): at 12 seeding
+  clocks (template and non-template weekdays, night and day) the review
+  launch gives **14 day conflicts, needs-attention 15, Friday's conflict at
+  k = d + 1**; the rendered template (CRLF, `VERSION:1.0`, 14 VEVENTs, the
+  real VTIMEZONE verbatim, M = 12 Oct) splits into 14 objects, 0 problems,
+  13 events; the sync window drops H1 and H2 (12 objects); a launch with
+  each of 19 cases reaches its state (pause only for 401/403);
+  `reportChanged`'s Sync Now reads `2 / 2 / 2`; the review password stays
+  in memory; Datenmodellierung's `Event.id` and travel leg survive the
+  Import; an empty store stays empty without the argument; argument parsing.
+- Verify: xcresult **747 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS** (launching `-KadenceReview
+  phase2`).

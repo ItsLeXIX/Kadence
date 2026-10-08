@@ -78,7 +78,7 @@ sleep 2
 # verification session) as "window 1" ahead of the main window, or produced no
 # window at all for 40+ seconds, on a plain `open -n`. See check-accessibility.sh
 # and STATUS.md §8.
-open -n "$APP" --args -ApplePersistenceIgnoreState YES
+open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceReview phase2
 sleep 9
 
 # Poll rather than check once — even with restoration suppressed, a cold

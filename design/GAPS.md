@@ -2666,3 +2666,17 @@ Hrefs are not identity (§20.2), so nothing in the build depends on it.
 `ReviewFeed.reportChanged` applies the changes **by row** (#2, #3, #5, #7b,
 H1, plus `r15` for the new `KOKU-UE`) with row-order hrefs. Please make the
 numbers agree.
+
+### G-073 — OPEN (coding agent, P3-T10). Phase 2's `Statistik übung` in the review dataset.
+
+`components.md` §22.1 makes the review dataset "the Phase 2 dataset,
+unchanged, plus one connected source": the mock source `timetable` becomes
+the CalDAV source. The Phase 2 dataset has a second imported event of that
+source, `Statistik übung` (today 10:45–11:45, `done`, §12's done-state
+fixture), which the review template does not contain. A sync of the connected
+source would therefore remove it (proof of absence, §20.8), and item 12's
+last-change line would read `2 added · 2 updated · 3 removed`, not `2 removed`.
+Built: review mode's phase-3 seeding detaches that one event from the source
+(`sourceID` nil — still `.imported`, blue, read-only, drawn as before), so no
+sync owns it (DEVIATIONS B42). Alternatives for the design agent: add it to
+the template, or drop it from the review dataset.

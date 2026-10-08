@@ -45,7 +45,16 @@ struct KadenceApp: App {
         }
         // Swift note: `_sync` is the property wrapper's own storage; assigning
         // `State(initialValue:)` there is how an `init` seeds a `@State`.
-        _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext))
+        if ReviewMode.dataset() == .phase3 {
+            // Review mode (task 10): the mocked CIS server, the review
+            // password in memory — no network, no Keychain.
+            let server = ReviewMode.server(case: ReviewMode.mockCase(), now: Date())
+            _sync = State(initialValue: SyncCoordinator.live(
+                context: container.mainContext, secrets: ReviewMode.secrets,
+                makeTransport: { MockCalDAVTransport(server: server) }))
+        } else {
+            _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext))
+        }
     }
 
     var body: some Scene {

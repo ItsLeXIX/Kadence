@@ -141,7 +141,7 @@ quit_app() { for p in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill 
 
 launch() {   # launch [extra args…]
   quit_app
-  open -n "$APP" --args -ApplePersistenceIgnoreState YES "$@"
+  open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceReview phase2 "$@"
   sleep 9
   PID=$(pgrep -f "Kadence.app/Contents/MacOS/Kadence" | head -1)
   [[ -z "$PID" ]] && { echo "FAIL: Kadence did not start"; exit 1; }

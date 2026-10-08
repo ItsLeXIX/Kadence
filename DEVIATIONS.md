@@ -2132,3 +2132,16 @@ continues the sections above (D after D5, A after A36, B after B39).
   Phase 2 engine had no such rule (STATUS §110 records the test that shows
   it). `MainWindow` passes its clock; Phase 2's tests call it without one and
   keep their behaviour.
+- **B41 — PHASE3-PLAN.md task 10: an extra review value, `-KadenceReview
+  phase2`.** The plan names one value, `phase3`. Since G-057 a normal launch
+  seeds nothing, so the six Phase 2 UI regression scripts (and the older
+  capture scripts) would open an empty store. They now launch with
+  `-KadenceReview phase2`: the Phase 2 dataset exactly as before, no
+  connected source, no sync. `phase3` is the review dataset of §22.1.
+- **B42 — components.md §22.1: `Statistik übung` detached from the review
+  source.** See GAPS G-073: without it the review's `reportChanged` sync
+  reads `3 removed`. Review mode only; the Phase 2 dataset is unchanged.
+- **Mock note — `forbidden`.** caldav-mocks.md §3 answers `403` at D2. The
+  mock answers `403` to every authenticated request (D2 and later), so a
+  sync with cached discovery reaches `forbidden` too (review item 10's
+  popover). Discovery behaviour is unchanged.

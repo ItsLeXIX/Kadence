@@ -117,9 +117,11 @@ nonisolated final class MockCalDAVServer: Sendable {
             return reply(401, headers: ["WWW-Authenticate": "Basic realm=\"\(Self.realm)\""])
         }
 
+        // `forbidden`: D2 — and, so a sync reaches the state too (review
+        // item 10), every later request — answer 403 after the password.
+        if mockCase == .forbidden { return reply(403) }
         switch (method, path) {
         case ("PROPFIND", Self.context):
-            if mockCase == .forbidden { return reply(403) }
             if mockCase == .propfindNot207 { return reply(200, headers: ["Content-Type": "text/html"], body: html) }
             return xml(Self.d2Body)
         case ("PROPFIND", Self.principal):

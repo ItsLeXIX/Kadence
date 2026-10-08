@@ -184,7 +184,7 @@ rm -f "$STORE" "$STORE-wal" "$STORE-shm"
 # earlier — e.g. "Journal" seeded 16:41–17:45 overlapped "Training"
 # (DEVIATIONS.md B18) — which made this check pass or fail by time of day.
 # See CalendarState.conflictUnderTest.
-open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceConflictUnderTest "Focus review"
+open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceReview phase2 -KadenceConflictUnderTest "Focus review"
 sleep 9
 
 TARGET=""

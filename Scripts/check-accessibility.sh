@@ -44,7 +44,7 @@ sleep 2
 # confirmed). The flag suppresses restoration entirely so the only window that
 # can ever appear is the one this script means to query. See STATUS.md §8 and
 # the follow-up task that applied this fix.
-open -n "$APP" --args -ApplePersistenceIgnoreState YES
+open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceReview phase2
 sleep 9
 
 # Query the instance that actually has a window, never the one that merely has

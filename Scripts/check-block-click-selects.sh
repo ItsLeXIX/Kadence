@@ -98,7 +98,7 @@ sleep 2
 # Routines window) as "window 1" ahead of the main window, or produced no
 # window at all for 40+ seconds, on a plain `open -n`. Suppressing restoration
 # makes the main window the only one that can ever appear.
-open -n "$APP" --args -ApplePersistenceIgnoreState YES
+open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceReview phase2
 sleep 9
 
 # Poll rather than check once — even with restoration suppressed, a cold

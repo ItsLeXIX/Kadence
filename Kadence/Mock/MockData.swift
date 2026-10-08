@@ -103,7 +103,7 @@ enum MockData {
             start: at(9), end: at(10, 30),
             origin: .imported, sourceKey: .blue,
             location: Place(name: "FH B.2.09"),
-            sourceID: "timetable", externalID: "dm-lecture-01"))
+            sourceID: "timetable", externalID: Self.datenmodellierungKey(start: at(9), end: at(10, 30))))
 
         // 2. Manual event, 45 min, graphite, with a location.
         events.append(Event(
@@ -452,12 +452,19 @@ enum MockData {
         if inserted { try? context.save() }
     }
 
+    /// components.md §22.1 row 1: the seeded `Datenmodellierung` carries the
+    /// content key of the review template's `{{TODAY}}` event, so the review
+    /// Import updates it in place (its `Event.id` and travel leg survive).
+    static func datenmodellierungKey(start: Date, end: Date) -> String {
+        "Datenmodellierung FH B.2.09 - BIF-5C|FH B.2.09|\(ICSFormat.utcStamp(start))|\(ICSFormat.utcStamp(end))"
+    }
+
     // MARK: Travel bands — items 7–8
 
     static func makeTravel(for events: [Event], now: Date) -> [TravelFixture] {
         var result: [TravelFixture] = []
         // 7. A 22-minute band on the lecture.
-        if let lecture = events.first(where: { $0.externalID == "dm-lecture-01" }) {
+        if let lecture = events.first(where: { $0.title == "Datenmodellierung" && $0.origin == .imported }) {
             result.append(TravelFixture(
                 eventID: lecture.id,
                 departAt: lecture.start.addingTimeInterval(-22 * 60),

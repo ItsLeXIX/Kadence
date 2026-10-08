@@ -115,7 +115,7 @@ APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debug
 STORE="$HOME/Library/Containers/XIX.Kadence/Data/Library/Application Support/default.store"
 quit_app() { for p in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill "$p" 2>/dev/null; done; sleep 2; }
 quit_app; rm -f "$STORE" "$STORE-wal" "$STORE-shm"
-open -n "$APP" --args -ApplePersistenceIgnoreState YES
+open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceReview phase2
 sleep 9
 PID=$(pgrep -f "Kadence.app/Contents/MacOS/Kadence" | head -1)
 [[ -z "$PID" ]] && { echo "FAIL: Kadence did not start"; exit 1; }
