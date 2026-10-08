@@ -2267,7 +2267,7 @@ first block 05:30 → **04:00** (was 04:30).
 - **G-048** — deferred (A35).
 
 
-### G-053 — OPEN (2026-10-07, coding agent, task P2-C5). `PHASE2-REVIEW.md` "Closeout" CF5 acceptance (edge check) vs `components.md` §14.4 / §14.6 (the previewed canvas's inset accent border).
+### G-053 — CLOSED 2026-10-08 (see "Phase 2 acceptance" below). Was OPEN (2026-10-07, coding agent, task P2-C5). `PHASE2-REVIEW.md` "Closeout" CF5 acceptance (edge check) vs `components.md` §14.4 / §14.6 (the previewed canvas's inset accent border).
 
 **Where it bit:** CF5's acceptance says "in every Routines frame, no pixel in
 the outermost 2px band matches `accent`/`focusRing` (sampled, as SF1)". Item
@@ -2287,3 +2287,333 @@ not reach the window's edges (an inset from the window edge is a layout value
 the coding agent may not pick)? **Placeholder:** none — the build is
 unchanged; the frame is filed as the build draws it, and the edge check's
 result for it is reported as a failing acceptance line, not waived.
+
+## 2026-10-08 — Phase 2 acceptance: G-053 CLOSED
+
+Design agent, 2026-10-08 (`PHASE2-REVIEW.md`, "Acceptance — 2026-10-08").
+
+### G-053 — CLOSED. `components.md` §17.2 rule 6 (added 2026-10-08).
+
+**Ruled:** the pixels `check-frame-edges.py` flags on
+`template-conflict-panel-p2c.png` are §14.4's preview border, which is the
+evidence item 16 is filed to show; the frame stands and the rule is amended.
+The edge rule now has a written home (§17.2 rule 6) and one exemption, defined
+by three checkable conditions: the item asks for an active preview; the accent
+pixels form a complete 2pt rectangle on all four sides of the canvas, including
+the side away from the window edge; and nothing in the edge band outside that
+rectangle is accent. A one-edge region ring (G-039's signature) still fails.
+The script implements the conditions, not a per-file allow-list (CA,
+`PHASE3-PLAN.md` "Before task 1").
+
+## 2026-10-08 — Phase 3 slice 1 (WebDAV timetable): gaps opened, closed, deferred
+
+Design agent, 2026-10-08, writing `components.md` §18–§22, `layouts.md` §2.1,
+§6.1, §11, §12, `interactions.md` §13, `tokens.json` 1.4.0.
+
+### G-054 — opened and CLOSED. `components.md` §6 (amended 2026-10-08); `tokens.json` 1.4.0 `$measured_1_4_0`.
+
+**Gap (found by this pass):** §6's `done` row gives the label
+`color.text.secondary`. On a `.solid` fill blended at `opacity.blockDoneFillBlend`
+that measures 3.32:1 (light, orange) / 3.06:1 (dark, graphite) — below AA.
+Never seen in review because no Phase 2 capture shows a done `.fixedTimed`
+block; Phase 3 makes it ordinary. **Ruled:** on the solid-fill kinds
+(`.fixedTimed`, `.examAllDay`, `.eventAllDay`) the done label and glyph take
+`color.text.primary` (9.01 / 6.17 : 1 worst).
+
+### G-055 — opened and CLOSED. `components.md` §2.1, §5.1 (added 2026-10-08).
+
+**Gap (found by this pass):** every view filters out `isAllDay` events
+(`DayColumnView`, `MonthGridView`, `DayHeaderRow`, `InitialScroll` …) and the
+all-day row draws only `WorkItem`-style fixtures, so a manual all-day event
+made with `⌘⌥N` has never been drawn, and an imported one would not be either.
+**Ruled:** new kind `.eventAllDay` — §5's pill, solid source fill, the timed
+sibling's glyph (`building.columns` / `calendar`), no rail, no chip.
+
+### G-056 — CLOSED 2026-10-08 (see "Phase 3 subscription amendment" below). Was OPEN (Parsa). `components.md` §20.2, §20.7 — what the real CIS files contain.
+
+No CIS `.ics` file has been seen. Unknown: whether UIDs are stable across CIS
+exports (if they are regenerated per export, every sync deletes and re-creates
+every event — ids, done/skipped and travel legs lost each time); whether the
+lecturer is in `ORGANIZER`, `DESCRIPTION` or nowhere; whether each week is a
+separate VEVENT (the §20.2 flat-series rule covers it) or an `RRULE`; which TZID
+form is used. **Needed:** one real file, redacted by Parsa (names, rooms may
+stay), looked at by the design agent before the Phase 3 review. Until then the
+build implements §20.7 as written. Contacting the server to get it is Parsa's
+act, not an agent's (BRIEF-PRODUCT non-negotiables).
+
+### G-057 — CLOSED 2026-10-08 (see "Phase 3 subscription amendment" below). Was OPEN (Parsa). Mock seeding in the real store.
+
+`MockData` seeds the store whenever it is empty, including the imported
+`Datenmodellierung` and the mock `University timetable` source. Once a real
+source is connected, mock imported events under `sourceID == "timetable"` sit
+beside real ones, and the mock source occupies `blue`. **Proposed:** from Phase
+3, mock seeding runs only under a review launch argument (`PHASE3-PLAN.md` task
+8), and a store with no sources starts empty except `Daily routine`'s template
+and windows if Parsa wants them kept. **Parsa decides** what a fresh real store
+contains. Until ruled, task 8 keeps today's behaviour for everything except
+the review switch.
+
+### G-058 — DEFERRED (later phase). Personal notes on an imported event.
+
+§6.1 shows `Description` (upstream) and no editable `Notes` for imported events.
+A local annotation on a lecture is plausible and would be a second local field
+like `status` (§18.1). `importedDescription` is kept apart from `notes` so it
+can be added without a migration of meaning. Not in this slice.
+
+### G-059 — DEFERRED (later phase). A skipped lecture and conflict gating.
+
+§14.5 gates conflict detection on `.skipped` for the **routine** side only. A
+lecture the user marks skipped still conflicts with the routine block under it,
+though the user has said they will not be there. Whether skipping an imported
+event frees its slot is a product question, not a rendering one; Phase 2's rule
+stands until ruled.
+
+### G-060 — DEFERRED (Phase 4). Telling the user about sync failures and timetable changes.
+
+This slice makes failures visible where sources are shown (§19) and in the
+popover's stale line (§19.4). A notification for an actionable failure, for an
+expired login, and for "your lecture tomorrow moved / was cancelled" belongs to
+Phase 4 (BRIEF-DESIGN item 11's "a source failing to sync, an expired login").
+
+### G-061 — OPEN (CA judgement, record it). Background scheduling details.
+
+`interactions.md` §13.3 fixes interval, tolerance (10%), QoS, and the wake /
+network triggers. Left to CA, recorded in STATUS when built: whether one
+`NSBackgroundActivityScheduler` per source or one shared scheduler is used; how
+the 60s wake wait is implemented; how the store write is isolated from the main
+actor (a `ModelActor` or a main-actor apply of a computed diff). Any choice
+satisfying §13.3's table and §20.8's one-transaction rule is acceptable.
+
+### G-062 — DEFERRED (later). Recurrence beyond the §20.5 subset.
+
+`FREQ=MONTHLY`/`YEARLY`, ordinal `BYDAY`, `BYSETPOS`, `BYMONTH`, `RDATE;VALUE=PERIOD`
+and `RANGE=THISANDFUTURE` are reported, not imported. If G-056's real file uses
+any of them, the subset is extended then, with fixtures.
+
+### G-063 — DEFERRED (rest of Phase 3). Leave-by for imported locations. *(Amended 2026-10-08, see below: online events need no travel.)*
+
+Imported lectures carry `LOCATION` as a `Place` with a name only. Geocoding,
+`TravelLeg` and the leave-by band are the travel slice (BRIEF-PRODUCT Phase 3);
+`layouts.md` §6.1 shows no travel line until then.
+
+### Still open after this pass
+
+- **G-016** (snooze destination, Phase 4), **G-003** (contrast checker; 62 pairs
+  now declared), **G-048** (deferred, A35) — unchanged.
+- **G-056**, **G-057** — Parsa. **G-061** — CA judgement. **G-058**, **G-059**,
+  **G-060**, **G-062**, **G-063** — deferred.
+
+## 2026-10-08 — Phase 3 subscription amendment: gaps opened, closed, deferred
+
+Design agent, 2026-10-08, amending `components.md` §18–§22 (and §2.1, §5.1),
+`layouts.md` §2.1, §6.1, §11, §12, `interactions.md` §13, `tokens.json` 1.5.0,
+after WebDAV turned out to need the FH network and Parsa supplied a redacted
+real export (`fixtures/cis-2026WS-redacted.ics`). Nothing had been built from the
+WebDAV version.
+
+### G-056 — CLOSED. `components.md` §20.2, §20.7, §20.7.1 (added 2026-10-08); §22.1 "The real export".
+
+**What the file shows** (checked against all 13 VEVENTs): `VERSION:1.0`; CRLF;
+one `VTIMEZONE` (Europe/Vienna); every event flat, `DTSTART`/`DTEND`
+`;TZID=Europe/Vienna`; no `DTSTAMP`, `SEQUENCE`, `STATUS`, `RRULE`, `ORGANIZER`
+or `URL`. The UID is `FH` + group + room + lecturer(s) + course + start + end, so
+**UIDs are not stable**: any change of room, time or lecturer makes a new one,
+and co-teaching makes two VEVENTs (two UIDs) for one lecture. The lecturer is in
+`DESCRIPTION` line 2 (`/`-separated, up to 22). **Ruled:** identity is a content
+key (`{summary}|{location}|{startUTC}|{endUTC}`) for any VEVENT whose UID contains
+its own `DTSTART` (§20.2) — a lecturer change updates in place, a room or time
+change is delete + add (§20.10); equal content keys merge into one event with
+the lecturers combined (§20.2); a four-line `DESCRIPTION` whose line 1 is
+`SUMMARY`'s first token is read with the CIS profile — title = course code,
+`lecturers`, `group`, `Room`, `-EXAM` → exam glyph, `WEBINARnn` → online
+(§20.7.1); `VERSION` is not checked; CRLF and LF both parse (§20.7).
+
+### G-057 — CLOSED. `components.md` §22.1 "The review dataset"; `PHASE3-PLAN.md` task 8.
+
+**Ruled by Parsa** (DECISIONS 2026-10-08, "Phase 3 defaults"): a fresh real store
+starts empty; fixture data is seeded only in review mode. The spec now says so
+where the review dataset is defined, and task 8 builds it.
+
+### G-064 — DEFERRED (later phase). Friendly course names.
+
+CIS course codes are cryptic (`SWQM-ILV`, `CGRMR-ILV`, `INNO3-EL`) and §20.7.1
+makes the code the displayed title. A user-defined alias per course code
+(`SWQM-ILV` → `Software Quality Management`) would be a local field keyed by
+`Event.courseCode`, applied at display, never written back to upstream fields
+(the code stays in hover help and the inspector). **Not in this slice** — no
+alias UI, no model field. `courseCode` is stored now so it needs no migration
+later.
+
+### G-065 — DEFERRED (later phase). WebDAV as a second source kind.
+
+Removed from slice 1 (`components.md` §19.0 gives the three reasons). If it
+returns it must add, at least: `Source.connection = webDAV`; the `SourceFile`
+model and the file-selection step (the retired `size.connectFileRowHeight` /
+`connectFileListMaxHeight` and the first version's `layouts.md` §12.2, in git
+history); its folder/file states; per-file deletion guards; and **copy that says
+it needs the FH network or VPN** in the connect sheet, plus its own state for a
+connection or IP refusal (`Only reachable on the FH network` — not `unreachable`,
+whose "will try again" would promise something VPN-less retries cannot do).
+
+### G-066 — opened and CLOSED. `layouts.md` §6.1 (amended 2026-10-08); `tokens.json` 1.5.0 `color.interactive.link`, `$measured_1_5_0`.
+
+**Gap (found by this pass):** 1.4.0's `layouts.md` §6.1 drew the imported
+event's `Link` in `color.interactive.accent` on `color.surface.inspector`:
+**4.26:1 in light**, below AA, and the pair was never declared. The new
+`and N more` button would have repeated it. **Ruled:** new
+`color.interactive.link` (light `#0A60E0`, dark = accent) for link text in
+panels, 5.21 / 5.69 : 1 on the inspector; pair declared (63 pairs).
+
+### G-067 — OPEN (Parsa). What a vanished lecture leaves behind.
+
+CIS never sends `STATUS:CANCELLED`; a cancelled lecture vanishes, and a moved one
+vanishes and reappears with a new identity. The spec deletes on proof of absence
+(DECISIONS 2026-10-08) and makes it visible as the source's last-change line
+(`components.md` §19.3, §20.6, §20.10) — the minimum that is not silent. Two
+things it deliberately does **not** do, both Parsa's call:
+
+1. **A ghost of a removed future lecture** — keep it, drawn in the `cancelled`
+   state with `Removed from University timetable`, until its time passes. More
+   informative ("tomorrow's 09:40 is gone") but it contradicts "a sync deletes
+   on proof of absence", and every move would leave a ghost beside the new block.
+2. **Carrying done/skipped across a move** by matching course + day. A guess —
+   two lectures of one course on one day are ordinary.
+
+A notification for either is Phase 4 (G-060). Until ruled, the spec stands.
+
+### G-061 — still OPEN (CA judgement), unchanged.
+
+### G-062 — DEFERRED, amended.
+
+The real export uses **no** recurrence at all, so the §20.5 subset is not on
+Parsa's path. It stays for other feeds; nothing to extend.
+
+### G-063 — DEFERRED, amended.
+
+Online events (`isOnline`, `LOCATION` `WEBINARnn`, `components.md` §20.7.1) need
+**no travel**: the travel slice skips them (no `TravelLeg`, no leave-by), and the
+leave-by for the event after an online lecture is computed from wherever Parsa
+was before it, not from the webinar "room".
+
+### Still open after this pass
+
+- **G-016** (snooze destination, Phase 4), **G-003** (contrast checker; 63 pairs
+  now declared), **G-048** (deferred, A35) — unchanged.
+- **G-067** — Parsa. **G-061** — CA judgement. **G-058**, **G-059**, **G-060**,
+  **G-062**, **G-063**, **G-064**, **G-065** — deferred.
+
+## 2026-10-08 — Phase 3 CalDAV amendment: gaps opened, closed, deferred
+
+Design agent, 2026-10-08. This pass amends `components.md` (the Phase 3 header,
+§19.0–§19.3, §20 intro, §20.1, §20.2, §20.7, §20.7.1, §20.8, §21, §22),
+`layouts.md` §2.1, §6.1, §11, §12, `interactions.md` §2, §13, `tokens.json`
+1.6.0, and adds `caldav-mocks.md`. The source is a CalDAV account, not a
+subscription link (`DECISIONS.md` 2026-10-08, rewritten for CalDAV). Nothing had
+been built.
+
+### G-065 — DEFERRED, amended. The WebDAV share.
+
+The share `/Webdav/Lvplan` is **IP-restricted** to the FH network (Parsa,
+2026-10-08). The CalDAV endpoint `/webdav/lvplan.php/` on the same host is not,
+and it replaces the share for slice 1 (`components.md` §19.0). If the share ever
+returns, everything the earlier entry lists still applies:
+
+- the `SourceFile` model and the file step;
+- its own states;
+- copy that says it only works on the FH network.
+
+`Source.connection` stays a raw string. Typing the share's path into `Server`
+is caught by `layouts.md` §12.1's validation row.
+
+### G-067 — DEFERRED by Parsa (ruled 2026-10-08). What a vanished lecture leaves behind.
+
+`DECISIONS.md` 2026-10-08 "A removed lecture leaves no ghost, for now". A future
+lecture CIS removes is deleted and counted in the last-change line, with no
+ghost, and done/skipped is not carried across a move. The spec already says
+exactly this (`components.md` §19.3, §20.6, §20.10), so nothing changes. Revisit
+after a few weeks of real use. If a missed cancellation ever causes a wasted
+trip, the ghost returns as a design task.
+
+### G-068 — OPEN (Parsa, at the first real connection). How the real CIS server answers a `REPORT`.
+
+The spec is built on what Parsa verified on 2026-10-08:
+
+- discovery D1–D4;
+- no sync-token;
+- the getctag is the time of the request.
+
+Three things are **unverified**. The spec handles each outcome without a design
+change, but which one is true decides how heavy a poll is. They can only be
+learned with a real password, so only Parsa can learn them. **At the first real
+connection, record:**
+
+1. **Is `REPORT calendar-query` with a `time-range` honoured?**
+   - Is it answered `207` at all, or `405`/`501` (fallback)?
+   - Does the sync-window `REPORT` return only events that end after today, or
+     the whole semester?
+
+   The diagnostics log line answers both (`mode report|multiget|get`,
+   `time-range honoured|ignored`; `components.md` §20.8.4).
+2. **Are ETags stable?** Compare the `etags … (set …)` value of two polls with
+   no timetable change between them, for example two Sync Nows a minute apart.
+   - Same set → stable.
+   - Different set → they behave like the getctag.
+
+   Either way nothing in the app changes: ETags are diagnostics only. The answer
+   decides whether a later optimisation could ever use them.
+3. **How long one `REPORT` takes**, and how many objects it returns: the log
+   line's `… ms` and `objects …`, for the Import (Import window) and for a
+   normal sync (sync window).
+
+Also worth noting from the same log lines:
+
+- the auth scheme and realm of CIS's `401` (Basic or Digest; `caldav-mocks.md`
+  uses a placeholder realm);
+- what object hrefs look like.
+
+**How to read the line:**
+
+```
+log show --last 1h --predicate 'category == "sync"' --info
+```
+
+It contains no password (`components.md` §21.4).
+
+**What would change the spec:**
+
+- If `REPORT` takes more than ~5 s, or returns more than ~1 MB for the sync
+  window, the 30-minute default may deserve a second look. That is Parsa's call
+  (DECISIONS "Phase 3 defaults").
+- If `get` mode is ever reached on CIS, the 6-hour floor in §20.8.2 becomes
+  visible behaviour, and it should then be shown in Settings.
+
+Until recorded, the build implements §20.8 as written, and every test runs
+against `caldav-mocks.md`.
+
+### Closed by removal (no gap number)
+
+The subscription-only parts of the spec are gone:
+
+- the link field and its validation;
+- `webcal://` normalisation;
+- the `{host}/••••••` mask;
+- the link-as-secret rules;
+- conditional `GET` with `If-None-Match` / `If-Modified-Since`;
+- the same-bytes stop;
+- the `signInRequired`, `notFound` and `secretMissing` states;
+- the Keychain generic-password JSON payload.
+
+These are replaced by `components.md` §19.1, §20.8 and §21.4. `PHASE3-PLAN.md`'s
+earlier proposed DECISIONS entries are withdrawn: the 2026-10-08 entries
+Parsa rewrote for CalDAV govern.
+
+### Still open after this pass
+
+- **G-016** (snooze destination, Phase 4), **G-003** (contrast checker; 63 pairs
+  declared, none added at 1.6.0), **G-048** (deferred, A35) — unchanged.
+- **G-068** — Parsa, at the first real connection.
+- **G-061** — CA judgement, unchanged. It now also covers where the CalDAV
+  client runs: off the main actor, with only the planner's diff applied on the
+  store's actor.
+- **G-058**, **G-059**, **G-060**, **G-062**, **G-063**, **G-064**, **G-065**,
+  **G-067** — deferred.

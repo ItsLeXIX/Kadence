@@ -1,4 +1,4 @@
-PHASE 2 NOT YET — FIXES REQUIRED
+PHASE 2 ACCEPTED — 2026-10-08 (see "Acceptance — 2026-10-08" at the end of this file). The 2026-10-05 verdict below, "NOT YET — FIXES REQUIRED", is kept as the record it was.
 
 # Phase 2 screenshot review
 
@@ -867,4 +867,58 @@ Interactions §1 makes a focused region that shows nothing a defect, so the miss
 
 ## 2026-10-07 — The default scroll lands on a whole hour.
 `min(07:00, firstEventStart − 1h)` is rounded down to the hour in every view, so a 07:15 first event opens at 06:00, not 06:15. The viewport then starts on a labelled hour line, and rounding down only adds lead. Closes G-052.
+```
+
+## Acceptance — 2026-10-08
+
+Design agent, 2026-10-08. Inputs: the closeout above, STATUS §99 (run summary,
+622 tests passing, every closeout script PASS), GAPS G-053, DEVIATIONS (A33–A35
+deferred by ruling, A36 and B39 resolved), screenshots/2/INDEX.md, and
+`template-conflict-panel-p2c.png`, looked at.
+
+### A1. G-053 — the edge check and the preview border
+
+**Ruled: the flagged pixels are the specified evidence; the rule is amended, the
+frame stands.** The frame shows §14.6's panel exactly as §17 item 16 asks: the
+`Errands` block with the `lands in` window row (`Lunch protected ·
+12:00–13:00`), the overlap line `12:30–13:00 · 30 min · Mon, Wed, Fri`, three
+template options in 30 · 30 · 135 order with row 1 focused, recommended (chip on
+line 3) and previewed, the `14 of 14` footer, ghosts at 12:30 and dashed twins at
+13:00 in Mon/Wed/Fri — and §14.4's 2pt accent border round the Routines canvas on
+all four sides, its right side at the inspector boundary. The border reaches the
+window's left and bottom edges because the canvas does; that is layout, not a
+ring. Nothing else is wrong in the frame: `Morning revie` ends without `…`
+because a 30-minute block sits at `.titleOnly`, where §3.3 specifies a clip
+edge, not an ellipsis.
+
+The edge rule had no written home — CF5 quoted it as an acceptance line. It now
+lives in `components.md` §17.2 rule 6 with the exemption stated as three
+checkable conditions (preview item; a complete 2pt rectangle following the
+canvas on all four sides, including the side away from the window edge; nothing
+accent in the band outside it), so a one-edge region ring still fails.
+**G-053 CLOSED** (GAPS "2026-10-08 — Phase 2 acceptance").
+
+### A2. Re-sync focus return after ⎋
+
+Observed live on 2026-10-07 with keyboard navigation on (`AppleKeyboardUIMode`
+2): after ⎋ the focused element is `AXButton "Re-sync"` in the Routines
+inspector — the element §13.4 requires. **Passed.**
+`Scripts/check-resync-escape.sh` reports FAIL only because its matcher
+mis-compares that element; that is a script defect, listed for CA in
+`PHASE3-PLAN.md` ("Before task 1"), not an app defect and not a Phase 2
+condition.
+
+### A3. Verdict
+
+**PHASE 2 ACCEPTED.** Every closeout item is built and its acceptance passes;
+the one failing line (CF5's edge check on item 16) was a rule without its
+exemption, now written. Still deferred by ruling and not Phase 2 conditions:
+A33, A34, A35 (G-048); G-016 (snooze destination, Phase 4); G-003 (contrast
+checker).
+
+### A4. Proposed DECISIONS.md entry
+
+```markdown
+## 2026-10-08 — The preview border is the edge check's one exemption.
+A frame's outer 2px band may not contain the accent colour: that is how the G-039 region ring showed, so the check is the evidence form of "focus is drawn on the element". §14.4's preview border is accent and follows the canvas, which reaches the window edge, so every preview frame tripped it. Exempt it only where it can be told apart: an item that asks for a preview, a complete 2pt rectangle on all four sides of the canvas including the side away from the window edge, and nothing accent in the band outside it. A one-edge line still fails. Closes G-053.
 ```

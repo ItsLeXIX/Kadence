@@ -72,16 +72,24 @@ function.
 | Data | BlockKind | Glyph |
 |---|---|---|
 | `origin == .imported`, timed | `.fixedTimed` | `building.columns` |
+| `origin == .imported`, timed, `importKind == exam` *(added 2026-10-08, Phase 3, §20.7.1)* | `.fixedTimed` | `graduationcap.fill` |
 | `origin == .manual`, timed | `.fixedTimed` | `calendar` |
 | `origin == .routine` | `.routineTimed` | `repeat` |
 | `origin == .planned` | `.plannedTimed` | `pencil.and.outline` |
 | `TravelLeg` | `.travelBand` | `figure.walk` / `car.fill` / `tram.fill` by mode |
 | `WorkItem.kind == .assignment/.project`, all-day | `.deadlineAllDay` | `flag.fill` |
 | `WorkItem.kind == .exam`, all-day | `.examAllDay` | `graduationcap.fill` |
+| `Event`, `isAllDay`, `origin == .imported` *(added 2026-10-08, §5.1)* | `.eventAllDay` | `building.columns`; `graduationcap.fill` when `importKind == exam` |
+| `Event`, `isAllDay`, `origin == .manual` *(added 2026-10-08, §5.1)* | `.eventAllDay` | `calendar` |
 
 A manual event is a fixed timed block because a user-created event is fixed
 until the user says otherwise. It differs from an imported lecture only by
 glyph and by defaulting to `color.source.graphite`.
+
+An imported exam (CIS `-EXAM`, §20.7.1) is the same `.fixedTimed` block with the
+exam glyph `.examAllDay` already uses: kind rides on the glyph (§1), so a timed
+exam needs no new variant. `graduationcap.fill` is already a kind glyph, so
+§10.1's two-vocabulary rule is untouched.
 
 ### 2.2 BlockStyle output
 
@@ -488,6 +496,32 @@ text `color.text.onSolid`. Content: `T−6d` / `T−1d` / `today`. Never negativ
 never red, no "overdue" state — an exam that has passed leaves the countdown off
 entirely and takes `.past` presentation.
 
+### 5.1 Event all-day — `.eventAllDay` (added 2026-10-08, Phase 3; closes G-055)
+
+An all-day `Event` — an imported all-day entry (`DTSTART;VALUE=DATE`, §20.4) or a
+manual one made with `⌘⌥N` — has had no variant: §5 covers deadlines and exams,
+which are `WorkItem` projections, and the build filters every `isAllDay` event
+out of every view, so a manual all-day event has been created and then never
+drawn (found by this pass; G-055). Phase 3 imports them, so the variant is
+specified now.
+
+| | **`.eventAllDay`** |
+|---|---|
+| Geometry | §5's pill: `size.allDayRowHeight`, `radius.allDayPill`, spanning its date range |
+| Fill | `color.source.<s>.solid` — fixed, the same weight as its timed sibling `.fixedTimed` |
+| Border | none |
+| Rail | none |
+| Label | `allDayLabel`, `color.text.onSolid` |
+| Glyph | `building.columns` (imported) / `calendar` (manual), `color.text.onSolid` — the same glyph as the timed block of the same origin (§2.1); an imported exam takes `graduationcap.fill` (§2.1, amended 2026-10-08) |
+| Trailing element | none |
+
+It differs from `.examAllDay` by glyph and by having no countdown chip, and from
+`.deadlineAllDay` by fill weight, rail and glyph — never by hue alone. States
+(§6) apply as they do to `.fixedTimed`, including `cancelled` (§6, 2026-10-08).
+Hover help, inspector and VoiceOver carry the source as for every all-day item
+(§3.4). Sort within the all-day row: by start day, then `.examAllDay`,
+`.deadlineAllDay`, `.eventAllDay`, then title.
+
 ---
 
 ## 6. States
@@ -507,7 +541,18 @@ conflicted. Order of application is the order of this table.
 | **done** | Fill blended with canvas at `opacity.blockDoneFillBlend`. Type glyph replaced by `checkmark.circle.fill` in `color.text.secondary`. Label `color.text.secondary`. No strikethrough (it costs legibility and reads as a cancellation, not a completion). |
 | **skipped** | Fill blended with canvas at `opacity.blockSkippedFillBlend`. Border becomes dashed `[3, 3]`, `size.borderRegular`, `color.separator.strong`. Glyph replaced by `arrow.uturn.forward.circle` in `color.text.secondary`. At `.full` a meta line reads `Re-offered`. No red, no counter, no badge. |
 
+| **cancelled** *(added 2026-10-08, Phase 3; §20.6)* | Only on imported events whose source marks them `STATUS:CANCELLED`. Fill blended with canvas at `opacity.blockSkippedFillBlend`. Border dashed `[3, 3]`, `size.borderRegular`, `color.separator.strong` (skipped's border — both mean "not happening here"). Glyph replaced by `xmark.circle` in `color.text.primary`. Label and meta **`color.text.primary`** (`color.text.secondary` measures 3.80:1 on the blended solid fills; `text.primary` ≥ 7.67:1 — `tokens.json` `$measured_1_4_0`). At `.full` the meta line reads `Cancelled · University timetable`; below `.full`, hover help and the inspector carry it. **No strikethrough** (§6 `done`'s reason). Never `conflicted` (§20.9), never `inProgress`, never `past`'s content opacity on top of the blend — a cancelled block that is past takes `past` only. |
 | **previewed** | The block is shown at a **proposed** frame during conflict resolution (`interactions.md` §10), not a committed one. It renders at `opacity.blockPreviewed` inside a `size.borderSelected` dashed outline in `color.interactive.accent`, dash `[3, 3]`, **and its current frame stays visible at `opacity.blockDragOrigin`**. Applied last, after every row above it. |
+
+**Amended 2026-10-08 (Phase 3; closes G-054) — `done` on a solid fill.** The
+`done` row's `color.text.secondary` label measures **3.32:1 (light, orange) /
+3.06:1 (dark, graphite)** on a `.solid` fill blended at `opacity.blockDoneFillBlend`
+— below AA. Phase 2 never showed a done `.fixedTimed` block in review; Phase 3 makes
+it ordinary (a lecture marked done, §18.1). On the solid-fill kinds — `.fixedTimed`,
+`.examAllDay`, `.eventAllDay` — the `done` label and its `checkmark.circle.fill` take
+**`color.text.primary`** (worst source, at the 0.55 blend: 9.01:1 light, 6.17:1 dark —
+`tokens.json` `$measured_1_4_0`). The tinted and
+transparent kinds keep `color.text.secondary`, which passes on them.
 
 `done` and `skipped` are visually siblings of equal weight. A skipped item must
 never look worse than a done one — it has been re-offered, not failed.
@@ -2258,3 +2303,1421 @@ what a capture must show is part of the spec.
 4. **No selection, hover or focus that the item did not ask for.**
 5. **Light or dark is free per frame, but a frame that measures a colour names
    its appearance in INDEX.md.**
+6. **The window-edge check (added 2026-10-08, Phase 2 acceptance; closes
+   G-053).** No pixel in a frame's outermost 2px band may match
+   `color.interactive.accent` / `color.interactive.focusRing` (sampled, as
+   P2-SF1 and CF5 do). This is the evidence form of `interactions.md` §1's
+   "no region draws a region-level focus ring": the G-039 defect showed as
+   exactly such a line. **One exemption: §14.4's preview border, while a
+   preview is active.** The canvas carries `size.previewCanvasBorder` (2pt) in
+   `accent` round its own bounds, and both canvases reach the window's edge on
+   at least two sides, so a preview frame cannot pass the band test and is not
+   meant to — the border is what items 8, 16 and 18 are filed to show. The
+   exemption is narrow and checkable, so it cannot hide the defect it sits
+   beside:
+   - it applies only to a frame filed under an item that asks for an active
+     preview (§17 items 8, 16, 18; any later item that says so);
+   - the flagged pixels must form a **complete rectangle** 2pt wide that
+     follows the canvas's bounds on all four sides — including the side that
+     does **not** touch the window edge (the canvas/inspector boundary), which
+     is what separates the preview border from a region ring drawn as one edge;
+   - accent pixels in the band **outside** that rectangle's columns and rows
+     (the inspector's or the sidebar's outer edge, the title bar) still fail.
+
+   `template-conflict-panel-p2c.png` meets all three: its accent band runs down
+   the canvas's left edge, along its bottom, across its top below the day header,
+   and down its right side at x 1576–1579 beside the inspector, and nothing in
+   the inspector's or title bar's edge band is accent. The check script
+   (`Scripts/check-frame-edges.py`) implements the exemption from these three
+   conditions; it does not take a per-file allow-list.
+
+---
+
+# Phase 3 — slice 1: the university timetable from the CIS CalDAV account
+
+Written 2026-10-08 and amended twice the same day. The first version read the
+CIS WebDAV share, the second a calendar subscription link; both assumptions were
+wrong. **This version (the CalDAV amendment) reads the CIS CalDAV account** —
+what Apple Calendar syncs as an account with a server
+(`cis.technikum-wien.at`), a username and a password, without VPN
+(`DECISIONS.md` 2026-10-08 "The timetable is a CalDAV account…"). The server is
+SabreDAV at `https://cis.technikum-wien.at/webdav/lvplan.php/`. The event rules
+(§20.2–§20.7.1) come from a redacted real export
+(`fixtures/cis-2026WS-redacted.ics`) and do not depend on the transport, so they
+carry over unchanged. Nothing had been built from either earlier version.
+
+Scope: **one** data source kind — a **CalDAV account**: discovery
+(`/.well-known/caldav` → principal → calendar home → calendars, §20.8.1), one
+`REPORT calendar-query` per selected calendar per poll, with a fallback used only
+if REPORT is refused (§20.8.2), and change detected **by content**, never by the
+server's markers (§20.8.4). Imported events are read-only and polled. The WebDAV
+share is out of scope (§19.0; G-065). Nothing in this slice touches Moodle, work
+items, time logging, travel time, notifications, mail or the planner. Every
+Phase 1–2 value stands. The in-place amendments are §2.1, §5.1 and §6, all marked
+2026-10-08. Plan and build order: `PHASE3-PLAN.md`. Layouts: `layouts.md` §2.1,
+§6.1, §11, §12. Interactions: `interactions.md` §2 (amended), §13. Mocked
+server responses: `caldav-mocks.md`.
+
+Three rules from earlier phases govern the whole slice:
+
+- **The assistant proposes, the user disposes.** A sync writes upstream facts;
+  it never moves, shortens or skips anything the user owns. Conflicts a sync
+  creates are surfaced through §14 like any other.
+- **Never silent.** A sync that fails, partly fails, finds nothing or removes
+  something says so where the source is shown (§19), and it never deletes what it
+  could not see (§20.8).
+- **The password is the only secret.** Server, username, calendar names, hrefs,
+  ctags and ETags are not secret: they are shown (`user01 @
+  cis.technikum-wien.at`) and logged. The password lives in one Keychain item
+  (§21.4). It is sent only over HTTPS, only to the source's host, and only in
+  answer to that host's 401. It is never logged and never appears in a fixture,
+  a test assertion message or a screenshot.
+
+---
+
+## 18. Imported events
+
+### 18.1 What read-only means
+
+An imported event's **upstream fields** belong to the sync and nothing else
+writes them: title, start, end, all-day, location, online, course, group,
+lecturers, kind (lecture / exam), description, link, cancelled. **One field is
+local: `status`** (`.scheduled` / `.done` / `.skipped`). Done and skipped are
+facts about the user's day, not about the lecture — the same reading
+`DECISIONS.md` 2026-10-01 gave routine detachment — so `⌘↩`, `⌥⌘↩` and the
+inspector's Done / Skip work on imported events, and a sync never writes
+`status`, with one exception: when an upstream change moves an event's `start`
+or `end` **in place** (a source with stable identities, §20.2), its status resets
+to `.scheduled` (a lecture marked done and then moved to next week has not been
+attended). On CIS a move is a delete plus an add (§20.10), so the new event
+starts `.scheduled` anyway.
+
+Every other mutation is refused, visibly (`interactions.md` §13.4).
+
+### 18.2 On the canvas
+
+Unchanged from Phase 1: `.fixedTimed`, solid fill, no rail, source hue. The
+glyph is `building.columns` for a lecture and **`graduationcap.fill` for an
+exam** (§2.1, amended; §20.7.1 decides which). Two consequences of read-only,
+both already true by §6 and `interactions.md` §4 and restated so nobody adds
+them back:
+
+- **No resize handles.** The hover state draws its inset ring but not the
+  `size.blockResizeHandleHeight` handles.
+- **Cursor `.arrow`** over the block; `.operationNotAllowed` once a drag starts
+  (`interactions.md` §8).
+
+**Online events** (§20.7.1: `LOCATION` `WEBINAR01`, `WEBINAR02` …) show
+**`Online`** wherever the location would show: the `.full` meta line reads
+`University timetable · Online`; the inspector's `Room` row reads `Online ·
+WEBINAR02` (`layouts.md` §6.1). No glyph is added: the block's glyph slot is
+spent on kind (§3.4), and neither vocabulary (§10.1) has an "online" symbol —
+adding one would spend a third vocabulary on a fact the location text already
+states. The travel slice reads `isOnline` and plans no travel for it (G-063).
+
+All-day entries render as `.eventAllDay` (§5.1). Cancelled entries take the
+`cancelled` state (§6). Nothing else on a block says "imported" — the glyph
+already does, and source hue plus §3.4's source text say from where.
+
+### 18.3 The menu bar
+
+- **Status item:** unchanged. It never shows sync state (§19.4 says why).
+- **Popover, NEXT is an imported event:** the action row is `Done` · `Open`.
+  **`Snooze` is not drawn** — snoozing moves the event, and an imported event
+  cannot move. `⌥⌘↩` on it does not move it and shows §16's refusal row form, in
+  place of the action row, for the same hold: line 1 `Not moved — SWQM-ILV`,
+  line 2 `is read-only (University timetable)`, `popoverRefusalRow`,
+  `color.text.primary`, no `Undo`, never truncated (§16's 2026-10-07 rule; the
+  source name is the user's text, so it wraps). Accessibility label: the one-line
+  sentence. A `cancelled` event is never NEXT and never in REST OF TODAY (§20.6).
+- **Late state on an imported event:** `Re-offer` is not offered (it re-places,
+  which is a move). The late meta line stays (`Started 12m ago · University
+  timetable`); the actions are `Done` · `Open`.
+- **Location in the popover** follows §18.2: an online NEXT reads `Online`.
+
+---
+
+## 19. Source status
+
+### 19.0 One source kind in this slice: the CalDAV account
+
+*(Rewritten 2026-10-08, CalDAV amendment.)* The source is the **CIS CalDAV
+account**, entered as Apple Calendar enters it: server, username, password. The
+two other transports are out:
+
+1. **The WebDAV share `/Webdav/Lvplan`** only answers inside the FH network
+   (IP-restricted). A source that syncs only on VPN fails BRIEF-PRODUCT's
+   "nothing important may depend on me remembering". It is out of scope (G-065).
+   If someone types the share's address into `Server`, they are told so before
+   anything is sent (`layouts.md` §12.1's validation table).
+2. **There is no subscription link.** What Apple Calendar holds for CIS is an
+   account, not a `webcal://` URL. So there is no link to paste, no link to
+   keep secret, and no link field.
+
+`Source.connection` is a raw string (§21.1), and the parser, the merge and the
+sync planner do not depend on the transport (§21.5). A second kind can be added
+later without a migration.
+
+### 19.1 States and their copy — normative
+
+*(Rewritten 2026-10-08, CalDAV amendment.)* A connected source is in exactly one
+of these states. Every surface that shows a source's state takes its words from
+this table and nowhere else: the sidebar row (§19.2), the source popover
+(§19.3), the Settings detail (`layouts.md` §11) and the connect sheet
+(`layouts.md` §12). Placeholders:
+
+- `{host}`: the server's host (`cis.technikum-wien.at`).
+- `{user}`: the username (`user01`).
+- `{account}`: `{user} @ {host}`.
+- `{calendar}`: the affected calendar's display name (`LVPlan`). With two
+  affected calendars it reads `LVPlan and Prüfungen`; with three or more, `LVPlan
+  and 2 other calendars`.
+- `{name}`: the source's display name.
+- `{otherHost}`: a redirect target's host.
+- `{next}`: the next automatic attempt (`HH:mm`, or `tomorrow HH:mm`).
+- `{last}`: the last successful sync, per §19.5.
+- `{code}`: the HTTP status.
+- `{n}`, `{k}`: counts.
+
+Copy is in English, like the rest of the app.
+
+| State | Kind | Title | Body | Primary action |
+|---|---|---|---|---|
+| `upToDate` | ok | `Up to date` | — | `Sync Now` |
+| `syncing` | ok | `Syncing…` | — | — (disabled `Sync Now`) |
+| `neverSynced` | ok | `Waiting for first sync` | `Kadence will sync as soon as {host} can be reached.` | `Sync Now` |
+| `offline` | ok | `Offline` | `Kadence will sync when this Mac is back online. Events from the last sync ({last}) are still shown.` | — |
+| `unauthorized` (401 after the password was sent) | **actionable** | `Sign-in failed` | `{host} didn't accept the password for {user}. Automatic sync is paused so the account isn't locked.` | `Update Password…` |
+| `forbidden` (403) | **actionable** | `Access refused` | `{host} refused access for {user}. Automatic sync is paused so the account isn't locked.` | `Edit Account…` |
+| `noCalDAV` (`/.well-known/caldav` 404 or not a redirect; a discovery `PROPFIND` not answered `207`) | **actionable** | `No calendar server found` | `{host} doesn't offer CalDAV calendars. Check the server name. Events from the last sync are kept.` | `Edit Account…` |
+| `noCalendars` (discovery found no calendar with events) | **actionable** | `No calendars found` | `{account} has no calendars with events. Events from the last sync are kept.` | `Sync Now` |
+| `calendarMissing` (a selected calendar is gone after re-discovery, §20.8.1) | **actionable** | `Calendar not found` | `{calendar} is no longer on {host}. Events from the last sync are kept until you choose a calendar or remove the source.` | `Choose Calendar…` |
+| `fetchFailed` (REPORT and every fallback refused, §20.8.2) | **actionable** | `Couldn't read the calendar` | `{host} refused every way Kadence asks for events from {calendar}. Nothing was changed.` | `Sync Now` |
+| `notACalendar` (a web page where calendar data was expected) | **actionable** | `Not a calendar` | `{host} sent a web page instead of calendar data — often a sign-in or maintenance page. Events from the last sync are kept.` | `Sync Now` |
+| `emptyFeed` (§20.8 guard) | **actionable** | `The calendar is empty` | `{host} sent no events for {calendar}. It had {n} events at the last sync, so they are kept. If the timetable really is empty, remove the source in Settings.` | `Sync Now` |
+| `partialImport` | **actionable** | `Imported with problems` | `{k} of {n} events couldn't be read and were skipped. Nothing was removed.` | `Show Details` |
+| `certificate` (TLS) | **actionable** | `Secure connection failed` | `The certificate for {host} couldn't be verified, so Kadence sent nothing to it. Nothing was changed.` | `Sync Now` |
+| `passwordMissing` (no Keychain item, or access denied) | **actionable** | `Password not found` | `Kadence couldn't read the password for {account} from the Keychain. Enter it again.` | `Update Password…` |
+| `redirected` (to another host, or to `http:`) | **actionable** | `Redirected to another server` | another host: `{host} sent Kadence to {otherHost}. Kadence didn't follow it, so nothing — and no password — was sent there.` · `http:`: `{host} sent Kadence to an address without HTTPS. Kadence didn't follow it.` | `Edit Account…` |
+| `unreachable` (DNS, connection refused or lost, timeout) | transient | `Can't reach {host}` | `Kadence will try again at {next}. Events from the last sync ({last}) are still shown.` | `Sync Now` |
+| `serverError` (5xx) | transient | `Server error` | `{host} answered with an error ({code}). Kadence will try again at {next}.` | `Sync Now` |
+
+Gone with the subscription: `signInRequired` (an account always has a password),
+`notFound` (now `noCalDAV` for discovery and `calendarMissing` for a calendar),
+and `secretMissing` (now `passwordMissing`).
+
+Rules:
+
+- **Only the kind sets the colour** (§19.2). `actionable` means the user must
+  do something, `transient` means it will fix itself, and `ok` means there is
+  nothing to do.
+- **One state at a time.** A poll can make several requests (§20.8.2), but it
+  ends in one state. Refusals inside the fallback chain are not states. Only
+  the chain's end is. When two selected calendars end differently, the earlier
+  row of this table wins, and `{calendar}` names the calendars in that state.
+  `partialImport` is the only error state that can sit beside written events.
+- **`{n}` and `{k}` are written as digits, not words.** `events` is always
+  plural, except `1 event`.
+- **No error code is shown, except `serverError`'s HTTP status.** That means no
+  `NSURLErrorDomain -1202` and no stack text. The detail list (§19.3) may add
+  one technical line per problem in `blockMeta` / `color.text.secondary`. It
+  never contains a password, an `Authorization` header or a request body. It may
+  contain methods, statuses, hrefs and calendar names, which are not secret:
+  `REPORT 405 · PROPFIND 207 · calendar-multiget 501 · GET 405`, or `Object
+  obj-07.ics, line 9: DTEND before DTSTART`.
+- **`Update Password…`** opens the connect sheet in edit mode with focus in
+  `Password`. **`Edit Account…`** opens it with focus in `Server`.
+  **`Choose Calendar…`** opens it and starts `Connect` at once with the saved
+  account, so it lands on the calendar step (`layouts.md` §12.3).
+- **Exact strings are tested** (`PHASE3-PLAN.md` task 11). Changing any wording
+  is a spec change.
+
+### 19.2 The sidebar row
+
+`layouts.md` §2.1 places it. Every source row gains a **status slot** `size.statusSlotWidth` (16) wide
+between the name and the visibility checkbox; rows of local sources (`Daily
+routine`, `Personal` …) reserve it empty so the checkboxes stay in one column.
+
+| State kind | Slot shows |
+|---|---|
+| `ok`, not syncing | nothing |
+| `syncing` | a `ProgressView` (`.controlSize(.mini)`), shown only once the sync has run for 0.5s, so a half-hourly poll does not flicker the row |
+| `offline` | nothing (hover help says it) |
+| `transient` | `exclamationmark.arrow.triangle.2.circlepath` at `size.blockGlyphSize`, `color.text.secondary` |
+| `actionable` | the same symbol in **`color.semantic.alert`** |
+
+`exclamationmark.arrow.triangle.2.circlepath` is a chrome symbol, like §10's
+chevrons; it is in neither glyph vocabulary (§10.1) and must not be added to
+either. Red/alert here obeys §1: it means "needs attention", and an actionable
+source failure is exactly that. It is **not** counted in the needs-attention row
+(§10.2): that count means conflicts, and one count means one thing.
+
+The glyph is a button (borderless, hit target ≥ 24 × 24) that opens §19.3.
+Hover help on the whole row: `University timetable — Synced 14:02`, `University
+timetable — Sign-in failed`, `University timetable — Offline, last synced
+14:02`. VoiceOver: the row's value appends the state title (`University
+timetable, Access refused`). Neither ever contains a password. *(Amended
+2026-10-08, CalDAV amendment.)*
+
+### 19.3 The source popover
+
+A **system popover** (`NSPopover` / `.popover`), anchored to the row's status
+slot (or to the row when the slot is empty) — never an in-window overlay, which
+`DECISIONS.md` and G-034 already ruled out after the Re-sync popover clipped at
+the window edge. Width `size.sourcePopoverWidth` (280), height intrinsic, padding
+`spacing.xl`, background `color.surface.popover` with its material.
+
+```
++--------------------------------------------+
+| Access refused                             |  sourceStatusTitle, text.primary
+| cis.technikum-wien.at refused access for   |  inspectorValue, text.primary
+| user01. Automatic sync is paused so the    |
+| account isn't locked.                      |
+|                                            |
+| Last synced today 14:02 · 142 events       |  blockMeta, text.secondary
+| Last change Mon 08:30: 1 added · 1 removed |  blockMeta, text.secondary
+|                                            |
+|             [ Settings… ] [Edit Account…]  |  default button = primary action
++--------------------------------------------+
+```
+
+- **Title** `sourceStatusTitle`; **body** `inspectorValue`, `lineLimit` 0, never
+  truncated; **status line** `blockMeta` / `color.text.secondary`:
+  `Last synced {last} · {count} events` (`Never synced` before the first success).
+  `spacing.sm` between title and body, `spacing.lg` before the status line and
+  before the button row.
+- **Last-change line** (added 2026-10-08; §20.6 says why it
+  exists), directly under the status line, same style: `Last change {when}: {a}
+  added · {u} updated · {r} removed`, zero terms omitted (`Last change today
+  14:02: 1 removed`), `{when}` per §19.5's in-sentence forms. It reports the most
+  recent sync that **wrote** something, counting only events on or after that
+  sync's today; the Import is not a change and sets nothing. Omitted when no sync
+  has written since the Import. `lineLimit` 0.
+- **Buttons**, trailing-aligned: `Settings…` (opens Settings ▸ Sources with this
+  source selected) and the state's primary action as the default button (`↩`).
+  States without a primary action show `Settings…` alone.
+- **`Show Details`** expands the popover in place (no new window) to a list of
+  problems, one per line, `blockMeta`, `color.text.primary` for the sentence and
+  `color.text.secondary` for the technical line under it; at most 8, then `+N
+  more` (full list in Settings). The button becomes `Hide Details`.
+- **`upToDate`** shows the title, then `Synced {last} · {count} events`, the
+  last-change line when present, and `Sync Now`.
+- Keyboard: it takes focus on open; `↩` = primary action; `⎋` closes. Focus is
+  shown by the buttons' own control rings (`interactions.md` §1).
+
+### 19.4 The popover's stale line
+
+The status item stays "the next thing" and nothing else (`DECISIONS.md`
+2026-09-10); a sync state there would be a second job for a 180pt label. But the
+popover answers "what now", and an answer drawn from a timetable that stopped
+updating should say so. **One line**, last element of the popover, below REST OF
+TODAY (or below the action row when that section is omitted), `spacing.lg`
+above it:
+
+`University timetable not synced since Mon 14:02`
+
+- Shown when **any connected source** is in an `actionable` state, **or** its last
+  success is older than `max(24 h, 2 × its interval)`. Hidden otherwise —
+  including while merely `offline` or `transient` for less than that.
+- `popoverRefusalRow` metrics (13pt, `lineLimit` 0 — it is the user's source name
+  and is never truncated), `color.text.secondary`. Never red, no glyph.
+- Not focusable and not a button: the remedy is in the main window. `Open`
+  still opens it.
+- Two stale sources: one line each, at most two, then `+N more sources not
+  synced`.
+- Never synced: `University timetable has not synced yet`.
+
+### 19.5 Time in status copy
+
+`{last}`, `{when}` and the `Synced …` forms, 24-hour, monospaced digits:
+
+| When | Form |
+|---|---|
+| Within the last minute | `just now` |
+| Today | `today 14:02` (in a sentence) / `14:02` (after `Synced`) |
+| Yesterday | `yesterday 14:02` |
+| Within the last 6 days | `Mon 14:02` |
+| Older | `6 Oct 14:02` (`6 Oct 2025 14:02` in another year) |
+
+The hover-help and popover-status forms are `Synced 14:02`, `Synced yesterday
+14:02`. Relative forms update when the popover or Settings is open; nothing
+updates on a timer otherwise.
+
+---
+
+## 20. ICS semantics the UI depends on
+
+These are data rules. They are specified here because the UI's promises depend on
+them: idempotent, never silent, read-only, past untouched. The CalDAV server
+returns iCalendar text. Each calendar object (`calendar-data`) is one
+`VCALENDAR`, and on CIS each object holds one `VEVENT`. The parser reads each
+object with these rules. It follows RFC 5545 where CIS does, and §20.7.1 records
+where CIS does not. How the objects are fetched is §20.8.
+
+### 20.1 Import and sync: what each may write
+
+*(Amended 2026-10-08, CalDAV amendment: data comes from `REPORT`, not a `GET`;
+deselecting a calendar is added.)* There is **one Import per source**, then
+syncs. They differ only in the window they write and whether they delete:
+
+| | **Import** | **Sync** |
+|---|---|---|
+| When | The connect sheet's `Import` (`layouts.md` §12.2): the first write for a new source | Every later poll: interval, launch, wake, network, Sync Now, and edit mode's `Save` |
+| Data | The events the sheet's `Connect` already fetched with the **Import window** (§20.8.2) and previewed. **No second request** | A new fetch with the **sync window** (§20.8.2) |
+| Creates / updates | **Every event fetched**, including those that start before `startOfDay(today)` (the semester's earlier weeks, as history) | Only events whose start is **on or after `startOfDay(today)`** |
+| Deletes | **Nothing**: the source has no events yet, so nothing can be absent | Only on proof of absence (§20.8), only on or after `startOfDay(today)` |
+| Past | Written **once**, here | **Never** created, updated or deleted, except when the user deselects a calendar (below) |
+| Undo | Not an undo step | Not an undo step |
+
+There is **no upper bound**. Both windows are open-ended forward (CIS: the
+semester, 14 Sep 2026 – 29 Jan 2027). The Import window reaches back one year
+(§20.8.2) — far enough for any semester the feed holds. The only other bound is
+on open-ended recurrence (§20.5).
+
+**Reconciling "never writes the past".** `DECISIONS.md` 2026-10-01 (the past is
+a record) and the 2026-10-08 sync rule both stand **for syncs**. The Import is
+the one write that reaches back. At that moment nothing local in the past needs
+protecting: the source has no events, so no done/skipped mark, conflict
+resolution or selection can be overwritten. From the first sync on, the history
+is a record like any other past. A later upstream change to a past lecture (a
+room corrected after the fact) is ignored, and a past lecture that vanishes
+upstream stays. An event that ends today but started yesterday counts as past
+under this rule.
+
+- **Editing the account** (edit mode, `layouts.md` §12.3) is a sync, not an
+  Import. This covers a new password, a changed server or username, and adding a
+  calendar. The source keeps its events, and its history is not rewritten. A
+  calendar added in edit mode contributes from today on: its earlier weeks are
+  not imported.
+- **Deselecting a calendar** (edit mode's calendar step) deletes the events that
+  only that calendar contributed, **history included**. The user is saying so,
+  as `DECISIONS.md` 2026-10-08 rules. Events carry no calendar of their own
+  (§21.3: hrefs are not identity, and a merge can span calendars), so the rule
+  is stated by content:
+  1. Edit mode's `Connect` fetches the calendars that stay selected with the
+     **Import window**.
+  2. `Save` deletes every event of the source, past or future, whose externalID
+     is not in that fetch, provided the fetch was read in full (§20.8 guards).
+  3. If it was not read in full, `Save` deletes nothing for the deselection and
+     shows the state. The calendar list is still saved.
+
+  A past lecture that had already vanished from a calendar that stays selected
+  is removed by the same `Save`. This is accepted: the user asked for the source
+  to hold what its selected calendars hold. Step 2 says how many events will go
+  before `Save` (`layouts.md` §12.3).
+- **Removing the source and connecting again** is a new Import. History comes
+  back from the server. Local done/skipped marks went with the removal, as the
+  alert says (`interactions.md` §13.2).
+- **History never conflicts.** Events that start before `startOfDay(today)` take
+  no part in conflict detection (§20.9): a resolution would have to write the
+  past, which nothing may do.
+
+### 20.2 Identity: externalID and the co-teaching merge
+
+The pair `(sourceID, externalID)` is the identity. `sourceID` is the `Source`'s
+id (§21). `externalID` is decided **per VEVENT** by whether its UID can be
+trusted to survive a change:
+
+| VEVENT | Identity mode | externalID |
+|---|---|---|
+| No `RRULE`/`RDATE`/`RECURRENCE-ID`, and its `UID` **contains its own `DTSTART` value as written** (`20260914T143000`) — a UID built from the event's content, as CIS builds it | **content** | the **content key** (below) |
+| No `RRULE`/`RDATE`/`RECURRENCE-ID`, any other UID | **uid** | `UID` — or the content key if the event is merged (below) |
+| An occurrence of a series (expanded from `RRULE`/`RDATE`), or an override (`RECURRENCE-ID`) | uid | `UID` + `\|` + the occurrence's original start: `yyyyMMdd'T'HHmmss'Z'` in UTC for date-times, `yyyyMMdd` for dates |
+| **Flat series**: several VEVENTs share a UID with different `DTSTART`s and no `RRULE`/`RECURRENCE-ID` | uid | `UID` + `\|` + that VEVENT's own `DTSTART`, normalised as above |
+
+**Why content mode.** The CIS UID is `FH` + group + room + lecturer(s) + course +
+start + end, run together (`FHBIF-5C HS_A3.15L01SWQM-ILV20260914T143000…`; it
+contains spaces and ` / `; with 22 lecturers it is 186 characters in the
+redacted export and, per Parsa, over 300 with real names). Any
+change to room, time **or lecturer** gives a new UID, and two co-teachers give
+two UIDs for one lecture. A UID that encodes the time cannot identify an event
+across a move, so nothing is lost by not using it — and keying on content lets a
+lecturer change update in place instead of deleting and re-adding the lecture.
+The test (UID contains the event's own `DTSTART` digits) is a property of the
+data, not a vendor check: no `PRODID` match, no host match.
+
+**The content key** is the string
+
+`{summary}|{location}|{startUTC}|{endUTC}`
+
+where `{summary}` is `SUMMARY` unescaped, every run of whitespace collapsed to one
+space, and trimmed (`SWQM-ILV  HS_A3.15 - BIF-5C ` → `SWQM-ILV HS_A3.15 -
+BIF-5C`); `{location}` is `LOCATION` treated the same (empty when absent); and
+the times are the instants in UTC as `yyyyMMdd'T'HHmmss'Z'` (dates as
+`yyyyMMdd` for all-day). Example from the fixture:
+`SWQM-ILV HS_A3.15 - BIF-5C|HS_A3.15|20260914T123000Z|20260914T140000Z`. It
+contains no lecturer, so a lecturer change keeps it. CIS's `SUMMARY` already
+names course, room and group, so for CIS the key is exactly course + room +
+group + start + end. The key is not secret and may appear in logs and tests.
+
+**The co-teaching merge.** Two or more non-recurring VEVENTs in one feed with
+the **same content key** are **one Kadence event** (the fixture's `BPREF-Info`
+on 2 Oct, L05 and L06: same course, room, group and time, two UIDs). Without the
+merge, a co-taught lecture is two identical blocks that collide with each other.
+
+- **Merge key** = the content key, in either identity mode.
+- **externalID of a merged event** = the content key. It survives a co-teacher
+  being **added** (a third VEVENT with the same key joins the group) or
+  **removed** (the group shrinks, to one member if need be): the key does not
+  change, so the event **updates in place** — `lecturers` changes, `Event.id`,
+  `status` and selection are kept. In uid mode an event that becomes or stops
+  being a merge changes externalID (UID ↔ content key) and is replaced (delete +
+  add) — rare, outside CIS, and accepted.
+- **Fields of the merged event:** `lecturers` = the union of the members'
+  lecturer lists, members taken in ascending `UID` order and each member's own
+  order kept, duplicates dropped — so the order does not depend on the feed's
+  VEVENT order and an unchanged feed writes nothing. Every other field is taken
+  from the first member in that order (title, location, group and times are
+  equal by construction). `isCancelled` only if **every** member is cancelled.
+- **Counted, not reported.** A merge is not a problem; the connect sheet's
+  summary names how many lectures it merged (`layouts.md` §12.2).
+
+**CalDAV hrefs and ETags are not identity.** *(Added 2026-10-08, CalDAV
+amendment.)* Each object comes with an href
+(`/webdav/lvplan.php/calendars/user01/LVPlan-user01/obj-07.ics`) and a
+`getetag`. Both are transport details and play no part in identity. CIS builds
+its objects from the same content as its UIDs, so an href may change whenever
+the content does. It may also change when nothing does, as the getctag already
+does (§20.8.4). The externalID is decided only by the rules above, from the
+VEVENT. A fetch that returns the same VEVENTs under different hrefs and ETags
+writes nothing (§22.1, cases `etagsOnly` and `ctagOnly`).
+
+**Across calendars.** The merge and identity apply to the source as a whole.
+VEVENTs from two selected calendars with the same content key are one event, so
+a lecture listed in two calendars is drawn once. Exact duplicates across objects
+follow the tie-break below, as within one object.
+**Exact duplicates** — the same UID and the same start twice — are one event:
+the higher `SEQUENCE` wins, then the later `LAST-MODIFIED`/`DTSTAMP`, then the
+later VEVENT in the file (CIS sends none of these, so the later VEVENT).
+
+`UID` missing: the VEVENT is skipped and counted as a problem (§19.1
+`partialImport`) — without an identity it cannot be updated or removed. (In
+content mode the UID is not used for identity, but its absence still means the
+generator failed; skip it.)
+
+### 20.3 Time zones
+
+**Events display in the Mac's current time zone**, like every other event.
+
+| `DTSTART` form | Interpreted as |
+|---|---|
+| `…Z` (UTC) | that instant |
+| `TZID=Europe/Vienna` — any IANA identifier `TimeZone(identifier:)` accepts (CIS) | wall-clock time in that zone, converted |
+| `TZID=` a non-IANA name with a known mapping (the Windows names `W. Europe Standard Time`, `Central Europe Standard Time`, `Romance Standard Time`, `GMT Standard Time`, `UTC`) | the mapped IANA zone |
+| `TZID=` anything else | **the Mac's current time zone** at the time of the fetch — kept, and reported as a problem: `{k} events used an unknown time zone ({tzid}) and were read in this Mac's time zone ({zone})` (state `partialImport`; the event is not skipped) |
+| Floating (no `Z`, no `TZID`) | wall-clock time in **the Mac's current time zone** at the time of the fetch |
+
+Ruled by Parsa 2026-10-08: no hard-coded Vienna. Consequence, accepted: a
+floating event read while the Mac is in another zone gets a different instant;
+the next sync after a zone change updates it in place like any time change
+(§18.1). CIS always sends `TZID=Europe/Vienna`, so CIS events are unaffected.
+
+`VTIMEZONE` blocks are read past, not interpreted (the identifier is enough for
+every zone above; CIS's block describes Europe/Vienna's own rules).
+**Recurrences expand in the event's own zone**, by calendar arithmetic, never by
+adding 7 × 86 400 s. The CIS feed crosses the DST change on **25 Oct 2026**:
+14:30 on 14 Sep is 12:30Z, 14:30 on 2 Nov is 13:30Z, and both draw at 14:30 on a
+Mac in Vienna.
+
+### 20.4 All-day
+
+`DTSTART;VALUE=DATE` is all-day: `isAllDay = true`, starting at the date's
+`startOfDay` in the user's calendar (dates float — no zone conversion), ending at
+`DTEND`'s date (exclusive), or one day later when `DTEND` is absent. Multi-day
+entries span their days in the all-day row (§5). Rendered as `.eventAllDay`
+(§5.1). All-day events take no part in conflict detection (they are not on the
+grid — as for deadlines and exams). CIS sends none; other feeds do.
+
+`DTEND` absent on a date-time: `DURATION` if present, else the event ends at its
+start (a zero-length event, drawn at `size.blockMinRenderedHeight`). `DTEND` ≤
+`DTSTART` (or a negative `DURATION`): skipped, a problem — except that a
+zero-length `DTEND == DTSTART` is kept as above.
+
+### 20.5 Recurrence
+
+CIS sends **no recurrence** — every lecture is its own VEVENT. The subset stays
+for other feeds. Supported, and only this — anything else is a problem, never a
+guess:
+
+- `RRULE` with `FREQ=DAILY` or `FREQ=WEEKLY`; `INTERVAL`; `COUNT`; `UNTIL` (date
+  or UTC date-time, inclusive); `BYDAY` without ordinals (`TU,TH`); `WKST`.
+- `RDATE` (date-time or date lists; not `PERIOD`).
+- `EXDATE` — removes the occurrence whose original start equals it, compared as
+  instants (dates compare as dates).
+- `RECURRENCE-ID` overrides — replace the matching occurrence's fields wholesale.
+  An override whose `RECURRENCE-ID` matches no generated occurrence is imported
+  on its own, same externalID rule. `RANGE=THISANDFUTURE` is treated as a
+  single-occurrence override and reported.
+- **Open-ended series** (no `COUNT`, no `UNTIL`) expand to `startOfDay(today) +
+  366 days` and no further — the one bound in this slice, because "the whole
+  feed" of an endless rule is infinite.
+
+An unsupported rule (`FREQ=MONTHLY`, `BYSETPOS`, `BYDAY=2MO`, `BYMONTH` …) skips
+**that series and its overrides** and reports it — `1 repeating event uses a rule
+Kadence can't read yet: Mathe Tutorium` — because importing only its first
+occurrence would look complete and be wrong.
+
+### 20.6 Cancelled, and what a vanished lecture leaves
+
+**CIS never sends `STATUS:CANCELLED`** (none in the real export). A cancelled
+CIS lecture **simply disappears from the feed**. What Parsa sees:
+
+1. At the next sync that reads the feed in full (§20.8's guards), the lecture is
+   **deleted** from the calendar — proof of absence, as `DECISIONS.md`
+   2026-10-08 rules. Its block is gone; if it was selected, the inspector returns
+   to the day summary (§20.9).
+2. The source's **last-change line** (§19.3; also in Settings, `layouts.md` §11)
+   reads `Last change today 14:02: 1 removed` — so a removal is never silent,
+   and "the calendar changed" can be checked in one click from the sidebar.
+3. A routine block he had shifted for it **stays shifted** (§20.9).
+4. Nothing else: no notification (Phase 4, G-060), no ghost of the old block
+   (G-067 asks Parsa whether he wants one).
+
+A lecture that **moved** arrives the same way plus an add (§20.10).
+
+**For sources that do send it**, the cancelled presentation stays as specified:
+`STATUS:CANCELLED` on a VEVENT, or on an override, imports the occurrence with
+`isCancelled = true`. It is **kept and shown** (`cancelled` state, §6) rather
+than deleted: "this week's lecture is off" is the most useful thing a timetable
+can say when the source is willing to say it. A cancelled event:
+
+- takes **no part in conflict detection** and is never `conflicted`;
+- is never the popover's NEXT or in REST OF TODAY, and never counts toward
+  `firstEventStart` (`layouts.md` §3.1);
+- keeps `status` per §18.1; Done/Skip are refused on it with the inspector line
+  `Cancelled by University timetable` (nothing to attend);
+- becomes un-cancelled if a later sync drops the `STATUS:CANCELLED`.
+
+### 20.7 Field mapping
+
+Generic mapping, used for every VEVENT that §20.7.1's CIS profile does not
+match:
+
+| ICS | Event / inspector | Notes |
+|---|---|---|
+| `SUMMARY` | `title` | unescaped (`\,` `\;` `\n` `\\`), whitespace runs collapsed, trimmed; empty → `(No title)` |
+| `DTSTART` / `DTEND` / `DURATION` | `start` / `end` / `isAllDay` | §20.3, §20.4 |
+| `LOCATION` | `location = Place(name:)`, inspector row `Location` | trimmed; address and coordinate nil in this slice; `GEO` ignored |
+| `DESCRIPTION` | `importedDescription` (§21), inspector row `Description` | unescaped, line breaks kept; never written to `notes` |
+| `ORGANIZER;CN=…` | `lecturers` (one name), inspector row `Lecturer` | the `CN` value; no `CN` → the address after `mailto:`; absent → no row. `ATTENDEE`s are ignored |
+| `URL` | `link`, inspector row `Link` | shown as a link (opens in the browser) |
+| `STATUS:CANCELLED` | `isCancelled` | §20.6. `TENTATIVE`/`CONFIRMED` are ignored |
+| `UID`, `RECURRENCE-ID` | `externalID` | §20.2 |
+| `SEQUENCE`, `LAST-MODIFIED`, `DTSTAMP` | tie-breaks | §20.2; not stored; absent is normal (CIS) |
+| `VERSION` | — | **not checked**: `1.0` (CIS), `2.0` and absent are all accepted. What makes a body a calendar is §20.8.2 ("A web page where data was expected") |
+| everything else (`X-…`, `CATEGORIES`, `CLASS`, `PRODID`, `VALARM` …) | ignored | not a problem |
+
+Line endings: **CRLF and LF** are both accepted (CIS sends CRLF), and a body may
+mix them; folded lines (CRLF or LF followed by one space or tab) are unfolded
+first. A UTF-8 BOM is skipped. Inside a CalDAV `207`, the XML parser turns
+CRLF in `calendar-data` into LF (XML end-of-line handling). Expect LF from
+`REPORT` and `calendar-multiget`, and CRLF from a plain `GET`. Both must give
+identical events (§20.8.4).
+
+#### 20.7.1 The CIS profile (closes G-056)
+
+Checked against `fixtures/cis-2026WS-redacted.ics` (13 VEVENTs, CRLF,
+`VERSION:1.0`, `PRODID:FH Technikum Wien`, one `VTIMEZONE` for Europe/Vienna, no
+`DTSTAMP`/`SEQUENCE`/`STATUS`/`RRULE`/`ORGANIZER`/`URL`, `CATEGORIES:StundenplanTW`
+on every event):
+
+```
+SUMMARY:SWQM-ILV  HS_A3.15 - BIF-5C␠          ← course, two spaces, room, " - ", group, trailing space
+DESCRIPTION:SWQM-ILV\nL01\nBIF-5C \nHS_A3.15  ← course \n lecturer(s) \n group \n room
+LOCATION:HS_A3.15
+```
+
+**Match.** A VEVENT is read with the CIS profile when its `DESCRIPTION`,
+unescaped and split on line breaks (trailing empty lines dropped), has **exactly
+four lines** and line 1, trimmed, **equals the first whitespace-separated token
+of `SUMMARY`**. Otherwise §20.7's generic mapping applies to it, silently (a
+non-matching event is not a problem). The match is per event, not per feed.
+
+| Field | From | Rule |
+|---|---|---|
+| `courseCode` | DESCRIPTION line 1 | trimmed (`SWQM-ILV`) |
+| **`title`** (displayed) | `courseCode` | **the course code**, not the SUMMARY — room and group have rows of their own, and SUMMARY's double and trailing spaces are noise. Codes are cryptic (`SWQM-ILV`); friendly names are G-064, not this slice |
+| `lecturers` | DESCRIPTION line 2 | split on `/`, each trimmed, empties dropped, order kept (`L10 / L11 / … / L31` → 22 names). Merged events union them (§20.2) |
+| `group` | DESCRIPTION line 3 | trimmed (`BIF-5C ` → `BIF-5C`) |
+| `location` | `LOCATION`, else DESCRIPTION line 4 | trimmed. The inspector labels it `Room` |
+| `isOnline` | `location` | **true when it matches `WEBINAR` + digits, case-insensitive** (`WEBINAR01`, `WEBINAR02`). Shown as `Online` (§18.2); the travel slice plans no travel for it (G-063) |
+| `kind` | `courseCode`'s suffix — the text after its **last** `-`, case-insensitive | `EXAM` → **exam**; `ILV`, `UE`, `LAB`, `EL`, `INFO` → **lecture**. **Unknown suffix, or no `-`: lecture** — the presentation every imported timed event already had; no problem is reported, because nothing was lost |
+| `importedDescription` | — | **nil**: all four lines have their own fields, so there is no Description row |
+| `externalID` | — | content mode (§20.2): CIS UIDs contain their `DTSTART` |
+
+`kind` decides the glyph only (§2.1, amended): **exam** → `graduationcap.fill` on
+`.fixedTimed` (and on `.eventAllDay`, should an all-day exam ever arrive);
+**lecture** → `building.columns`. Hover help's `Kind` reads `Exam` / `Lecture`;
+VoiceOver likewise (§11). No countdown chip: that belongs to `WorkItem` exams
+(§5), and an imported exam is an event.
+
+On CalDAV each lecture is its own calendar object (one VEVENT per object, as
+in `caldav-mocks.md`); the profile reads the VEVENT and never the object's href
+or name.
+
+### 20.8 Discovery, fetch, change detection, and what a sync must never delete
+
+*(Rewritten 2026-10-08, CalDAV amendment.)* The exact requests and the mocked
+responses are in `caldav-mocks.md`. The wire rules (HTTPS, redirects, when the
+password is sent) are in `interactions.md` §13.1.
+
+#### 20.8.1 Discovery
+
+Discovery finds the calendars of one account. The user sees it as **one step**
+(`Connecting to cis.technikum-wien.at…`, `layouts.md` §12.1), never as its
+parts.
+
+| # | Request | Expected (CIS, verified 2026-10-08) | Otherwise |
+|---|---|---|---|
+| D1 | `GET https://{host}/.well-known/caldav` | `301`, `Location: https://cis.technikum-wien.at/webdav/lvplan.php/` → the **context URL** | `301`/`302`/`307`/`308` to another host or to `http:` → `redirected`. `404`, or any other non-redirect answer → `noCalDAV`. Skipped when `Server` holds a path (`layouts.md` §12.1): that path is the context URL |
+| D2 | `PROPFIND` Depth 0 on the context URL: `current-user-principal`, `calendar-home-set`, `resourcetype` | `207`; `current-user-principal` = `/webdav/lvplan.php/principals/{user}/`; `calendar-home-set` → `404` in its propstat | Not `207` (`200` HTML, `404`, `405` …) → `noCalDAV`. A `207` without a principal → `noCalDAV`. If `calendar-home-set` comes back `200` here, D3 is skipped |
+| D3 | `PROPFIND` Depth 0 on the principal: `calendar-home-set` | `207`; `calendar-home-set` = `/webdav/lvplan.php/calendars/{user}/` | Not `207`, or no home → `noCalDAV` |
+| D4 | `PROPFIND` Depth 1 on the home: `resourcetype`, `displayname`, `supported-calendar-component-set`, `cs:getctag`, `sync-token` | `207` with three responses: the home, `LVPlan-{user}/`, `outbox/` | Not `207` → `noCalDAV` |
+
+At any step, a `401` is answered with the password (`interactions.md` §13.1). A
+`401` after the password was sent is `unauthorized`, and `403` is `forbidden`.
+Hrefs are resolved against the URL of the request that returned them. **An href
+that resolves to another host is ignored**: it is never requested, and it is
+logged.
+
+**Which D4 responses are calendars.** A response is offered as a calendar only
+if **all** of these hold:
+
+1. Its href is not the home's own href.
+2. Its `resourcetype` contains `cal:calendar`.
+3. Its `resourcetype` contains neither `cal:schedule-outbox` nor
+   `cal:schedule-inbox`.
+4. Its `supported-calendar-component-set` contains `VEVENT`, or comes back
+   `404`/absent, which RFC 4791 says means every component.
+
+On CIS this leaves exactly **`LVPlan`**. It supports `VEVENT` and `VTODO`, and
+that is enough. The home and `outbox/` are excluded. Nothing else is ever
+selectable, and an excluded collection is never shown. A calendar without a
+`displayname` is shown under its href's last path segment, decoded
+(`LVPlan-user01`). Zero calendars → `noCalendars`.
+
+**Cached, not repeated.** Discovery runs at `Connect` and in edit mode's
+`Connect` (an explicit user act), and at no other time **unless** a request on a
+selected calendar answers `404`/`410`, or `301`/`308` to the same host (the
+calendar moved; `DECISIONS.md` 2026-10-08). Then, once per sync:
+
+- D1–D4 run again.
+- Each selected calendar is matched first by href, then by `displayname`. A name
+  match counts only when exactly one listed calendar has that name. A matched
+  calendar's new href is adopted silently and logged.
+- The calendar is fetched again.
+- A calendar that matches nothing is `calendarMissing`.
+
+The source stores the principal, the home and the selected calendars (§21.1).
+D1–D4 cost at most **4 requests**.
+
+#### 20.8.2 Fetching events
+
+**Windows.** Each selected calendar is read with one `REPORT calendar-query`
+(Depth 1). Its filter is `VCALENDAR` › `VEVENT` › `time-range` with a `start`
+and **no `end`** (open-ended, as RFC 4791 §9.9 allows):
+
+| Window | `start` | Used by |
+|---|---|---|
+| **Import window** | `startOfDay(today) − 366 days`, in UTC (`20251007T220000Z` for today = 8 Oct 2026, Vienna) | `Connect` and edit mode's `Connect` (the step-2 preview, the Import, a deselection) |
+| **Sync window** | `startOfDay(today)`, in UTC (`20261007T220000Z`) | every sync |
+
+The request asks for `getetag` and `calendar-data`, with no `expand`, and
+expands recurrence itself (§20.5). **The time-range is a saving, not a rule.**
+A server may ignore it. The planner applies the window (§20.1) whatever comes
+back. Here is how the source records whether the server honoured it
+(`SourceCapabilities.timeRangeHonoured`, §21.1):
+
+- An event that ends on or before `start` came back: `false`.
+- Otherwise: `true`.
+- Overlapping events are correctly returned, so they do not count.
+
+**Fallback chain** — used only when a step is **refused** with `405` or `501`.
+Any other failure maps to §19.1 at that step (`401`, `403`, `5xx`, a web page
+…) and ends the chain.
+
+| Step | Requests | Then |
+|---|---|---|
+| F0 | `REPORT calendar-query` with the window | `207` → read |
+| F1 | `PROPFIND` Depth 1 on the calendar (`getetag`, `resourcetype`, `getcontenttype`, `cs:getctag`) → member hrefs, collections excluded; then `REPORT calendar-multiget` for those hrefs, in batches of **100** | `207` → read. F1 has no time-range: everything comes back, and the planner filters |
+| F2 | `GET` of each member href from F1's `PROPFIND`, one at a time | `200` with a calendar body → read |
+| — | F2 refused too (`405`/`501`) | `fetchFailed`, nothing written. Technical line: `REPORT 405 · PROPFIND 207 · calendar-multiget 501 · GET 405` |
+
+- **Silent unless it fails.** A fallback that works raises no state, problem or
+  line in the UI. It is recorded in two places: in
+  `SourceCapabilities.fetchMode` (`report` / `multiget` / `get`), and in the
+  diagnostics log line (§20.8.4).
+- **Remembered.** Later polls start at the recorded mode instead of being
+  refused again every 30 minutes. The mode resets to `report` on re-discovery
+  and on edit mode's `Save`.
+- **A `207` with a failed member** (a `propstat` other than `200` for
+  `calendar-data`, or a member `status` `404`) is a problem for that object
+  (`partialImport`), not a failure of the calendar.
+
+**Request cap, per source per sync:**
+
+| Path | Requests |
+|---|---|
+| Normal (F0) | **1 per selected calendar — 1 for CIS** |
+| + re-discovery (only after a `404`/`410`/`301`/`308`, §20.8.1) | + at most 4, then the calendar's fetch again |
+| F1 | + 1 `PROPFIND` + ⌈objects ÷ 100⌉ `calendar-multiget` |
+| F2 | + 1 `PROPFIND` + 1 `GET` per object |
+| **Hard cap** | **300 requests.** A sync that would send the 301st stops before it: `fetchFailed`, nothing written, technical line `Request cap reached (300) reading {calendar} one object at a time` |
+
+- Requests are **sequential**, never parallel: one university server, one
+  request at a time.
+- A `401` answered with the password is the same request retried once, and is
+  not counted again.
+- **In `get` mode, automatic polls run at most every 6 hours**:
+  `max(pollInterval, 6 h)`. One sync in that mode can cost a request per object,
+  and the half-hour interval was chosen for one request. Sync Now is not limited.
+  Settings shows nothing of this (G-068 will show whether `get` mode can happen
+  on CIS at all).
+- **Size limits:** one response over **20 MB**, or one object's `calendar-data`
+  over **1 MB**, is not read. The response → `notACalendar`. The object → a
+  problem.
+
+**A web page where data was expected.** Two cases are `notACalendar`:
+
+- a `200` whose body is not XML where a `207` was expected (F0, F1), or a
+  non-calendar body to F2's `GET`;
+- an object whose `calendar-data` does not start with `BEGIN:VCALENDAR` (after
+  an optional BOM and whitespace) and contain `END:VCALENDAR`.
+
+`Content-Type` is not trusted either way. The same check fails a single object
+inside a good `207` as one **problem**, not as `notACalendar`.
+
+#### 20.8.3 One sync of one source
+
+1. **Read the password** from the Keychain (§21.4). If it is missing or access
+   is denied → `passwordMissing`, and no request is sent.
+2. **Fetch** each selected calendar in `Source.calendars` order (§20.8.2) with
+   the sync window, re-discovering once if a calendar answers `404` or moved
+   (§20.8.1).
+3. **Parse each object** (§20.3–§20.7). **Derive identities and merge across
+   all selected calendars** (§20.2), and expand (§20.5).
+4. **Change by content** (§20.8.4). If the feed hash of the events in the write
+   window equals `Source.feedHash`, **stop**: no event is created, updated or
+   deleted, and `lastChange*` stays as it is.
+5. **Diff** against this source's stored events **on or after
+   `startOfDay(today)`**, by externalID:
+   - **Create** the new.
+   - **Update** an event whose event hash differs from the stored event's, and
+     write only the fields that differ.
+   - **Delete** the absent, under the guards below.
+
+   Events before `startOfDay(today)` are not in the diff at all (§20.1).
+6. **Apply in one store transaction**. Record `feedHash`, the counts, the
+   problems, the change summary (§19.3) and the state (§19.1). Write one
+   diagnostics log line (§20.8.4).
+
+Only the bookkeeping fields `lastAttemptAt`, `lastSuccessAt`, `state`,
+`stateDetail` and `problems` are written on every poll. They describe the poll,
+not the timetable.
+
+#### 20.8.4 Change by content — the server's markers are diagnostics
+
+The CIS server sends **no `sync-token`** (`404` in D4). Its `getctag` is the
+**time of the request**: `LVPlan-user01-1791454967`, and 55 s later
+`LVPlan-user01-1791455022`. So it changes when nothing did, and its ETags may do
+the same (G-068). Change is therefore decided **by content only**
+(`DECISIONS.md` 2026-10-08 "Change is detected by content…"):
+
+- **Event hash** — SHA-256, lower-case hex, of the UTF-8 string made of these
+  fields **in this order**, joined by U+001F:
+  1. externalID
+  2. title
+  3. start, as `yyyyMMdd'T'HHmmss'Z'` in UTC (`yyyyMMdd` when all-day)
+  4. end, in the same form
+  5. isAllDay (`1`/`0`)
+  6. location (empty when nil)
+  7. isOnline (`1`/`0`)
+  8. courseCode (empty when nil)
+  9. group (empty when nil)
+  10. lecturers, joined by U+001E, in the merged order (§20.2)
+  11. kind (`lecture`/`exam`)
+  12. description (empty when nil)
+  13. link (empty when nil)
+  14. isCancelled (`1`/`0`)
+
+  These are exactly `ExternalEvent`'s upstream fields (§21.5). UID, href, ETag,
+  `DTSTAMP`, `SEQUENCE` and `LAST-MODIFIED` are **not** in it. A stored `Event`'s
+  hash is computed from its stored upstream fields the same way, when it is
+  compared. **Per-event hashes are never stored.**
+- **Feed hash** — SHA-256 hex of the event hashes of every event **in the write
+  window** (Import: all; sync: start ≥ `startOfDay(today)`), sorted ascending
+  and joined by `\n`. It is stored as `Source.feedHash`. It changes when a day
+  passes and an event leaves the window. Step 5 then finds nothing to write, and
+  the new hash is stored.
+- **What the hashes guarantee** (tested, `PHASE3-PLAN.md` tasks 4 and 8):
+  - The same VEVENTs in another order, under other hrefs or ETags, with another
+    getctag, or with `\r\n` turned into `\n` by the XML parser give the same
+    feed hash, so nothing is written.
+  - A lecturer added to a co-taught lecture changes one event hash, so exactly
+    one update is written.
+- **Diagnostics, never decisions.** The getctag (when a response carries one —
+  D4 and F1; it is **never requested for its own sake**), the ETags, the fetch
+  mode, the request count and the duration go into **one log line per sync**,
+  through the source logger (§21.4), in the app's unified-log subsystem,
+  category `sync`:
+
+  `sync user01 @ cis.technikum-wien.at · LVPlan · mode report · requests 1 · 412 ms · objects 287 · time-range honoured · ctag — · etags 287 (set 3f9a01c2) · feed unchanged`
+
+  `etags … (set …)` is the first 8 hex digits of SHA-256 over the sorted
+  `href=etag` lines. Two polls of unchanged content with the same set prove that
+  ETags are stable (G-068). Nothing in the app reads these values back.
+
+#### Guards — **deletion only on proof of absence**
+
+- A failed fetch (any §19.1 error state) contributes **no deletions** and no
+  writes at all.
+- A feed with `partialImport` problems contributes creates and updates but **no
+  deletions**: an object that could not be read may be the one that looks
+  absent. On CIS a moved lecture then shows twice, old and new, until a clean
+  sync. The state says `Imported with problems`, so this is visible, not silent.
+- **Every selected calendar must be read in full.** With several calendars, one
+  in `calendarMissing`, `fetchFailed` or any other error means **no deletions**
+  for the source. The merge spans calendars (§20.2), so an event that looks
+  absent may belong to the calendar that could not be read. Creates and updates
+  from the calendars that were read are applied, and the state is the failing
+  calendar's.
+- A fetch that returns **zero** VEVENTs when the last full read had events
+  (`lastFeedEventCount` > 0) is `emptyFeed` and contributes no deletions. An empty
+  calendar at the Import is just empty.
+- The Import window's re-read in edit mode follows the same guards before a
+  deselection deletes anything (§20.1).
+- Removing the source **does** delete its events: that is the user saying so.
+
+**Idempotency** is testable as stated:
+
+- Two syncs of the same content → the second writes nothing (step 4 stops it).
+  With step 4 disabled in a test, step 5 still writes nothing.
+- Every `Event.id` is unchanged.
+
+Local identity: an updated event keeps its `Event.id`, so selection, the
+inspector and any `TravelLeg` keyed by it survive a sync.
+
+### 20.9 Sync, conflicts, selection and undo
+
+- **Conflicts** are recomputed after every write, by the Phase 2 engine,
+  unchanged: an imported event conflicts with a routine occurrence exactly as §14
+  defines, the options edit only the routine side, and the needs-attention count
+  includes the new ones. **Excluded:** cancelled events (§20.6) and events that
+  start before `startOfDay(today)` (§20.1 — history never conflicts). Merged
+  co-teaching duplicates never reach the engine as two events (§20.2). A conflict
+  whose imported side a sync removes or moves disappears or changes on recompute
+  — no special handling. A routine occurrence the user already shifted for a
+  lecture that later vanishes or moves **stays shifted**: it is detached (§13.7)
+  and the user's resolution stands; if the moved lecture now collides with
+  something else, that is a new conflict, offered as any other.
+- **A sync never lands during a preview.** While a conflict preview is active
+  (§14.4) a finished sync's writes are **held** and applied when the preview ends
+  (applied or abandoned); the canvas never changes under a hypothetical. The
+  Import cannot coincide with a preview (Settings' sheet is modal to Settings,
+  not to the main window — if one is active, the Import is held the same way).
+- **Selection:** a selected event a sync deletes is deselected and the inspector
+  returns to its day summary. A selected event a sync updates stays selected.
+- **Undo:** sync and Import writes are not undo steps and do not clear the
+  stack. Undo/redo steps that address an event a sync deleted are **dropped**
+  from the stack (the Edit menu never offers an action that would do nothing).
+- **Removed sources** remove their events in one store transaction, after
+  confirmation (`interactions.md` §13.2); it is not undoable — the Keychain item
+  is gone — and the alert says what reconnecting restores.
+
+### 20.10 A moved lecture (CIS: delete + add)
+
+On CIS a change of **room or time** changes the content key (§20.2), so the
+lecture arrives as one deletion (old key, absent) and one creation (new key) in
+the same sync. A change of **lecturer** does not: it updates in place. Rules for
+the delete + add, all following from rules above, stated so nobody adds a
+heuristic:
+
+| Local state on the old event | After the sync |
+|---|---|
+| `status` `.done` / `.skipped` | **Not carried over.** The new event starts `.scheduled`. Kadence does not guess that "SWQM-ILV in A3.13" is "SWQM-ILV in A3.15 moved" — two lectures of one course on one day are ordinary. (Marking a future lecture done is rare; one moved after being marked is rarer.) |
+| Deletion guard | The old event is deleted only on proof of absence (§20.8). If the sync has `partialImport` problems, the old one stays beside the new until a clean sync |
+| Old event in the past | Untouched: the past is not in the diff (§20.1). Only the new event is created, and only if it is on or after today |
+| A conflict resolution applied against the old event | The routine occurrence stays where the user put it (detached, §13.7). The old conflict disappears with the old event; the new event's conflicts, if any, are new |
+| Selection, undo steps | §20.9: deselected; steps addressing the old event dropped |
+| Last-change line | Counts `1 added · 1 removed` — which is what happened upstream |
+
+---
+
+## 21. Data model additions
+
+*(Rewritten 2026-10-08, CalDAV amendment, to match `DECISIONS.md` 2026-10-08
+"Sources become records…".)* BRIEF-PRODUCT's draft has no record for a source at
+all: sources are a static list in `MockData.sources`. These are SwiftData
+`@Model`s, with enum fields stored as raw strings, like `Event`'s.
+
+### 21.1 `Source`
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `String` | A UUID string for a new source. **A String, not a UUID**, because `Event.sourceID` is already `String` and the mock sources use slugs (`timetable`) |
+| `kind` | `CalendarSourceKind` raw | `.universityTimetable` for this slice. It sets the §10.1 symbol |
+| `connection` | raw `String`: `local` / `caldav` | `local` for routine, manual and mock sources. A raw string, so another transport can be added without a migration (G-065) |
+| `displayName` | `String` | Default `University timetable`. Renamable in Settings |
+| `paletteKey` | `SourceKey` raw | At creation: the first slot in `color.sourcePalette.order` that no other `Source` uses, or `graphite` when all are used (the rule's own fallback). The user cannot change it in this slice. In the review dataset the timetable keeps `blue` (§22.1) |
+| `symbolOverride` | `String?` | As `CalendarSource` |
+| `isVisible` | `Bool` | The sidebar checkbox, now persisted |
+| `serverURL` | `String?` | **What the user typed, normalised**: `https://` + host (lower-cased) + port when not 443, + the path when one was typed (`https://cis.technikum-wien.at`). `{host}` in §19 is its host |
+| `username` | `String?` | `user01`. **Not secret**: it is shown as `{user} @ {host}` (`layouts.md` §11) and is the Keychain item's account (§21.4) |
+| `principalHref` | `String?` | From D2 (`/webdav/lvplan.php/principals/user01/`). Absolute path on `serverURL`'s host |
+| `calendarHomeHref` | `String?` | From D3 (`/webdav/lvplan.php/calendars/user01/`) |
+| `calendars` | `[SourceCalendar]` (Codable JSON) | The **selected** calendars, in display order: `SourceCalendar { href: String; displayName: String }`, e.g. `/webdav/lvplan.php/calendars/user01/LVPlan-user01/`, `LVPlan`. Never empty for a connected source |
+| `capabilities` | `SourceCapabilities` (Codable JSON) | `fetchMode` (`report` / `multiget` / `get`, §20.8.2), `timeRangeHonoured: Bool?` (nil until the first `REPORT`), `discoveredAt: Date` |
+| `pollInterval` | `Int` (seconds) | Default **1800**. One of `interactions.md` §13.3's values |
+| `isAutoSyncPaused` | `Bool` | Set by a 401/403 (`interactions.md` §13.3). Cleared by edit mode's `Save` or by a successful Sync Now |
+| `importedAt` | `Date?` | When the Import wrote. Nil before that. A source with `importedAt == nil` that syncs anyway (review seeding) treats its first successful write as the Import (§20.1) |
+| `lastAttemptAt` | `Date?` | |
+| `lastSuccessAt` | `Date?` | `{last}` in §19 |
+| `feedHash` | `String?` | §20.8.4. Set only by a sync that read **every** selected calendar in full. Not secret |
+| `lastFeedEventCount` | `Int` | VEVENTs in the last full read, before the merge. Used by the `emptyFeed` guard |
+| `state` | raw, §19.1's names | |
+| `stateDetail` | `String?` | The substituted body sentence for the last problem set. It **never** contains a password, an `Authorization` header or a request body (task 7's test) |
+| `problems` | `[ImportProblem]` (Codable JSON) | Line, sentence and technical line: what `Show Details` lists |
+| `lastEventCount` | `Int` | `{count}`: this source's events in the store |
+| `lastChangeAt`, `lastChangeAdded`, `lastChangeUpdated`, `lastChangeRemoved` | `Date?`, `Int` ×3 | The last-change line (§19.3, §20.6). Set only by a sync that wrote |
+
+**The password is never a field**, and no field can hold it (§21.4). The
+display form `{username} @ {host}` is computed and not stored.
+
+*(Removed with the subscription)*: `displayHost` (the host now comes from
+`serverURL`), `usesSignIn` (an account always signs in), `etag`,
+`lastModifiedHeader`, `lastBodyHash` (replaced by `feedHash`; validators are not
+used, §20.8.4). *(Never added)*: a stored ctag, sync-token or per-object ETag.
+These are diagnostics, which are logged and never stored (`DECISIONS.md`
+2026-10-08).
+
+### 21.2 No `SourceFile`
+
+There is no `SourceFile` and no record of calendar objects. Hrefs are not
+identity (§20.2), and the events are the record. A selected calendar is the
+`SourceCalendar` value above.
+
+### 21.3 `Event` additions
+
+| Field | Type | Notes |
+|---|---|---|
+| `isCancelled` | `Bool` = false | §20.6. Sync-owned |
+| `importedDescription` | `String?` | §20.7. Kept apart from the user's `notes`, so a later "your notes on a lecture" feature (G-058) never collides with upstream text. Nil for CIS-profile events |
+| `lecturers` | `[String]` = [] | §20.7, §20.7.1. Up to 22 on CIS |
+| `courseCode` | `String?` | §20.7.1. The title source for CIS events, and the key a future alias would use (G-064) |
+| `group` | `String?` | §20.7.1 |
+| `isOnline` | `Bool` = false | §20.7.1. Read by §18.2 and by the travel slice |
+| `importKind` | raw `String` = `lecture` | `lecture` / `exam`. §20.7.1. Sets the glyph (§2.1) |
+| `link` | `String?` | §20.7 (generic feeds) |
+
+These are exactly `DECISIONS.md`'s list. **No href, ETag or calendar field**:
+which calendar an event came from is not stored (§20.1 says how deselection
+works without it). These stay as they are today:
+
+- `origin == .imported`, `sourceID`, `externalID`, `flexibility == .fixed` and
+  `isLocked == false`. Read-only comes from `origin`, not from `isLocked`, which
+  stays the user's own lock on manual events.
+- `location` keeps carrying the room as `Place(name:)`.
+
+### 21.4 The password — the only secret
+
+**One Keychain internet-password item per source** (`DECISIONS.md` 2026-10-08):
+
+| Attribute | Value |
+|---|---|
+| `kSecClass` | `kSecClassInternetPassword` |
+| `kSecAttrServer` | the host (`cis.technikum-wien.at`) |
+| `kSecAttrPort` | 443, or the explicit port |
+| `kSecAttrProtocol` | `kSecAttrProtocolHTTPS` |
+| `kSecAttrAuthenticationType` | `kSecAttrAuthenticationTypeDefault` |
+| `kSecAttrAccount` | the username (`user01`) |
+| `kSecAttrSecurityDomain` | `Kadence` |
+| `kSecAttrCreator` | `'Kdnc'` (four-char code) |
+| `kSecAttrComment` | the `Source.id` |
+| `kSecAttrLabel` | `Kadence — {displayName}` |
+| `kSecAttrAccessible` | `kSecAttrAccessibleAfterFirstUnlock`: background sync runs while the screen is locked |
+| `kSecAttrSynchronizable` | `false` |
+| `kSecValueData` | the password, UTF-8. **Nothing else**: no JSON, no URL |
+
+- **Kadence's item only.** Every query carries the server, account, protocol,
+  security domain and creator, so Kadence never reads or replaces an item that
+  another app saved for the same account. Apple Calendar is the one that matters
+  here.
+- **One source per account.** A second source with the same host and username is
+  refused at `Connect` (`layouts.md` §12.1), so (server, account, security
+  domain) is unique.
+
+**Handling the password.** It enters memory only to answer a challenge. It goes
+into a `URLCredential` with `.none` persistence, built for that sync. It is
+never kept in a property that outlives the sync. It never appears in
+`UserDefaults`, the store, a log line, an error's description, `stateDetail`, a
+problem line, an accessibility value, hover help, a fixture, a test assertion
+message, a screenshot or the repo. `SecureField` is the only view that ever
+holds it.
+
+**What is not secret, and may be shown and logged:** the server, username,
+principal and home hrefs, calendar names and hrefs, object hrefs, ctags, ETags,
+methods, statuses and durations. Every log line about a source goes through
+**one source logger** that takes a `Source`, never a request. It writes the
+§20.8.4 line and errors in §19.1's vocabulary. It never logs a header or a body.
+
+**No on-disk HTTP state.** The transport's `URLSession` uses an **ephemeral**
+configuration: `urlCache = nil`, `urlCredentialStorage = nil` (the credential is
+given per challenge and never stored by Foundation), and cookies kept in memory
+for the sync only. **The transport never follows a redirect itself.** Its
+delegate returns `nil`, and the CalDAV client decides (`interactions.md` §13.1).
+
+### 21.5 `ScheduleSource`, amended
+
+BRIEF-PRODUCT's `fetchEvents(in:) async throws -> [ExternalEvent]` cannot carry
+partial failure, a window or what discovery learned. *(Amended for CalDAV.)*
+
+```swift
+protocol ScheduleSource: Sendable {
+    func fetch(windowStart: Date) async throws(ScheduleSourceError) -> ScheduleFetchResult
+}
+struct ScheduleFetchResult: Sendable {
+    var events: [ExternalEvent]            // merged across the selected calendars (§20.2)
+    var problems: [ImportProblem]
+    var objectCount: Int                   // VEVENTs read, before the merge — the emptyFeed guard
+    var mergedCount: Int
+    var calendarsReadInFully: [String]     // hrefs; the deletion guard (§20.8)
+    var failedCalendars: [(SourceCalendar, ScheduleSourceError)]
+    var adoptedCalendars: [SourceCalendar] // after a re-discovery, the new hrefs (§20.8.1)
+    var capabilities: SourceCapabilities
+    var diagnostics: SyncDiagnostics       // the §20.8.4 log line's values; never stored
+}
+struct ExternalEvent: Sendable, Equatable {
+    var externalID: String; var title: String; var start: Date; var end: Date
+    var isAllDay: Bool; var location: String?; var isOnline: Bool
+    var courseCode: String?; var group: String?; var lecturers: [String]
+    var kind: ImportKind; var description: String?; var link: String?
+    var isCancelled: Bool; var sequence: Int; var stamp: Date?
+}
+```
+
+- **Every event, any window.** `fetch` returns every event the server returned.
+  `windowStart` only sets the `REPORT`'s time-range (§20.8.2). The **sync
+  planner** applies the Import or sync window (§20.1), computes the hashes and
+  decides "unchanged" (§20.8.4). There is no `.unchanged` result: the server
+  cannot say so.
+- **Errors.** `throws` covers the states that end the whole fetch:
+  `unauthorized`, `forbidden`, `noCalDAV`, `noCalendars`, `certificate`,
+  `passwordMissing`, `redirected`, `unreachable`, `serverError`, `offline`. The
+  per-calendar states (`calendarMissing`, `fetchFailed`, `notACalendar`) arrive
+  in `failedCalendars`. `emptyFeed` and `partialImport` are decided by the
+  planner.
+- **The concrete source.** `CalDAVScheduleSource` = `CalDAVDiscovery` (§20.8.1)
+  + `CalDAVClient` (§20.8.2) + the parser + the derivation. The connect sheet
+  uses `CalDAVDiscovery` and `CalDAVClient` directly, before any `Source`
+  exists.
+- **The mock.** A `MockScheduleSource` returns fixture results directly, as the
+  brief's architecture requires.
+
+---
+
+## 22. What Phase 3 must render for review
+
+*(Amended 2026-10-08, CalDAV amendment.)* The same rules as §17 apply: display
+fixtures, mocked services, and all six of §17.2's evidence rules. **No item
+needs a real server, a real password or network access.** In review, every
+source is served by the mocked CalDAV transport of §22.1 (`caldav-mocks.md`).
+The only account it shows is the **review account** `user01 @
+cis.technikum-wien.at`. A password is only ever drawn as `SecureField` bullets.
+
+1. Sidebar, first run: no connected source, and the `Connect Timetable…` row
+   (`layouts.md` §2.1)
+2. Connect sheet, step 1: empty (`Server` prefilled, `Connect` disabled), and
+   filled (`user01`, a password as bullets)
+3. Step 1 while connecting: spinner and `Connecting to cis.technikum-wien.at…`
+4. Step 1 failures:
+   - `unauthorized`: `Password` focused with its contents selected
+   - `certificate`
+   - `noCalDAV` (case `wellKnown404`)
+   - the WebDAV-share validation message
+5. Step 2 with **one** calendar (case `reportOK`):
+   - the **single confirmed row** `LVPlan` (no checkbox)
+   - `user01 @ cis.technikum-wien.at`
+   - `13 events, {first} – {last}`
+   - the history sentence with `2`
+   - the co-teaching sentence with `1`
+6. Step 2 with **several** calendars (case `multiCalendar`): the checklist, with
+   `LVPlan` and `Prüfungen` checked. The `Aufgaben` (VTODO-only) and `outbox`
+   collections are absent
+7. Edit mode (`Update Password…`): `Server` and `Username` prefilled, `Password`
+   empty with its `Saved in Keychain` placeholder and focused
+8. Settings ▸ Sources, `upToDate`, nothing selected in the form:
+   - `Account` `user01 @ cis.technikum-wien.at`
+   - `Calendar` `LVPlan`
+   - `Sync` `Every 30 minutes`
+9. The sidebar row in four states, one frame each or one offscreen render of the
+   row at all four (§17.2 rule 3 applies):
+   - `syncing` (spinner)
+   - `upToDate` (empty slot)
+   - `transient` (secondary glyph)
+   - `actionable` (alert glyph)
+10. The source popover in `forbidden`, and in `partialImport` with details
+    expanded
+11. Week view of fixture week `M` (§22.1):
+    - the lectures
+    - `REQEN-EXAM` with `graduationcap.fill`
+    - `INNO3-EL` reading `Online` at `.full`
+    - Friday's co-taught `SWRM-ILV` as **one** block, `conflicted` against
+      `Training`
+12. After the second sync (case `reportChanged`):
+    - week `M` with `SWEN3-LAB` in its new room and `EPC-ILV` gone
+    - the source popover's `Last change …: 2 added · 2 updated · 2 removed`
+13. Inspector, `SWQM-ILV` selected:
+    - the read-only line
+    - `Lecturer`, `Group`, `Room`
+    - Source row `University timetable` with its swatch and sync line
+    - no Description
+14. Inspector, `INNO3-EL` selected:
+    - `Lecturers` collapsed (`L10`, `L11`, `L12`, `and 19 more`) and expanded
+    - `Room` `Online · WEBINAR01`
+15. A refused edit: the inspector's read-only line in its emphasised state after
+    `⌫` (`interactions.md` §13.4)
+16. Conflict panel on Friday's `SWRM-ILV` × `Training`:
+    - three options
+    - row 1 `Shift Training 45 min later`, recommended and previewed
+    - the canvas border
+    - footer `k of 15`, with `k` per §22.1
+17. Popover with an imported NEXT: `Done` · `Open`, no `Snooze`. Then the same
+    popover with the stale line (offscreen renders per §17.2 rule 3)
+18. The removal confirmation alert
+19. An `.eventAllDay` pill (the review mode's manual all-day event, §22.1) and a
+    `.fixedTimed` block in `done`, light and dark: the G-054 contrast fix.
+    INDEX.md names the appearance
+20. The `cancelled` state, block and inspector, as an offscreen render of the
+    real views fed `edge-cases.ics`'s cancelled event. §17.2 rule 3 applies: no
+    source in review sends `STATUS:CANCELLED`
+21. The source popover in `calendarMissing` (case `calendarGone`), with `Choose
+    Calendar…` as the default button
+
+### 22.1 Fixtures
+
+#### The real export (tests only)
+
+`fixtures/cis-2026WS-redacted.ics` is Parsa's export with lecturer names
+replaced by `L01`–`L35`. CA copies it **byte for byte** into the test bundle
+(`KadenceTests/Fixtures/ICS/cis-2026WS-redacted.ics`). A test asserts that its
+SHA-256 equals the repo file's, so CRLF survives. It is never edited and never
+served in review: its dates are absolute.
+
+**Its CalDAV form**, `KadenceTests/Fixtures/CalDAV/report-cis-2026WS.xml`, is a
+`REPORT` `207` built from it with **one VEVENT per object**
+(`caldav-mocks.md` "`reportCIS`"):
+
+- 13 objects, `obj-01.ics` … `obj-13.ics` in file order.
+- Each object is the file's `VCALENDAR` header, its `VTIMEZONE` block, one
+  VEVENT, and `END:VCALENDAR`, every line as in the file.
+
+A test rebuilds the `.ics` VEVENT lines from the `.xml`'s objects and asserts
+that they equal the fixture's, line for line, so the two cannot drift.
+
+Expected, with the test clock at **2026-10-08 10:00 Europe/Vienna** and the
+test's Mac zone Europe/Vienna, **from the `.ics` and from the `.xml` alike**:
+
+| Check | Expected |
+|---|---|
+| VEVENTs read / problems | 13 / 0; `VERSION:1.0` accepted |
+| CIS profile | matches all 13 |
+| Events after the merge | **12**. One merge: `BPREF-Info` on 2 Oct 18:35–20:15, lecturers `[L05, L06]`, `isOnline`, group `if-5`, location `WEBINAR02`. In the `.xml` the two halves are separate objects (`obj-03.ics`, `obj-04.ics`) |
+| Content keys | All 12 in content mode, e.g. `SWQM-ILV HS_A3.15 - BIF-5C\|HS_A3.15\|20260914T123000Z\|20260914T140000Z` |
+| Long lecturer list | `INNO3-EL` 21 Oct: 22 lecturers `L10` … `L31` in order; `isOnline` (`WEBINAR01`). Its UID (186 characters, with spaces and ` / ` inside) is read intact and not used |
+| Kinds | exam: `REQEN-EXAM`, `RW-EXAM`, `GLD-EXAM`. Lecture: the other 9 (`-ILV`, `-UE`, `-LAB`, `-EL`, `-Info`) |
+| DST | `INNO3-EL` 21 Oct 08:00 → 06:00Z; `UF-ILV` 2 Nov 14:30 → 13:30Z; `SWQM-ILV` 14 Sep 14:30 → 12:30Z |
+| Range | First 14 Sep 2026, last 29 Jan 2027. `CGRMR-ILV` 11:20–12:50 and `GLD-EXAM` 12:50–14:20 touch but do not overlap |
+| Titles / groups | The course code; `BIF-5C ` → `BIF-5C` |
+| Import at the test clock | 12 created. **3 history** (`SWQM-ILV`, `KOKU-UE`, merged `BPREF-Info`), 9 on or after today (`SWEN3-LAB` 8 Oct counts as today) |
+| A sync of the same content a day later | Writes nothing |
+| The same, with every href renamed and every ETag changed | Writes nothing; feed hash equal |
+| The same, with every CRLF replaced by LF | Identical result |
+| Mac zone `America/New_York` | Identical instants; `SWQM-ILV` draws at 08:30 |
+
+#### The review dataset
+
+**The Phase 2 dataset, unchanged, plus one connected source, and only in review
+mode.** G-057 (ruled 2026-10-08) says **a fresh real store starts empty**:
+`MockData` seeds only under `-KadenceReview` (`PHASE3-PLAN.md` task 10).
+
+In review, the mock source `timetable` (`University timetable`, `blue`,
+`.universityTimetable`) becomes a `Source` with these values:
+
+- `connection = caldav`
+- `serverURL` `https://cis.technikum-wien.at`, `username` `user01`
+- the principal, home and `calendars` = `[LVPlan]` from `caldav-mocks.md`
+
+`MockCalDAVTransport` serves it (no network) from the template below. Its
+password comes from an in-memory secret store, **never the Keychain**, and is
+the **review password** `review-only-not-a-password`. It is drawn only as
+bullets.
+
+The **sentinel** (tests only) is account `user01`, password `S3ntinel-pw-⚠`.
+No other password appears in the repo.
+
+Review mode also seeds **one manual all-day event**, `Studieninformationstag`,
+on `M + 2` (`graphite`), for item 19. All-day events take no part in conflicts,
+so the counts below are unaffected.
+
+**`M`** is the first Monday at least two days after today (`today + 2 … today +
+8`). Every fixture lecture after today is on `M … M + 11`, so none shares a day
+with the §12/§17 today/tomorrow fixtures. The week's appearance therefore does
+not depend on the weekday or the clock (`DECISIONS.md` 2026-10-05). The fixture
+is a **template**:
+
+- `{{D+n}}` is the date `M + n` as `yyyyMMdd`.
+- `{{T-n}}` / `{{TODAY}}` is today's date minus n.
+
+Tests render it with `M` = 2026-10-12 and today = 2026-10-08.
+
+#### `Fixtures/ICS/cis-review.ics.template`
+
+It has the real file's structure exactly:
+
+- CRLF line endings, `VERSION:1.0`, `PRODID:FH Technikum Wien`, and the real
+  file's `VTIMEZONE` block verbatim.
+- Per VEVENT:
+  - `UID`, built the CIS way: `FH` + group + room + lecturers + course + start +
+    end, local `yyyyMMdd'T'HHmmss`.
+  - `SUMMARY`: `COURSE  ROOM - GROUP`, with a double space, and the group padded
+    with a trailing space where the real file pads it.
+  - The four-line `DESCRIPTION`, `LOCATION`, `CATEGORIES:StundenplanTW`, and
+    `DTSTART`/`DTEND` `;TZID=Europe/Vienna`.
+- Lecturers are `Lnn` codes, as in the real file.
+
+`MockCalDAVTransport` serves the rendered template as a `REPORT` `207` with one
+VEVENT per object (`r01.ics` … `r14.ics` in row order), built exactly as
+`reportCIS` is.
+
+| # | Day / time | Course | Room | Group | Lecturer(s) | Serves |
+|---|---|---|---|---|---|---|
+| H1 | `{{T-6}}` 14:30–16:00 | `SWQM-ILV` | `HS_A3.15` | `BIF-5C` | `L01` | history (item 5's `2`) |
+| H2 | `{{T-5}}` 09:40–12:50 | `KOKU-UE` | `UEB_B2.02` | `BIF-5C3` | `L02` | history |
+| 1 | `{{TODAY}}` 09:00–10:30 | `Datenmodellierung` | `FH B.2.09` | `BIF-5C` | `L08` | Reproduces §12 item 1. There is no `-` in the code, so it is a lecture by fallback. The seeded mock event's externalID **is this event's content key**, so the review sync updates it in place (`Event.id` and travel leg survive) |
+| 2 | `{{D+0}}` 09:00–10:30 | `SWQM-ILV` | `HS_A3.15` | `BIF-5C` | `L01` | 11, 13 |
+| 3 | `{{D+1}}` 10:00–11:30 | `SWEN3-LAB` | `EDV_F4.25` | `BIF-5C3` | `L03` | 11, 12 (room changes) |
+| 4 | `{{D+2}}` 14:00–15:30 | `INNO3-EL` | `WEBINAR01` | `BIF-5C` | `L10 / L11 / … / L31` (22) | 11, 14 |
+| 5 | `{{D+3}}` 13:00–14:30 | `EPC-ILV` | `LAB_F5.12` | `BIF-5VGE1` | `L04` | 11, 12 (vanishes) |
+| 6 | `{{D+3}}` 16:00–17:30 | `REQEN-EXAM` | `EDV_A5.09` | `if-5` | `L32` | 11 (exam glyph) |
+| 7a | `{{D+4}}` 16:00–17:45 | `SWRM-ILV` | `UEB_B2.01` | `BIF-5C` | `L05` | 11, 16. Co-taught: the first VEVENT… |
+| 7b | `{{D+4}}` 16:00–17:45 | `SWRM-ILV` | `UEB_B2.01` | `BIF-5C` | `L06` | …the second VEVENT, with its own UID and its own object, merged with 7a |
+| 8 | `{{D+7}}` 09:00–10:30 | `SWQM-ILV` | `HS_A3.15` | `BIF-5C` | `L01` | week `M + 7` |
+| 9 | `{{D+8}}` 10:00–11:30 | `SWEN3-LAB` | `EDV_F4.25` | `BIF-5C3` | `L03` | |
+| 10 | `{{D+10}}` 10:00–11:30 | `EPC-ILV` | `LAB_F5.12` | `BIF-5VGE1` | `L04` | |
+| 11 | `{{D+11}}` 09:40–11:10 | `RW-EXAM` | `EDV_F2.01` | `BIF-5C` | `L34` | last date (item 5's `{last}`) |
+
+14 VEVENTs become **13 events** after the merge (7a+7b), **2 of them history**.
+These are item 5's numbers. The Import window (§20.8.2) reaches back a year, so
+the history rows come back from the mock's `REPORT`. The mock honours the
+time-range the way SabreDAV does: it returns objects that end after `start`.
+
+Placement is the first version's, slot for slot, so its check against every
+Phase 2 fixture still holds. Nothing on `M … M+11` touches these slots:
+
+- 12:00–13:00 on Mon/Wed/Fri (`Lunch`)
+- 17:00–18:30 on Mon/Wed (`Training`)
+- 19:30–21:30 (the §17.1 `Fixture call N` pairs)
+- 21:00–21:30 (`Reading`)
+- 07:00–08:45 (`Gym`, `Morning review`)
+
+H1 and H2 are history and never conflict (§20.9). Only #7 overlaps a routine
+occurrence: `Training` (Fri 17:00–18:30, `.shiftable` ±90), by **17:00–17:45,
+45 min**. Expected panel:
+
+| Row | Title | Line 2 |
+|---|---|---|
+| 1 (recommended) | `Shift Training 45 min later` | `17:00 → 17:45 · all 90 min kept` |
+| 2 | `Shorten Training to 45 min` | `90 min → 45 min · 45 min lost` |
+| 3 | `Skip Training today` | `Does not run today · 90 min lost · re-offered` |
+
+Rows 1 and 2 tie at 45. Kind order (§14.3.1) puts `shiftLater` first, and
+§14.3.3 recommends it (45 ≤ 90). The overlap line reads `17:00–17:45 · 45 min
+overlap`.
+
+**Expected counts:** day conflicts **14** (§17.1's 13 + #7), needs-attention
+**15**. **These counts also prove the merge.** Unmerged, 7a and 7b would be two
+blocks, each conflicting with `Training` (and with each other, if the engine
+compares fixed events): 15 / 16 or more. `MockDataClockTests` (or its Phase 3
+sibling) pins 14 and 15 for a template weekday and for a non-template weekday,
+as §17.1 requires of any fixture that changes them.
+
+**Item 16's footer `k`** is unchanged. Day conflicts sort by start
+(`interactions.md` §10.1). These come before #7:
+
+- today's `Client call` × `Focus review`
+- `Training` × `Supervisor meeting` (the first Mon/Wed/Fri ≥ today, always
+  before `M + 4`)
+- the §17.1 `Fixture call N` pairs on days 2 … d − 1, where **d = (M + 4) −
+  today** in days (6 … 12)
+
+The pair on day d starts at 19:50, after #7. So **k = d + 1** (7 … 13), and the
+footer reads `k of 15`. The test pins the formula, and the capture names the
+`k` it shows.
+
+#### `reportChanged` — the second response (review item 12, sync tests)
+
+The same template, served as a `REPORT`, with exactly these differences. The
+objects of unchanged VEVENTs keep their hrefs, and changed VEVENTs get new ones
+(`r03b.ics` …). The hrefs are irrelevant either way (§20.2).
+
+| Change upstream | CIS shape | Expected in Kadence |
+|---|---|---|
+| **Room move**: #3 `SWEN3-LAB` `{{D+1}}` moves to room `EDV_F4.26` | New UID, SUMMARY, DESCRIPTION, LOCATION, object | Old deleted, new created (`.scheduled`, even if the old was `done`). §20.10 |
+| **Vanished lecture**: #5 `EPC-ILV` `{{D+3}}` | VEVENT absent | Deleted (§20.6) |
+| **Lecturer change**: #2 `SWQM-ILV` `{{D+0}}` `L01` → `L09` | New UID, same content key | Updated in place: `lecturers` `[L09]`, `Event.id` and `status` kept |
+| **Co-teacher removal**: #7b gone (`L06`) | One object fewer | Merged #7 updated in place: `lecturers` `[L05]`. Still one block, still conflicts. Counts stay 14 / 15 |
+| New: `KOKU-UE` `{{D+9}}` 10:00–11:30, `UEB_B2.02`, `BIF-5C3`, `L02` | New VEVENT | Created |
+| H1 (history) room → `HS_A3.13` | New UID | **Not written.** The sync window starts today, so the mock does not return it, and the planner would drop it if it did. H1 is unchanged, and no H1' is created |
+
+Last-change line: **`2 added · 2 updated · 2 removed`**.
+
+#### Parser fixtures (tests only, never in review)
+
+The parser takes one iCalendar text, a file or one object's `calendar-data`, so
+these stay files:
+
+| File | Contents | Expected |
+|---|---|---|
+| `cis-2026WS-redacted.ics` | the real export, above | the table above |
+| `edge-cases.ics` | `VERSION:2.0`; folded lines (CRLF + space and + tab); LF-only line endings; escaped `\,` `\;` `\n` `\\`; a UTC `Z` event; a floating event; `TZID=W. Europe Standard Time`; `TZID=Custom Zone` (unknown); `DURATION` instead of `DTEND`; a zero-length event; a two-day `VALUE=DATE` event; a weekly series across 25 Oct 2026 (DST end); an `RDATE`; an orphan `RECURRENCE-ID`; a `STATUS:CANCELLED` event (review item 20); two VEVENTs with stable UIDs and one shared content key (a generic co-teaching merge); an `ORGANIZER;CN=`; a `URL`; `X-` properties; a `VALARM`; a `VTIMEZONE` block | Every row of §20.3–§20.7 asserted. Floating and unknown-zone events are read in the test's Mac zone. One problem (the unknown zone), no skips |
+| `malformed-partial.ics` | 10 VEVENTs: 1 without `UID`, 1 with `DTEND` before `DTSTART`, 1 with `DTSTART:garbage`, 1 `FREQ=MONTHLY;BYDAY=2MO` series | 6 imported, 4 problems with line numbers, state `partialImport`, no deletions |
+| `html-login.html` | an HTML sign-in page | Served as a `200 text/html` answer to `REPORT`: `notACalendar`, nothing written |
+| `truncated.ics` | `BEGIN:VCALENDAR`, two VEVENTs, no `END:VCALENDAR` | As one object's `calendar-data`: that object is a problem (`partialImport`), and the others are read |
+
+#### Mocked responses (`MockCalDAVTransport` and the `URLProtocol` stub)
+
+**Normative shapes: `caldav-mocks.md`.** CA copies its XML bodies into
+`KadenceTests/Fixtures/CalDAV/` as files. They use the real server's shapes from
+2026-10-08, with the username replaced by `user01`. Every case starts with the
+discovery chain D1–D4 (`discoveryOK`) unless it replaces a step.
+
+| Case | What differs | Expected |
+|---|---|---|
+| `reportOK` | Discovery as CIS, then `REPORT` → `207` with the review template (review) or `reportCIS` (tests) | Step 2 single row `LVPlan`; `upToDate` |
+| `reportChanged` | Second `REPORT` = the table above | `upToDate`, last change `2 added · 2 updated · 2 removed` |
+| `etagsOnly` | Second `REPORT`: identical `calendar-data`, every `getetag` and href changed | **Nothing written**; feed hash equal; log line shows a different ETag set |
+| `ctagOnly` | `REPORT` → `405` on both polls (so F1 runs). F1's `PROPFIND` carries `getctag` `LVPlan-user01-1791454967`, then `LVPlan-user01-1791455022`, with different `getetag`s. `calendar-multiget` content is identical | First poll writes. **Second poll writes nothing.** `fetchMode` `multiget`; the log shows both ctags |
+| `reportRefused` | `REPORT` → `405`; F1 `PROPFIND` `207` + `calendar-multiget` `207` | Same events as `reportOK`; no UI difference; `fetchMode` `multiget` |
+| `multigetRefused` | `REPORT` `405`, `calendar-multiget` `501`, `GET` per href `200` | Same events; `fetchMode` `get`; requests = 1 + 1 + 1 + n |
+| `allRefused` | `REPORT` `405`, `calendar-multiget` `501`, `GET` `405` | `fetchFailed`, nothing written |
+| `overCap` | `multigetRefused` with 400 member hrefs | `fetchFailed` after exactly 300 requests, nothing written |
+| `unauthorized` | D2 and every later request → `401` `WWW-Authenticate: Basic realm="…"`, also with the password | `unauthorized`, paused. Exactly one request carried `Authorization`, and only after the first `401` |
+| `forbidden` | D2 → `403` after the password | `forbidden`, paused |
+| `wellKnown404` | D1 → `404` | `noCalDAV` |
+| `propfindNot207` | D2 → `200 text/html` | `noCalDAV` |
+| `noCalendars` | D4 lists only the home and `outbox/` | `noCalendars` |
+| `multiCalendar` | D4 adds `Prüfungen` (VEVENT), `Aufgaben` (VTODO only) and `inbox/` | Checklist: `LVPlan`, `Prüfungen` checked; nothing else listed |
+| `calendarGone` | `REPORT` → `404`; re-discovery's D4 has no `LVPlan` | `calendarMissing`, events kept, not paused |
+| `calendarMoved` | `REPORT` → `301` same host; re-discovery finds `LVPlan` at `…/LVPlan-user01-ws26/` | Adopted silently, `upToDate`; `calendars[0].href` updated |
+| `htmlOK` | `REPORT` → `200 text/html` (`html-login.html`) | `notACalendar`, nothing written |
+| `emptyCalendar` | `REPORT` → `207` with no `response` | At the Import: allowed, 0 events. After events: `emptyFeed` |
+| `timeout` | No response; the client's timeout fires (injected short in tests, 30 s in the app) | `unreachable` |
+| `offline` | `URLError.notConnectedToInternet` | `offline` |
+| `certificate` | The transport fails with `URLError.serverCertificateUntrusted` | `certificate`. The stub records **no request at all**: no credentials, no body |
+| `redirectOffHost` | D1 → `301 Location: https://login.example.invalid/caldav/` | `redirected` (`{otherHost}` = `login.example.invalid`). **No request reached it** |
+| `redirectToHTTP` | D1 → `301 Location: http://cis.technikum-wien.at/webdav/lvplan.php/` | `redirected`, the `http:` body; nothing sent there |
+| `serverError` | `REPORT` → `503` | `serverError` |
+| `slow` | `reportOK` after 3 s (review only: item 3's spinner) | |
+
+The review build selects a case per launch (`PHASE3-PLAN.md` task 10 names the
+arguments). The default is `reportOK`.

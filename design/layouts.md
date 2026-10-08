@@ -86,6 +86,28 @@ Nothing else. No search field, no filter menu in Phase 1.
 
 Row height 24, section spacing `spacing.lg`.
 
+### 2.1 Source rows with a connection (added 2026-10-08, Phase 3)
+
+Sources now come from `Source` records (`components.md` §21), not a static
+list. Row, left to right: swatch (`components.md` §10.1) · name (`sidebarItem`,
+truncates tail) · **status slot**, `size.statusSlotWidth` (16), `spacing.xs` before the checkbox
+(`components.md` §19.2; reserved on every row so checkboxes align) · visibility
+checkbox. Row height stays 24.
+
+- **Context menu on a connected source's row:** `Sync Now` · `Show Sync
+  Status` · separator · `Edit Source…` · separator · `Remove Source…`. Local
+  sources keep the menu they had (none). `Edit Source…` opens Settings ▸
+  Sources with the connect sheet in edit mode (§12.3).
+- **`↩` on a focused connected row** opens its source popover (`components.md` §19.3); `Space`
+  still toggles the checkbox.
+- **First run — no connected source.** The last row of the Sources section is a
+  borderless link-style button `Connect Timetable…` (`sidebarItem`,
+  `color.interactive.accent`, leading inset aligned with the source names, no
+  swatch, no icon). It opens Settings ▸ Sources with the connect sheet open
+  (§12). It disappears once any connected source exists. This is BRIEF-DESIGN
+  item 11's "first-run with nothing connected" state for this slice: one quiet
+  line, no illustration, no empty-state panel.
+
 ---
 
 ## 3. Week view
@@ -393,6 +415,68 @@ width 84.
 
 ---
 
+### 6.1 An imported event selected (added 2026-10-08, Phase 3; amended the same day for the CIS profile)
+
+Same sections and geometry as §6; what changes is what can be edited and a few
+rows. Top to bottom:
+
+1. **Title row** — the kind glyph (`building.columns`, or `graduationcap.fill` for
+   an exam, `components.md` §2.1) and swatch inline, as §6. The title is **text,
+   not a `TextField`** (`inspectorTitle`, `lineLimit` 3, selectable). For a CIS
+   event the title is the course code (`SWQM-ILV`, `components.md` §20.7.1).
+2. **Read-only line**, directly under the title, `spacing.xs` above:
+   `Read-only — from University timetable` (the source's display name),
+   `inspectorLabel` / `color.text.secondary`. Always shown for an imported
+   event, not only after a refused gesture: a rule the user discovers by being
+   refused is a rule that refuses them first. For a cancelled event it reads
+   `Cancelled by University timetable` instead (`components.md` §20.6).
+   **Emphasised state** (`interactions.md` §13.4): `color.text.primary` for
+   `motion.outlineHold` (0.6s), then back, cross-fading over `motion.selection`;
+   under Reduce Motion it switches without the fade and holds the same 0.6s.
+3. **Time** — `Starts`, `Ends`, `Duration` as §6, values as text, no steppers or
+   pickers, in the Mac's current time zone. All-day: `All day` and the date
+   range.
+4. **Lecturer / Lecturers** — when `lecturers` is non-empty (`components.md`
+   §20.7, §20.7.1). Label `Lecturer` for one name, `Lecturers` for more. One name
+   per line (`inspectorValue`, each line `lineLimit` 2, selectable). **Long
+   lists collapse**: with more than `size.inspectorLecturersMaxRows` (4) names,
+   the row shows the first **three** and a fourth line `and {n} more` (`n` =
+   the rest; 22 names → `and 19 more`), a borderless link-style button in
+   `inspectorValue` / **`color.interactive.link`**. Activating it expands the row
+   in place to every name, the button moving to the end as `Show fewer`. The
+   expansion lasts while the event stays selected; a new selection starts
+   collapsed. Up to four names never collapse — a fourth line saying `and 1 more`
+   would cost the same space as the name. VoiceOver reads the row as one
+   element: label `Lecturers`, value `22 lecturers: L10, L11, …` (every name,
+   collapsed or not), and the button as `Show all 22 lecturers` / `Show fewer
+   lecturers`.
+5. **Group** — when `group` is set (CIS): `BIF-5C`.
+6. **Room** — when `location` is set. Label **`Room`** for CIS events, `Location`
+   for others (§20.7). An online event (`isOnline`) reads **`Online ·
+   WEBINAR02`**: the word first, because it is the fact; the code after it,
+   because it is what CIS and the lecturer call it. No travel line in this slice
+   (`GAPS.md` G-063).
+7. **Source** — swatch + `University timetable`, as §6 (amended 2026-10-05), with
+   a second line in `blockMeta` / `color.text.secondary`: `Synced 14:02`
+   (`components.md` §19.5), or the state title when not `upToDate` (`Access
+   refused`). Clicking that line opens the source popover (`components.md`
+   §19.3). **Origin** — `Imported`.
+8. **Status** — Done / Skip, enabled (they are local, `components.md` §18.1).
+   Disabled, with the read-only line saying why, on a cancelled event.
+9. **Description** — replaces **Notes** for imported events: label
+   `Description`, value `importedDescription` as selectable text
+   (`inspectorValue`, `lineLimit` 0, line breaks kept). Omitted when empty —
+   always, for CIS events, whose description is split into rows 4–6. No
+   editable Notes field in this slice (G-058).
+10. **Link** — when `link` is set (generic feeds; CIS sends none): the URL's host
+    as a link (`inspectorValue`, **`color.interactive.link`** — amended: was
+    `color.interactive.accent`, which measures 4.26:1 on `surface.inspector` in
+    light and fails, G-066), opening in the default browser.
+
+Labels use §6's 84pt label column. `Lecturer`, `Lecturers`, `Group`, `Room`,
+`Description`, `Link` are the labels' exact text. No row is drawn empty. There is
+no `Course` row: the title is the course.
+
 ## 7. What collapses first, restated
 
 In order, as the window narrows: inspector → sidebar → week columns start
@@ -668,3 +752,356 @@ what makes this panel one.
 change view, and select other blocks. Doing any of those abandons the pending
 preview per `interactions.md` §10.2 — the panel never traps you, and it never
 holds a decision you did not make.
+
+
+---
+
+# Phase 3 — additions
+
+Written 2026-10-08. Additions only; §2.1 and §6.1 above are the in-place
+amendments.
+
+---
+
+## 11. Settings ▸ Sources
+
+*(Amended 2026-10-08, CalDAV amendment: `Link` and `Sign-in` replaced by
+`Account` and `Calendar`. The default interval is 30 minutes.)*
+
+The app's `Settings` scene (`⌘,`) is a standard macOS settings window:
+
+- toolbar-style tab bar, title = the selected tab
+- not resizable
+- closes with `⌘W`
+
+Phase 3 has **one tab, `Sources`** (symbol `link`). A tab bar with one tab is on
+purpose: later phases add panes (BRIEF-DESIGN item 10) without moving this one.
+Content size is `size.settingsWindowWidth` × `size.settingsWindowHeight`
+(640 × 440).
+
+```
++------------------------------------------------------------------+
+|                        [ link ] Sources                          |
++--------------------+---------------------------------------------+
+| ■ University time… | Up to date                                  |
+|                    | Synced 14:02 · 142 events                   |
+|                    | Last change today 14:02: 1 removed          |
+|                    |                              [ Sync Now ]   |
+|                    | ------------------------------------------- |
+|                    |      Name  [University timetable       ]    |
+|                    |   Account  user01 @ cis.technikum-wien.at   |
+|                    |                         [ Edit Account… ]   |
+|                    |  Calendar  LVPlan                           |
+|                    |      Sync  [ Every 30 minutes      ⌄ ]      |
+|                    |                                             |
+| [+][−]             | [ Remove Source… ]                          |
++--------------------+---------------------------------------------+
+```
+
+- **Source list** (leading, `size.settingsSourceListWidth` 200, full height
+  minus the button bar):
+  - It lists connected sources only. Local sources have nothing to configure.
+  - Row: swatch + name (`sidebarItem`) + status slot (`components.md` §19.2,
+    same glyph rules).
+  - Below it, the standard `+` / `−` square buttons (`.borderless`, small,
+    bottom-leading, as in System Settings' lists). `+` opens the connect sheet
+    (§12). `−` is `Remove Source…` for the selection.
+  - One source is selected whenever any exist.
+- **Detail** (the rest), padding `spacing.xl`:
+  1. **Status block** — `components.md` §19.3's content inline: title, body,
+     status line, last-change line, and the primary action as a `.bordered`
+     button, trailing. `Show Details` expands the full problem list here,
+     scrolling inside the detail if long. There is no `Settings…` button (you
+     are there).
+  2. Divider, `size.hairline`, `color.separator.region`, `spacing.lg` above and
+     below.
+  3. **Form** — standard `Form` / `LabeledContent`, labels trailing-aligned:
+     - `Name` — a `TextField`. It commits on `↩` or blur, and an empty field
+       reverts to the last name. Renaming changes the sidebar, hover help,
+       inspector and Keychain label, and nothing else.
+     - `Account` — `{user} @ {host}` (`user01 @ cis.technikum-wien.at`) as text,
+       `inspectorValue`, **selectable** (nothing in it is secret,
+       `components.md` §21.4). There is no password row: the password is never
+       drawn, not even as bullets, outside the sheet's `SecureField`. Below it,
+       trailing, `Edit Account…` opens the connect sheet in edit mode with
+       focus in `Password` (§12.3).
+     - `Calendar` (one) / `Calendars` (several) — the selected calendars'
+       display names, comma-separated, as text (`inspectorValue`, `lineLimit`
+       0). Choosing others is in edit mode's step 2 (§12.3).
+     - `Sync` — a pop-up button: `Every 15 minutes` · `Every 30 minutes` ·
+       `Every hour` · `Every 3 hours` · `Every 6 hours` · `Every 12 hours` ·
+       `Every day`. **Default `Every 30 minutes`** (Parsa, 2026-10-08;
+       `interactions.md` §13.3). There is no "manually" option: nothing
+       important may depend on the user remembering to sync.
+  4. **`Remove Source…`**, a `.bordered` button, bottom-leading of the detail.
+- **Empty state** (no connected source):
+  - The list is empty.
+  - The detail shows one line, `No timetable connected.` (`inspectorValue`,
+    `color.text.secondary`), and a `Connect Timetable…` button beneath it,
+    `spacing.lg` apart, both vertically centred.
+  - No illustration.
+- **Ways to reach Settings:**
+  - `⌘,`
+  - the sidebar's `Connect Timetable…` row
+  - the popover's `Settings…`
+  - the sidebar context menu's `Edit Source…`, which opens the sheet over
+    Settings
+
+## 12. The connect sheet
+
+*(Rewritten 2026-10-08, CalDAV amendment. The sheet signs in to an account and
+lets the user confirm its calendars. There is no link field, no masked link
+and no file step. Tokens `size.connectCalendarRowHeight` and
+`size.connectCalendarListMaxHeight` are added in `tokens.json` 1.6.0.)*
+
+The sheet sits on the Settings window. Width `size.connectSheetWidth` (440),
+height intrinsic, padding `spacing.xxxl`. It has two steps in one sheet, and
+the content swaps with `motion.viewChange` (Reduce Motion: §7.2's fade).
+
+**Nothing is written until step 2's `Import` / `Save`**: no Keychain item, no
+`Source`, no event (`DECISIONS.md` 2026-10-08). Cancelling at any point leaves
+nothing behind. This is the same rule as event drafts and conflict previews
+(`DECISIONS.md` 2026-09-10). The discovery result, the fetched events and the
+typed password are held in the sheet's memory only, and are discarded with it.
+
+### 12.1 Step 1 — Connect
+
+```
++------------------------------------------------+
+| Connect a timetable                            |  inspectorTitle
+| Sign in with your FH account — the server,     |  inspectorValue, text.secondary
+| username and password Apple Calendar uses.     |
+| Kadence only reads the timetable; it never     |
+| changes anything in CIS.                       |
+|                                                |
+|      Name  [University timetable            ]  |
+|    Server  [cis.technikum-wien.at           ]  |
+|  Username  [                                ]  |
+|  Password  [                                ]  |
+|                                                |
+| Your password is kept in the macOS Keychain    |  blockMeta, text.secondary
+| and sent only to cis.technikum-wien.at, over   |
+| HTTPS.                                         |
+|                                                |
+|                       [ Cancel ]  [ Connect ]  |
++------------------------------------------------+
+```
+
+- **Fields** — a standard `Form`, labels trailing-aligned, fields full width:
+  - `Name` — default `University timetable`.
+  - `Server` — **prefilled `cis.technikum-wien.at`**, editable.
+    `textContentType(.URL)`, autocorrection and spell-checking off.
+  - `Username` — empty, `textContentType(.username)`, autocorrection off. Focus
+    starts here.
+  - `Password` — a `SecureField`, `textContentType(.password)`. It is never
+    prefilled, never echoed, and never in an accessibility value.
+- **Footnote** — the sentence above, with `{host}` taken live from `Server`.
+  When `Server` doesn't parse, it reads `Your password is kept in the macOS
+  Keychain and sent only to the server you enter, over HTTPS.`
+- **Validation, inline, as you type.** The message sits under the field it is
+  about, in `blockMeta`, `color.text.secondary`. It is not red: it is guidance
+  until `Connect`. Leading and trailing whitespace is trimmed silently.
+  `Connect` is enabled only when every row reads "enabled".
+
+  | Field | Value | Message | Connect |
+  |---|---|---|---|
+  | Server | empty | — | disabled |
+  | Server | a host (`cis.technikum-wien.at`, optionally `:port`), or `https://` + host, optionally with a path | — | enabled. A path skips D1 and is the context URL (`components.md` §20.8.1) |
+  | Server | `http://…` | `Kadence only connects over HTTPS.` | disabled |
+  | Server | another scheme, spaces, or no host | `Enter the server name, like cis.technikum-wien.at.` | disabled |
+  | Server | contains `user@` or `user:pass@` | `Enter the username in its own field.` | disabled |
+  | Server | path is `/webdav/lvplan` or starts with `/webdav/lvplan/` (any case, the WebDAV share) | `That's the WebDAV share, which only works on the FH network. Enter just the server name: cis.technikum-wien.at.` | disabled |
+  | Username | empty | — | disabled |
+  | Username | the host and username of an existing source | `{user} @ {host} is already connected as {name}.` | disabled |
+  | Password | empty | — | disabled |
+
+- **`Connect`** (default, `↩`) runs **discovery and the first fetch as one
+  step** (`components.md` §20.8.1–§20.8.2):
+  - D1–D4 run, then one `REPORT` with the **Import window** for every listed
+    calendar (CIS: one).
+  - While it runs, every field is disabled. The footnote is replaced by a mini
+    `ProgressView` and `Connecting to cis.technikum-wien.at…` (`blockMeta`,
+    `color.text.secondary`), which is the only progress the user sees. No step
+    names, no request count.
+  - `Connect` is disabled. `Cancel` stays enabled: it cancels the request in
+    flight and returns the sheet to its editable state with nothing changed.
+  - The password is sent only in answer to the host's `401`
+    (`interactions.md` §13.1).
+- **Failure.** The footnote's place shows the state's title from
+  `components.md` §19.1 and the step-1 body below (`sourceStatusTitle` /
+  `inspectorValue`, `color.text.primary`, `lineLimit` 0). The fields are
+  re-enabled, and focus moves to the field to fix. The step-1 bodies drop the
+  sync-only clauses and say what to do now:
+
+  | State | Step-1 body | Focus |
+  |---|---|---|
+  | `unauthorized` | `{host} didn't accept the username or password.` | `Password`, contents selected |
+  | `forbidden` | `{host} refused access for {user}.` | `Username`, contents selected |
+  | `noCalDAV` | `{host} doesn't offer CalDAV calendars. Check the server name.` | `Server`, contents selected |
+  | `noCalendars` | `{account} has no calendars with events.` | `Username` |
+  | `redirected` | as §19.1 | `Server` |
+  | `notACalendar` | `{host} sent a web page instead of calendar data. Try again later.` | stays on `Connect` |
+  | `fetchFailed` | `{host} refused every way Kadence asks for events. Nothing was saved.` | stays on `Connect` |
+  | `certificate` | `The certificate for {host} couldn't be verified, so Kadence sent nothing to it.` | stays on `Connect` |
+  | `unreachable` | `Check the server name and your connection, then try again.` | stays on `Connect` |
+  | `serverError` | `{host} answered with an error ({code}). Try again later.` | stays on `Connect` |
+  | `offline` | `This Mac is offline. Connect when it's back online.` | stays on `Connect` |
+
+  There is no "connect anyway" for any of them. Problems inside objects are not
+  failures: they appear in step 2.
+- **Success** (at least one calendar, even an empty one) → step 2.
+
+### 12.2 Step 2 — Calendar and Import
+
+**One calendar** — the CIS case:
+
+```
++------------------------------------------------+
+| Import University timetable                    |  inspectorTitle
+| user01 @ cis.technikum-wien.at                 |  inspectorValue, text.secondary
+|                                                |
+| Calendar                                       |  inspectorLabel, text.secondary
+|  ✓ LVPlan                                      |  confirmed row
+|                                                |
+| 142 events, 14 Sep 2026 – 29 Jan 2027          |  inspectorValue, text.primary
+|                                                |
+| 38 of them are before today. They're imported  |  inspectorValue, text.secondary
+| once, as history, and never changed afterwards.|
+| 9 co-taught lectures are listed once per       |
+| lecturer and are shown once.                   |
+| 2 events couldn't be read and will be skipped. |  inspectorValue, text.primary
+| [ Show Details ]                               |
+|                                                |
+|                          [ Back ]  [ Import ]  |
++------------------------------------------------+
+```
+
+**Several calendars** — the same, with a checklist in place of the row:
+
+```
+| Calendars                                      |  inspectorLabel, text.secondary
+|  [x] LVPlan                                    |  checkbox rows
+|  [x] Prüfungen                                 |
+```
+
+- **Title** `Import {name}`. Under it is `{user} @ {host}`.
+- **The calendar** — label `Calendar` (one) or `Calendars` (several),
+  `inspectorLabel`, `color.text.secondary`, `spacing.lg` above, `spacing.sm`
+  below.
+  - **Exactly one calendar** (CIS: `LVPlan`) — a **single confirmed row**, not
+    a control:
+    - `checkmark` at `size.blockGlyphSize`, `color.text.secondary`, then
+      `spacing.sm`, then the display name in `inspectorValue` /
+      `color.text.primary`.
+    - Row height `size.connectCalendarRowHeight` (24).
+    - Not focusable and not clickable: there is nothing to choose.
+    - VoiceOver reads `Calendar: LVPlan`.
+  - **Several** — one `Toggle` (`.checkbox` style) per calendar, label = the
+    display name, rows of `size.connectCalendarRowHeight`, in D4's order:
+    - On `Connect` **every listed calendar is checked**: every one supports
+      `VEVENT`, or it would not be listed (`components.md` §20.8.1).
+    - The list scrolls inside `size.connectCalendarListMaxHeight` (144, six
+      rows).
+    - `⇥` reaches each checkbox, and `Space` toggles it.
+    - With none checked, a line `Choose at least one calendar.` (`blockMeta`,
+      `color.text.secondary`) replaces the range line, and `Import` is
+      disabled.
+  - **Never listed** (`components.md` §20.8.1): the calendar home, `outbox`,
+    `inbox`, VTODO-only calendars and any non-calendar collection. Nothing says
+    they were left out.
+- **Range line** — `{n} events, {first date} – {last date}`:
+  - Dates use the `6 Oct 2026` form (§19.5's `Older` date form, without the
+    time). One date when `first == last`: `1 event, 14 Sep 2026`.
+  - `{n}` counts events **after the merge across the checked calendars**
+    (`components.md` §20.2) — what will be on the calendar.
+  - Toggling a checkbox recomputes the line and the sentences **from the data
+    already fetched**, with no request.
+- **Sentences**, each only when its number is non-zero, `spacing.sm` apart:
+  - history: `{h} of them are before today. They're imported once, as history,
+    and never changed afterwards.` Singular: `1 of them is before today. It's
+    imported once, …`. When every event is before today: `All of them are
+    before today. …`.
+  - merges: `{m} co-taught lectures are listed once per lecturer and are shown
+    once.` / `1 co-taught lecture is listed once per lecturer and is shown
+    once.`
+  - problems: `{k} events couldn't be read and will be skipped.` / `1 event
+    couldn't …`, in `color.text.primary`. A borderless `Show Details` expands
+    the problem list in place, exactly as `components.md` §19.3 does (8, then
+    `+N more`).
+- **Empty calendar** — the range line reads `The calendar has no events yet.`,
+  and the sentence under it reads `Kadence will add them as they appear.`
+  `Import` stays enabled: an empty timetable before the semester's plan is
+  published is real.
+- **`Import`** (default, `↩`) writes in this order, with **no further
+  request** (the Import, `components.md` §20.1):
+  1. the Keychain item (`components.md` §21.4);
+  2. the `Source`, with the checked calendars, the principal and home hrefs,
+     and the capabilities learned;
+  3. the events already fetched from the checked calendars, in one transaction.
+
+  A Keychain failure stops at step 1 and writes nothing else. It shows the title
+  `Password not saved` and the body `Kadence couldn't save the password in the
+  Keychain, so nothing was saved. Try again.` (sheet-only copy, not a §19.1
+  state). On success the sheet closes, Settings selects the source, and its
+  status block reads `Up to date`. The next sync is one interval later.
+- **`Back`** returns to step 1 with every field as entered, the password too,
+  for this sheet's lifetime only. `Connect` then runs again.
+
+### 12.3 Edit mode
+
+**Opened by** `Edit Account…` (Settings, and a state's primary action),
+`Update Password…`, `Choose Calendar…` and `Edit Source…`. Title `Edit
+University timetable`.
+
+**Step 1:**
+
+- `Name`, `Server` and `Username` are prefilled.
+- **`Password` is empty**, with the placeholder `Saved in Keychain`. Left empty,
+  the saved password is used, unless `Server` or `Username` changed: a
+  different account needs its password, and `Connect` stays disabled until one
+  is typed.
+- The duplicate-account check (§12.1) ignores this source itself.
+
+**Focus:**
+
+| Opened by | Focus |
+|---|---|
+| `Update Password…` | `Password` |
+| `Edit Account…` (Settings) | `Password` |
+| `Edit Account…` (a state's action) | `Server` |
+| `Edit Source…` | `Name` |
+| `Choose Calendar…` | none: it **starts `Connect` at once** with the saved account, so the sheet opens in the connecting state and lands on step 2 |
+
+**`Connect`** runs discovery again (an explicit act, `components.md` §20.8.1).
+It then fetches every listed calendar with the Import window, so a deselection
+can be counted.
+
+**Step 2, edit form:**
+
+- Title `Update {name}`.
+- The calendar row or checklist as in §12.2:
+  - The **current selection is checked**.
+  - Calendars that are not selected are listed **unchecked**. In edit mode
+    nothing is added without the user checking it.
+  - A selected calendar that discovery no longer finds is not listed. The line
+    `{calendar} is no longer on {host}.` (`inspectorValue`,
+    `color.text.primary`) stands above the list.
+- The range and problem sentences as in §12.2.
+- The history sentence is replaced by `Events before today are not changed.`
+  (it is a sync, `components.md` §20.1).
+- When a calendar is unchecked, and the events only it contributed number `d` >
+  0, the sentence `{d} events from calendars you unchecked will be removed,
+  including past weeks.` (`1 event … will be removed, …`) appears in
+  `color.text.primary`, last before the buttons.
+- The button is **`Save`**.
+
+**`Save`:**
+
+- If the password, server or username changed, it replaces the Keychain item:
+  the new one is written first, then the old one is deleted.
+- It updates the `Source` (server, username, hrefs, calendars) and resets
+  `capabilities.fetchMode` to `report`.
+- It clears `isAutoSyncPaused`.
+- It applies the already-fetched data **as a sync**, under `components.md`
+  §20.8's guards, today onward only, **plus** the deselection deletion of
+  §20.1.

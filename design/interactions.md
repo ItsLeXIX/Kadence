@@ -144,6 +144,7 @@ This resolves DEVIATIONS A36 once built.
 | `⎋` | Abandon the pending preview | conflict panel focused |
 | `‹` `›` / `⌥←` `⌥→` | Previous / next unresolved conflict | conflict panel focused |
 | `⌘⌥N` | New all-day event on the focused day | grid focused |
+| `⌘R` | **Sync Now** — every connected source (View ▸ Sync Now). *Added 2026-10-08, §13.3* | global |
 
 Every one of these is also a menu bar item, with the same key equivalent, so the
 shortcut set is discoverable without documentation.
@@ -624,3 +625,190 @@ cross-fades over `motion.selection` (0.09s) and holds for
 `motion.snoozeConfirmHold` (4s), pausing while the pointer is inside the popover.
 Under Reduce Motion the cross-fade becomes an instant swap; the hold is unchanged
 because it is a duration, not a motion.
+
+
+---
+
+# Phase 3 — additions
+
+Written 2026-10-08. §2's table gains `⌘R` (amended in place). Everything below
+is new.
+
+---
+
+## 13. Sources
+
+*(Amended 2026-10-08, CalDAV amendment. The source is a CalDAV account: server,
+username, password. It is discovered once and read with one `REPORT` per poll.
+The default interval is 30 minutes.)*
+
+### 13.1 Connecting
+
+| Step | What happens |
+|---|---|
+| Entry | Settings ▸ Sources `+`; the sidebar's `Connect Timetable…`; **File ▸ Connect Timetable…** (no key equivalent; the menu item exists so the path is reachable from the keyboard and from Help search) |
+| Step 1 `Connect` | Discovery D1–D4, then one `REPORT` with the Import window per listed calendar (`components.md` §20.8.1–§20.8.2). The user sees this as one step. 30 s per request. The outcome maps to `components.md` §19.1 and shows as `layouts.md` §12.1 says. The discovery result and the events are held in the sheet's memory for step 2 |
+| Step 2 `Import` | Keychain item → `Source` → the events already fetched from the checked calendars (the Import, `components.md` §20.1). No further request |
+| Cancel / `⎋` / closing Settings | Abandons the sheet. Nothing is written, an in-flight request is cancelled, and everything fetched and typed is discarded |
+
+Keys in the sheet: `⇥` / `⇧⇥` move through the fields, the checkboxes (several
+calendars only) and the buttons, in reading order. `↩` = the default button
+(`Connect`, `Import`, `Save`) when enabled. `⎋` = `Cancel` in both steps, and it
+never half-saves. `Back` is a button only.
+
+**The account on the wire.**
+
+- **HTTPS only.** `Server` is normalised to `https://` + host (+ port, + path
+  when typed). `http://` is refused before anything is sent (`layouts.md`
+  §12.1). Every request goes to that one host, port and scheme.
+- **A TLS failure stops before anything is sent** (`certificate`): with an
+  untrusted certificate, no request line, credential or body is written. There
+  is **no "connect anyway"** in any build.
+- **The password is sent only in answer to that host's `401`.**
+  - The first request of a connect or sync carries no `Authorization`.
+  - When the source's host answers `401` over HTTPS with a `Basic` or `Digest`
+    challenge, the credential is supplied for that challenge's protection space
+    (host, port, `https`, realm).
+  - Within the same connect or sync, later requests may carry it for that same
+    protection space. That is still the answer to the host's challenge, and it
+    avoids doubling every request.
+  - Never pre-emptively at the start of a sync. Never in a URL. Never to another
+    host, port or scheme.
+  - A second `401` after the credential was sent is `unauthorized`, and that
+    request is not retried.
+  - Each connect and each sync uses a fresh ephemeral session, so nothing
+    carries over between them (`components.md` §21.4).
+- **Redirects** — the transport never follows one itself; the client decides:
+  - **D1** (`/.well-known/caldav`): a `301`/`302`/`307`/`308` to `https:` on the
+    **same host and port** is the context URL. CIS sends `301` →
+    `/webdav/lvplan.php/`.
+  - **A selected calendar** answering `301`/`308` to the same host has moved:
+    re-discovery (`components.md` §20.8.1).
+  - **Any other redirect** to the same host is followed once, for `GET` only.
+  - **To another host, or to `http:`** — never followed, at any step
+    (`redirected`). Following it would hand the request, and the password, to a
+    server the user never chose. The refused `Location` is reduced to its host
+    before it is shown or logged.
+- **Hrefs from the server** are resolved against the request URL. One that
+  resolves to another host is ignored and never requested.
+- **One request at a time** per source, never parallel (`components.md`
+  §20.8.2's cap).
+- **No on-disk HTTP state** (ephemeral session, no URL cache, no credential
+  storage, cookies in memory for the sync only: `components.md` §21.4).
+  **Nothing secret in any log, error or description**: the password is never
+  logged, and no header or body is logged at all.
+
+**The user's own act.** The app contacts the server only when the user presses
+`Connect`, `Import`/`Save` or `Sync Now`, or, once they have connected, on the
+schedule they set. **No build task, test, script or capture contacts it** or
+holds a real password (BRIEF-PRODUCT non-negotiables: "ask me before doing
+anything that logs into a university system with my password"). The first real
+connection is Parsa's (G-068).
+
+### 13.2 Editing and removing
+
+- **Edit** — `layouts.md` §12.3. `Save` clears `isAutoSyncPaused` and applies
+  the fetched data as a sync at once. Unchecking a calendar there deletes the
+  events only it contributed, history included (`components.md` §20.1). The
+  step-2 sentence counts them before `Save`, so no alert is added.
+- **Remove** — `Remove Source…` (Settings button, `−`, sidebar context menu)
+  shows a standard alert (`NSAlert`, warning style), the one confirmation in this
+  slice, because removal deletes a Keychain item and cannot be undone:
+  - Message: `Remove “University timetable”?`
+  - Informative text: `Its 142 events — including past weeks and anything you
+    marked done or skipped — will be removed from your calendar, and its
+    password deleted from the Keychain. Routine blocks you moved for these
+    events stay where they are. You can connect it again at any time; the
+    timetable comes back, your done and skipped marks don't.`
+  - Buttons: `Remove` (destructive, `hasDestructiveAction`), `Cancel` (default
+    — `↩` does not remove; `⎋` cancels).
+  - On `Remove`: an in-flight sync is cancelled; the source's events (history
+    included) and the `Source` are deleted in one transaction; the Keychain item
+    is deleted; the palette slot is freed; conflicts recompute. If the Keychain
+    deletion fails the source is still removed, and the alert's follow-up sheet
+    says `The password for {name} couldn't be deleted from the Keychain. You
+    can remove the item “Kadence — {name}” in Keychain Access.` (`OK`).
+
+### 13.3 When a source syncs
+
+| Trigger | Behaviour |
+|---|---|
+| `Import` / `Save` | No new request: they write the data step 1 fetched (`components.md` §20.1). The interval starts from then |
+| Interval | `NSBackgroundActivityScheduler`, `repeats = true`, `interval` = the source's `pollInterval`, `tolerance` = 10% of it, `qualityOfService = .utility`. One scheduler per source, re-created when the interval changes |
+| Launch | If the last attempt is older than the interval, or never happened: at once (after the store loads) |
+| Wake (`NSWorkspace.didWakeNotification`) | Same check, once the network path is satisfied; waits up to 60s for it, then gives up quietly until the next trigger (that is `offline`, not an error) |
+| Network regained (`NWPathMonitor`: unsatisfied → satisfied) | If the last attempt failed `unreachable`/`offline`, or is older than the interval |
+| **Sync Now** (`⌘R`, View ▸ Sync Now; the popover's and Settings' buttons; the sidebar context menu) | Every connected source (one source from a per-source control), regardless of interval and of `isAutoSyncPaused` — it is explicit. Disabled while every source is already syncing. Offline: shows `offline` at once, no request |
+
+**Interval:** default **30 minutes** (Parsa, 2026-10-08); range **15 minutes …
+1 day** in the seven steps of `layouts.md` §11. A half-hour means a same-day
+room change is missed by at most one break. Each poll costs CIS **one
+`REPORT`** for today onward. When nothing changed, the poll usually ends at
+`components.md` §20.8.3 step 4 (same feed hash, nothing written). **In `get`
+fetch mode** (`components.md` §20.8.2), automatic polls run at most every 6
+hours. Sync Now is not limited.
+
+**Rules:**
+
+- **One sync per source at a time.** A trigger during a running sync is
+  dropped, not queued (the running one already reads the latest state).
+- **Offline is not an error.** While the path is unsatisfied no attempt is made
+  and the state is `offline` (`ok` kind, no glyph).
+- **No faster retry after a transient failure.** The next automatic attempt is
+  the regular interval (or network regained). Polling a struggling server
+  harder does not help it come back.
+- **A 401 or 403 pauses automatic sync for that source**
+  (`isAutoSyncPaused`): `unauthorized` and `forbidden` (`DECISIONS.md`
+  2026-10-08). Repeated failed sign-ins can lock a university account, so
+  Kadence never makes a second failing attempt on its own. The pause is cleared
+  by edit mode's `Save` or by a Sync Now that succeeds.
+- **These do not pause:** `noCalDAV`, `noCalendars`, `calendarMissing`,
+  `fetchFailed`, `notACalendar`, `redirected`, `certificate` and
+  `passwordMissing`. No password was refused, so nothing can be locked, and a
+  maintenance page or a moved calendar can clear itself. They are `actionable`
+  and shown, and they retry at the normal interval only. (`passwordMissing`
+  sends no request at all.)
+- **Timeouts:** 30 s per request. A sync of one source is abandoned after 120 s
+  in total (600 s in `get` mode) and reported `unreachable`.
+- **Requests are sequential**, at most 300 per source per sync
+  (`components.md` §20.8.2).
+- **Sleep, quit and removal** cancel an in-flight sync; nothing partial is
+  written (the diff is applied in one transaction at the end, `components.md`
+  §20.8).
+- **Hidden** sources (sidebar checkbox off) **still sync**: visibility is a
+  view filter, not a connection setting.
+
+### 13.4 Refusing edits to an imported event
+
+Every refusal is visible; none is silent and none is an alert. Two signals, used
+together: **(a)** the system alert sound (`NSSound.beep()`) for keyboard and menu
+gestures, the standard macOS answer to "that can't be done here"; **(b)** the
+inspector's read-only line (`layouts.md` §6.1) switches to its **emphasised
+state** for 0.6s — when the inspector is visible. Pointer gestures use the
+cursor instead of the sound.
+
+| Gesture | Result |
+|---|---|
+| Drag the block | No movement; cursor `.operationNotAllowed` from the drag threshold; no drop preview; (b) on release |
+| Hover an edge | No resize handles, no resize cursor (`components.md` §18.2) |
+| `⌥`-drag (duplicate) | As drag — refused in this slice |
+| `⌫`, Edit ▸ Delete | Nothing deleted; (a) + (b). Edit ▸ Delete is **disabled** in the menu while an imported event is selected, so the menu shows the rule before the key does |
+| `⌥↑` `⌥↓` `⌥←` `⌥→` `⌥⇧↑` `⌥⇧↓` | Nothing moves; (a) + (b) |
+| `↩` (open in inspector) | Opens the inspector as usual and focuses its first focusable control; there is no title field to focus |
+| Double-click the block | Selects it; no inline title edit; (b) |
+| Typing into the title / notes area | Not possible — they are text, not fields |
+| `⌘↩` / `⌥⌘↩` (done / skipped) | **Allowed** (`components.md` §18.1); refused with (a) + (b) only on a cancelled event |
+| Popover `⌥⌘↩` (snooze) on an imported NEXT | `components.md` §18.3's refusal row |
+| A conflict option on a lecture × routine conflict | Unchanged: the options only ever edit the routine side (`components.md` §14.3.1) |
+
+When the inspector is collapsed, (a) alone signals a keyboard refusal; the
+inspector is **not** opened by a refusal (a refusal that rearranges the window
+would read as the opposite of "nothing happened").
+
+### 13.5 Undo and sync
+
+`components.md` §20.9: sync writes are not on the undo stack; steps that address
+an event a sync deleted are dropped; Edit ▸ Undo never names an action that
+would do nothing. Done/skipped on an imported event are ordinary named undo steps
+(`Undo Mark Done`). The Import is not an undo step either: an Import is undone
+by removing the source (§13.2).
