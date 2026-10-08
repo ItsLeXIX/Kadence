@@ -75,6 +75,33 @@ final class Event {
     /// §13.7.1: the user changed a template-owned field on this day.
     var isDetached: Bool { routineLink == .detached }
 
+    // MARK: Phase 3 additions (components.md §21.3; DECISIONS 2026-10-08
+    // "Sources become records"). Every one has a default, so a Phase 2 store
+    // opens without a migration step: SwiftData's lightweight migration adds
+    // the columns and fills them with these values.
+
+    /// §20.6: `STATUS:CANCELLED` from a source that sends it. Sync-owned.
+    var isCancelled: Bool = false
+    /// §20.7: upstream `DESCRIPTION`, kept apart from the user's `notes`
+    /// (G-058). Nil for CIS-profile events.
+    var importedDescription: String?
+    /// §20.7, §20.7.1. Up to 22 on CIS; merged events union them (§20.2).
+    var lecturers: [String] = []
+    /// §20.7.1: the CIS course code — also the displayed title for CIS events.
+    var courseCode: String?
+    /// §20.7.1: the CIS group (`BIF-5C`).
+    var group: String?
+    /// §20.7.1: `WEBINAR` + digits. Shown as `Online` (§18.2).
+    var isOnline: Bool = false
+    /// §21.3: `lecture` / `exam`, stored raw like the enums above.
+    private var importKindRaw: String = ImportKind.lecture.rawValue
+    var importKind: ImportKind {
+        get { ImportKind(rawValue: importKindRaw) ?? .lecture }
+        set { importKindRaw = newValue.rawValue }
+    }
+    /// §20.7 `URL` (generic feeds; CIS sends none).
+    var link: String?
+
     init(
         title: String,
         start: Date,

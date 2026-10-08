@@ -8747,3 +8747,45 @@ preview border — G-053.
 - Verify: script-only; the app and tests are unchanged since §100's run
   (622 / 0, six UI scripts PASS); tokens `--check` red until task 1, as
   in §100.
+
+## 102. P3-T01 — data model: `Source`, `Event` additions; tokens 1.6.0 (components.md §21.1–§21.3, §19.1)
+
+- Tokens regenerated at **1.6.0** (`swift Scripts/generate-tokens.swift`):
+  `inspectorLecturersMaxRows` is `Int` (integer-leaf list),
+  `connectCalendarRowHeight` 24, `connectCalendarListMaxHeight` 144, the
+  1.4.0/1.5.0 sizes, `interactive.link`, `sourceStatusTitle`. `--check`
+  green from here on.
+- `Kadence/Models/Source.swift`: `@Model Source` with exactly §21.1's 28
+  fields; enum fields as raw strings (`kindRaw`, `connectionRaw`,
+  `paletteKeyRaw`, `stateRaw`), the three JSON fields as `Data` columns
+  behind `Codable` accessors (`calendars`, `capabilities`, `problems`).
+  Value types `SourceConnection` (`local`/`caldav`), `FetchMode`,
+  `ImportKind`, `SourceState` (§19.1's 18 names + kind + `pausesAutomaticSync`),
+  `SourceCalendar`, `SourceCapabilities`, `ImportProblem` — all
+  `nonisolated` (the target defaults to `@MainActor`) so the CalDAV client
+  can use them off the main actor. `accountDisplay` = `{user} @ {host}`,
+  computed; `firstUnusedPaletteKey`; `Source.connected(…)` — the Import's
+  factory, which has no parameter that could take a password. No
+  `SourceFile`, no href/ETag/ctag column.
+- `Event` gains `isCancelled`, `importedDescription`, `lecturers`,
+  `courseCode`, `group`, `isOnline`, `importKind` (raw, default `lecture`),
+  `link` — all defaulted, so a Phase 2 store opens by lightweight migration.
+  `Source` registered in `KadenceSchema.models`.
+- Sidebar: rows from `@Query` `Source` records (palette order);
+  `SourceCatalog` mirrors them (records first, then the static mock list).
+  `MockData.seedAllIfNeeded` also seeds the eight mock sources as `local`
+  records (slugs as ids, slots kept) — seeding itself unchanged until task
+  10, as the plan says.
+- Tests (`KadenceTests/Phase3/SourceModelTests.swift`, 9): a store written
+  with a frozen **Phase 2 `VersionedSchema`** (`Event` + `Place` as at
+  `dfcc9c8`) opens, both events read back field for field, new fields at
+  defaults; palette slot (first unused, `graphite` when all used); full
+  round trip incl. the JSON fields; defaults (1800 s, `neverSynced`);
+  **stored-property allow-list** = §21.1 (from `Schema.entitiesByName`, so a
+  new column fails the test) and no name like password/secret/etag/ctag/token;
+  a `Source.connected` built beside the sentinel holds no ≥4-character
+  substring of it in any stored value; `accountDisplay`; `Int` token;
+  mock-source seeding idempotent.
+- Verify: xcresult **631 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` **up to date**; fresh
+  pre-flight before each: the six UI scripts **PASS**.

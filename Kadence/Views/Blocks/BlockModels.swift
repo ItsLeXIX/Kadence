@@ -140,11 +140,23 @@ extension GridBlockModel {
     }
 }
 
-/// Phase 1 has no source records, so the sidebar's static list is the catalogue.
-/// Phase 3 replaces this with the real connector list.
+/// Source name and symbol by palette slot. Phase 3 task 1: the catalogue is
+/// the `Source` records (components.md §21.1), mirrored here by the views that
+/// query them (`SourceCatalog.update`) so value-type models built outside a
+/// view (`GridBlockModel(event:now:)`) can still name their source. A slot no
+/// record holds falls back to the static mock list's name, then the slot name.
+@MainActor
 enum SourceCatalog {
+    /// Swift note: a `static var` on a `@MainActor` type is main-actor-isolated
+    /// global state — the compiler rejects reads from other threads.
+    private(set) static var records: [CalendarSource] = []
+
+    static func update(_ sources: [CalendarSource]) {
+        if sources != records { records = sources }
+    }
+
     private static func source(for key: SourceKey) -> CalendarSource? {
-        MockData.sources.first { $0.key == key }
+        records.first { $0.key == key } ?? MockData.sources.first { $0.key == key }
     }
 
     static func name(for key: SourceKey) -> String {

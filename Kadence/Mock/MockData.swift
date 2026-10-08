@@ -404,6 +404,7 @@ enum MockData {
         _ context: ModelContext, now: Date = Date(), materialize: () -> Void
     ) -> MockFixtures {
         let storeWasEmpty = ((try? context.fetchCount(FetchDescriptor<Event>())) ?? 0) == 0
+        seedSourcesIfNeeded(context)
         seedRoutineTemplatesIfNeeded(context)
         seedTimeWindowsIfNeeded(context)
         let fixtures = seedIfNeeded(context, now: now)
@@ -430,6 +431,25 @@ enum MockData {
         }) else { return }
         first.status = .skipped
         try? context.save()
+    }
+
+    /// Phase 3 task 1 (components.md §21.1; layouts.md §2.1): the sidebar
+    /// reads `Source` records, so the eight mock sources become `local`
+    /// records with their slugs as ids (`timetable` …) and their palette
+    /// slots kept. Inserts only the missing ones, so a second launch adds
+    /// nothing. (Task 10 moves all seeding behind `-KadenceReview`.)
+    @MainActor
+    static func seedSourcesIfNeeded(_ context: ModelContext) {
+        let existing = Set(((try? context.fetch(FetchDescriptor<Source>())) ?? []).map(\.id))
+        var inserted = false
+        for source in sources where !existing.contains(source.id) {
+            context.insert(Source(
+                id: source.id, kind: source.kind, connection: .local,
+                displayName: source.name, paletteKey: source.key,
+                symbolOverride: source.symbolOverride))
+            inserted = true
+        }
+        if inserted { try? context.save() }
     }
 
     // MARK: Travel bands — items 7–8

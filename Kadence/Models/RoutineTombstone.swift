@@ -48,6 +48,8 @@ enum KadenceSchema {
     static let models: [any PersistentModel.Type] = [
         Event.self, Place.self, RoutineTemplate.self, RoutineBlock.self, TimeWindow.self,
         RoutineTombstone.self,
+        // Phase 3 task 1 (components.md §21.1): sources become records.
+        Source.self,
     ]
 }
 

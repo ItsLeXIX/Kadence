@@ -6,10 +6,25 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct SidebarView: View {
     @Environment(CalendarState.self) private var state
     @Environment(\.openWindow) private var openWindow
+    /// layouts.md §2.1 (Phase 3): the rows come from `Source` records, in
+    /// palette order (the order slots are handed out, §21.1).
+    @Query private var sourceRecords: [Source]
+
+    private var sources: [CalendarSource] {
+        sourceRecords
+            .sorted { lhs, rhs in
+                let order = SourceKey.allCases
+                let l = order.firstIndex(of: lhs.paletteKey) ?? order.count
+                let r = order.firstIndex(of: rhs.paletteKey) ?? order.count
+                return l != r ? l < r : lhs.displayName < rhs.displayName
+            }
+            .map(\.calendarSource)
+    }
 
     var body: some View {
         @Bindable var state = state
@@ -67,7 +82,7 @@ struct SidebarView: View {
             }
 
             Section {
-                ForEach(MockData.sources) { source in
+                ForEach(sources) { source in
                     HStack(spacing: Tokens.Spacing.sm) {
                         SourceSwatch(key: source.key, symbol: source.symbol,
                                      isOn: !state.hiddenSources.contains(source.key))
@@ -107,6 +122,7 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .environment(\.defaultMinListRowHeight, 24)
+        .onChange(of: sources, initial: true) { _, new in SourceCatalog.update(new) }
     }
 
     /// components.md §10.2 — never red, never a filled alert colour.
