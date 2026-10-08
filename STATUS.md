@@ -8961,3 +8961,55 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **683 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 108. P3-T06 — CalDAV discovery (components.md §20.8.1, §19.1; interactions.md §13.1; caldav-mocks.md §1, §3)
+
+- `Kadence/Services/CalDAV/CalDAVSession.swift`: `ScheduleSourceError`
+  (§21.5's cases + `cancelled`, each with its §19.1 state) and the
+  `CalDAVSession` actor — one per connect or sync: refuses any URL that is
+  not the source's host/port/`https` (never sent), first request without
+  `Authorization`, a `401` answered once by the `ChallengeResponder` (retry
+  not counted), later requests of the session carry it, a second `401` →
+  `unauthorized`, `403` → `forbidden`, sequential by construction, cap 300
+  (refused before sending).
+- `CalDAVDiscovery.swift`: `ServerAddress` (layouts.md §12.1's `Server`
+  rows: empty, `http://`, other scheme / spaces / no host, `user@`, the
+  WebDAV share `/webdav/lvplan[/…]` in any case; normalised `serverURL`; a
+  typed path is the context URL) and `discover`: D1 (a redirect to the same
+  host/port over https is the context URL; another host or `http:` →
+  `redirected` with nothing sent there; anything else → `noCalDAV`), D2
+  (`207` with a principal, else `noCalDAV`; a 200 home-set skips D3), D3, D4
+  with §20.8.1's four-part selection rule, hrefs resolved against the
+  request URL, off-host hrefs ignored and returned for logging, a missing
+  `displayname` → the decoded last segment, zero → `noCalendars`.
+- `Kadence/Review/MockCalDAVServer.swift`: caldav-mocks.md as code — every
+  case of §3 and §22.1's table, auth as §"Authentication" says (D1 without
+  a challenge, `401 Basic realm="placeholder"` otherwise), SabreDAV's
+  time-range rule (an object is returned when its VEVENT ends after
+  `start`), F1 listings (ctagOnly's +55 and `-b` ETags on poll 2),
+  multiget (unknown href → member `404`), GET per object, re-discovery
+  states for `calendarGone`/`calendarMoved`, 400 members for `overCap`.
+  `ReviewFeed` renders the template (`M` = first Monday ≥ today + 2) and
+  builds `reportReview` / `reportChanged` by template row. The template is
+  `Kadence/Review/Fixtures/cis-review.ics.template` (CRLF, the real
+  header and VTIMEZONE verbatim, 14 VEVENTs in the CIS shape), read only by
+  review mode (`ReviewTemplate`). The tests' stub answers through this same
+  server (`KadenceTests/Phase3/MockHarness.swift`).
+- GAPS **G-072** (caldav-mocks.md's `reportChanged` object numbers
+  contradict its row order; built by row).
+- Tests (`CalDAVDiscoveryTests.swift`, 11, one parameterised over 9
+  failures): discoveryOK — LVPlan only, **4 counted requests** (5 recorded
+  with D2's 401 retry), D1 unauthenticated, the first `Authorization` right
+  after the 401; multiCalendar — LVPlan, Prüfungen; D2 shortcut (3); a
+  Server path skips D1 (3); missing displayname → `Mein Kalender`;
+  `wellKnown404`/`propfindNot207` → noCalDAV, noCalendars, unauthorized
+  (exactly one request with `Authorization`, after the first 401),
+  forbidden, certificate and offline (zero requests delivered),
+  redirectOffHost (no request to `login.example.invalid`), redirectToHTTP
+  (no `http:` request); timeout → unreachable; an off-host D4 href never
+  requested; the sentinel in no error, result dump or request but the
+  `Authorization` record; `ServerAddress` rows; the mock's D2–D4 and REPORT
+  bodies parse exactly like the byte-for-byte fixtures.
+- Verify: xcresult **694 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

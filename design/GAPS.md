@@ -2655,3 +2655,14 @@ value is one calendar year back (365 days here). Built as **one calendar
 year** (`Calendar.date(byAdding: .year, value: -1)`), so the pinned value
 holds; DEVIATIONS D7. Either reading holds any semester. Please confirm which
 the spec means and correct the other.
+
+### G-072 — OPEN (coding agent, P3-T06). `reportChanged`'s object numbers in caldav-mocks.md.
+
+caldav-mocks.md §2 says the review objects are `r01.ics` … `r14.ics` "in row
+order (H1, H2, 1, 2, 3, 4, 5, 6, 7a, 7b, 8, 9, 10, 11)", which makes #2
+`r04`, #3 `r05`, #5 `r07` and #7b `r10`; its `reportChanged` list then names
+#2 `r05`, #3 `r06`, #5 `r08`, #7b `r10` and H1 `r01`, which cannot all hold.
+Hrefs are not identity (§20.2), so nothing in the build depends on it.
+`ReviewFeed.reportChanged` applies the changes **by row** (#2, #3, #5, #7b,
+H1, plus `r15` for the new `KOKU-UE`) with row-order hrefs. Please make the
+numbers agree.

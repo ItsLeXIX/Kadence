@@ -9,7 +9,7 @@
 
 import Foundation
 
-enum Fixture {
+nonisolated enum Fixture {
     /// Swift note: `Bundle(for:)` needs a class that lives in the test bundle;
     /// this empty one is only that anchor.
     private final class Anchor {}
@@ -38,7 +38,7 @@ enum Fixture {
 }
 
 /// PHASE3-PLAN.md: "The test clock is 2026-10-08 10:00 Europe/Vienna".
-enum TestClock {
+nonisolated enum TestClock {
     static let zone = TimeZone(identifier: "Europe/Vienna")!
 
     /// `yyyy-MM-dd HH:mm` in Europe/Vienna.
