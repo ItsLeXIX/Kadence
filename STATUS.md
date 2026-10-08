@@ -8823,3 +8823,42 @@ preview border — G-053.
 - Verify: xcresult **639 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 104. P3-T03 — ICS parser, including the real export (components.md §20.3, §20.4, §20.7, §22.1)
+
+- `Kadence/Services/ICS/ICSParser.swift`, pure, Foundation only: `Data` /
+  `String` → `.calendar(ParsedCalendar)` or `.notACalendar`. BOM; CRLF, LF,
+  CR and mixed (split on unicode scalars, because Swift treats `\r\n` as one
+  `Character`); unfolding (space and tab); TEXT unescaping; parameters with
+  quoted `:`/`;`; `DATE` / `DATE-TIME` / `Z` / IANA `TZID` / the five
+  Windows names / unknown `TZID` and floating → the **injected** zone;
+  `DURATION`; `STATUS`; `ORGANIZER` CN (else the `mailto:` address); `URL`;
+  `RRULE`/`RDATE`/`EXDATE`/`RECURRENCE-ID` read for task 4; `SEQUENCE`,
+  `LAST-MODIFIED`/`DTSTAMP`. Only a VEVENT's own properties count (VALARM
+  and VTIMEZONE contents are skipped). `VERSION` is not checked. The
+  is-a-calendar check (§20.8.2) and the 1 MiB object limit.
+- Skipped VEVENTs (no `UID`, unreadable `DTSTART`/`DTEND`/`DURATION`,
+  `DTEND` before `DTSTART`, negative `DURATION`, unclosed) are problems with
+  their physical line; a zero-length event is kept. Unknown zones are
+  counted per TZID and reported as one sentence (`allProblems`), so a feed of
+  many objects gets one line per zone in task 4.
+- Fixtures in `KadenceTests/Fixtures/ICS/`: `cis-2026WS-redacted.ics` (`cp`,
+  `cmp` identical), and new `edge-cases.ics` (13 VEVENTs: VERSION:2.0, LF
+  lines with CRLF folds, every §20.3–§20.7 row, a weekly series across 25 Oct
+  with an `RDATE`, an orphan `RECURRENCE-ID`, `STATUS:CANCELLED`, a stable-UID
+  co-teaching pair, `ORGANIZER`, `URL`, `X-`, `VALARM`, `VTIMEZONE`),
+  `malformed-partial.ics` (10: 6 good, no UID, end < start, `DTSTART:garbage`,
+  `FREQ=MONTHLY;BYDAY=2MO`), `flat-series.ics`, `truncated.ics`,
+  `html-login.html`. No real names; `example.invalid` addresses only.
+- Tests (`ICSParserTests.swift`, 10): SHA-256 of the bundled copy = the repo
+  file's; 13 VEVENTs / 0 problems; INNO3-EL's 22-name description and UID
+  intact — **the UID is 185 characters, not the spec's 186** (GAPS G-070,
+  DEVIATIONS D6); DST rows 12:30Z / 06:00Z / 13:30Z; an LF-only copy parses
+  identically and `America/New_York` changes no instant; every edge-cases row
+  incl. the injected zone; malformed-partial: 7 parse, 3 problems at lines
+  16, 31, 42; html / truncated / 1.1 MB → `.notACalendar`; helpers.
+- GAPS **G-069** (detail sentence for a skipped VEVENT; placeholders marked
+  `// SPEC-GAP G-069`) and **G-070** opened.
+- Verify: xcresult **649 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
+  before each: the six UI scripts **PASS**.

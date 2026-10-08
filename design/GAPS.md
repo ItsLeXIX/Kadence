@@ -2617,3 +2617,30 @@ Parsa rewrote for CalDAV govern.
   store's actor.
 - **G-058**, **G-059**, **G-060**, **G-062**, **G-063**, **G-064**, **G-065**,
   **G-067** — deferred.
+
+---
+
+## 2026-10-08 — Phase 3 slice 1 build (coding agent, appended during the run)
+
+### G-069 — OPEN (coding agent, P3-T03). The detail sentence for one skipped VEVENT.
+
+`components.md` §19.1 fixes the `partialImport` body (`{k} of {n} events
+couldn't be read and were skipped. Nothing was removed.`) and the technical
+line's form (`Object obj-07.ics, line 9: DTEND before DTSTART`), and §20.3 and
+§20.5 give the sentences for an unknown zone and an unsupported rule. The
+**sentence** above the technical line for one skipped VEVENT (no `UID`,
+`DTEND` before `DTSTART`, unreadable `DTSTART`, unclosed `VEVENT`) and for a
+`RANGE=THISANDFUTURE` override (§20.5 "treated as a single-occurrence override
+and reported") is not given. Built as `// SPEC-GAP G-069` placeholders:
+`{SUMMARY} couldn't be read` (or `1 event couldn't be read` when there is no
+summary) and `1 change to a repeating event was applied to one occurrence only:
+{SUMMARY}`. The technical lines follow §19.1's form. Please give the exact
+sentences.
+
+### G-070 — OPEN (coding agent, P3-T03). The INNO3-EL UID is 185 characters, not 186.
+
+`components.md` §20.2 and §22.1 ("Its UID (186 characters …)") and
+`PHASE3-PLAN.md` task 3 say 186. Counted byte for byte in
+`fixtures/cis-2026WS-redacted.ics`, the value after `UID:` is **185**
+characters (the whole content line is 189). The test asserts 185 and says so.
+Please correct the number in the spec.

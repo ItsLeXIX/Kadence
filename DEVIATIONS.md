@@ -2085,3 +2085,22 @@ stays on record. Moved here by task P2-T38, 2026-10-01.
   Phase 2 tokens. `STATUS.md` §1.1 and §5 carry it.
 - **The Phase 1 screenshot set does not exist**, though root `INDEX.md` describes
   16 files by name. `STATUS.md` §2.2 carries it.
+
+---
+
+## Phase 3 slice 1 — the CIS CalDAV account (2026-10-08)
+
+Entries opened by the Phase 3 build (`PHASE3-PLAN.md` tasks H1–17). Numbering
+continues the sections above (D after D5, A after A36, B after B39).
+
+- **D6 — components.md §20.2 / §22.1 and PHASE3-PLAN.md task 3: "186
+  characters" vs the fixture.** The INNO3-EL UID in
+  `fixtures/cis-2026WS-redacted.ics` is **185** characters after `UID:`
+  (the content line is 189). `ICSParserTests.longLecturerList` asserts 185
+  and names the discrepancy. GAPS **G-070**. Open until the spec is
+  corrected; nothing in the build depends on the number.
+- **Placeholder copy — GAPS G-069.** The detail sentence for one skipped
+  VEVENT (`{SUMMARY} couldn't be read` / `1 event couldn't be read`) and for a
+  `RANGE=THISANDFUTURE` override are `// SPEC-GAP G-069` placeholders
+  (`ICSParser.swift`, `FeedDerivation.swift`). The technical lines follow
+  §19.1's form.
