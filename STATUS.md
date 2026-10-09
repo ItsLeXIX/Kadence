@@ -9548,3 +9548,90 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
   failed once (`↓ to the clamp → 23:45` read 20:15 — dropped key-repeat
   events; no Routines code changed in Phase 3) and **PASS** on an immediate
   rerun with a fresh pre-flight.
+
+## 120. Run summary — Phase 3 slice 1 (2026-10-08 … 10-09)
+
+### Queue
+
+| Item | Result | Commit |
+|---|---|---|
+| Step 0 — design work + fixture committed unedited | done | `3888557` |
+| H1 check-resync-escape matcher | PASS with keyboard navigation on | `1f215f2` |
+| H2 frame-edge check: §17.2 rule 6 exemption | 8/8 synthetic + real checks | `d275b5e` |
+| T01 Source model, Event additions, tokens 1.6.0 | done | `62bc36e` |
+| T02 SecretStore (Keychain item, in-memory double, Password) | done; live Keychain tests ran | `9b1f64b` |
+| T03 ICS parser + real export + parser fixtures | done (G-069, G-070) | `68d43c2` |
+| T04 Derivation, CIS profile, merge, recurrence, hashes | done; golden hash pinned | `7f3baf8` |
+| T05 HTTP transport + WebDAV XML | done (G-071, D7, B40) | `1d0ffdc` |
+| T06 Discovery, session, mocked CIS server | done (G-072) | `075ebdf` |
+| T07 CalDAV client: fallback chain, re-discovery, cap | done | `3c6ebf5` |
+| T08 Sync planner + applier | done; 14 / 15 counts proven | `caa36f9` |
+| T09 Sync coordinator, ⌘R | done (G-061 recorded) | `df82a43` |
+| T10 Review mode, empty real store | done (G-073, B41, B42) | `efbcaa5` |
+| T11 Status presentation + exact copy | done | `bdccd09` |
+| T12 Settings ▸ Sources + removal | done | `9fa9f98` |
+| T13 Connect sheet | done (B43) | `3d86cc7` |
+| T14 Sidebar rows, source popover, stale line | done | `8e7b7a1` |
+| T15 Imported events on the canvas | done (G-074, A37) | `7f34e70` |
+| T16 Inspector, refusals, menu bar | done (B44 fixed, A38) | `ae8fb46` |
+| T17 §22 recapture + INDEX.md | done | `d9ebf68` |
+
+No item stopped; no STOP RULE triggered. The run paused once at the usage
+limit after T04 (§106) and resumed on Parsa's word.
+
+### Tests
+
+**827 passed / 0 failed** (xcresult), against the 622 baseline (+205; the
+run started at 621/1 — the design commit's tokens.json version pin, fixed in
+H1). Two of them are the live-Keychain XCTest cases (ran, not skipped).
+
+### UI scripts (last runs, fresh pre-flight each)
+
+check-routines-window PASS · check-conflict-apply-return PASS ·
+check-inspector-inset PASS · check-block-click-selects PASS ·
+check-routines-cursor PASS (one dropped-keystroke miss, PASS on rerun) ·
+check-resync-escape PASS (keyboard navigation on). The Phase 2 scripts now
+launch with `-KadenceReview phase2` (G-057: a normal launch seeds nothing).
+
+### Edge check, screenshots/3 (35 frames)
+
+34 ok (no accent in the 2px band); `conflict-lecture-training-p3.png` ok
+under §17.2 rule 6 (`--preview`). The script flags without `--preview`.
+
+### Secret grep (exact commands, outputs in my report to Parsa)
+
+`git grep -n "S3ntinel-pw" -- . ":!STATUS.md"` → 8 test files + design/;
+`git grep -n "review-only-not-a-password"` → `Kadence/Review/ReviewMode.swift`
++ design/; `git grep -nE "Authorization: *(Basic|Digest) +[A-Za-z0-9+/=]{4,}"`
+→ nothing; `git grep -nE '"Basic [A-Za-z0-9+/]{8,}={0,2}"'` → nothing;
+`grep -rhoE "(principals|calendars)/[A-Za-z0-9_-]+/" KadenceTests/Fixtures Kadence`
+→ only `user01`; `git grep -niE "webcal|••••••|subscription link" -- Kadence KadenceTests`
+→ nothing. The real username: `DECISIONS.md:339` only.
+
+### GAPS opened
+
+G-069 (detail sentence for one skipped VEVENT; placeholders), G-070 (INNO3-EL
+UID is 185, not 186 chars), G-071 (Import window −366 days vs pinned
+value), G-072 (caldav-mocks `reportChanged` object numbers), G-073 (Phase 2's
+`Statistik übung` in the review dataset), G-074 (done meta on solid fills;
+placeholder). G-061 recorded (CA judgement, §111).
+
+### DEVIATIONS
+
+Opened: D6, D7, A37, A38, B40, B41, B42, B43, plus notes (ConflictEngine's
+clock; the sidebar row's VoiceOver value; ↩ on a sidebar row; review mode's
+mock in `phase2`; the mock's `forbidden`; `-KadenceAppearance`).
+Found and resolved: B44 (⌫ never deleted on the grid since Phase 1).
+Still deferred: A33, A34, A35 (seen again: Friday's covered `SWRM-ILV` title
+band in week M).
+
+### For the first real connection
+
+The app target has **no outgoing-network entitlement** (Kadence.xcodeproj is
+outside what I may edit): enable Signing & Capabilities ▸ App Sandbox ▸
+Outgoing Connections (Client) first. Then Kadence ▸ Settings… (⌘,) ▸ Sources
+▸ `+` (or File ▸ Connect Timetable…) — Server `cis.technikum-wien.at`
+(prefilled), your username, your password → Connect → Import. Afterwards:
+`log show --last 1h --predicate 'category == "sync"' --info` for G-068. The UI
+scripts delete the app's store when they run — don't run them after
+connecting for real.
