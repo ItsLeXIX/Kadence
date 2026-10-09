@@ -9512,3 +9512,39 @@ not because of a STOP RULE. Resumed at P3-T05 on Parsa's word, same day.
 - Verify: xcresult **827 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date; fresh pre-flight
   before each: the six UI scripts **PASS**.
+
+## 119. P3-T17 — the §22 review set and `screenshots/3/INDEX.md` (components.md §22, §22.1, §17.2 rules 1–6)
+
+- One build (`ae8fb46` + script-only changes), recaptured 2026-10-08
+  19:50–20:06 in review mode, fresh pre-flight before every item: 29 live
+  frames (`Scripts/capture-p3.sh`) + 6 renders (`Scripts/capture-p3-renders.sh`),
+  35 frames named `<item>-p3.png`. New items: `day-inno3-online` (item 11's
+  `Online` at `.full` — Week view tail-truncates it) and `popover-live`
+  (item 17's live chrome: a guarded click on Kadence's own status item,
+  found through its AX extras menu bar; skipped automatically if off-screen).
+- `M` = Mon 12 Oct 2026, today Thu 8 Oct, item 16's footer `9 of 15` (k = d
+  + 1 = 9). Item 19's light frame uses Kadence's own review-only
+  `-KadenceAppearance light`.
+- **Edge check** on all 35: 34 ok; item 16 ok under §17.2 rule 6's exemption
+  (`--preview`, the only preview frame). The live popover crop first flagged
+  33 px — the blue lecture block of the main window behind it at the crop's
+  left edge; the crop is now the popover's own bounds (script fixed), ok.
+- `screenshots/3/INDEX.md` maps all 21 items to their files with the mocked
+  case, `M`, `k`, and the appearance of item 19's colour-measuring frames;
+  every named file was checked to exist. The 33 superseded `-p3t12…16`
+  frames were removed (`git rm` for the committed ones).
+- **Secret grep** (the commands and outputs are in the run summary, §120):
+  the sentinel only in the 8 test files that define it (and in design/);
+  the review password only in `Kadence/Review/ReviewMode.swift` (and in
+  design/); no `Authorization: Basic|Digest <value>` and no `"Basic <base64>"`
+  anywhere; the only usernames in code and fixtures are `user01` (and the
+  Keychain test's throwaway `user01-tests`); no `webcal`, `••••••` or
+  subscription-link string in `Kadence/` or `KadenceTests/`; no capture
+  shows a password other than as bullets. The real username occurs once in
+  the repo, in `DECISIONS.md` line 339 (Parsa's file; I may not edit it).
+- Verify: xcresult **827 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.6.0; fresh
+  pre-flight before each: five UI scripts PASS; `check-routines-cursor`
+  failed once (`↓ to the clamp → 23:45` read 20:15 — dropped key-repeat
+  events; no Routines code changed in Phase 3) and **PASS** on an immediate
+  rerun with a fresh pre-flight.

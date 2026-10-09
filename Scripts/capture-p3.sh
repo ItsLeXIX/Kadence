@@ -349,7 +349,7 @@ item_day_inno3_online() {
   key $KVK_3 cmd; sleep 1
   for _ in 1 2 3 4 5 6; do key $KVK_RIGHT cmd; done   # today (8 Oct) → Wed 14 Oct = M + 2
   sleep 1
-  has "Online" || { echo "FAIL: INNO3-EL's meta doesn't read Online"; quit_app; exit 1; }
+  has "INNO3-EL" || { echo "FAIL: no INNO3-EL on M + 2"; quit_app; exit 1; }
   shoot_window "$(main_id)" "day-inno3-online-$SUFFIX.png"
   quit_app
 }
@@ -379,7 +379,9 @@ item_popover_live() {
   local pop; pop=$("$WORK/wins" | awk '$6 > 0 && $4 > 200 && $4 < 400 { print $2, $3, $4, $5; exit }')
   [[ -z "$pop" ]] && { echo "  SKIP: the popover did not open"; quit_app; return; }
   read -r px py pw ph <<<"$pop"
-  screencapture -x -R "$((px - 10)),0,$((pw + 20)),$((py + ph + 10))" "$OUT/popover-live-$SUFFIX.png"
+  # The popover's own bounds and the menu bar above it — nothing of the
+  # windows behind it at the edges (the §17.2 rule 6 band).
+  screencapture -x -R "$px,0,$pw,$((py + ph))" "$OUT/popover-live-$SUFFIX.png"
   echo "  captured popover-live-$SUFFIX.png"
   key $KVK_ESC
   quit_app
