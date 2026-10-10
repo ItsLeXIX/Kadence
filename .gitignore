@@ -4,3 +4,4 @@
 
 # graphify scratch output, regenerated on demand — never part of a review
 graphify-out/
+__pycache__/
