@@ -268,6 +268,18 @@ struct GridBlockView: View {
             }
 
         case .full:
+            // `GeometryReader` gives the row's real width (after the rail,
+            // the padding and any covered part), which §3.4's 2026-10-10
+            // rule needs: the meta line keeps the location whole and
+            // truncates the source name to what is left. Like `.compact`, it
+            // fills the content area and pins its child top-leading.
+            GeometryReader { proxy in
+                fullStack(style: style, metrics: metrics, rowWidth: proxy.size.width)
+            }
+        }
+    }
+
+    private func fullStack(style: BlockStyle, metrics: BlockContentMetrics, rowWidth: CGFloat) -> some View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(alignment: .firstTextBaseline, spacing: Tokens.Size.blockGlyphGap) {
                     glyph(style)
@@ -282,12 +294,15 @@ struct GridBlockView: View {
                 Text(model.timeRange(formatter: BlockFormatters.time))
                     .typeStyle(.blockMeta)
                     .foregroundStyle(style.meta)
-                // §3.4 — the source name is required at this tier. Source wins,
-                // location truncates first: location is recoverable from the
-                // inspector and the travel band, the source name is not.
-                Text(model.metaLine)
+                // §3.4 (amended 2026-10-10, G-079) — `Location · Source`. The
+                // location comes first and stays whole; the source name
+                // truncates, and goes entirely when fewer than four of its
+                // characters would fit. The source is still in hover help,
+                // the inspector and VoiceOver.
+                Text(model.metaLine(fitting: rowWidth) { CompactRowLayout.metaWidth($0, size: metaSize) })
                     .typeStyle(.blockMeta)
                     .foregroundStyle(style.meta)
+                    .lineLimit(1)
                     .truncationMode(.tail)
                 if model.status == .skipped {
                     Text("Re-offered")
@@ -295,7 +310,6 @@ struct GridBlockView: View {
                         .foregroundStyle(style.meta)
                 }
             }
-        }
     }
 
     /// components.md §3.3 (amended 2026-10-05): the title beats the time.

@@ -2309,3 +2309,9 @@ Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
   across a tinted window. The render test samples the gap as
   `surface.canvas`. The same rule and gap apply on the Routines canvas (one
   layout engine).
+- **Note — `Cancelled · Source` follows the same fitting rule** (P3-F7).
+  §3.4's amendment names the location and `Online`. §6's cancelled line
+  (`Cancelled · University timetable`) has the same shape and the same
+  problem at a Week column, so it is fitted the same way: `Cancelled`
+  whole, the source name truncating, dropped below four characters. Its
+  full form is unchanged.

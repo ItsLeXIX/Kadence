@@ -61,12 +61,12 @@ struct ImportedCanvasTests {
         }
     }
 
-    @Test("The .full meta line: `University timetable · Online` / `· HS_A3.15`; hover Kind Exam / Lecture")
+    @Test("The .full meta line: `Online · University timetable` / `HS_A3.15 · …` (§3.4, 2026-10-10); hover Kind Exam / Lecture")
     func metaAndHover() {
         let online = GridBlockModel(event: imported("INNO3-EL", online: true, location: "WEBINAR01"), now: TestClock.now, sources: .testTimetable)
         let room = GridBlockModel(event: imported(), now: TestClock.now, sources: .testTimetable)
-        #expect(online.metaLine == "University timetable · Online")
-        #expect(room.metaLine == "University timetable · HS_A3.15")
+        #expect(online.metaLine == "Online · University timetable")
+        #expect(room.metaLine == "HS_A3.15 · University timetable")
         #expect(room.hoverHelp == "SWQM-ILV · 09:00–10:30 · University timetable · Lecture")
         let exam = GridBlockModel(event: imported("REQEN-EXAM", kind: .exam), now: TestClock.now, sources: .testTimetable)
         #expect(exam.hoverHelp.hasSuffix("· Exam"))

@@ -37,11 +37,35 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
         "\(formatter.string(from: start))-\(formatter.string(from: end))"
     }
 
-    /// §3.4 — `Source · Location`, or just the source when there is no location.
-    var metaLine: String {
-        // §6 `cancelled` at `.full`: `Cancelled · University timetable`.
+    /// What leads the `.full` meta line: §6's `Cancelled` for a cancelled
+    /// block, §18.2's `Online` where an online event's location would be,
+    /// else the location; nil when there is none.
+    var metaLead: String? {
+        if status == .cancelled { return "Cancelled" }
+        if isOnline { return "Online" }
+        guard let location = locationName, !location.isEmpty else { return nil }
+        return location
+    }
+
+    /// §3.4 (amended 2026-10-10, G-079) — **`Location · Source`**
+    /// (`HS_A3.15 · University timetable`, `Online · University timetable`),
+    /// or just the source when there is no location. This is the whole line;
+    /// `metaLine(fitting:)` is what a block of a given width draws.
+    var metaLine: String { MetaLineLayout.resolve(lead: metaLead, source: sourceName, width: .infinity) }
+
+    /// The meta line as drawn in a content row `width` points wide: the
+    /// location whole, the source name truncated — or dropped when fewer
+    /// than four of its characters would fit (`MetaLineLayout`).
+    func metaLine(fitting width: CGFloat, measure: (String) -> CGFloat = { CompactRowLayout.metaWidth($0) }) -> String {
+        MetaLineLayout.resolve(lead: metaLead, source: sourceName, width: width, measure: measure)
+    }
+
+    /// The menu bar popover's qualifier (components.md §15.2): `Source ·
+    /// Location`, as it has always been. §3.4's 2026-10-10 amendment says so
+    /// in as many words: "The menu bar popover's meta line (§15) is not
+    /// changed."
+    var popoverQualifier: String {
         if status == .cancelled { return "Cancelled · \(sourceName)" }
-        // §18.2: an online event reads `Online` where the location would.
         if isOnline { return "\(sourceName) · Online" }
         guard let location = locationName, !location.isEmpty else { return sourceName }
         return "\(sourceName) · \(location)"

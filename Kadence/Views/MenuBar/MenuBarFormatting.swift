@@ -33,14 +33,14 @@ enum MenuBarFormatting {
 
     /// The NEXT block's meta line (components.md §15.2's diagram row 2):
     /// `17:30 – 18:15 · Gym` normally, `Started 12m ago · Gym` once late.
-    /// The trailing qualifier reuses `GridBlockModel.metaLine` (§3.4's own
-    /// "Source · Location, or just Source when there is no location" rule)
-    /// rather than inventing a second composition rule for the same two
-    /// fields — `design/` does not write out a popover-specific version of
-    /// that rule, so this is a documented reuse, not an invented one (see
-    /// STATUS.md).
+    /// The trailing qualifier is `Source · Location`, or just the source
+    /// when there is no location — §3.4's rule as it stood when this was
+    /// built. §3.4's 2026-10-10 amendment turned the block's line round
+    /// (`Location · Source`) and says "The menu bar popover's meta line
+    /// (§15) is not changed", so the popover keeps its own
+    /// `GridBlockModel.popoverQualifier`.
     static func nextMeta(for event: Event, now: Date, isLate: Bool) -> String {
-        let qualifier = GridBlockModel(event: event, now: now).metaLine
+        let qualifier = GridBlockModel(event: event, now: now).popoverQualifier
         let lead = isLate ? "Started \(elapsed(since: event.start, now: now))" : timeRange(event.start, event.end)
         return "\(lead) · \(qualifier)"
     }

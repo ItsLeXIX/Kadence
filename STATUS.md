@@ -9943,3 +9943,39 @@ connecting for real.
 - Verify: xcresult **874 passed / 0 failed** (867 + 7); app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
   store's `stat` unchanged.
+
+## 127. P3-F7 — the meta line is `Location · Source` (PHASE3-REVIEW.md §8 fix 7; components.md §3.4 amended 2026-10-10; G-079; DECISIONS 2026-10-10 "The room comes before the source on a block" — confirmed by Parsa)
+
+- Parsa's confirmation is DECISIONS 2026-10-10, so the fix was built.
+- `Kadence/Layout/MetaLineLayout.swift` (new, pure): the line is the lead —
+  the location, `Online`, or §6's `Cancelled` — then ` · ` and the source
+  name. The lead is never truncated while any of the source is drawn; the
+  source tail-truncates to the longest head of ≥ 4 characters that fits
+  with its `…` (no space left before the ellipsis); with fewer than 4 it is
+  dropped whole, separator included; with no lead the line is the source
+  name alone.
+- `GridBlockModel`: `metaLead`, `metaLine` (the whole line, now `HS_A3.15 ·
+  University timetable` / `Online · University timetable`),
+  `metaLine(fitting:)`, and `popoverQualifier` — the menu bar popover keeps
+  `Source · Location` ("The menu bar popover's meta line (§15) is not
+  changed"). `GridBlockView`'s `.full` stack reads its row width (a
+  `GeometryReader`, as `.compact` does) and draws `metaLine(fitting:)`
+  measured at the Dynamic-Type-scaled `blockMeta` size.
+- Tests (`MetaLineTests.swift`, 6): at a 124pt Week column (row 108pt — the
+  engine's frame for a lone block agrees, `.full` at 66pt) a lecture's meta
+  starts `HS_A3.15 · `, whole, and ends with a truncated source name of ≥ 4
+  characters that fits, where one more character would not; `Online · …`
+  for `INNO3-EL`, never `WEBINAR01`; all 13 events of the real export
+  (through `fresh`) keep their room or `Online` whole at that width; no
+  location → the source alone; `Cancelled · …`; **the source is dropped
+  whole one point below the width that fits four of its characters**; the
+  pure rule at eight widths; hover help and the spoken label unchanged; the
+  popover's qualifier unchanged. Updated: `AccessibilityTests.metaLine` and
+  `ImportedCanvasTests.metaAndHover` (the new order).
+- A `.full` render (`cancelled-block`) looked at after the change: title,
+  time, `Cancelled · University timetable`, laid out as before.
+- Frames (item 26; items 11 and 12 recaptured — `week-M-after-change` shows
+  `EDV_F4.26`): fix 11.
+- Verify: xcresult **880 passed / 0 failed** (874 + 6); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
+  store's `stat` unchanged.

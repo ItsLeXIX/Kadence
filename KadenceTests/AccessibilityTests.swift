@@ -135,9 +135,9 @@ struct AccessibilityLabelTests {
         #expect(help == "Datenmodellierung · 09:00–10:30 · University timetable · lecture")
     }
 
-    @Test("The meta line is Source · Location, and just Source without one")
+    @Test("The meta line is Location · Source (§3.4, amended 2026-10-10), and just Source without a location")
     func metaLine() {
-        #expect(sampleModel().metaLine == "University timetable · FH B.2.09")
+        #expect(sampleModel().metaLine == "FH B.2.09 · University timetable")
         var noLocation = sampleModel()
         noLocation.locationName = nil
         #expect(noLocation.metaLine == "University timetable")
