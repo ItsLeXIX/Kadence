@@ -89,7 +89,13 @@ Row height 24, section spacing `spacing.lg`.
 ### 2.1 Source rows with a connection (added 2026-10-08, Phase 3)
 
 Sources now come from `Source` records (`components.md` §21), not a static
-list. Row, left to right: swatch (`components.md` §10.1) · name (`sidebarItem`,
+list. *(Amended 2026-10-10, G-075.)* **A real store lists the two built-in
+sources — `Personal`, `Daily routine` — and then the connected ones, each
+once** (`components.md` §21.1.1). The eight-row list of Phase 1–2 (`Exams`,
+`Mail appointments`, `Coursework`, `Social`, `Planned study`, a mock
+`University timetable`) exists only in the `phase2` / `phase3` review datasets.
+Each row's swatch, checkbox and status come from its own record; the checkbox
+writes `Source.isVisible`. Row, left to right: swatch (`components.md` §10.1) · name (`sidebarItem`,
 truncates tail) · **status slot**, `size.statusSlotWidth` (16), `spacing.xs` before the checkbox
 (`components.md` §19.2; reserved on every row so checkboxes align) · visibility
 checkbox. Row height stays 24.
@@ -421,7 +427,11 @@ Same sections and geometry as §6; what changes is what can be edited and a few
 rows. Top to bottom:
 
 1. **Title row** — the kind glyph (`building.columns`, or `graduationcap.fill` for
-   an exam, `components.md` §2.1) and swatch inline, as §6. The title is **text,
+   an exam, `components.md` §2.1) and swatch inline, as §6. The swatch and the
+   Source row (7) are those of the `Source` record `Event.sourceID` names —
+   never of whichever source shares its palette slot (`components.md` §21.1.1;
+   in real use this row showed `Personal`'s person glyph beside `University
+   timetable`). The title is **text,
    not a `TextField`** (`inspectorTitle`, `lineLimit` 3, selectable). For a CIS
    event the title is the course code (`SWQM-ILV`, `components.md` §20.7.1).
 2. **Read-only line**, directly under the title, `spacing.xs` above:
@@ -461,8 +471,10 @@ rows. Top to bottom:
    (`components.md` §19.5), or the state title when not `upToDate` (`Access
    refused`). Clicking that line opens the source popover (`components.md`
    §19.3). **Origin** — `Imported`.
-8. **Status** — Done / Skip, enabled (they are local, `components.md` §18.1).
-   Disabled, with the read-only line saying why, on a cancelled event.
+8. **Status** — Done / Skip, enabled (they are local, `components.md` §18.1),
+   **on history too** (ruled 2026-10-10, §18.1: a lecture is usually marked
+   after it happened). Disabled, with the read-only line saying why, on a
+   cancelled event.
 9. **Description** — replaces **Notes** for imported events: label
    `Description`, value `importedDescription` as selectable text
    (`inspectorValue`, `lineLimit` 0, line breaks kept). Omitted when empty —
@@ -810,7 +822,11 @@ Content size is `size.settingsWindowWidth` × `size.settingsWindowHeight`
 - **Detail** (the rest), padding `spacing.xl`:
   1. **Status block** — `components.md` §19.3's content inline: title, body,
      status line, last-change line, and the primary action as a `.bordered`
-     button, trailing. `Show Details` expands the full problem list here,
+     button, trailing. *(Clarified 2026-10-10.)* It is **not** the window's
+     default button: no `.keyboardShortcut(.defaultAction)`, no accent fill.
+     `settings-sources-uptodate-p3.png` draws `Sync Now` filled, which makes
+     `↩` in the `Name` field ambiguous between committing the name and
+     syncing. `⌘R` is the key for it. `Show Details` expands the full problem list here,
      scrolling inside the detail if long. There is no `Settings…` button (you
      are there).
   2. Divider, `size.hairline`, `color.separator.region`, `spacing.lg` above and

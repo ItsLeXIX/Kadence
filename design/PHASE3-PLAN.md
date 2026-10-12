@@ -293,7 +293,7 @@ fixtures" and "The real export".
 - **The real export:**
   - The bundled copy's SHA-256 equals `fixtures/cis-2026WS-redacted.ics`'s.
   - It parses to **13 VEVENTs, 0 problems** with `VERSION:1.0`.
-  - The 22-name `INNO3-EL` description and its 186-character UID read intact.
+  - The 22-name `INNO3-EL` description and its 185-character UID (corrected 2026-10-10, G-070) read intact.
   - The DST rows of §22.1's table hold (12:30Z, 06:00Z, 13:30Z).
   - An LF-only copy made in the test parses identically.
   - With the injected zone `America/New_York`, every instant is unchanged.
@@ -1004,7 +1004,7 @@ against `caldav-mocks.md`.
 
 ## Judgement calls made in this amendment
 
-1. **The Import window reaches back 366 days**, and both windows are
+1. **The Import window reaches back one calendar year** (written "366 days" until 2026-10-10; G-071), and both windows are
    open-ended forward (`time-range` with `start` only). A `REPORT` needs a
    window, while "the whole semester the feed contains" has no fixed size. A
    year back holds any semester (§20.8.2).
@@ -1061,8 +1061,9 @@ against `caldav-mocks.md`.
 ## For Parsa — decisions that are yours
 
 1. **The first real connection (G-068).** Connect with your own account, then
-   read the `sync` log line (`log show --last 1h --predicate 'category ==
-   "sync"' --info`) and record three things:
+   read the `sync` log line (`log show --last 1h --info --predicate 'subsystem ==
+   "XIX.Kadence" AND category == "sync"'` — corrected 2026-10-10: the category
+   alone also matches Apple's own processes) and record three things:
    - whether `REPORT` with a time-range is honoured (`mode report`,
      `time-range honoured`);
    - whether ETags are stable (the same `etags … (set …)` on two Sync Nows with

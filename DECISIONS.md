@@ -373,3 +373,33 @@ Default poll interval 30 minutes, range 15 minutes to 1 day. Import covers the w
 
 ## 2026-10-08 — Phase 3 amendment readings, confirmed by Parsa.
 The three readings in PHASE3-PLAN.md are confirmed: discovery re-runs on an explicit Connect in edit mode, and automatic syncs re-run it only on 404 or a move; after this host's first 401 in a sync, later requests in that same sync may carry the password, and every sync starts without it; deselecting a calendar compares against a full Import-window read of the calendars that stay and may remove past events only that calendar contributed. The 6-hour polling floor when only GET works is kept. The CIS server accepted HTTP Basic auth via curl on 2026-10-08; the rest of G-068 is recorded at Parsa's first real connection.
+
+## 2026-10-10 — Review mode has its own store.
+Parsa's first real connection ran on the Phase 2 mock dataset: review launches seeded the real store file, and the check scripts deleted it. A launch with -KadenceReview now uses an in-memory store and the in-memory secret store, and never opens the real one; no script deletes or writes the real store. A normal launch seeds nothing but the two built-in sources. Closes G-076.
+
+## 2026-10-10 — A source is its record, never its colour.
+Imported lectures were shown as Personal because the build looked a source up by palette slot and the timetable had been given graphite. An event's source is the Source its sourceID names; name, symbol, hue and visibility come from that record. A connected source never takes graphite. A real store has two built-in local sources, Personal and Daily routine, and no fixture ones; the other five arrive with the phases that can create their events. Closes G-075.
+
+## 2026-10-10 — Kadence builds the Authorization header, so no redirect is ever followed.
+DEVIATIONS B40 is accepted: the password answers the host's 401 as a header Kadence builds, and Foundation is given no credential. Foundation copies a manually set header onto a redirected request, so "the transport never follows a redirect" becomes a security invariant with required tests: a real redirect of a request that carries the header, cross-host and to http, must leave no request at the target, and a control must show the harness would see one. A redirect to another host or to http ends in "redirected" at every step.
+
+## 2026-10-10 — A tie is not a duplicate.
+Two VEVENTs with the same UID and start were reduced to the later one before the co-teaching merge, which lost a lecturer on real data. When neither wins on SEQUENCE or a stamp, both go to the merge and their lecturers are combined. The sync log line gains vevents, duplicates and merged. Closes G-077.
+
+## 2026-10-10 — Two imported events never conflict.
+A conflict is a routine occurrence against an imported or manual event, and its options edit only the routine side. Two lectures the university scheduled on top of each other are drawn side by side or cascaded and are not counted in Needs attention.
+
+## 2026-10-10 — A covered block keeps its title, and a covering block has a gap.
+A35 is no longer deferred: in Phase 3 the covered block is the lecture. A block whose title band is uncovered draws its title there, and a block drawn on top of another is separated from it by 2pt of canvas on its leading and top edges, so two same-source lectures never read as one. Closes G-048 and G-078 once built.
+
+## 2026-10-10 — The server decides how much history there is.
+CIS's CalDAV returned events from 22 Sep although the semester began 14 Sep and a year was requested (G-068). The Import writes the earlier weeks the server still serves; because a sync never deletes the past, Kadence keeps what CIS stops serving. Deselecting a calendar never deletes anything older than the earliest event the server returned. Also recorded: REPORT works with no fallback, the time-range is honoured, ETags are stable, one REPORT takes about 1.9 s, and the 401 scheme is Basic.
+
+## 2026-10-10 — History keeps Done and Skip.
+"The past is never written" binds the sync and every automatic writer, not the user. Done and skipped are facts about the user's day and are usually recorded after the lecture.
+
+## 2026-10-10 — The room comes before the source on a block.
+Confirmed by Parsa. A real source is called "University timetable" and fills a Week column, so every lecture read "University timetabl…" and none showed its room. The meta line is Location · Source and the source truncates; hover help, the inspector and VoiceOver still carry it. Reverses the Phase 1 priority. Closes G-079.
+
+## 2026-10-10 — Phase 3 slice 1 gaps closed by review.
+G-069 (exact sentences for unreadable events), G-070 (the UID is 185 characters), G-071 (the Import window is one calendar year back), G-072 (mock object numbers), G-073 (Statistik übung detached in review seeding), G-074 (every text element of a done block on a solid fill is text.primary: 9.00 / 6.17 worst, against 1.65 / 2.44 as first built). Edit ▸ Delete is required (A38). Deferred, still normative, and accepted by Parsa: ⌘⌥N (A37), Digest across several requests (A39), ↩ on a sidebar source row (A40).

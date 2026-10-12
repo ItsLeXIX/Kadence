@@ -294,6 +294,30 @@ meeting` has no title on the grid. The rule, when built:
   paints over it (§3.5 is about a block's own frame; occlusion by a block in
   front is not overflow).
 
+**Amended 2026-10-10 (Phase 3 slice 1 review) — no longer deferred; required
+now (G-048, A35).** Phase 3 makes the covered block the *lecture*: a lecture
+starts earlier and runs longer than the routine block or the second session
+that covers it, so it is the block that loses its title. `week-M-p3.png` draws
+Friday's `SWRM-ILV` as an unnamed blue rectangle for the whole hour before
+`Training` starts, and Parsa's real week (Fri 2 Oct 2026) drew `BPREF-Info`
+18:35–20:15 under `BPREF-Info` 19:30–20:15 as what looked like one block with
+two glyphs. The title-band rule above is built in this fix round, exactly as
+written.
+
+**Added 2026-10-10 — a covering block is separated from what it covers
+(G-078).** "The canvas gap between blocks" was never drawn: a cascaded block
+sits flush on the one beneath it. Between two different hues that reads; between
+two `.fixedTimed` blocks of the **same source** — no rail, no border, one fill —
+the upper block's edges disappear and the pair reads as one block. So: every
+block in a cascade with index ≥ 1 draws a gap of `size.blockColumnGap` (2) in
+`color.surface.canvas` along its **leading and top** edges, outside its own
+frame (the covered block is cut back by 2pt there; the covering block's frame
+does not move). It is the same 2pt of canvas that separates packed neighbours,
+so a pair is as distinct stacked as it is side by side, in every state (a solid
+fill against the canvas measures 4.87:1 light / 6.91:1 dark worst; a done or
+past wash is as faint against the gap as it already is against the canvas around
+it — `tokens.json` `$measured_1_7_0`). No new token. A `conflicted` or `selected` border is drawn inside the gap as before.
+
 Deferred because it changes cascade rendering in every view, not only conflict
 frames, and needs its own capture set; Phase 2's definition of done does not
 depend on it — the inspector's collision header names both blocks, and hover
@@ -354,10 +378,26 @@ tooltip): `Title · HH:mm–HH:mm · Source · Kind`. This is the one path that 
 at every density tier, in every view, in both geometries. It is not optional and
 it is not a nice-to-have — it is what makes the greyscale trade in §1 acceptable.
 
-Layout priority on the meta line: **source wins, location truncates first.**
+~~Layout priority on the meta line: **source wins, location truncates first.**
 Location is recoverable from the inspector and from the travel band's own label;
-source, below `.full`, is recoverable only from hover help and the inspector.
+source, below `.full`, is recoverable only from hover help and the inspector.~~
 When there is no location the line is just the source name.
+
+**Amended 2026-10-10 (Phase 3 slice 1 review; G-079) — the location comes
+first and the source truncates.** The line is drawn **`Location · Source`**
+(`HS_A3.15 · University timetable`, `Online · University timetable`). The
+location is never truncated while any of the source name is still drawn; the
+source name tail-truncates (`HS_A3.15 · Universit…`) and is dropped whole, with
+its separator, only when fewer than 4 of its characters would fit. Why the
+1.0 rule is reversed: it was written when source names were short fixtures. A
+real source is called `University timetable`, which fills a Week column by
+itself (`week-M-p3.png`: every lecture reads `University timetabl…` and none
+shows its room), so the rule spent the line repeating what hue, glyph and the
+sidebar already say and hid the one fact that differs from block to block —
+where to go. The source stays on the line wherever it fits, in hover help, in
+the inspector and in VoiceOver, so §1's greyscale trade is unchanged. The table
+row above reads `Location · Source` from this date. The menu bar popover's meta
+line (§15) is not changed.
 
 The two closest hues in the palette are `amber` and `orange`
 (`color.sourcePalette.adjacencyWarning`). They are separated in the default
@@ -553,6 +593,18 @@ it ordinary (a lecture marked done, §18.1). On the solid-fill kinds — `.fixed
 **`color.text.primary`** (worst source, at the 0.55 blend: 9.01:1 light, 6.17:1 dark —
 `tokens.json` `$measured_1_4_0`). The tinted and
 transparent kinds keep `color.text.secondary`, which passes on them.
+
+**Amended 2026-10-10 (closes G-074) — the meta line too.** The G-054 amendment
+named the label and the glyph and forgot the meta lines (time range; location ·
+source). Left at `.fixedTimed`'s `color.text.onSolid` at 0.8 they measure
+**1.65:1 (light, graphite) / 2.44:1 (dark, teal)** on the done-blended fill —
+white on a pale wash. On the solid-fill kinds, in `done`, **every text element
+of the block is `color.text.primary` at full opacity**: label, glyph, time and
+meta (9.00:1 light / 6.17:1 dark worst — `tokens.json` `$measured_1_7_0`;
+checked on `allday-and-done-light-p3.png` / `-dark-p3.png`, whose fills sample
+`#A1BEE8` / `#3F5A83`, the computed blend of `blue`). Hierarchy inside the
+block is carried by weight and size, as in `cancelled`. CA's placeholder was
+this; it stands and loses its `// SPEC-GAP` mark.
 
 `done` and `skipped` are visually siblings of equal weight. A skipped item must
 never look worse than a done one — it has been re-offered, not failed.
@@ -2394,6 +2446,15 @@ starts `.scheduled` anyway.
 
 Every other mutation is refused, visibly (`interactions.md` §13.4).
 
+**History keeps Done and Skip (ruled 2026-10-10).** An imported event that
+started before today offers `Done` / `Skip` exactly like a future one, in the
+inspector and by `⌘↩` / `⌥⌘↩`. "The past is never written" binds the **sync**
+and every automatic writer (§20.1); it does not bind the user. Done and skipped
+are facts about the user's day, and the usual moment to record one is after the
+lecture — the same evening or the next morning, by which time it is history.
+Refusing them there would make the one local field unusable when it is needed.
+The marks are ordinary undo steps (`interactions.md` §13.5).
+
 ### 18.2 On the canvas
 
 Unchanged from Phase 1: `.fixedTimed`, solid fill, no rail, source hue. The
@@ -2555,9 +2616,14 @@ source failure is exactly that. It is **not** counted in the needs-attention row
 The glyph is a button (borderless, hit target ≥ 24 × 24) that opens §19.3.
 Hover help on the whole row: `University timetable — Synced 14:02`, `University
 timetable — Sign-in failed`, `University timetable — Offline, last synced
-14:02`. VoiceOver: the row's value appends the state title (`University
-timetable, Access refused`). Neither ever contains a password. *(Amended
-2026-10-08, CalDAV amendment.)*
+14:02`. VoiceOver: ~~the row's value appends the state title~~ the row is
+spoken `University timetable, Access refused` — name, then the state title —
+and the state title rides on the row's **label**, not its value *(amended
+2026-10-10, accepting the build)*: the combined row is exposed as its
+visibility checkbox, whose value has to stay its on/off state, so the value
+slot is taken. The state title is appended for every state except `upToDate`
+(a row that is fine says only its name). Neither ever contains a password.
+*(Amended 2026-10-08, CalDAV amendment.)*
 
 ### 19.3 The source popover
 
@@ -2584,6 +2650,14 @@ the window edge. Width `size.sourcePopoverWidth` (280), height intrinsic, paddin
 - **Title** `sourceStatusTitle`; **body** `inspectorValue`, `lineLimit` 0, never
   truncated; **status line** `blockMeta` / `color.text.secondary`:
   `Last synced {last} · {count} events` (`Never synced` before the first success).
+  *(Amended 2026-10-10.)* `{last}` is `lastSuccessAt`, or `importedAt` when no
+  sync has succeeded since the Import — the Import read the server
+  successfully, so a connected source is never "never synced". `Never synced`
+  can therefore only appear on a source that was never imported, which a real
+  store cannot hold; the review frames that showed it under `Events from the
+  last sync are kept` (`source-popover-forbidden-p3.png`,
+  `source-popover-calendar-missing-p3.png`) were a review-seeding artefact, and
+  §22.1's review source is now seeded as already imported.
   `spacing.sm` between title and body, `spacing.lg` before the status line and
   before the button row.
 - **Last-change line** (added 2026-10-08; §20.6 says why it
@@ -2600,6 +2674,23 @@ the window edge. Width `size.sourcePopoverWidth` (280), height intrinsic, paddin
   problems, one per line, `blockMeta`, `color.text.primary` for the sentence and
   `color.text.secondary` for the technical line under it; at most 8, then `+N
   more` (full list in Settings). The button becomes `Hide Details`.
+- **The sentences** *(added 2026-10-10; closes G-069)*. One per problem,
+  exact, tested like §19.1. `{title}` is the VEVENT's `SUMMARY` treated as
+  §20.7 treats a title (for a CIS-profile event: its course code); when there
+  is no readable `SUMMARY` the sentence starts `An event`.
+
+  | Problem | Sentence | Technical line |
+  |---|---|---|
+  | No `UID` (§20.2) | `{title} has no identifier, so it was skipped.` | `Object obj-07.ics, line 3: no UID` |
+  | `DTEND` before `DTSTART`, or a negative `DURATION` (§20.4) | `{title} ends before it starts, so it was skipped.` | `Object obj-07.ics, line 9: DTEND before DTSTART` |
+  | `DTSTART` missing or unreadable | `{title} has no readable start time, so it was skipped.` | `Object obj-07.ics, line 8: DTSTART` |
+  | `BEGIN:VEVENT` never closed; an object that is not calendar data (§20.8.2); a failed member of a `207` | `1 event couldn't be read.` | `Object obj-11.ics: not calendar data` / `Object obj-11.ics: 404` |
+  | An object over 1 MB (§20.8.2) | `1 event was too large to read.` | `Object obj-11.ics: over 1 MB` |
+  | `RANGE=THISANDFUTURE` override (§20.5; the event is kept) | `A change to {title} and its later repeats was applied to one occurrence only.` | `Object obj-07.ics, line 12: RECURRENCE-ID;RANGE=THISANDFUTURE` |
+  | Unsupported rule (§20.5) | as §20.5 | the `RRULE` line |
+  | Unknown time zone (§20.3; kept) | as §20.3 | — |
+
+  Without an object name (a plain file) the technical line starts at `Line 9:`.
 - **`upToDate`** shows the title, then `Synced {last} · {count} events`, the
   last-change line when present, and `Sync Now`.
 - Keyboard: it takes focus on open; `↩` = primary action; `⎋` closes. Focus is
@@ -2674,6 +2765,19 @@ semester, 14 Sep 2026 – 29 Jan 2027). The Import window reaches back one year
 (§20.8.2) — far enough for any semester the feed holds. The only other bound is
 on open-ended recurrence (§20.5).
 
+**The server decides how much history there is (added 2026-10-10; G-068).** At
+Parsa's first real connection on 9 Oct 2026 the Import returned 91 events from
+**22 Sep 2026**, though the semester began on 14 Sep and the request asked for a
+year: CIS's CalDAV endpoint serves only a short window of the past (about two
+and a half weeks that day), whatever `time-range` is sent. So "the semester's
+earlier weeks" means **the earlier weeks the server still serves**. Nothing in
+the rules changes — the Import writes every event fetched, the sheet's history
+sentence counts what actually came (`21 of them are before today`) — and one
+consequence becomes important: because a sync never deletes the past, Kadence
+keeps lectures CIS has long stopped serving. **The server's horizon** is the
+earliest event start in an Import-window fetch that was read in full; before
+it, absence from the feed proves nothing.
+
 **Reconciling "never writes the past".** `DECISIONS.md` 2026-10-01 (the past is
 a record) and the 2026-10-08 sync rule both stand **for syncs**. The Import is
 the one write that reaches back. At that moment nothing local in the past needs
@@ -2696,15 +2800,23 @@ under this rule.
   is stated by content:
   1. Edit mode's `Connect` fetches the calendars that stay selected with the
      **Import window**.
-  2. `Save` deletes every event of the source, past or future, whose externalID
-     is not in that fetch, provided the fetch was read in full (§20.8 guards).
+  2. `Save` deletes every event of the source whose externalID is not in that
+     fetch **and that starts on or after the server's horizon** (above),
+     provided the fetch was read in full (§20.8 guards). *(Amended 2026-10-10,
+     G-080: was "past or future".)* An event older than the horizon is kept:
+     the server no longer serves that week for **any** calendar, so its absence
+     is not proof that it belonged to the unchecked one. With an empty fetch
+     there is no horizon and nothing in the past is deleted.
   3. If it was not read in full, `Save` deletes nothing for the deselection and
      shows the state. The calendar list is still saved.
 
-  A past lecture that had already vanished from a calendar that stays selected
-  is removed by the same `Save`. This is accepted: the user asked for the source
-  to hold what its selected calendars hold. Step 2 says how many events will go
-  before `Save` (`layouts.md` §12.3).
+  A past lecture inside the horizon that had already vanished from a calendar
+  that stays selected is removed by the same `Save`. This is accepted: the user
+  asked for the source to hold what its selected calendars hold. Step 2 says how
+  many events will go before `Save` (`layouts.md` §12.3). History older than
+  the horizon from an unchecked calendar stays until the source is removed;
+  that is the cost of not storing a calendar per event (§21.3), and it errs on
+  the side of keeping.
 - **Removing the source and connecting again** is a new Import. History comes
   back from the server. Local done/skipped marks went with the removal, as the
   alert says (`interactions.md` §13.2).
@@ -2727,7 +2839,7 @@ trusted to survive a change:
 
 **Why content mode.** The CIS UID is `FH` + group + room + lecturer(s) + course +
 start + end, run together (`FHBIF-5C HS_A3.15L01SWQM-ILV20260914T143000…`; it
-contains spaces and ` / `; with 22 lecturers it is 186 characters in the
+contains spaces and ` / `; with 22 lecturers it is 185 characters in the
 redacted export and, per Parsa, over 300 with real names). Any
 change to room, time **or lecturer** gives a new UID, and two co-teachers give
 two UIDs for one lecture. A UID that encodes the time cannot identify an event
@@ -2787,8 +2899,22 @@ VEVENTs from two selected calendars with the same content key are one event, so
 a lecture listed in two calendars is drawn once. Exact duplicates across objects
 follow the tie-break below, as within one object.
 **Exact duplicates** — the same UID and the same start twice — are one event:
-the higher `SEQUENCE` wins, then the later `LAST-MODIFIED`/`DTSTAMP`, then the
-later VEVENT in the file (CIS sends none of these, so the later VEVENT).
+the higher `SEQUENCE` wins, then the later `LAST-MODIFIED`/`DTSTAMP`. ~~then the
+later VEVENT in the file (CIS sends none of these, so the later VEVENT).~~
+
+*(Amended 2026-10-10; G-077.)* **When neither VEVENT wins on `SEQUENCE` or
+stamp — always, on CIS, which sends neither — they are not duplicates to choose
+between: both go on to the merge**, where they share a content key and become
+one event with their lecturers unioned. "The later one wins" silently threw
+away the other VEVENT's fields, and it ran before the merge, so two co-teaching
+VEVENTs that happened to carry one UID lost a lecturer without being counted as
+a merge or as a problem. Two VEVENTs that tie and whose content keys differ
+(same UID and start, another summary, room or end) are both kept as separate
+events, each under its content key. The order of members inside the merge is
+ascending `UID`, then lecturer list joined by `/`, so it never depends on the
+feed's order. This is the rule that makes the merge independent of how the
+server builds its UIDs — which the first real connection showed is not safe to
+assume from the export (§20.8.4, G-068).
 
 `UID` missing: the VEVENT is skipped and counted as a problem (§19.1
 `partialImport`) — without an identity it cannot be updated or removed. (In
@@ -3019,7 +3145,7 @@ and **no `end`** (open-ended, as RFC 4791 §9.9 allows):
 
 | Window | `start` | Used by |
 |---|---|---|
-| **Import window** | `startOfDay(today) − 366 days`, in UTC (`20251007T220000Z` for today = 8 Oct 2026, Vienna) | `Connect` and edit mode's `Connect` (the step-2 preview, the Import, a deselection) |
+| **Import window** | `startOfDay(today)` **minus one calendar year** (`Calendar.date(byAdding: .year, value: -1)` in the Mac's zone), in UTC (`20251007T220000Z` for today = 8 Oct 2026, Vienna). *(Corrected 2026-10-10, G-071: the formula read "− 366 days", which gives `20251006T220000Z` and contradicted its own pinned value. One calendar year is what is meant and what is built. On 29 Feb it is 28 Feb of the year before.)* | `Connect` and edit mode's `Connect` (the step-2 preview, the Import, a deselection) |
 | **Sync window** | `startOfDay(today)`, in UTC (`20261007T220000Z`) | every sync |
 
 The request asks for `getetag` and `calendar-data`, with no `expand`, and
@@ -3167,6 +3293,33 @@ the same (G-068). Change is therefore decided **by content only**
   `href=etag` lines. Two polls of unchanged content with the same set prove that
   ETags are stable (G-068). Nothing in the app reads these values back.
 
+  *(Amended 2026-10-10, G-068.)*
+  - **Subsystem.** The lines are logged under subsystem **`XIX.Kadence`** (the
+    bundle identifier), category `sync`. A predicate on the category alone also
+    matches Apple's own `sync` categories, so the command is always written
+    with both:
+
+    ```
+    log show --last 1h --info --predicate 'subsystem == "XIX.Kadence" AND category == "sync"'
+    ```
+  - **Three more fields**, after `objects`: `vevents {v}` (VEVENTs read, before
+    anything is dropped), `duplicates {d}` (VEVENTs replaced by a strict
+    `SEQUENCE`/stamp winner, §20.2) and `merged {m}` (events that are a merge of
+    two or more VEVENTs). A co-taught lecture that arrives as one VEVENT, or as
+    two, is then visible in the log without reading the store:
+
+    `sync user01 @ cis.technikum-wien.at · LVPlan · mode report · requests 1 · 412 ms · objects 287 · vevents 287 · duplicates 0 · merged 9 · time-range honoured · ctag — · etags 287 (set 3f9a01c2) · feed unchanged`
+  - **The connect sheet's fetch is logged too**, as one line of the same shape
+    that starts `connect` instead of `sync` and ends `previewed {n} events`
+    (no `Source` exists yet, so the logger takes the account string). The
+    Import itself makes no request and logs `import {account} · {n} events ·
+    {h} before today`.
+  - **`ctag —` in `report` mode is correct, and stays.** The getctag is a
+    property of the collection; a `REPORT` returns objects, not the collection,
+    so there is no ctag to record, and asking for one would cost a second
+    request per poll for a value known to be the time of the request. It is
+    logged only when a response happens to carry it (D4 at `Connect`, F1).
+
 #### Guards — **deletion only on proof of absence**
 
 - A failed fetch (any §19.1 error state) contributes **no deletions** and no
@@ -3204,7 +3357,14 @@ inspector and any `TravelLeg` keyed by it survive a sync.
   defines, the options edit only the routine side, and the needs-attention count
   includes the new ones. **Excluded:** cancelled events (§20.6) and events that
   start before `startOfDay(today)` (§20.1 — history never conflicts). Merged
-  co-teaching duplicates never reach the engine as two events (§20.2). A conflict
+  co-teaching duplicates never reach the engine as two events (§20.2).
+  **Two imported events never conflict with each other** *(stated 2026-10-10)*,
+  whether from one source or two: a conflict is a routine occurrence against
+  an imported or manual event (§14), its options edit only the routine side,
+  and nothing Kadence could offer would resolve two lectures the university
+  scheduled on top of each other. They are drawn by `layouts.md` §3.3 —
+  packed, or cascaded with §3.3's title band and gap — and are not counted in
+  Needs attention. A conflict
   whose imported side a sync removes or moves disappears or changes on recompute
   — no special handling. A routine occurrence the user already shifted for a
   lecture that later vanishes or moves **stays shifted**: it is detached (§13.7)
@@ -3258,9 +3418,9 @@ all: sources are a static list in `MockData.sources`. These are SwiftData
 | `kind` | `CalendarSourceKind` raw | `.universityTimetable` for this slice. It sets the §10.1 symbol |
 | `connection` | raw `String`: `local` / `caldav` | `local` for routine, manual and mock sources. A raw string, so another transport can be added without a migration (G-065) |
 | `displayName` | `String` | Default `University timetable`. Renamable in Settings |
-| `paletteKey` | `SourceKey` raw | At creation: the first slot in `color.sourcePalette.order` that no other `Source` uses, or `graphite` when all are used (the rule's own fallback). The user cannot change it in this slice. In the review dataset the timetable keeps `blue` (§22.1) |
+| `paletteKey` | `SourceKey` raw | At creation: the first slot in `color.sourcePalette.order` **other than `graphite`** that no other `Source` uses; when all seven are used, the least-used of them (ties: the earlier in the order). **Never `graphite` for a connected source** *(amended 2026-10-10, G-075)*: `graphite` is `Personal`'s — manual events — and a timetable drawn in it is indistinguishable from them. The user cannot change it in this slice. In the review dataset the timetable keeps `blue` (§22.1) |
 | `symbolOverride` | `String?` | As `CalendarSource` |
-| `isVisible` | `Bool` | The sidebar checkbox, now persisted |
+| `isVisible` | `Bool` | The sidebar checkbox, now persisted. **It is the only visibility state**: there is no set of hidden palette slots (§21.1.1) |
 | `serverURL` | `String?` | **What the user typed, normalised**: `https://` + host (lower-cased) + port when not 443, + the path when one was typed (`https://cis.technikum-wien.at`). `{host}` in §19 is its host |
 | `username` | `String?` | `user01`. **Not secret**: it is shown as `{user} @ {host}` (`layouts.md` §11) and is the Keychain item's account (§21.4) |
 | `principalHref` | `String?` | From D2 (`/webdav/lvplan.php/principals/user01/`). Absolute path on `serverURL`'s host |
@@ -3282,6 +3442,50 @@ all: sources are a static list in `MockData.sources`. These are SwiftData
 
 **The password is never a field**, and no field can hold it (§21.4). The
 display form `{username} @ {host}` is computed and not stored.
+
+#### 21.1.1 A source is identified by its id, never by its colour (added 2026-10-10; G-075)
+
+Found in real use: Parsa's imported lectures drew grey, read `Personal · {room}`
+and showed the person glyph in the inspector. The build resolved an event's
+source **by palette slot** (`SourceCatalog.name(for: event.sourceKey)`, the
+inspector's swatch, the sidebar checkbox's hidden set). The new source had been
+given `graphite` — the old fallback, every other slot being held by leftover
+mock sources (§22.1 says how they got there) — so it shared a slot with
+`Personal`, and the lookup returned whichever record sorted first. A colour is
+a property of a source; it cannot be its key.
+
+- **Resolution.** An event's source is the `Source` whose `id` equals
+  `Event.sourceID`. Its name, symbol, palette slot, state and visibility all
+  come from that record. Nothing — block, inspector, popover, hover help,
+  VoiceOver, filter — looks a source up by `SourceKey`.
+- **Events without a `sourceID`** belong to a built-in source by origin:
+  `.manual` → `personal`, `.routine` → `routine`. `Event.sourceID` is set at
+  creation from then on; existing rows without one are resolved by this rule
+  at read time (no migration write is required).
+- **Colour.** A block's hue is its source's `paletteKey`, read from the record.
+  `Event.sourceKey` remains as the stored copy written at creation and is not
+  consulted when the record exists.
+- **Visibility** is `Source.isVisible` on the resolved record, persisted.
+  Unchecking `Personal` hides manual events and nothing else.
+- **Built-in local sources.** Every store has exactly two `local` sources,
+  created at first launch if missing, idempotently, with fixed ids — they are
+  the app's own taxonomy, not fixture data, because this build has a creator
+  for each (`⌘N`; the Routines window):
+
+  | id | Name | Kind → symbol (§10.1) | Slot |
+  |---|---|---|---|
+  | `personal` | `Personal` | manual → `person.fill` | `graphite` |
+  | `routine` | `Daily routine` | routine → `rectangle.stack.fill` | `green` |
+
+  **No other local source exists in a real store.** `Exams`, `Mail
+  appointments`, `Coursework`, `Social`, `Planned study` and the mock
+  `University timetable` are review fixtures for phases not built yet; each
+  arrives as a real source with the phase that gives it a creator. Production
+  code never reads `MockData.sources`.
+- **Never two rows for one thing.** The sidebar lists `Source` records, sorted
+  built-ins first (`Personal`, `Daily routine`), then connected sources by
+  name. A connected source and a `local` one never share a display name in a
+  real store, because no `local` timetable exists there.
 
 *(Removed with the subscription)*: `displayHost` (the host now comes from
 `serverURL`), `usesSignIn` (an account always signs in), `etag`,
@@ -3346,8 +3550,21 @@ works without it). These stay as they are today:
   refused at `Connect` (`layouts.md` §12.1), so (server, account, security
   domain) is unique.
 
-**Handling the password.** It enters memory only to answer a challenge. It goes
-into a `URLCredential` with `.none` persistence, built for that sync. It is
+**Handling the password.** It enters memory only to answer a challenge. ~~It
+goes into a `URLCredential` with `.none` persistence, built for that sync.~~
+*(Amended 2026-10-10, accepting DEVIATIONS B40.)* **Kadence builds the
+`Authorization` header itself** (`ChallengeResponder`: Basic, or Digest
+MD5 / `qop=auth`) in answer to the host's `401`, and Foundation is given no
+credential at all: the session delegate declines every password challenge, so
+no `URLCredential`, credential storage or protection-space cache is involved.
+This is accepted because it makes "sent only after that host's `401`" a
+property of one function that every test can observe on the wire. It carries
+one obligation the `URLCredential` form did not: **Foundation copies a manually
+set header onto a redirected request**, so the design is safe only while no
+redirect is ever followed by the transport. That is already the rule ("The
+transport never follows a redirect itself", below); with this amendment it is
+a **security invariant with required tests** (`interactions.md` §13.1, "What
+the tests must prove"). It is
 never kept in a property that outlives the sync. It never appears in
 `UserDefaults`, the store, a log line, an error's description, `stateDetail`, a
 problem line, an accessibility value, hover help, a fixture, a test assertion
@@ -3493,6 +3710,36 @@ cis.technikum-wien.at`. A password is only ever drawn as `SecureField` bullets.
 21. The source popover in `calendarMissing` (case `calendarGone`), with `Choose
     Calendar…` as the default button
 
+**Added 2026-10-10 (Phase 3 slice 1 review) — the real-use set.** Items 1–21
+are all drawn from the Phase 2 dataset with a timetable added, and that is why
+they missed every defect Parsa's first real week showed: none of them puts a
+connected source in a store that looks like a real one, and none overlaps two
+lectures. Items 22–27 use the two datasets added in §22.1 (`empty`, `fresh`).
+
+22. **A real first run** (dataset `empty`): the sidebar lists exactly
+    `Personal` and `Daily routine`, then `Connect Timetable…`; no Needs
+    attention row; an empty week. This replaces `sidebar-first-run-p3.png` as
+    item 1's evidence of "first run".
+23. **After the Import on a fresh store** (dataset `fresh`), week 28 Sep – 4 Oct
+    2026: the sidebar lists `Personal`, `Daily routine`, `University timetable`
+    — **one** timetable row, its swatch `blue` with `tablecells.fill`; every
+    lecture is `blue`; **no Needs attention row** (count 0).
+24. The same week, Fri 2 Oct: `BPREF-Info` 18:35–20:15 and `BPREF-Info`
+    19:30–20:15 as **two** blocks — packed where the slot allows, otherwise
+    cascaded with the earlier block's title drawn in its title band and the
+    2pt canvas gap round the later one (`layouts.md` §3.3; §3.3 above). One
+    frame in Week at the default window width (cascade) and one in Day (packed).
+25. Inspector, `BPREF-Info` 18:35 selected: title row glyph `building.columns`
+    and the `blue` timetable swatch; `Read-only — from University timetable`;
+    **`Lecturers` `L05`, `L06`**; `Room` `Online · WEBINAR02`; Source row with
+    the timetable swatch; `Done` / `Skip` enabled (it is history, §18.1).
+26. A lecture at `.full` in Week with the meta line `HS_A3.15 · Universit…`
+    (§3.4, amended), and item 12's `SWEN3-LAB` reading `EDV_F4.26 · …` after
+    the second sync — the frame filed under item 12 could not show the room
+    it claimed.
+27. Settings ▸ Sources after the Import on `fresh`: `Synced … · 13 events`,
+    `Sync Now` as an ordinary bordered button (`layouts.md` §11).
+
 ### 22.1 Fixtures
 
 #### The real export (tests only)
@@ -3523,7 +3770,7 @@ test's Mac zone Europe/Vienna, **from the `.ics` and from the `.xml` alike**:
 | CIS profile | matches all 13 |
 | Events after the merge | **12**. One merge: `BPREF-Info` on 2 Oct 18:35–20:15, lecturers `[L05, L06]`, `isOnline`, group `if-5`, location `WEBINAR02`. In the `.xml` the two halves are separate objects (`obj-03.ics`, `obj-04.ics`) |
 | Content keys | All 12 in content mode, e.g. `SWQM-ILV HS_A3.15 - BIF-5C\|HS_A3.15\|20260914T123000Z\|20260914T140000Z` |
-| Long lecturer list | `INNO3-EL` 21 Oct: 22 lecturers `L10` … `L31` in order; `isOnline` (`WEBINAR01`). Its UID (186 characters, with spaces and ` / ` inside) is read intact and not used |
+| Long lecturer list | `INNO3-EL` 21 Oct: 22 lecturers `L10` … `L31` in order; `isOnline` (`WEBINAR01`). Its UID (**185** characters after `UID:` — corrected 2026-10-10, G-070; the content line is 189 — with spaces and ` / ` inside) is read intact and not used |
 | Kinds | exam: `REQEN-EXAM`, `RW-EXAM`, `GLD-EXAM`. Lecture: the other 9 (`-ILV`, `-UE`, `-LAB`, `-EL`, `-Info`) |
 | DST | `INNO3-EL` 21 Oct 08:00 → 06:00Z; `UF-ILV` 2 Nov 14:30 → 13:30Z; `SWQM-ILV` 14 Sep 14:30 → 12:30Z |
 | Range | First 14 Sep 2026, last 29 Jan 2027. `CGRMR-ILV` 11:20–12:50 and `GLD-EXAM` 12:50–14:20 touch but do not overlap |
@@ -3533,6 +3780,35 @@ test's Mac zone Europe/Vienna, **from the `.ics` and from the `.xml` alike**:
 | The same, with every href renamed and every ETag changed | Writes nothing; feed hash equal |
 | The same, with every CRLF replaced by LF | Identical result |
 | Mac zone `America/New_York` | Identical instants; `SWQM-ILV` draws at 08:30 |
+
+#### Review mode never touches the real store (added 2026-10-10; G-076)
+
+Parsa's first real connection ran on a store a review launch had seeded
+about an hour earlier: the capture and check scripts delete
+`~/Library/Containers/XIX.Kadence/…/default.store` and relaunch with
+`-KadenceReview`, and review mode seeded **that same file**. So the "real"
+store held the whole Phase 2 dataset — eight mock sources, the mock events, the
+mock routine template and its windows — before the first lecture arrived.
+Every one of these followed from it: the second `University timetable` row,
+the six fixture sources, the `graphite` slot (all seven others were taken),
+and a Needs-attention count of 16 (14 of them the mock dataset's own).
+
+- **A launch with `-KadenceReview` uses its own store**: an in-memory
+  `ModelContainer`, created fresh for that launch and gone when it quits. It
+  never opens, reads, writes or deletes the real store, and it uses the
+  in-memory secret store, never the Keychain.
+- **A launch without it never seeds anything** except §21.1.1's two built-in
+  sources, and never reads a review argument's data.
+- **No script deletes or writes the real store.** `Scripts/*` lose their `rm`
+  of `default.store`; a fresh review launch is fresh by construction.
+- **Datasets**, selected by the argument's value:
+
+  | Value | Contents |
+  |---|---|
+  | `phase2` | the Phase 2 dataset, no connected source (regression scripts) |
+  | `phase3` | the review dataset below |
+  | `empty` | nothing but the two built-in sources — what a real first launch holds |
+  | `fresh` | `empty`, then one connected source imported from `reportCISOverlap` (`caldav-mocks.md`): the real export plus one overlapping session. Its dates are absolute, so its frames are navigated to by date (week 28 Sep – 4 Oct 2026), and the clock only decides which blocks are `past` |
 
 #### The review dataset
 
@@ -3546,6 +3822,23 @@ In review, the mock source `timetable` (`University timetable`, `blue`,
 - `connection = caldav`
 - `serverURL` `https://cis.technikum-wien.at`, `username` `user01`
 - the principal, home and `calendars` = `[LVPlan]` from `caldav-mocks.md`
+
+It is seeded **as already imported** *(amended 2026-10-10)*: `importedAt` and
+`lastSuccessAt` are set to the seeding time and the template's events are
+written by an Import, so the failure cases (`forbidden`, `calendarGone` …) show
+what a real source shows when a later sync fails — a last-synced time, and
+events that are in fact kept — instead of `Never synced`.
+
+`Statistik übung` (the Phase 2 dataset's second imported event, today
+10:45–11:45, `done`) is not in the template, so a sync of the review source
+would remove it and item 12 would read `3 removed`. **Ruled 2026-10-10 (closes
+G-073, accepts DEVIATIONS B42):** `phase3` seeding detaches it (`sourceID`
+nil, still `.imported`, `blue`), as built. It is the one event in any dataset
+that is imported and has no source; §21.1.1 resolves it for display to the
+`Source` holding its stored slot, **in review mode only** — a test asserts
+that no production path creates an imported event without a `sourceID`.
+Adding it to the template instead would change item 5's `13` everywhere it is
+pinned for no gain.
 
 `MockCalDAVTransport` serves it (no network) from the template below. Its
 password comes from an in-memory secret store, **never the Keychain**, and is

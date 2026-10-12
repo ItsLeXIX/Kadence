@@ -340,15 +340,63 @@ committed rendered.
 
 `reportReview` with `components.md` §22.1's `reportChanged` table applied:
 
-- `r05.ics` (#2, lecturer `L09`) keeps its href, gets a new UID and `getetag`
-  `"rev-05-b"`.
-- `r06.ics` (#3) is replaced by `r06b.ics` (room `EDV_F4.26`, `"rev-06b-a"`).
-- `r08.ics` (#5) is absent.
+*(Corrected 2026-10-10, G-072: the numbers below did not follow the row order
+stated above — H1 `r01`, H2 `r02`, #1 `r03`, #2 `r04`, #3 `r05`, #4 `r06`,
+#5 `r07`, #6 `r08`, #7a `r09`, #7b `r10`, #8–#11 `r11`–`r14`. They do now, and
+they match what `ReviewFeed.reportChanged` built by row.)*
+
+- `r04.ics` (#2, lecturer `L09`) keeps its href, gets a new UID and `getetag`
+  `"rev-04-b"`.
+- `r05.ics` (#3) is replaced by `r05b.ics` (room `EDV_F4.26`, `"rev-05b-a"`).
+- `r07.ics` (#5) is absent.
 - `r10.ics` (#7b) is absent.
 - `r15.ics` (`KOKU-UE` `{{D+9}}`, `"rev-15-a"`) is added.
 - `r01.ics` (H1) is moved to room `HS_A3.13` with a new UID. The mock does not
   return it for the sync window, and the planner ignores it if a test forces it
   in.
+
+### `reportCISOverlap` — review dataset `fresh`, and the real-use regression tests
+
+*(Added 2026-10-10.)* `reportCIS` plus **one object**, `obj-14.ics`
+(`"cis-14-a"`), built in code from the fixture's own `BPREF-Info` VEVENT — the
+fixture file is never edited:
+
+```
+UID:FHif-5WEBINAR02L07BPREF-Info20261002T19300020261002T201500
+SUMMARY:BPREF-Info  WEBINAR02 - if-5
+DESCRIPTION:BPREF-Info\nL07\nif-5\nWEBINAR02
+LOCATION:WEBINAR02
+CATEGORIES:StundenplanTW
+DTSTART;TZID=Europe/Vienna:20261002T193000
+DTEND;TZID=Europe/Vienna:20261002T201500
+```
+
+It is the shape Parsa's real feed has on Fri 2 Oct 2026: a second session of
+the same course, in the same room, inside the first (18:35–20:15, co-taught by
+`L05` and `L06`). Expected: 14 VEVENTs → **13 events**; one merge (`L05`,
+`L06`); the 19:30 session is its own event, lecturer `L07`, and overlaps the
+merged one by 45 min.
+
+### `reportCISSameUID` — tests
+
+`reportCIS` with `obj-04.ics`'s `UID` line replaced by `obj-03.ics`'s, so the
+two `BPREF-Info` halves share one UID and one start and differ only in the
+lecturer line. Expected (`components.md` §20.2, amended 2026-10-10): still
+**12 events**, `BPREF-Info` with lecturers `[L05, L06]`, `merged 1`,
+`duplicates 0`, whichever object comes first.
+
+### Redirects that carry the header — tests
+
+For `interactions.md` §13.1's "What the tests must prove". Each replaces one
+answer of `reportOK` **after** D2's `401` has been answered, so the redirected
+request carries `Authorization`, and each is delivered through
+`wasRedirectedTo` (a real redirect), not as a plain `3xx` body:
+
+| Case | Request redirected | `Location` | Expected |
+|---|---|---|---|
+| `redirectAuthedOffHost` | the `REPORT` (and, parameterised, D2's retry, D3, D4), with `301` / `302` / `307` / `308` | `https://login.example.invalid/caldav/` | `redirected`, `otherHost` `login.example.invalid`; **no record for that host** |
+| `redirectAuthedToHTTP` | the same requests | `http://cis.technikum-wien.at/webdav/lvplan.php/` | `redirected`, the `http:` body; **no record with scheme `http`** |
+| `redirectFollowedControl` | the `REPORT`, through a test-only session whose delegate allows redirects | `https://login.example.invalid/caldav/` | a record for `login.example.invalid` **with `Authorization`** — the proof that the harness would see a leak |
 
 ### `etagsOnly`
 

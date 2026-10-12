@@ -121,7 +121,7 @@ This resolves DEVIATIONS A36 once built.
 | `←` `→` | Page back / forward one unit (month, week, day) | grid focused, cursor mode |
 | `⌘N` | New event at the time cursor, else at the next half hour | global |
 | `↩` | Open the selection in the inspector and focus its title field | selection mode |
-| `⌫` | Delete the selection | selection mode |
+| `⌫` | Delete the selection — **Edit ▸ Delete** *(menu item required 2026-10-10, A38)* | selection mode |
 | `⌘↩` | Toggle done | selection mode |
 | `⌥⌘↩` | Toggle skipped | selection mode |
 | `⌥↑` `⌥↓` | Move the selection by 15 minutes | selection mode |
@@ -143,11 +143,18 @@ This resolves DEVIATIONS A36 once built.
 | `↩` | Apply the focused option | conflict panel focused |
 | `⎋` | Abandon the pending preview | conflict panel focused |
 | `‹` `›` / `⌥←` `⌥→` | Previous / next unresolved conflict | conflict panel focused |
-| `⌘⌥N` | New all-day event on the focused day | grid focused |
+| `⌘⌥N` | New all-day event on the focused day. *Never built (DEVIATIONS A37); deferred out of Phase 3 slice 1 on 2026-10-10, still normative — it belongs with the next task that touches event creation. All-day events are drawn since `components.md` §5.1.* | grid focused |
 | `⌘R` | **Sync Now** — every connected source (View ▸ Sync Now). *Added 2026-10-08, §13.3* | global |
 
 Every one of these is also a menu bar item, with the same key equivalent, so the
 shortcut set is discoverable without documentation.
+
+*(Added 2026-10-10.)* **Edit ▸ Delete** (`⌫`) did not exist: `⌫` was handled
+by the grid alone, and until Phase 3 did not work at all (DEVIATIONS B44). The
+item is added to the Edit menu, below the system's pasteboard group. It is
+enabled when a deletable event is selected in the main window's grid, deletes
+it exactly as `⌫` does (one undo step), and is **disabled** when nothing is
+selected or the selection is an imported event (§13.4).
 
 ---
 
@@ -689,6 +696,11 @@ never half-saves. `Back` is a button only.
     (`redirected`). Following it would hand the request, and the password, to a
     server the user never chose. The refused `Location` is reduced to its host
     before it is shown or logged.
+  *(Clarified 2026-10-10.)* "At any step" includes D2–D4 and every fetch
+  request: a `3xx` there whose `Location` is another host or `http:` ends in
+  `redirected`, not in `noCalDAV` / `fetchFailed`, so the user is told the
+  server tried to send them elsewhere. (The build answered `noCalDAV` at
+  D2–D4; nothing was sent either way.)
 - **Hrefs from the server** are resolved against the request URL. One that
   resolves to another host is ignored and never requested.
 - **One request at a time** per source, never parallel (`components.md`
@@ -697,6 +709,44 @@ never half-saves. `Back` is a button only.
   storage, cookies in memory for the sync only: `components.md` §21.4).
   **Nothing secret in any log, error or description**: the password is never
   logged, and no header or body is logged at all.
+
+**What the tests must prove (added 2026-10-10; DEVIATIONS B40, accepted in
+`components.md` §21.4).** Kadence sets `Authorization` itself, and Foundation
+copies manually set headers onto a request it redirects. Two layers stop that —
+the transport's delegate refuses every redirect, and `CalDAVSession.send`
+refuses any URL that is not the source's host, port and `https` before it is
+sent — and each must be proven **through Foundation's real redirect path**,
+which the first test set never entered: its `URLProtocol` stub hands a `301`
+back as an ordinary response, so `URLSession` never asks the delegate anything
+and the "not followed" assertions pass with or without it.
+
+1. **The stub can redirect for real.** `StubURLProtocol` gains a reply that
+   calls `client.urlProtocol(_:wasRedirectedTo:redirectResponse:)`, which is
+   what makes `URLSession` consult `willPerformHTTPRedirection`. The stub
+   records every request it is asked to load, for **any** host and scheme.
+2. **Cross-host, with the header on the request.** A session that has already
+   been challenged sends a `REPORT` carrying `Authorization`; the stub
+   redirects it (`301`, and again with `302`, `307`, `308`) to
+   `https://login.example.invalid/…`. Expected: the fetch ends `redirected`
+   with `otherHost` `login.example.invalid`; the stub's records contain **no
+   request to that host at all**, with or without the header; the sentinel
+   appears in no record but the original request's `Authorization`.
+3. **`https` → `http`, same host**, the same way: `redirected`, the `http:`
+   body; no record whose scheme is `http`.
+4. **The same at D2, D3 and D4** (each carries the header after D2's `401`),
+   and for the `401` retry itself: the retried request answered with a
+   redirect is refused, not followed.
+5. **A control that fails without the delegate.** The same stub and the same
+   redirected request through a session whose delegate *allows* the redirect
+   records a request to `login.example.invalid` **carrying `Authorization`**.
+   This is the test of the test: it shows the harness can see the leak, so (2)
+   and (3) mean something.
+6. **`CalDAVSession.send` given an off-host or `http:` URL** throws
+   `redirected` and the stub records nothing.
+7. **Never before the `401`** stays as built and stays asserted on every
+   recorded request (`caldav-mocks.md` §4): the first request of every connect
+   and every sync carries no `Authorization`; the first one that does is the
+   retry of a request the host answered `401`.
 
 **The user's own act.** The app contacts the server only when the user presses
 `Connect`, `Import`/`Save` or `Sync Now`, or, once they have connected, on the
@@ -792,7 +842,7 @@ cursor instead of the sound.
 | Drag the block | No movement; cursor `.operationNotAllowed` from the drag threshold; no drop preview; (b) on release |
 | Hover an edge | No resize handles, no resize cursor (`components.md` §18.2) |
 | `⌥`-drag (duplicate) | As drag — refused in this slice |
-| `⌫`, Edit ▸ Delete | Nothing deleted; (a) + (b). Edit ▸ Delete is **disabled** in the menu while an imported event is selected, so the menu shows the rule before the key does |
+| `⌫`, Edit ▸ Delete | Nothing deleted; (a) + (b). Edit ▸ Delete is **disabled** in the menu while an imported event is selected, so the menu shows the rule before the key does. *(2026-10-10: the item did not exist — DEVIATIONS A38; §2 now requires it.)* |
 | `⌥↑` `⌥↓` `⌥←` `⌥→` `⌥⇧↑` `⌥⇧↓` | Nothing moves; (a) + (b) |
 | `↩` (open in inspector) | Opens the inspector as usual and focuses its first focusable control; there is no title field to focus |
 | Double-click the block | Selects it; no inline title edit; (b) |

@@ -2534,7 +2534,7 @@ exactly this (`components.md` §19.3, §20.6, §20.10), so nothing changes. Revi
 after a few weeks of real use. If a missed cancellation ever causes a wasted
 trip, the ghost returns as a design task.
 
-### G-068 — OPEN (Parsa, at the first real connection). How the real CIS server answers a `REPORT`.
+### G-068 — RECORDED and CLOSED 2026-10-10 (see "Phase 3 slice 1 review" below). Was OPEN (Parsa, at the first real connection). How the real CIS server answers a `REPORT`.
 
 The spec is built on what Parsa verified on 2026-10-08:
 
@@ -2574,8 +2574,11 @@ Also worth noting from the same log lines:
 **How to read the line:**
 
 ```
-log show --last 1h --predicate 'category == "sync"' --info
+log show --last 1h --info --predicate 'subsystem == "XIX.Kadence" AND category == "sync"'
 ```
+
+*(Corrected 2026-10-10: the category alone also matches Apple system
+processes. Kadence logs as subsystem `XIX.Kadence`, category `sync`.)*
 
 It contains no password (`components.md` §21.4).
 
@@ -2622,7 +2625,7 @@ Parsa rewrote for CalDAV govern.
 
 ## 2026-10-08 — Phase 3 slice 1 build (coding agent, appended during the run)
 
-### G-069 — OPEN (coding agent, P3-T03). The detail sentence for one skipped VEVENT.
+### G-069 — CLOSED 2026-10-10 (see "Phase 3 slice 1 review" below). Was OPEN (coding agent, P3-T03). The detail sentence for one skipped VEVENT.
 
 `components.md` §19.1 fixes the `partialImport` body (`{k} of {n} events
 couldn't be read and were skipped. Nothing was removed.`) and the technical
@@ -2637,7 +2640,7 @@ summary) and `1 change to a repeating event was applied to one occurrence only:
 {SUMMARY}`. The technical lines follow §19.1's form. Please give the exact
 sentences.
 
-### G-070 — OPEN (coding agent, P3-T03). The INNO3-EL UID is 185 characters, not 186.
+### G-070 — CLOSED 2026-10-10 (see "Phase 3 slice 1 review" below). Was OPEN (coding agent, P3-T03). The INNO3-EL UID is 185 characters, not 186.
 
 `components.md` §20.2 and §22.1 ("Its UID (186 characters …)") and
 `PHASE3-PLAN.md` task 3 say 186. Counted byte for byte in
@@ -2645,7 +2648,7 @@ sentences.
 characters (the whole content line is 189). The test asserts 185 and says so.
 Please correct the number in the spec.
 
-### G-071 — OPEN (coding agent, P3-T05). The Import window: "− 366 days" vs the pinned value.
+### G-071 — CLOSED 2026-10-10 (see "Phase 3 slice 1 review" below). Was OPEN (coding agent, P3-T05). The Import window: "− 366 days" vs the pinned value.
 
 `components.md` §20.8.2 defines the Import window's `start` as
 `startOfDay(today) − 366 days` and gives `20251007T220000Z` for today = 8 Oct
@@ -2656,7 +2659,7 @@ year** (`Calendar.date(byAdding: .year, value: -1)`), so the pinned value
 holds; DEVIATIONS D7. Either reading holds any semester. Please confirm which
 the spec means and correct the other.
 
-### G-072 — OPEN (coding agent, P3-T06). `reportChanged`'s object numbers in caldav-mocks.md.
+### G-072 — CLOSED 2026-10-10 (see "Phase 3 slice 1 review" below). Was OPEN (coding agent, P3-T06). `reportChanged`'s object numbers in caldav-mocks.md.
 
 caldav-mocks.md §2 says the review objects are `r01.ics` … `r14.ics` "in row
 order (H1, H2, 1, 2, 3, 4, 5, 6, 7a, 7b, 8, 9, 10, 11)", which makes #2
@@ -2667,7 +2670,7 @@ Hrefs are not identity (§20.2), so nothing in the build depends on it.
 H1, plus `r15` for the new `KOKU-UE`) with row-order hrefs. Please make the
 numbers agree.
 
-### G-073 — OPEN (coding agent, P3-T10). Phase 2's `Statistik übung` in the review dataset.
+### G-073 — CLOSED 2026-10-10 (see "Phase 3 slice 1 review" below). Was OPEN (coding agent, P3-T10). Phase 2's `Statistik übung` in the review dataset.
 
 `components.md` §22.1 makes the review dataset "the Phase 2 dataset,
 unchanged, plus one connected source": the mock source `timetable` becomes
@@ -2681,7 +2684,7 @@ Built: review mode's phase-3 seeding detaches that one event from the source
 sync owns it (DEVIATIONS B42). Alternatives for the design agent: add it to
 the template, or drop it from the review dataset.
 
-### G-074 — OPEN (coding agent, P3-T15). The meta line of a `done` block on a solid fill.
+### G-074 — CLOSED 2026-10-10 (see "Phase 3 slice 1 review" below). Was OPEN (coding agent, P3-T15). The meta line of a `done` block on a solid fill.
 
 `components.md` §6's 2026-10-08 amendment (G-054) gives the `done` label and
 its `checkmark.circle.fill` `color.text.primary` on `.fixedTimed`,
@@ -2690,3 +2693,169 @@ room) is not mentioned and keeps `.fixedTimed`'s `text.onSolid` at 0.8 —
 white on the 0.55-blended fill, unreadable in light appearance (seen in
 `allday-and-done-light-p3t15.png`, SWQM-ILV). Built as a `// SPEC-GAP G-074`
 placeholder: the meta takes `text.primary` too. Please rule.
+
+---
+
+## 2026-10-10 — Phase 3 slice 1 review: gaps closed, opened, deferred
+
+Design agent, 2026-10-10, reviewing `screenshots/3/` and Parsa's first real
+connection (9 Oct 2026). Verdict and fix list: `PHASE3-REVIEW.md`. Spec edits:
+`components.md` §3.3, §3.4, §6, §18.1, §19.2, §19.3, §20.1, §20.2, §20.8.2,
+§20.8.4, §20.9, §21.1, §21.1.1 (new), §21.4, §22, §22.1; `layouts.md` §2.1,
+§6.1, §11; `interactions.md` §2, §13.1, §13.4; `caldav-mocks.md` §2;
+`PHASE3-PLAN.md` (three corrections); `tokens.json` 1.7.0.
+
+### G-068 — RECORDED and CLOSED. `components.md` §20.1, §20.2, §20.8.4; `PHASE3-REVIEW.md` "G-068".
+
+**The record** (Parsa's account, 9 Oct 2026; no agent contacted the server):
+
+| Question | Answer |
+|---|---|
+| `REPORT calendar-query` | Answered `207`. `mode report`, no fallback |
+| Time-range honoured? | **Yes**: the sync-window `REPORT` returned 70 objects = the Import's 91 events − 21 before today |
+| ETags stable? | **Yes**: `etags 70 (set 29fa316d)` on two Sync Nows 2 min 42 s apart (23:20:37, 23:23:19), although the getctag is the request time |
+| One `REPORT` | **1798 ms** and **1921 ms**, 70 objects, 1 request |
+| Second poll | `feed unchanged` — nothing written. (The first after the Import reads `nothing to write`: the feed hash moves from the Import's window to the sync's, §20.8.4) |
+| `401` scheme | `Basic` (curl, 2026-10-08). **Realm not recorded** |
+| Object hrefs | Not recorded |
+| Import | `91 events, 22 Sep 2026 – 29 Jan 2027`; 21 before today |
+
+**Contradictions with the spec, and the rulings:**
+
+1. **The server serves a limited history.** The Import asked for a year and got
+   events from 22 Sep; Parsa's export of 8 Oct began 14 Sep. §20.1 called the
+   Import "the semester's earlier weeks". **Ruled:** it is the earlier weeks
+   the server still serves; nothing else changes, and the rule that a sync
+   never deletes the past is what keeps older lectures (§20.1, added
+   paragraph). This opened G-080.
+2. **The export is not the CalDAV feed.** The redacted fixture is a manual
+   export; the first real feed differed from it in range, and one co-taught
+   lecture arrived with a single lecturer (below, G-077). The fixture stays the
+   parser's reference; it is no longer assumed to describe what CalDAV sends.
+3. **The log command** matched Apple's processes. **Ruled:** always
+   subsystem-scoped (§20.8.4; corrected above and in `PHASE3-PLAN.md`).
+4. **`ctag —` in `report` mode.** **Ruled: acceptable, and correct** — a
+   `REPORT` returns no collection property, and a second request per poll for
+   a value known to be the request time is a cost with no use (§20.8.4).
+
+**Nothing in the defaults changes:** under 2 s and one request per poll is well
+inside what the 30-minute interval was chosen for; `get` mode is not reachable
+on CIS, so the 6-hour floor stays invisible. Stable ETags make a cheaper poll
+possible later (ETags-only `PROPFIND`, then fetch what changed); **not
+proposed** — one sub-2-second request every half hour needs no optimising, and
+change-by-content stays the only rule.
+
+**Still unknown, cheap to learn at the next real sync** (the log line's new
+fields, §20.8.4): `vevents`, `duplicates`, `merged` — see G-077 — and the
+realm. Neither blocks anything.
+
+### G-069 — CLOSED. `components.md` §19.3 ("The sentences").
+
+Exact sentence and technical line for every per-object problem; CA's two
+placeholders are replaced.
+
+### G-070 — CLOSED. `components.md` §20.2, §22.1; `PHASE3-PLAN.md` task 3. DEVIATIONS D6 resolved.
+
+185 characters. CA counted correctly; the spec's number was wrong in three
+places and is corrected in all three.
+
+### G-071 — CLOSED. `components.md` §20.8.2; `PHASE3-PLAN.md` judgement 1. DEVIATIONS D7 resolved.
+
+One calendar year back. The pinned value was right and the formula wrong; the
+build is the spec.
+
+### G-072 — CLOSED. `caldav-mocks.md` "`reportChanged`".
+
+My own file contradicted itself. The object numbers now follow the row order
+(`r04`, `r05` → `r05b`, `r07`, `r10`), which is what the build did.
+
+### G-073 — CLOSED. `components.md` §22.1 (the paragraph on `Statistik übung`). DEVIATIONS B42 accepted.
+
+Detached in `phase3` seeding, as built; review mode only.
+
+### G-074 — CLOSED. `components.md` §6 (amended 2026-10-10); `tokens.json` 1.7.0 `$measured_1_7_0`.
+
+Measured: `text.onSolid` at 0.8 on the done-blended solid fill is 1.65 / 2.44
+worst. Every text element of a done block on a solid-fill kind is
+`text.primary` (9.00 / 6.17 worst). No token value changes.
+
+### G-048 — no longer deferred: REQUIRED in this fix round. `components.md` §3.3 (amended 2026-10-10). DEVIATIONS A35.
+
+The covered block is now the lecture. Stays OPEN until built and captured
+(`PHASE3-REVIEW.md` fix 6).
+
+### G-075 — opened; spec CLOSED, build OPEN (fix 2). `components.md` §21.1, §21.1.1; `layouts.md` §2.1, §6.1; `tokens.json` 1.7.0.
+
+**Found in real use:** imported lectures attributed to `Personal` — grey,
+`Personal · {room}`, the person glyph. **Cause:** the build resolves a source
+by palette slot; the new source was given `graphite` (every other slot held by
+leftover mock sources, G-076) and shares it with `Personal`. **Ruled:** a
+source is identified by its id; a connected source never takes `graphite`; a
+real store has two built-in local sources and no fixture ones; visibility is
+`Source.isVisible`.
+
+### G-076 — opened; spec CLOSED, build OPEN (fix 1). `components.md` §22.1 "Review mode never touches the real store".
+
+**Found in real use:** the sidebar's second `University timetable`, six
+fixture sources, and 14 of the 16 Needs-attention conflicts were the Phase 2
+review dataset, seeded into the real store file by a review launch, and the
+check scripts delete that file. **Ruled:** review mode runs on its own
+in-memory store; no script touches the real one.
+
+### G-077 — opened; spec CLOSED, build OPEN (fix 4). `components.md` §20.2 (exact duplicates), §20.8.4 (log fields); `caldav-mocks.md` `reportCISSameUID`.
+
+**Found in real use:** `BPREF-Info` Fri 2 Oct 18:35–20:15 is stored with one
+lecturer; CIS lists two for it. The merge is correct for two VEVENTs with
+different UIDs (the fixture's shape, tested). The one path in the build that
+loses a lecturer is the exact-duplicate rule, which ran **before** the merge
+and kept "the later VEVENT" when two share a UID and a start. **Ruled:** a tie
+is not a duplicate; both go to the merge. **Not provable from here:** whether
+the real feed sent two VEVENTs with one UID (then this fix restores the
+lecturer) or only one VEVENT (then CIS's CalDAV does not serve it, and nothing
+Kadence does can). The new log fields answer it at Parsa's next sync.
+
+### G-078 — opened; spec CLOSED, build OPEN (fix 6). `components.md` §3.3 (the gap).
+
+A covering block is separated from what it covers by 2pt of canvas. Two
+same-source lectures in a cascade read as one block without it.
+
+### G-079 — opened; spec CLOSED, build OPEN (fix 7). `components.md` §3.4 (amended 2026-10-10).
+
+The meta line is `Location · Source`; the source truncates. Reverses the 1.0
+priority; **for Parsa to confirm** (`PHASE3-REVIEW.md` "For Parsa").
+
+### G-080 — opened and CLOSED in the spec; build OPEN (fix 9). `components.md` §20.1.
+
+Deselecting a calendar deleted "every event … past or future" absent from the
+Import-window fetch. With a server that serves only recent history that would
+delete every older lecture of the calendars that stay. **Ruled:** nothing
+older than the server's horizon is deleted by a deselection. Not reachable on
+CIS today (one calendar cannot be unchecked), so it is a small fix, not a
+blocker.
+
+### Deferred by this review (DEVIATIONS A-entries, for Parsa to log)
+
+- **A37** — `⌘⌥N`, new all-day event. Deferred out of slice 1, still normative
+  (`interactions.md` §2). Not a timetable feature; all-day events render.
+- **A39 (new)** — Digest authentication across several requests: the build
+  reuses the first challenge's nonce with `nc=00000001` on later requests, which
+  a strict server may answer `401` (shown as `Sign-in failed`, and paused).
+  CIS uses Basic, so this is not on Parsa's path. When built: `nc` increments,
+  a fresh `cnonce` per request, and a `401` with `stale=true` is answered once
+  more instead of ending `unauthorized`.
+- **A40 (new)** — `↩` on a focused connected sidebar row (`layouts.md` §2.1)
+  is wired but not observed live; a sidebar `List` row rarely holds key focus.
+  Three other paths open the popover. Verify with the next sidebar task.
+- **A33, A34** — unchanged.
+
+### Still open after this pass
+
+- **G-016** (snooze destination, Phase 4), **G-003** (contrast checker; 63
+  pairs, none added at 1.7.0) — unchanged.
+- **G-048**, **G-075**, **G-076**, **G-077**, **G-078**, **G-079**, **G-080** —
+  ruled in the spec, open until built and captured (`PHASE3-REVIEW.md` fix
+  list).
+- **G-061** — recorded by CA (STATUS §111); nothing to rule. Closed as
+  recorded.
+- **G-058**, **G-059**, **G-060**, **G-062**, **G-063**, **G-064**, **G-065**,
+  **G-067** — deferred, unchanged.
