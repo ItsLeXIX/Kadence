@@ -299,14 +299,19 @@ struct SyncPlannerTests {
         DTSTART;TZID=Europe/Vienna:20261001T090000\r\nDTEND;TZID=Europe/Vienna:20261001T100000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n
         """
 
-    @Test("Edit Save follows sync rules; deselecting Prüfungen deletes what only it contributed, past included; RW-EXAM stays")
+    /// The kept calendar's Import-window read begins with the template's H1
+    /// (`{{T-6}}` 14:30 = Fri 2 Oct at the test clock): that is the server's
+    /// horizon (§20.1, G-080). `pastUnique` (1 Oct) is older than it.
+    @Test("Edit Save follows sync rules; deselecting Prüfungen deletes what only it contributed, past included — inside the server's horizon; RW-EXAM stays")
     func editSaveDeselection() async throws {
         let rwExam = try #require(MockHarness.reportReview().last)
         let futureUnique = Self.pastUnique.replacingOccurrences(of: "20261001", with: "20261030")
+        // Past, and inside the horizon: Mon 5 Oct.
+        let pastInside = Self.pastUnique.replacingOccurrences(of: "20261001", with: "20261005")
         func pObject(_ name: String, _ data: String) -> MockCalDAVServer.Object {
             MockCalDAVServer.Object(href: MockCalDAVServer.pruefungen + name, etag: "\"p\"", data: data)
         }
-        let pFeed = [pObject("p1.ics", rwExam.data), pObject("p2.ics", Self.pastUnique), pObject("p3.ics", futureUnique)]
+        let pFeed = [pObject("p1.ics", rwExam.data), pObject("p2.ics", pastInside), pObject("p3.ics", futureUnique)]
         let f = try SyncFixture(calendars: [lvplan, pruefungen])
         try await f.run(MockHarness(.multiCalendar, feed: MockHarness.reportReview(), pruefungen: pFeed), kind: .import)
         #expect(f.events.count == 15)  // 13 + 2 unique; RW-EXAM merged
@@ -332,6 +337,69 @@ struct SyncPlannerTests {
                                               failed: [(lvplan, .fetchFailed(technical: "x"))]),
                                        kind: .editSave(deselected: true))
         #expect(partial.deletes.isEmpty && g.events.count == 15)
+    }
+
+    // MARK: The deselection horizon (§20.1 step 2, amended 2026-10-10; G-080)
+
+    /// PHASE3-REVIEW.md fix 9. CIS served only about two and a half weeks of
+    /// past on 9 Oct, so an older lecture is absent from every later read —
+    /// which says nothing about the calendar it came from.
+    @Test("A deselection never deletes an event older than the earliest event the server returned; inside the horizon it deletes as before")
+    func deselectionHorizon() async throws {
+        let rwExam = try #require(MockHarness.reportReview().last)
+        func pObject(_ name: String, _ data: String) -> MockCalDAVServer.Object {
+            MockCalDAVServer.Object(href: MockCalDAVServer.pruefungen + name, etag: "\"p\"", data: data)
+        }
+        // Prüfungen's own events: one older than the horizon (Thu 1 Oct — as
+        // served at the Import, weeks ago), one past and inside it (Mon 5
+        // Oct), one in the future (30 Oct).
+        let older = Self.pastUnique.replacingOccurrences(of: "PRUEF-EXAM", with: "ALT-EXAM")
+        let inside = Self.pastUnique.replacingOccurrences(of: "20261001", with: "20261005")
+        let future = Self.pastUnique.replacingOccurrences(of: "20261001", with: "20261030").replacingOccurrences(of: "PRUEF-EXAM", with: "NEU-EXAM")
+        let pFeed = [pObject("p1.ics", rwExam.data), pObject("p2.ics", older), pObject("p3.ics", inside), pObject("p4.ics", future)]
+        let f = try SyncFixture(calendars: [lvplan, pruefungen])
+        try await f.run(MockHarness(.multiCalendar, feed: MockHarness.reportReview(), pruefungen: pFeed), kind: .import)
+        #expect(f.events.count == 16)
+        // …and a lecture of the **kept** calendar that the server has stopped
+        // serving: older than everything it still returns.
+        let oldLecture = Event(title: "SWQM-ILV", start: TestClock.date("2026-09-14 14:30"), end: TestClock.date("2026-09-14 16:00"),
+                               origin: .imported, sourceKey: .blue, sourceID: f.source.id,
+                               externalID: "SWQM-ILV HS_A3.15 - BIF-5C|HS_A3.15|20260914T123000Z|20260914T140000Z")
+        oldLecture.status = .done
+        f.context.insert(oldLecture)
+        try f.context.save()
+        #expect(f.events.count == 17)
+
+        // Edit mode: Prüfungen unchecked; LVPlan read with the Import window.
+        f.source.calendars = [lvplan]
+        let kept = try await f.fetch(MockHarness(.multiCalendar, feed: MockHarness.reportReview(), pruefungen: pFeed),
+                                     start: Windows.importStart(now: TestClock.now, zone: zone), now: TestClock.now)
+        let horizon = try #require(SyncPlanner.horizon(of: kept.events))
+        #expect(horizon == TestClock.date("2026-10-02 14:30"))   // the template's H1
+        let stored = SyncApplier.snapshot(of: f.source, in: f.context, zone: zone)
+        // Step 2's sentence counts what `Save` will delete: the two inside
+        // the horizon, not the two older than it.
+        #expect(SyncPlanner.deselectionCount(existing: stored, keptEvents: kept.events) == 2)
+        #expect(Set(SyncPlanner.deselected(existing: stored, keptEvents: kept.events).map(\.start))
+                == [TestClock.date("2026-10-05 09:00"), TestClock.date("2026-10-30 09:00")])
+
+        let (plan, _) = try f.apply(kept, kind: .editSave(deselected: true))
+        #expect(plan.deletes.count == 2)
+        // Inside the horizon and absent: deleted, as before — past included.
+        #expect(f.event("PRUEF-EXAM") == nil && f.event("NEU-EXAM") == nil)
+        // Older than the horizon: kept, the kept calendar's lecture with its mark…
+        let survivor = try #require(f.event("SWQM-ILV", on: 14))
+        #expect(survivor.id == oldLecture.id && survivor.status == .done)
+        // …and the unchecked calendar's old exam too: it errs on the side of keeping (§20.1).
+        #expect(f.event("ALT-EXAM") != nil)
+        #expect(f.events.count == 15)
+
+        // An empty read has no horizon: the deselection deletes nothing in the past.
+        let empty = result(events: [], objectCount: 0)
+        #expect(SyncPlanner.horizon(of: []) == nil)
+        #expect(SyncPlanner.deselectionCount(existing: SyncApplier.snapshot(of: f.source, in: f.context, zone: zone), keptEvents: []) == 0)
+        let (none, _) = try f.apply(empty, kind: .editSave(deselected: true))
+        #expect(none.deletes.isEmpty && f.events.count == 15)
     }
 
     @Test("Edit Save never creates a past event the fetch returned")

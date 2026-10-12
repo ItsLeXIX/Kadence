@@ -206,6 +206,7 @@ nonisolated enum ReviewMode {
     @MainActor
     static func seedPhase3(context: ModelContext, now: Date, secrets: any SecretStore) {
         let sources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
+        var needsImport = false
         if let timetable = sources.first(where: { $0.id == "timetable" }), timetable.connection == .local {
             timetable.connection = .caldav
             timetable.serverURL = server.normalized
@@ -215,6 +216,7 @@ nonisolated enum ReviewMode {
             timetable.calendars = [calendar]
             timetable.capabilities = SourceCapabilities(fetchMode: .report, timeRangeHonoured: nil, discoveredAt: now)
             timetable.state = .neverSynced
+            needsImport = true
         }
         // GAPS G-073: Phase 2's `Statistik übung` (§12's done imported block)
         // is not in the review template, so a sync of the connected source
@@ -227,6 +229,22 @@ nonisolated enum ReviewMode {
         if let timetable = sources.first(where: { $0.id == "timetable" }) {
             try? secrets.save(password, for: SecretAccount(host: server.host, username: MockCalDAVServer.username),
                               info: .forSource(id: timetable.id, displayName: timetable.displayName))
+        }
+        // §22.1 (amended 2026-10-10; PHASE3-REVIEW fix 9): the review source
+        // is seeded **as already imported** — `importedAt` and
+        // `lastSuccessAt` are the seeding time and the template's events are
+        // written by an Import — so the failure cases (`forbidden`,
+        // `calendarGone` …) show what a real source shows when a later sync
+        // fails: a last-synced time, and events that are in fact kept. It
+        // was a never-imported source whose first sync was the Import, which
+        // is how `Never synced` appeared under "Events from the last sync
+        // are kept". `lastAttemptAt` is cleared again so the launch sync
+        // still runs and reaches the mocked case.
+        if needsImport, let timetable = sources.first(where: { $0.id == "timetable" }) {
+            let zone = TimeZone.current
+            let feed = ReviewFeed.reportReview(template: ReviewTemplate.text, today: now, zone: zone)
+            importFetched(fetchResult(of: feed, now: now, zone: zone), into: timetable, context: context, now: now, zone: zone)
+            timetable.lastAttemptAt = nil
         }
         // `Studieninformationstag` on M + 2, manual, graphite, all-day.
         let m = ReviewFeed.firstMonday(after: now, zone: .current)

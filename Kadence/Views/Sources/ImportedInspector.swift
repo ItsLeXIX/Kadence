@@ -82,7 +82,7 @@ enum ImportedInspectorCopy {
     static func syncLine(_ source: Source?, now: Date, isSyncing: Bool = false) -> String? {
         guard let source, source.isConnected else { return nil }
         let state: SourceState = isSyncing ? .syncing : source.state
-        if state == .upToDate, let last = source.lastSuccessAt { return "Synced \(SourceStatusCopy.synced(last, now: now))" }
+        if state == .upToDate, let last = source.lastSyncedAt { return "Synced \(SourceStatusCopy.synced(last, now: now))" }
         return SourceStatusCopy.title(state, host: source.host ?? "")
     }
 

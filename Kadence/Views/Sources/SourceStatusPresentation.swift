@@ -210,8 +210,10 @@ nonisolated enum SourceStatusCopy {
 
     // MARK: §19.3 lines
 
-    /// `Last synced {last} · {count} events`, `Never synced` before the first
-    /// success; `upToDate` reads `Synced {last} · {count} events`.
+    /// `Last synced {last} · {count} events`; `upToDate` reads `Synced {last}
+    /// · {count} events`. `lastSuccess` is `Source.lastSyncedAt` — the last
+    /// success, or the Import (§19.3, amended 2026-10-10) — so `Never synced`
+    /// is left only for a source that was never imported.
     static func statusLine(state: SourceState, lastSuccess: Date?, count: Int, now: Date,
                            zone: TimeZone = .current) -> String {
         guard let lastSuccess else { return "Never synced" }
@@ -291,14 +293,14 @@ nonisolated struct SourceStatusPresentation: Sendable, Equatable {
         let facts = Self.facts(of: source)
         let next = SourceStatusCopy.next(
             (source.lastAttemptAt ?? now).addingTimeInterval(TimeInterval(source.pollInterval)), now: now, zone: zone)
-        let last = source.lastSuccessAt.map { SourceStatusCopy.when($0, now: now, zone: zone) } ?? "never"
+        let last = source.lastSyncedAt.map { SourceStatusCopy.when($0, now: now, zone: zone) } ?? "never"
         title = SourceStatusCopy.title(state, host: host)
         if let stored = source.stateDetail, !isSyncing {
             body = stored.replacingOccurrences(of: "{next}", with: next).replacingOccurrences(of: "{last}", with: last)
         } else {
             body = SourceStatusCopy.body(state, facts, next: next, last: last)
         }
-        statusLine = SourceStatusCopy.statusLine(state: state, lastSuccess: source.lastSuccessAt,
+        statusLine = SourceStatusCopy.statusLine(state: state, lastSuccess: source.lastSyncedAt,
                                                  count: source.lastEventCount, now: now, zone: zone)
         let changedSinceImport = source.lastChangeAt.map { at in source.importedAt.map { at >= $0 } ?? true } ?? false
         lastChangeLine = changedSinceImport
@@ -309,10 +311,10 @@ nonisolated struct SourceStatusPresentation: Sendable, Equatable {
         primaryAction = SourceStatusCopy.primaryAction(state)
         kind = state.kind
         hoverHelp = SourceStatusCopy.hoverHelp(name: source.displayName, state: state, host: host,
-                                               lastSuccess: source.lastSuccessAt,
+                                               lastSuccess: source.lastSyncedAt,
                                                now: now, zone: zone)
         staleLine = SourceStatusCopy.staleLine(name: source.displayName, state: source.state,
-                                               lastSuccess: source.lastSuccessAt,
+                                               lastSuccess: source.lastSyncedAt,
                                                interval: TimeInterval(source.pollInterval), now: now, zone: zone)
         accessibilityValue = SourceStatusCopy.accessibilityValue(name: source.displayName, state: state, host: host)
     }

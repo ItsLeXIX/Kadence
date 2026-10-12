@@ -127,7 +127,10 @@ struct ReviewModeTests {
         (MockCalDAVServer.Case.reportOK, SourceState.upToDate), (.reportChanged, .upToDate), (.etagsOnly, .upToDate),
         (.ctagOnly, .upToDate), (.reportRefused, .upToDate), (.multigetRefused, .upToDate), (.allRefused, .fetchFailed),
         (.overCap, .fetchFailed), (.unauthorized, .unauthorized), (.forbidden, .forbidden), (.calendarGone, .calendarMissing),
-        (.calendarMoved, .upToDate), (.htmlOK, .notACalendar), (.emptyCalendar, .upToDate), (.serverError, .serverError),
+        // `emptyCalendar`: §22.1's table — "At the Import: allowed, 0 events.
+        // After events: `emptyFeed`". The review source is seeded as already
+        // imported (fix 9), so the launch sync is "after events".
+        (.calendarMoved, .upToDate), (.htmlOK, .notACalendar), (.emptyCalendar, .emptyFeed), (.serverError, .serverError),
         (.timeout, .unreachable), (.offline, .offline), (.certificate, .certificate), (.multiCalendar, .upToDate),
     ])
     func launchStates(mockCase: MockCalDAVServer.Case, expected: SourceState) async throws {

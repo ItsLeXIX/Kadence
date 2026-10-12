@@ -61,7 +61,7 @@ nonisolated enum SidebarSourcesRule {
     @MainActor
     static func staleLines(_ sources: [Source], now: Date) -> [String] {
         SourceStatusCopy.staleLines(sources.filter(\.isConnected).compactMap { s in
-            SourceStatusCopy.staleLine(name: s.displayName, state: s.state, lastSuccess: s.lastSuccessAt,
+            SourceStatusCopy.staleLine(name: s.displayName, state: s.state, lastSuccess: s.lastSyncedAt,
                                        interval: TimeInterval(s.pollInterval), now: now)
         })
     }

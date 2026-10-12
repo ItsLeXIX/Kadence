@@ -2339,3 +2339,9 @@ Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
   vanished, uncounted. It is now §19.3's `1 event couldn't be read.` with
   `Line 3: VEVENT not closed`, and the source reads `Imported with
   problems` (so no deletion that sync, §20.8's guard).
+- **Note — a review launch with `emptyCalendar` now reads `emptyFeed`**
+  (P3-F9). With the review source seeded as already imported (§22.1,
+  amended 2026-10-10), the launch sync is a sync "after events", and §22.1's
+  own table gives `emptyFeed` for that ("At the Import: allowed, 0 events.
+  After events: `emptyFeed`"). It read `upToDate` while the launch sync was
+  itself the Import. `ReviewModeTests.launchStates` follows the table.

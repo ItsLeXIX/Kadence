@@ -166,12 +166,17 @@ nonisolated enum SyncPlanner {
         if mayDelete {
             plan.deletes = candidates.filter { !seen.contains($0.externalID) }.map(\.id)
         }
-        // Edit-mode deselection: anything, past included, absent from the
-        // kept calendars' full Import-window read (§20.1).
+        // Edit-mode deselection (§20.1 step 2, amended 2026-10-10, G-080):
+        // every event absent from the kept calendars' full Import-window read
+        // **that starts on or after the server's horizon** — the earliest
+        // event start in that read. An older event is kept: the server no
+        // longer serves that week for any calendar (CIS served about two and
+        // a half weeks of past on 9 Oct), so its absence proves nothing about
+        // which calendar it came from. An empty read has no horizon, and then
+        // the deselection deletes nothing in the past.
         if deselecting, allRead {
-            let kept = Set(result.events.map(\.externalID))
-            let more = existing.filter { !kept.contains($0.externalID) && !plan.deletes.contains($0.id) }.map(\.id)
-            plan.deletes += more
+            plan.deletes += deselected(existing: existing, keptEvents: result.events).map(\.id)
+                .filter { !plan.deletes.contains($0) }
         }
 
         if !isImport && plan.writesEvents {
@@ -186,10 +191,24 @@ nonisolated enum SyncPlanner {
 
     static func rank(_ state: SourceState) -> Int { stateOrder.firstIndex(of: state) ?? stateOrder.count }
 
-    /// How many events a deselection would remove (layouts.md §12.3's sentence).
-    static func deselectionCount(existing: [StoredEvent], keptEvents: [ExternalEvent]) -> Int {
+    /// §20.1: "The server's horizon is the earliest event start in an
+    /// Import-window fetch that was read in full; before it, absence from the
+    /// feed proves nothing." Nil for an empty fetch.
+    static func horizon(of events: [ExternalEvent]) -> Date? { events.map(\.start).min() }
+
+    /// What a deselection removes: the stored events absent from the kept
+    /// calendars' read and inside the horizon.
+    static func deselected(existing: [StoredEvent], keptEvents: [ExternalEvent]) -> [StoredEvent] {
+        guard let horizon = horizon(of: keptEvents) else { return [] }
         let kept = Set(keptEvents.map(\.externalID))
-        return existing.filter { !kept.contains($0.externalID) }.count
+        return existing.filter { !kept.contains($0.externalID) && $0.start >= horizon }
+    }
+
+    /// How many events a deselection would remove (layouts.md §12.3's
+    /// sentence) — the same set `Save` deletes, so the count excludes what
+    /// the horizon keeps.
+    static func deselectionCount(existing: [StoredEvent], keptEvents: [ExternalEvent]) -> Int {
+        deselected(existing: existing, keptEvents: keptEvents).count
     }
 }
 

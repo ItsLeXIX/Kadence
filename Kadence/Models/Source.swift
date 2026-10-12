@@ -229,6 +229,13 @@ extension Source {
 
     var isConnected: Bool { connection != .local }
 
+    /// `{last}` in §19 (components.md §19.3, amended 2026-10-10): the last
+    /// successful sync, or — when none has succeeded since — the Import. The
+    /// Import read the server successfully, so a connected source is never
+    /// "never synced"; that can only be said of a source that was never
+    /// imported, which a real store cannot hold.
+    var lastSyncedAt: Date? { lastSuccessAt ?? importedAt }
+
     /// The sidebar's legacy value type, so existing views keep one shape.
     @MainActor var calendarSource: CalendarSource {
         CalendarSource(id: id, name: displayName, key: paletteKey, kind: kind,

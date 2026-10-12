@@ -10026,3 +10026,46 @@ connecting for real.
 - Verify: xcresult **891 passed / 0 failed** (880 + 11); app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
   store's `stat` unchanged.
+
+## 129. P3-F9 — the status line and the deselection horizon (PHASE3-REVIEW.md §8 fix 9; components.md §19.3 amended, §20.1 step 2 amended, §22.1 "seeded as already imported"; G-080)
+
+- `Source.lastSyncedAt` = `lastSuccessAt ?? importedAt`: §19's `{last}`.
+  The status line, the body's `{last}`, hover help, the popover's stale
+  line and the inspector's sync line all read it, so a source with
+  `importedAt` set and no later success reads `Last synced {importedAt}` in
+  every state. `Never synced` is left only for a source that was never
+  imported.
+- `ReviewMode.seedPhase3`: the review source is seeded **as already
+  imported** — the rendered template goes through the planner and applier
+  as an Import at the seeding time (`importedAt`, `lastSuccessAt`, 13
+  events, `lastFeedEventCount` 14; `Datenmodellierung` updated in place);
+  `lastAttemptAt` is cleared so the launch sync still runs and reaches the
+  mocked case. `reportChanged`'s Sync Now still reads `2 / 2 / 2`.
+- `SyncPlanner`: `horizon(of:)` (the earliest event start of the kept
+  calendars' Import-window read), `deselected(existing:keptEvents:)` and
+  `deselectionCount` — a deselection deletes only events absent from that
+  read **and starting on or after the horizon**; an empty read has no
+  horizon and deletes nothing in the past. The step-2 sentence counts the
+  same set.
+- Tests (`LastSyncedTests.swift`, 4; two parameterised — 18 states, 4
+  failure cases; `SyncPlannerTests` +1): every one of the 18 states with
+  `importedAt` 09:12 and no success → `Last synced today 09:12 · 13 events`
+  (`Synced 09:12 …` for `upToDate`), no `Never synced` in the status line,
+  body, hover help or stale line; a later success wins; a never-imported
+  source still reads `Never synced`. Review `phase3` seeding performs an
+  Import (called twice: once). After a launch sync that fails `forbidden`,
+  `calendarGone`, `unauthorized` or `serverError`: the state, **13 events
+  still stored**, and `Last synced today 10:00 · 13 events`. **Deselection:**
+  a store with the unchecked calendar's exams on 1 Oct (older than the
+  horizon), 5 Oct (inside it, past) and 30 Oct, plus a `done` lecture of
+  the **kept** calendar on 14 Sep that the server no longer serves; the
+  kept calendar's read begins 2 Oct 14:30 (the horizon) → the step-2 count
+  is **2**, `Save` deletes the 5 Oct and 30 Oct exams, and keeps both older
+  events — the kept calendar's lecture with its `done` mark; an empty read
+  deletes nothing. Updated: `editSaveDeselection` (its past event moved
+  inside the horizon) and `launchStates` (`emptyCalendar` → `emptyFeed`,
+  DEVIATIONS note).
+- Frames (item 10's forbidden popover and item 21 recaptured): fix 11.
+- Verify: xcresult **896 passed / 0 failed** (891 + 5); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
+  store's `stat` unchanged.
