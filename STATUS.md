@@ -9767,3 +9767,62 @@ connecting for real.
 - Verify: xcresult **847 passed / 0 failed** (836 + 11); app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
   store's `stat` unchanged after the runs.
+
+## 123. P3-F3 — the redirect rule is proven (B40), and `redirected` at every step (PHASE3-REVIEW.md §8 fix 3; interactions.md §13.1 "What the tests must prove"; caldav-mocks.md "Redirects that carry the header"; components.md §21.4)
+
+- **No change in the transport or the session**, as the review expected:
+  `URLSessionTransport`'s delegate still answers every redirect with `nil`
+  and `CalDAVSession.send` still refuses a foreign URL before sending. What
+  was missing was the proof.
+- `StubURLProtocol` (test 1): **every `3xx` with a `Location` is now a real
+  redirect** — delivered through `wasRedirectedTo`, with the request
+  Foundation would issue next: the original re-aimed, every header kept,
+  `Authorization` included. If the session follows, it stops that load and
+  the new request arrives at the stub; if it refuses, the `3xx` is delivered
+  as the response. So the whole existing suite (D1's `301`,
+  `calendarMoved`, the D1 off-host and `http:` cases) now runs through
+  Foundation's redirect path too. `StubServer.asked` keeps every request the
+  stub is asked to load — any host, any scheme, answered or not.
+  `RedirectFollowingTransport` (test-only): the transport's exact
+  configuration with a delegate that allows redirects.
+- `RedirectProofTests.swift` (6 tests, 74 cases) and `WebDAVTests`
+  (`redirectNotFollowed` rewritten, 8 cases; a control added, 4):
+  - **Cross-host and https → http, with the header on the request** (tests
+    2, 3, 4): 5 steps — the `REPORT` of a connect (challenged at D2, so it
+    carries the header from its first send), the `REPORT` retry of a sync
+    (the `401` retry itself), D2's retry, D3, D4 — × 2 destinations
+    (`https://login.example.invalid/caldav/`,
+    `http://cis.technikum-wien.at/webdav/lvplan.php/`) × `301` / `302` /
+    `307` / `308` = **40 cases, all pass**: the fetch ends `redirected`
+    (`otherHost` `login.example.invalid`, or nil for `http:`); the
+    redirected request is the last one the stub was asked and carried
+    `Authorization`; **no request to `login.example.invalid` at all, none
+    with scheme `http`**; the sentinel only in `Authorization` to the host.
+  - **The control** (test 5), `301` / `302` / `307` / `308`: the same stub
+    and the same redirected request through `RedirectFollowingTransport`
+    **does** leave a request at `login.example.invalid` carrying
+    `Authorization`, equal to the header Kadence built — and the identical
+    case through the real transport leaves 2 requests, none there. The
+    `http:` control likewise (4 cases). At the transport alone: 8 refused
+    cases (incl. `303` and a same-host target), 4 control cases.
+  - **Test 6**: `CalDAVSession.send` refuses 4 foreign URLs (other host,
+    `http:`, another port, a look-alike host) × 3 methods, before and after
+    the host has challenged: the stub is asked nothing for them.
+  - **Test 7** (never before the `401`) stays asserted on every recorded
+    request (`wireRulesHold`).
+- **Mutation check** (not committed): with the transport's delegate changed
+  to follow, 14 tests fail — the 40-case refusal test, the transport test,
+  the D2–D4 test, and most of `CalDAVDiscoveryTests`. Reverted; the file is
+  unchanged in the commit.
+- `redirected` at every step (S-5): `CalDAVDiscovery.refuseForeignRedirect`
+  after D2, D3 and D4 — a `3xx` to another host or to `http:` is
+  `redirected`, not `noCalDAV` (24 cases); a same-host `https` `3xx` there
+  is still `noCalDAV` and not followed. `CalDAVClient.check`: the scheme
+  and host of the target are read for every `3xx`, so a `302` / `307` to
+  `http:` on the same host is `redirected` with the `http:` body (it read
+  "sent Kadence to cis.technikum-wien.at").
+- No test contacted a network: every request is answered by the
+  `URLProtocol` stub; `login.example.invalid` is a reserved name.
+- Verify: xcresult **854 passed / 0 failed** (847 + 7); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0. The six
+  UI scripts were also rerun on the fix 2 build before this item: all PASS.

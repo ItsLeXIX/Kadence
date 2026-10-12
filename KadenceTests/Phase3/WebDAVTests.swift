@@ -192,28 +192,69 @@ struct WebDAVTests {
 
     // MARK: Transport
 
-    @Test("A 3xx is returned, not followed")
-    func redirectNotFollowed() async throws {
-        let server = StubServer { _ in
-            .response(HTTPResponseSpec(status: 301, headers: ["Location": "https://login.example.invalid/caldav/"]))
+    /// Rewritten for PHASE3-REVIEW.md fix 3 (interactions.md §13.1 test 1).
+    /// The first version answered the `301` as an ordinary response, so
+    /// `URLSession` never asked the delegate and the test passed with the
+    /// delegate method deleted; its second half called the delegate by hand,
+    /// which shows what it returns, not that it is called. Here the stub
+    /// redirects for real (`wasRedirectedTo`), the request carries an
+    /// `Authorization` header, and the redirect's target would be answered
+    /// and recorded if Foundation ever asked for it.
+    private static func redirectingServer(status: Int, to location: String) -> StubServer {
+        StubServer { record in
+            record.host == "cis.technikum-wien.at" && record.scheme == "https"
+                ? .response(HTTPResponseSpec(status: status, headers: ["Location": location]))
+                : .response(HTTPResponseSpec(status: 200, body: Data("the redirect's target answered".utf8)))
         }
+    }
+
+    /// A request carrying the header Kadence would build (the sentinel's —
+    /// built here, never written out).
+    private static func authorisedRequest(_ method: String = "REPORT") throws -> HTTPRequest {
+        var request = HTTPRequest(method: method, url: try #require(URL(string: "https://cis.technikum-wien.at/webdav/lvplan.php/")))
+        let responder = ChallengeResponder(host: "cis.technikum-wien.at", username: "user01", password: Password(sentinel))
+        request.headers["Authorization"] = try #require(responder.authorization(for: request, challenge: "Basic realm=\"x\""))
+        return request
+    }
+
+    @Test("A real 3xx is handed back, not followed: one request, none at the target — cross-host and to http:", arguments: [
+        (301, "https://login.example.invalid/caldav/"), (302, "https://login.example.invalid/caldav/"),
+        (303, "https://login.example.invalid/caldav/"), (307, "https://login.example.invalid/caldav/"),
+        (308, "https://login.example.invalid/caldav/"),
+        (301, "http://cis.technikum-wien.at/webdav/lvplan.php/"), (307, "http://cis.technikum-wien.at/webdav/lvplan.php/"),
+        (301, "https://cis.technikum-wien.at/webdav/elsewhere/"),   // same host: not followed either
+    ])
+    func redirectNotFollowed(status: Int, location: String) async throws {
+        let server = Self.redirectingServer(status: status, to: location)
         let transport = server.transport()
         defer { transport.invalidate() }
-        let response = try await transport.send(HTTPRequest(method: "GET",
-                                                            url: URL(string: "https://cis.technikum-wien.at/.well-known/caldav")!))
-        #expect(response.status == 301)
-        #expect(response.header("Location") == "https://login.example.invalid/caldav/")
+        let response = try await transport.send(try Self.authorisedRequest())
+        // The 3xx comes back as the response, for the client to read.
+        #expect(response.status == status)
+        #expect(response.header("Location") == location)
+        // Exactly the one request, to the host it was sent to.
+        let asked = server.asked
+        #expect(asked.count == 1)
+        #expect(asked.first?.host == "cis.technikum-wien.at" && asked.first?.scheme == "https")
+        #expect(asked.first?.hasAuthorization == true)
+        #expect(!asked.contains { $0.host == "login.example.invalid" || $0.scheme == "http" || $0.path.contains("elsewhere") })
         #expect(server.records.count == 1)
-        #expect(server.records.allSatisfy { $0.host == "cis.technikum-wien.at" })
-        // The delegate itself declines every redirect.
-        let task = transport.session.dataTask(with: URL(string: "https://cis.technikum-wien.at/")!)
-        let next = await withCheckedContinuation { (done: CheckedContinuation<URLRequest?, Never>) in
-            transport.urlSession(transport.session, task: task, willPerformHTTPRedirection: HTTPURLResponse(),
-                                 newRequest: URLRequest(url: URL(string: "https://login.example.invalid/")!)) {
-                done.resume(returning: $0)
-            }
-        }
-        #expect(next == nil)
+    }
+
+    @Test("CONTROL: the same server through a session that follows redirects is asked for the target, WITH Authorization",
+          arguments: [301, 302, 307, 308])
+    func redirectFollowedControl(status: Int) async throws {
+        let server = Self.redirectingServer(status: status, to: "https://login.example.invalid/caldav/")
+        let following = RedirectFollowingTransport(server: server)
+        defer { following.invalidate() }
+        let request = try Self.authorisedRequest()
+        let response = try await following.send(request)
+        #expect(response.status == 200)   // it went on to the target
+        let asked = server.asked
+        #expect(asked.count == 2)
+        let leaked = try #require(asked.first { $0.host == "login.example.invalid" })
+        #expect(leaked.hasAuthorization)
+        #expect(leaked.authorization == request.header("Authorization"))
     }
 
     @Test("A response over 20 MB is refused as too large")

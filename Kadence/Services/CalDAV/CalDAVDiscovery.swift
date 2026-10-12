@@ -135,6 +135,7 @@ nonisolated enum CalDAVDiscovery {
         // D2 — the principal (and maybe the home).
         let d2 = CalDAVRequests.contextPropfind(context)
         let d2Response = try await session.send(d2)
+        try refuseForeignRedirect(d2Response, for: d2, session: session)
         guard d2Response.status == 207, let d2Body = MultistatusParser.parse(d2Response.body) else { throw .noCalDAV }
         guard let principalHref = d2Body.lazy.compactMap({ $0.ok(DAVNamespace.dav, "current-user-principal")?.hrefs.first }).first,
               let principal = session.resolve(principalHref, against: d2.url) else { throw .noCalDAV }
@@ -145,6 +146,7 @@ nonisolated enum CalDAVDiscovery {
         if home == nil {
             let d3 = CalDAVRequests.principalPropfind(principal)
             let d3Response = try await session.send(d3)
+            try refuseForeignRedirect(d3Response, for: d3, session: session)
             guard d3Response.status == 207, let d3Body = MultistatusParser.parse(d3Response.body) else { throw .noCalDAV }
             home = d3Body.lazy.compactMap { $0.ok(DAVNamespace.caldav, "calendar-home-set")?.hrefs.first }.first
                 .flatMap { session.resolve($0, against: d3.url) }
@@ -158,11 +160,27 @@ nonisolated enum CalDAVDiscovery {
                                calendarHomeHref: home.storedPath, calendars: calendars, ignoredHrefs: ignored)
     }
 
+    /// interactions.md §13.1 (ruled 2026-10-10, PHASE3-REVIEW fix 3): a `3xx`
+    /// to another host or to `http:` ends `redirected` **at every step** —
+    /// D2, D3 and D4 as well as D1 — not `noCalDAV`. The transport never
+    /// followed it (its delegate refuses every redirect); this only names
+    /// what happened, so the user reads "sent Kadence to {host}" instead of
+    /// "no calendar server found". A `3xx` to the same host over `https` at
+    /// D2–D4 is left to the caller's `207` check, as before.
+    static func refuseForeignRedirect(_ response: HTTPResponse, for request: HTTPRequest,
+                                      session: CalDAVSession) throws(ScheduleSourceError) {
+        guard (300..<400).contains(response.status), let location = response.header("Location"),
+              let target = URL(string: location, relativeTo: request.url)?.absoluteURL else { return }
+        guard target.scheme?.lowercased() == "https" else { throw .redirected(otherHost: nil) }
+        guard session.isOwn(target) else { throw .redirected(otherHost: target.host()) }
+    }
+
     /// D4 and §20.8.1's selection rule.
     static func listCalendars(home: URL, session: CalDAVSession)
         async throws(ScheduleSourceError) -> ([DiscoveredCalendar], [String]) {
         let d4 = CalDAVRequests.homePropfind(home)
         let response = try await session.send(d4)
+        try refuseForeignRedirect(response, for: d4, session: session)
         guard response.status == 207, let body = MultistatusParser.parse(response.body) else { throw .noCalDAV }
         var calendars: [DiscoveredCalendar] = []
         var ignored: [String] = []

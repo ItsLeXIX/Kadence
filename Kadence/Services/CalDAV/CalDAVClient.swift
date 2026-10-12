@@ -167,14 +167,24 @@ nonisolated enum CalDAVClient {
             return
         case 404, 410:
             throw .rediscover
-        case 301, 308:
-            guard let location = response.header("Location"),
-                  let target = URL(string: location, relativeTo: request.url)?.absoluteURL else { throw .failed(.noCalDAV) }
-            guard target.scheme?.lowercased() == "https" else { throw .failed(.redirected(otherHost: nil)) }
-            guard session.isOwn(target) else { throw .failed(.redirected(otherHost: target.host())) }
-            throw .rediscover
         case 300..<400:
-            throw .failed(.redirected(otherHost: response.header("Location").flatMap { URL(string: $0)?.host() }))
+            // interactions.md §13.1 (fix 3): whatever the 3xx code, a target
+            // over `http:` is `redirected` with the http body (`otherHost`
+            // nil) and a target on another host names that host. Before, only
+            // 301/308 looked at the scheme, so a 302 or 307 to `http:` on the
+            // same host read "sent Kadence to cis.technikum-wien.at".
+            let target = response.header("Location").flatMap { URL(string: $0, relativeTo: request.url)?.absoluteURL }
+            if let target {
+                guard target.scheme?.lowercased() == "https" else { throw .failed(.redirected(otherHost: nil)) }
+                guard session.isOwn(target) else { throw .failed(.redirected(otherHost: target.host())) }
+            }
+            // The same host over https: a permanent move re-runs discovery
+            // (§20.8.1); any other 3xx is `redirected`, as before.
+            if response.status == 301 || response.status == 308 {
+                guard target != nil else { throw .failed(.noCalDAV) }
+                throw .rediscover
+            }
+            throw .failed(.redirected(otherHost: target?.host()))
         case 500...:
             throw .failed(.serverError(response.status))
         default:
