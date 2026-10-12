@@ -2286,3 +2286,26 @@ Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
   `vevents` equals `objects`" reading needs. On CIS, one VEVENT per object,
   they are equal, and Parsa's two recorded lines (`objects 70`) read the
   same either way.
+- ~~**A35 — components.md §3.3: a covered block's title band.**~~ **Built
+  in P3-F6** (no longer deferred: PHASE3-REVIEW.md §4.7, GAPS G-048).
+  `LaidOutBlock.titleBandWidth` / `isCovered`; the resolver draws the
+  `.titleOnly` content set in an unobstructed title band.
+- **Note — "the tier's top padding" in the title-band rule** (P3-F6).
+  §3.3: the title band runs "from the frame's top to top + the tier's top
+  padding + `lineHeight(blockTitleCompact)`". Read as the block's own
+  **height** tier (5 + 14 = 19pt for a `.full` or `.compact` block, 2 + 14 =
+  16pt for a `.titleOnly` one), not the `.titleOnly` content set's 2pt: the
+  band is then at least as tall as the content drawn in it, so a block that
+  passes the test can never have its title touched by the covering block's
+  gap. A travel strip inside a block's top (§4, short case) is not added to
+  the band.
+- **Note — the cascade gap is cut, not painted** (P3-F6). §3.3: the
+  covering block "draws a gap of `size.blockColumnGap` (2) in
+  `color.surface.canvas` … (the covered block is cut back by 2pt there)".
+  Built as the parenthesis says: the covered block is masked along those
+  strips (`LaidOutBlock.gapCuts`, `.cascadeGapCuts`), so the canvas itself
+  shows — hour lines and window treatments included — exactly as between
+  packed neighbours. Painting `surface.canvas` there would draw a white L
+  across a tinted window. The render test samples the gap as
+  `surface.canvas`. The same rule and gap apply on the Routines canvas (one
+  layout engine).

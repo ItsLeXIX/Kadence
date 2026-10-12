@@ -239,7 +239,11 @@ struct DayColumnView: View {
                     model: model,
                     presentation: presentation(for: event, laidOut: laidOut),
                     renderedHeight: laidOut.frame.height,
-                    visibleWidth: laidOut.visibleWidth,
+                    // §3.3 (required 2026-10-10): the title band's
+                    // unobstructed width, and whether anything covers the
+                    // block at all — not the narrowest strip of it.
+                    visibleWidth: laidOut.titleBandWidth,
+                    isCovered: laidOut.isCovered,
                     squareTopCorners: bandFitsAbove,
                     contentTopInset: insideStrip ? Tokens.Size.travelBandHeight : 0)
                 if let band, insideStrip {
@@ -259,6 +263,10 @@ struct DayColumnView: View {
             .frame(height: laidOut.frame.height, alignment: .top)
         }
         .frame(width: laidOut.frame.width, alignment: .topLeading)
+        // §3.3 (G-078): where a block in front draws its 2pt gap, this one
+        // is cut back so the canvas shows. This stack's origin is the block's
+        // frame, raised by any travel band above it.
+        .cascadeGapCuts(laidOut.gapCuts, origin: CGPoint(x: laidOut.frame.minX, y: laidOut.frame.minY - aboveHeight))
         // Clamped blocks get a larger hit area centred on the true frame
         // (`LaidOutBlock.hitInset`).
         //

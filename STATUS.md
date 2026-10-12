@@ -9896,3 +9896,50 @@ connecting for real.
 - Verify: xcresult **867 passed / 0 failed** (863 + 4); app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
   store's `stat` unchanged.
+
+## 126. P3-F6 — a covered block keeps its title, and a covering block has a gap (PHASE3-REVIEW.md §8 fix 6; components.md §3.3 — the 2026-10-06 title-band rule and both 2026-10-10 amendments; layouts.md §3.3; G-048 / A35, G-078)
+
+- `DayLayoutEngine.applyCovering` (a post-pass over final frames): for each
+  cascaded block, against the cascaded blocks painted in front of it —
+  `isCovered`; `titleBandWidth`, the unobstructed width of its title band
+  (top padding of its height tier + `lineHeight(blockTitleCompact)`: 19pt
+  for a `.full` / `.compact` block); and `gapCuts`, where a covering
+  block's 2pt of canvas (leading and top edges, outside its own frame)
+  crosses it. The covering block's frame does not move. `visibleWidth`
+  (the narrowest strip — the A35 reading) is kept but no longer drives
+  anything.
+- `resolveBlockStyle(…, visibleWidth:isCovered:)`: band < 44 → `.glyphOnly`
+  as before; a covered block with a readable band → `min(.titleOnly, height
+  tier)` — glyph (or §6's badge rule) and a one-line title, top-anchored,
+  nothing below; not covered → the height ladder alone.
+- `GridBlockView`: a covered block's content is laid out within the
+  unobstructed band width, so the title ends there instead of running under
+  the block in front. `CascadeGap.swift`: `.cascadeGapCuts` masks the
+  strips out of the covered block (DEVIATIONS note: cut, not painted).
+  Wired in `DayColumnView` and on the Routines canvas (one engine).
+- Tests — the regression, from `fixtures/cis-2026WS-redacted.ics` through
+  `reportCISOverlap` (`CoveredBlockTests.swift`, 7; one parameterised ×5):
+  **Fri 2 Oct at a 124pt column and `size.hourHeightWeek`**: two blocks, a
+  cascade (indent 22); block 0 (18:35) is covered, its 19pt title band is
+  unobstructed at the full 124pt, its content set is `.titleOnly` with the
+  title `BPREF-Info` — where the old reading (visible width 22) gave
+  `.glyphOnly`; block 1 (19:30) sits at x 22, its frame unmoved, `.compact`;
+  block 0's `gapCuts` are exactly block 1's top and leading 2pt strips, and
+  at every probed point of them (> 250) block 0 does not draw and block 1's
+  frame does not reach. **At a 400pt Day column**: packed, two 196pt slots
+  2pt apart, nothing covered, `.full` and `.compact`. Phase 2's
+  `conflict-panel-two-options` case: `Training` 17:00–18:30 covered from
+  17:30 keeps a full-width band (22pt clear) and draws its title, with the
+  conflict badge. The band rule at five cover offsets (same start, 11pt,
+  18.3pt → `.glyphOnly`; 22pt, 44pt → `.titleOnly`); a transitive cluster
+  (A–B–C) covers only real overlaps; the resolver's cap by height tier.
+  **Render** (the real block view, the engine's frames, the same modifier):
+  the gap's pixels equal `surface.canvas` at three points along each edge;
+  3pt either side of it is block fill; the two fills are equal (one source —
+  why the gap is needed).
+- DEVIATIONS: A35 struck (built); notes on the band's padding reading and
+  on cutting rather than painting the gap.
+- Frames (item 24 Week and Day; items 11 and 16 recaptured): fix 11.
+- Verify: xcresult **874 passed / 0 failed** (867 + 7); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
+  store's `stat` unchanged.

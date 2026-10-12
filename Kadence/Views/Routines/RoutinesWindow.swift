@@ -1658,8 +1658,12 @@ private struct RoutineDayColumnView: View {
             model: model,
             presentation: presentation(for: block, isSelected: isSelected),
             renderedHeight: laidOut.frame.height,
-            visibleWidth: laidOut.visibleWidth)
+            // components.md §3.3 (required 2026-10-10): the same covered-
+            // title rule and cascade gap as the main grid — it is one engine.
+            visibleWidth: laidOut.titleBandWidth,
+            isCovered: laidOut.isCovered)
             .frame(width: laidOut.frame.width, height: laidOut.frame.height, alignment: .topLeading)
+            .cascadeGapCuts(laidOut.gapCuts, origin: laidOut.frame.origin)
             .contentShape(Rectangle().inset(by: laidOut.hitInset))
             .offset(x: laidOut.frame.minX, y: laidOut.frame.minY)
             // The origin ghost, `opacity.blockDragOrigin` — shown in EVERY

@@ -13,8 +13,11 @@ struct GridBlockView: View {
     let presentation: Presentation
     /// Rendered height in points, which drives the density tier — never duration.
     let renderedHeight: CGFloat
-    /// Width not covered by the block in front of it. `.infinity` outside a cascade.
+    /// §3.3's visible width: the unobstructed width of the block's title band
+    /// (`LaidOutBlock.titleBandWidth`). `.infinity` when nothing covers it.
     var visibleWidth: CGFloat = .infinity
+    /// A block in front overlaps this one (`LaidOutBlock.isCovered`).
+    var isCovered: Bool = false
     /// Squared off when a travel band is attached above (components.md §4).
     var squareTopCorners: Bool = false
     /// Height of a travel-band strip occupying the top of this block's own frame
@@ -41,6 +44,7 @@ struct GridBlockView: View {
             source: model.source,
             renderedHeight: renderedHeight,
             visibleWidth: visibleWidth,
+            isCovered: isCovered,
             glyphOverride: model.glyphOverride,
             increaseContrast: increaseContrast)
     }
@@ -110,6 +114,12 @@ struct GridBlockView: View {
                         maxHeight: .infinity,
                         alignment: metrics.tier == .glyphOnly ? .leading : .topLeading)
             }
+            // §3.3 (required 2026-10-10): a covered block's content is laid
+            // out in the part of its title band nothing crosses — rail
+            // included — so the title ends there instead of running under
+            // the block in front. Uncovered, the width is the frame's.
+            .frame(maxWidth: isCovered ? visibleWidth : .infinity, alignment: .topLeading)
+            .clipped()
             .opacity(style.contentOpacity)
 
             // In-progress marker: trailing edge, leading rail untouched.

@@ -65,12 +65,44 @@ struct LaidOutBlock: Identifiable, Equatable, Sendable {
     var hitExtension: CGFloat
     /// True when this block came out of step 3 rather than step 2.
     var isCascaded: Bool
-    /// The block's own width minus whatever the block in front of it covers.
-    /// Equal to `frame.width` outside a cascade. Drives the content tier:
-    /// below `size.blockCascadeMinReadableWidth` a block renders glyph only,
-    /// because a clipped title reads as damage rather than as occlusion
-    /// (components.md §3.3, layouts.md §3.3).
+    /// The block's own width minus the next block's indent: the narrowest
+    /// strip of it that is never covered. Equal to `frame.width` outside a
+    /// cascade. Until 2026-10-10 this alone drove the content tier, which is
+    /// how a lecture covered only in its lower half lost its title (A35,
+    /// G-048); the tier now follows `isCovered` and `titleBandWidth` below.
     var visibleWidth: CGFloat
+
+    // MARK: Covering (components.md §3.3, both 2026-10-10 amendments)
+
+    /// A block drawn in front of this one — later in the cascade's paint
+    /// order — overlaps its frame. False outside a cascade: packed blocks
+    /// never cover each other.
+    var isCovered = false
+    /// §3.3's *visible width*: the unobstructed width of the block's **title
+    /// band** — from the frame's top to top + the tier's top padding +
+    /// `lineHeight(blockTitleCompact)`. Equal to `frame.width` when nothing
+    /// crosses that band. At ≥ `size.blockCascadeMinReadableWidth` a covered
+    /// block still draws its `.titleOnly` content set there; below it,
+    /// `.glyphOnly`.
+    var titleBandWidth: CGFloat = .greatestFiniteMagnitude
+    /// §3.3 "a covering block is separated from what it covers" (G-078):
+    /// where a covering block's `size.blockColumnGap` of canvas — along its
+    /// leading and top edges, outside its own frame — crosses this block, in
+    /// the day column's coordinates. This block is cut back there; the
+    /// covering block's frame does not move.
+    var gapCuts: [CGRect] = []
+
+    /// The height of the title band for a block of `height` points (§3.3).
+    static func titleBandHeight(forBlockHeight height: CGFloat) -> CGFloat {
+        let tier = BlockContentMetrics.resolve(availableHeight: height).tier
+        return Swift.min(height, tier.verticalPadding + BlockLineHeights.standard.titleCompact)
+    }
+
+    /// Whether this block paints at `point` (column coordinates): inside its
+    /// frame and not in a covering block's gap.
+    func draws(at point: CGPoint) -> Bool {
+        frame.contains(point) && !gapCuts.contains { $0.contains(point) }
+    }
 
     /// Inset to apply to the block's hit shape, in points. Negative, because a
     /// clamped block's hit area is *larger* than what it draws (`hitExtension`,
@@ -153,7 +185,51 @@ enum DayLayoutEngine {
         }
 
         result.blocks = applyVerticalGaps(result.blocks)
+        result.blocks = applyCovering(result.blocks)
         return result
+    }
+
+    /// components.md §3.3 (amended 2026-10-06, required 2026-10-10 — G-048,
+    /// A35; and "a covering block is separated from what it covers", G-078).
+    ///
+    /// For every cascaded block, against the cascaded blocks painted in front
+    /// of it: is it covered at all, how wide is its title band where nothing
+    /// crosses it, and where does a covering block's 2pt canvas gap cut into
+    /// it. A post-pass over final frames, so it sees the same rectangles the
+    /// view draws.
+    ///
+    /// The gap belongs to the covering block — it runs along that block's
+    /// leading and top edges, **outside** its frame — so the covered block is
+    /// what gives way: it is obstructed from 2pt before the covering block's
+    /// leading edge and from 2pt above its top.
+    static func applyCovering(_ blocks: [LaidOutBlock]) -> [LaidOutBlock] {
+        let gap = Tokens.Size.blockColumnGap
+        return blocks.map { block in
+            var result = block
+            result.titleBandWidth = block.frame.width
+            guard block.isCascaded else { return result }
+            let band = CGRect(x: block.frame.minX, y: block.frame.minY, width: block.frame.width,
+                              height: LaidOutBlock.titleBandHeight(forBlockHeight: block.frame.height))
+            for other in blocks where other.isCascaded && other.zIndex > block.zIndex {
+                // The covering block with its gap: 2pt more on the leading
+                // and top sides, nothing added trailing or below.
+                let covering = CGRect(x: other.frame.minX - gap, y: other.frame.minY - gap,
+                                      width: other.frame.width + gap, height: other.frame.height + gap)
+                guard covering.intersects(block.frame) else { continue }
+                result.isCovered = true
+                if covering.intersects(band) {
+                    result.titleBandWidth = Swift.min(result.titleBandWidth,
+                                                      Swift.max(0, covering.minX - block.frame.minX))
+                }
+                let top = CGRect(x: covering.minX, y: covering.minY, width: covering.width, height: gap)
+                let leading = CGRect(x: covering.minX, y: covering.minY, width: gap, height: covering.height)
+                for strip in [top, leading] {
+                    let cut = strip.intersection(block.frame)
+                    if !cut.isNull, cut.width > 0, cut.height > 0 { result.gapCuts.append(cut) }
+                }
+            }
+            return result
+        }
     }
 
     /// §3.1 — "vertical gap to the next block in the same column".

@@ -18,10 +18,17 @@ import SwiftUI
 ///   - presentation: transient states, composed in the order of §6.
 ///   - source: the palette slot; hue means source and nothing else (§1).
 ///   - renderedHeight: points on screen, which drives the density tier (§3.3).
-///   - visibleWidth: the block's width minus whatever covers it in a cascade.
-///     Below `size.blockCascadeMinReadableWidth` the content set drops to
-///     glyph-only, because a clipped title reads as damage, not as occlusion
-///     (§3.3). Defaults to `.infinity`, i.e. "nothing is covering this".
+///   - visibleWidth: §3.3's *visible width* — the unobstructed width of the
+///     block's **title band** (`LaidOutBlock.titleBandWidth`). Below
+///     `size.blockCascadeMinReadableWidth` the content set drops to
+///     glyph-only, because a clipped title reads as damage, not as occlusion.
+///     Defaults to `.infinity`, i.e. "nothing is covering this".
+///   - isCovered: a block in front overlaps this one somewhere (§3.3,
+///     amended 2026-10-06, required 2026-10-10). A covered block whose title
+///     band is still readable draws the `.titleOnly` content set there —
+///     glyph and a one-line title, nothing below — instead of losing its
+///     title to a cover that starts further down. Never more than its height
+///     tier allows.
 ///   - glyphOverride: `.fixedTimed` covers both lectures and manual events,
 ///     which differ only by symbol; the call site supplies it (§2.1).
 ///   - increaseContrast: see GAPS.md G-003 — §11's contrast rules change border
@@ -36,6 +43,7 @@ func resolveBlockStyle(
     source: SourceKey,
     renderedHeight: CGFloat,
     visibleWidth: CGFloat = .infinity,
+    isCovered: Bool = false,
     glyphOverride: String? = nil,
     increaseContrast: Bool = false
 ) -> BlockStyle {
@@ -155,10 +163,18 @@ func resolveBlockStyle(
             cornerRadius: Tokens.Radius.allDayPill)
     }
 
-    // §3.3 — the content set: height ladder, overridden by visible width.
-    style.contentTier = visibleWidth < Tokens.Size.blockCascadeMinReadableWidth
-        ? .glyphOnly
-        : DensityTier(renderedHeight: renderedHeight)
+    // §3.3 — the content set: the height ladder, overridden by visible
+    // width, and — for a block something covers — capped at `.titleOnly`:
+    // its title band is all of it that is promised to stay readable.
+    let heightTier = DensityTier(renderedHeight: renderedHeight)
+    if visibleWidth < Tokens.Size.blockCascadeMinReadableWidth {
+        style.contentTier = .glyphOnly
+    } else if isCovered {
+        // Swift note: `min` on a `Comparable` enum — the lower tier of the two.
+        style.contentTier = min(.titleOnly, heightTier)
+    } else {
+        style.contentTier = heightTier
+    }
 
     // §3.1 — compact radius at `.glyphOnly`. Amended 2026-09-11 (GAPS.md
     // G-011): the threshold was 16, an independent number that no longer matched
