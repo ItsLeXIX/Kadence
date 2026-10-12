@@ -187,8 +187,9 @@ final class ConnectSheetModel {
             (transport as? URLSessionTransport)?.invalidate()
             guard let self, !Task.isCancelled else { return }
             switch outcome {
-            case .success(let (discovery, fetched)):
+            case .success(let (discovery, fetched, stats)):
                 self.received(discovery, fetched)
+                self.logConnect(stats)
             case .failure(let error):
                 if error == .cancelled { return }
                 self.fail(error)
@@ -203,9 +204,16 @@ final class ConnectSheetModel {
         if phase == .connecting { phase = .editing }
     }
 
+    /// What the connect's own requests cost, for its log line (§20.8.4).
+    struct ConnectStats: Sendable {
+        var requests = 0
+        var milliseconds = 0
+    }
+
     nonisolated private static func discoverAndFetch(address: ServerAddress, session: CalDAVSession, now: Date,
                                                      zone: TimeZone)
-        async -> Result<(DiscoveryResult, [FetchedCalendar]), ScheduleSourceError> {
+        async -> Result<(DiscoveryResult, [FetchedCalendar], ConnectStats), ScheduleSourceError> {
+        let started = Date()
         do {
             let discovery = try await CalDAVDiscovery.discover(server: address, session: session)
             let start = Windows.importStart(now: now, zone: zone)
@@ -223,7 +231,9 @@ final class ConnectSheetModel {
                     return .failure(error)
                 }
             }
-            return .success((discovery, fetched))
+            let stats = ConnectStats(requests: await session.requestCount,
+                                     milliseconds: Int(Date().timeIntervalSince(started) * 1000))
+            return .success((discovery, fetched, stats))
         } catch {
             return .failure((error as? ScheduleSourceError) ?? .unreachable)
         }
@@ -258,6 +268,36 @@ final class ConnectSheetModel {
         }
         phase = .step2
         focus = nil
+    }
+
+    /// §20.8.4 (amended 2026-10-10): the connect sheet's fetch is logged as
+    /// one line of the sync line's shape — `connect {account} · … · previewed
+    /// {n} events` — so the VEVENT, duplicate and merge counts of the very
+    /// first read are in the log before anything is imported. The account
+    /// string is `{user} @ {host}`; never a password, header or body.
+    private func logConnect(_ stats: ConnectStats) {
+        let feed = derived
+        var diagnostics = diagnostics(for: checkedCalendars, feed: feed)
+        diagnostics.requests = stats.requests
+        diagnostics.milliseconds = stats.milliseconds
+        diagnostics.ctags = (discovery?.calendars ?? []).compactMap(\.ctag)
+        SourceLogger.shared.connect(account: accountLine, diagnostics: diagnostics, events: feed.events.count)
+    }
+
+    /// The counts of a set of fetched calendars, as the log line gives them.
+    private func diagnostics(for calendars: [FetchedCalendar], feed: DerivedFeed) -> SyncDiagnostics {
+        var diagnostics = SyncDiagnostics()
+        diagnostics.calendarNames = calendars.map(\.calendar.displayName)
+        if calendars.contains(where: { $0.fetch.mode == .get }) { diagnostics.mode = .get }
+        else if calendars.contains(where: { $0.fetch.mode == .multiget }) { diagnostics.mode = .multiget }
+        diagnostics.objects = calendars.reduce(0) { $0 + $1.objects.count }
+        diagnostics.vevents = feed.objectCount
+        diagnostics.duplicates = feed.duplicateCount
+        diagnostics.merged = feed.mergedCount
+        let honoured = calendars.compactMap(\.fetch.timeRangeHonoured)
+        diagnostics.timeRangeHonoured = honoured.isEmpty ? nil : honoured.allSatisfy { $0 }
+        diagnostics.etags = calendars.flatMap(\.fetch.etags)
+        return diagnostics
     }
 
     /// Step 2's `Back`: every field as entered, the password too.
@@ -378,10 +418,7 @@ final class ConnectSheetModel {
         if checkedList.contains(where: { $0.fetch.mode == .get }) { capabilities.fetchMode = .get }
         else if checkedList.contains(where: { $0.fetch.mode == .multiget }) { capabilities.fetchMode = .multiget }
         capabilities.timeRangeHonoured = checkedList.compactMap(\.fetch.timeRangeHonoured).allSatisfy { $0 }
-        var diagnostics = SyncDiagnostics()
-        diagnostics.calendarNames = checkedList.map(\.calendar.displayName)
-        diagnostics.objects = feed.objectCount
-        diagnostics.etags = checkedList.flatMap(\.fetch.etags)
+        let diagnostics = diagnostics(for: checkedList, feed: feed)
         return ScheduleFetchResult(
             events: feed.events, problems: problems, objectCount: feed.objectCount, mergedCount: feed.mergedCount,
             calendarsReadInFully: checkedList.map(\.calendar.href), failedCalendars: [], adoptedCalendars: [],
@@ -429,6 +466,12 @@ final class ConnectSheetModel {
         } catch {
             return nil
         }
+        // §20.8.4: the Import makes no request and logs one line.
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = zone
+        let today = cal.startOfDay(for: clock())
+        SourceLogger.shared.imported(account: accountLine, events: result.events.count,
+                                     beforeToday: result.events.filter { $0.start < today }.count)
         password = ""
         return source
     }

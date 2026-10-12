@@ -276,6 +276,40 @@ struct ConnectSheetTests {
         #expect(rig.model.password.isEmpty)
     }
 
+    /// PHASE3-REVIEW.md fix 4 — components.md §20.8.4 (amended 2026-10-10).
+    @Test("Connect logs one `connect` line, Import one `import` line; the counts are in them and the sentinel is not")
+    func connectAndImportLogLines() async throws {
+        let lines = Mutex<[String]>([])
+        let token = SourceLogger.shared.addSink { line in lines.withLock { $0.append(line) } }
+        defer { SourceLogger.shared.removeSink(token) }
+        // `reportCISSameUID`: the two BPREF-Info halves under one UID.
+        let rig = try SheetRig(.reportOK, feed: ReviewFeed.reportCISSameUID(export: try Fixture.text("cis-2026WS-redacted.ics")))
+        rig.fill()
+        await rig.connect()
+        #expect(rig.model.phase == .step2)
+        let account = "user01 @ cis.technikum-wien.at"
+        let connect = lines.withLock { $0 }.filter { $0.hasPrefix("connect \(account)") }
+        #expect(connect.count == 1)
+        let line = try #require(connect.first)
+        // D1–D4 and the REPORT: 5 requests (the 401 retry is not counted);
+        // the ctag is the one D4 happened to carry.
+        #expect(line.hasPrefix("connect \(account) · LVPlan · mode report · requests 5 · "))
+        #expect(line.contains(" ms · objects 13 · vevents 13 · duplicates 0 · merged 1 · time-range honoured · ctag LVPlan-user01-1791454967 · etags 13 (set "))
+        #expect(line.hasSuffix(") · previewed 12 events"))
+        #expect(!lines.withLock { $0 }.contains { $0.hasPrefix("import ") })   // nothing imported yet
+
+        let source = try #require(rig.model.importNow())
+        #expect(source.importedAt == TestClock.now)
+        let imported = lines.withLock { $0 }.filter { $0.hasPrefix("import \(account)") }
+        #expect(imported == ["import \(account) · 12 events · 3 before today"])
+        // No line — these or any other captured meanwhile — holds the password.
+        for line in lines.withLock({ $0 }) {
+            #expect(!line.contains(sentinel))
+            #expect(!line.lowercased().contains("authorization") && !line.contains("Basic "))
+        }
+        #expect(rig.events.first { $0.title == "BPREF-Info" }?.lecturers == ["L05", "L06"])
+    }
+
     @Test("A Keychain failure writes nothing else, with the `Password not saved` copy")
     func importKeychainFailure() async throws {
         let store = InMemorySecretStore()

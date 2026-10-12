@@ -51,6 +51,9 @@ nonisolated struct DerivedFeed: Sendable, Equatable {
     var mergedCount: Int
     /// VEVENTs read, before the merge (§21.5 `objectCount`; the emptyFeed guard).
     var objectCount: Int
+    /// §20.8.4 `duplicates`: VEVENTs replaced by a strict `SEQUENCE` / stamp
+    /// winner with the same UID and start (§20.2). A tie is not one of them.
+    var duplicateCount = 0
 }
 
 // MARK: - Formatting shared with the hashes
@@ -164,21 +167,48 @@ nonisolated enum FeedDerivation {
         let objectCount = all.count
 
         // 1. Exact duplicates (§20.2): same UID and same start (or same
-        //    RECURRENCE-ID) → one; higher SEQUENCE, later stamp, later VEVENT.
-        var winners: [String: Located] = [:]
+        //    RECURRENCE-ID). The higher SEQUENCE wins, then the later stamp.
+        //
+        //    Amended 2026-10-10 (G-077; PHASE3-REVIEW fix 4): **a tie is not
+        //    a duplicate.** When neither VEVENT wins on SEQUENCE or a stamp —
+        //    always, on CIS, which sends neither — both go on to the merge
+        //    (step 3), where the same content key makes them one event with
+        //    their lecturers unioned. "The later one wins" threw the other
+        //    VEVENT's lecturer away before the merge ever saw it, uncounted:
+        //    the one path that could lose a co-teacher on real data.
+        var kept: [String: [Located]] = [:]     // per key: the winner, or every VEVENT of a tie
         var keyOrder: [String] = []
+        var duplicateCount = 0
         for item in all {
             let e = item.event
             let key = (e.uid ?? "") + "\u{1F}" + (e.recurrenceID.map { "R" + ICSFormat.utcStamp($0.instant) }
                                                    ?? "S" + ICSFormat.utcStamp(e.start.instant))
-            if let current = winners[key] {
-                if beats(item, current) { winners[key] = item }
-            } else {
-                winners[key] = item
+            guard let current = kept[key], let best = current.first else {
+                kept[key] = [item]
                 keyOrder.append(key)
+                continue
+            }
+            switch precedence(item, over: best) {
+            case .wins:
+                duplicateCount += current.count
+                kept[key] = [item]
+            case .loses:
+                duplicateCount += 1
+            case .ties:
+                // A series master or an override has a fixed identity
+                // (`UID|start`) and never reaches the merge, so two of them
+                // cannot both stand: the later VEVENT, as before.
+                if isSeriesMember(e) || isSeriesMember(best.event) {
+                    duplicateCount += 1
+                    kept[key] = [item]
+                } else {
+                    var tied = item
+                    tied.isTied = true
+                    kept[key] = current.map { var t = $0; t.isTied = true; return t } + [tied]
+                }
             }
         }
-        let unique = keyOrder.compactMap { winners[$0] }.sorted { $0.order < $1.order }
+        let unique = keyOrder.flatMap { kept[$0] ?? [] }.sorted { $0.order < $1.order }
 
         // 2. Split masters and overrides by UID.
         var mastersByUID: [String: [Located]] = [:]
@@ -236,7 +266,10 @@ nonisolated enum FeedDerivation {
             } else {
                 let masters = mastersByUID[uid] ?? []
                 let ownStart = e.start.raw
-                if !uid.isEmpty, !ownStart.isEmpty, uid.contains(ownStart) {
+                // §20.2 (amended 2026-10-10): tied VEVENTs are identified by
+                // content — merged when their content keys agree, "both kept
+                // as separate events, each under its content key" when not.
+                if item.isTied || (!uid.isEmpty && !ownStart.isEmpty && uid.contains(ownStart)) {
                     candidates.append(Candidate(item: item, start: e.start, end: e.end, identity: .content, mergeable: true))
                 } else if masters.count > 1, masters.allSatisfy({ $0.event.rrule == nil && $0.event.rdates.isEmpty }) {
                     let s = e.start.isDate ? (e.start.dateString ?? "") : ICSFormat.utcStamp(e.start.instant)
@@ -262,14 +295,14 @@ nonisolated enum FeedDerivation {
         // 3. Map, then merge by content key (§20.2): every non-recurring
         //    VEVENT, across objects and calendars.
         var events: [ExternalEvent] = []
-        var groups: [String: [(uid: String, event: ExternalEvent, mode: Candidate.Identity)]] = [:]
+        var groups: [String: [(uid: String, event: ExternalEvent, mode: Candidate.Identity, order: Int)]] = [:]
         var groupOrder: [String] = []
         for c in candidates {
             let mapped = map(c, zone: zone)
             let key = contentKey(c, zone: zone)
             if c.mergeable {
                 if groups[key] == nil { groupOrder.append(key) }
-                groups[key, default: []].append((c.item.event.uid ?? "", mapped, c.identity))
+                groups[key, default: []].append((c.item.event.uid ?? "", mapped, c.identity, c.item.order))
             } else if case .fixed(let id) = c.identity {
                 var occurrence = mapped
                 occurrence.externalID = id
@@ -289,7 +322,13 @@ nonisolated enum FeedDerivation {
                 continue
             }
             mergedCount += 1
-            let sorted = members.sorted { $0.uid < $1.uid }
+            // Ascending UID, then the lecturer list joined by `/` (§20.2,
+            // amended 2026-10-10): members that share one UID still have a
+            // fixed order, so the result never depends on the feed's.
+            let sorted = members.sorted {
+                ($0.uid, $0.event.lecturers.joined(separator: "/"), $0.order)
+                    < ($1.uid, $1.event.lecturers.joined(separator: "/"), $1.order)
+            }
             var merged = sorted[0].event
             merged.externalID = key
             var lecturers: [String] = []
@@ -305,7 +344,8 @@ nonisolated enum FeedDerivation {
         problems += zoneUses.map {
             ICSParser.unknownZoneProblem($0, zoneID: objects.first?.calendar.currentZoneID ?? zone.identifier)
         }
-        return DerivedFeed(events: events, problems: problems, mergedCount: mergedCount, objectCount: objectCount)
+        return DerivedFeed(events: events, problems: problems, mergedCount: mergedCount, objectCount: objectCount,
+                           duplicateCount: duplicateCount)
     }
 
     // MARK: Pieces
@@ -314,6 +354,9 @@ nonisolated enum FeedDerivation {
         var event: ParsedVEvent
         var order: Int
         var object: String?
+        /// Same UID and start as another VEVENT, with no SEQUENCE or stamp
+        /// to choose between them (§20.2, amended 2026-10-10).
+        var isTied = false
     }
 
     private struct Candidate {
@@ -345,15 +388,23 @@ nonisolated enum FeedDerivation {
                              technical: technical(item, "RECURRENCE-ID;RANGE=THISANDFUTURE"))
     }
 
-    /// §20.2's tie-break: higher SEQUENCE, then later stamp, then later VEVENT.
-    private static func beats(_ a: Located, _ b: Located) -> Bool {
-        if a.event.sequence != b.event.sequence { return a.event.sequence > b.event.sequence }
+    private enum Precedence { case wins, loses, ties }
+
+    /// §20.2's tie-break: the higher SEQUENCE, then the later stamp. With
+    /// neither, a tie — which is no longer settled by position in the feed.
+    private static func precedence(_ a: Located, over b: Located) -> Precedence {
+        if a.event.sequence != b.event.sequence { return a.event.sequence > b.event.sequence ? .wins : .loses }
         switch (a.event.stamp, b.event.stamp) {
-        case let (x?, y?) where x != y: return x > y
-        case (.some, nil): return true
-        case (nil, .some): return false
-        default: return a.order > b.order
+        case let (x?, y?) where x != y: return x > y ? .wins : .loses
+        case (.some, nil): return .wins
+        case (nil, .some): return .loses
+        default: return .ties
         }
+    }
+
+    /// A series master (`RRULE`/`RDATE`) or an override (`RECURRENCE-ID`).
+    private static func isSeriesMember(_ e: ParsedVEvent) -> Bool {
+        e.recurrenceID != nil || e.rrule != nil || !e.rdates.isEmpty || e.hasPeriodRDate
     }
 
     /// `{summary}|{location}|{startUTC}|{endUTC}` (§20.2).

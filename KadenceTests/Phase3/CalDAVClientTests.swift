@@ -60,7 +60,7 @@ struct CalDAVClientTests {
         let line = SourceLogger.syncLine(account: "user01 @ cis.technikum-wien.at", diagnostics: r.diagnostics,
                                                outcome: "feed unchanged")
         #expect(line.hasPrefix("sync user01 @ cis.technikum-wien.at · LVPlan · mode report · requests 1 · "))
-        #expect(line.contains(" ms · objects 9 · time-range honoured · ctag — · etags 9 (set "))
+        #expect(line.contains(" ms · objects 9 · vevents 9 · duplicates 0 · merged 0 · time-range honoured · ctag — · etags 9 (set "))
         #expect(line.hasSuffix(") · feed unchanged"))
         #expect(!line.contains(caldavSentinel))
     }

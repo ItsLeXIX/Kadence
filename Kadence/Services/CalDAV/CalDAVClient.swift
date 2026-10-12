@@ -372,7 +372,10 @@ nonisolated final class CalDAVScheduleSource: ScheduleSource {
         diagnostics.mode = mode
         diagnostics.requests = await session.requestCount
         diagnostics.milliseconds = Int(Date().timeIntervalSince(started) * 1000)
-        diagnostics.objects = feed.objectCount
+        diagnostics.objects = objects.count
+        diagnostics.vevents = feed.objectCount
+        diagnostics.duplicates = feed.duplicateCount
+        diagnostics.merged = feed.mergedCount
         diagnostics.timeRangeHonoured = capabilities.timeRangeHonoured
         return ScheduleFetchResult(
             events: feed.events, problems: problems + feed.problems, objectCount: feed.objectCount,

@@ -176,7 +176,10 @@ nonisolated enum ReviewMode {
         let feed = FeedDerivation.derive(feedObjects, today: cal.startOfDay(for: now), zone: zone)
         var diagnostics = SyncDiagnostics()
         diagnostics.calendarNames = [calendar.displayName]
-        diagnostics.objects = feed.objectCount
+        diagnostics.objects = feedObjects.count
+        diagnostics.vevents = feed.objectCount
+        diagnostics.duplicates = feed.duplicateCount
+        diagnostics.merged = feed.mergedCount
         diagnostics.etags = objects.map { "\($0.href)=\($0.etag)" }
         return ScheduleFetchResult(
             events: feed.events, problems: feed.problems, objectCount: feed.objectCount, mergedCount: feed.mergedCount,

@@ -2270,3 +2270,19 @@ Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
   fix (Parsa's, on `graphite`) keeps `graphite` until it is removed and
   connected again — but it now reads `University timetable` and shows the
   timetable symbol, because nothing resolves by slot.
+- **Note — a tie between two series members keeps the later VEVENT**
+  (P3-F4). §20.2 (amended 2026-10-10) sends a UID + start tie "on to the
+  merge". Only non-recurring VEVENTs reach the merge: a series master
+  (`RRULE` / `RDATE`) or an override (`RECURRENCE-ID`) has the fixed
+  identity `UID|start` and would become two events with one externalID. For
+  those — never CIS — a tie is still settled as before (the later VEVENT)
+  and counted in `duplicates`. A tied non-recurring VEVENT is identified by
+  its content key, so two that differ are two events "each under its
+  content key", as the amendment says.
+- **Note — `objects` in the log line counts calendar objects** (P3-F4). It
+  logged the VEVENT count under the name `objects`. With `vevents` added
+  beside it, `objects` is the number of calendar objects read (hrefs) and
+  `vevents` the VEVENTs in them — the two numbers the review's "if
+  `vevents` equals `objects`" reading needs. On CIS, one VEVENT per object,
+  they are equal, and Parsa's two recorded lines (`objects 70`) read the
+  same either way.

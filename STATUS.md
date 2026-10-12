@@ -9826,3 +9826,49 @@ connecting for real.
 - Verify: xcresult **854 passed / 0 failed** (847 + 7); app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0. The six
   UI scripts were also rerun on the fix 2 build before this item: all PASS.
+
+## 124. P3-F4 — a tie is not a duplicate; the log says what it merged (PHASE3-REVIEW.md §8 fix 4; components.md §20.2 "exact duplicates" amended 2026-10-10, §20.8.4 amended; caldav-mocks.md `reportCISSameUID`; G-077)
+
+- `FeedDerivation.derive` step 1: two VEVENTs with the same UID and start
+  are compared on `SEQUENCE`, then stamp. A strict winner replaces the
+  other and is counted (`DerivedFeed.duplicateCount`). **With neither, both
+  are kept and go to the merge** (step 3), identified by content: the same
+  content key → one event with the lecturers unioned; different keys → two
+  events, each under its content key. "The later VEVENT wins" is gone for
+  them — that was the one path that could drop a co-teacher before the
+  merge saw it. Merge members are ordered by UID, then lecturer list joined
+  by `/`, so the result never depends on the feed's order. (A tie between
+  series members still keeps the later one — DEVIATIONS note.)
+- Log (§20.8.4): `SyncDiagnostics` gains `vevents`, `duplicates`, `merged`;
+  the sync line carries them after `objects` (`… · objects 13 · vevents 13 ·
+  duplicates 0 · merged 1 · time-range honoured · …`). The connect sheet
+  logs its fetch as `connect {account} · … · previewed {n} events` (with
+  the ctag D4 carried) and its Import as `import {account} · {n} events ·
+  {h} before today`. `SourceLogger`'s comment documents the
+  subsystem-scoped command (`subsystem == "XIX.Kadence" AND category ==
+  "sync"`). `objects` now counts calendar objects (DEVIATIONS note).
+- Tests — the regression, from `fixtures/cis-2026WS-redacted.ics`
+  (`TieMergeTests.swift`, 8; `ConnectSheetTests` +1): `reportCISSameUID`
+  is `reportCIS` with one line changed in `obj-04` (the fixture is not
+  edited); `reportCIS` → 12 events, `BPREF-Info` 2 Oct 18:35 `[L05, L06]`,
+  merged 1, duplicates 0 (kept); **`reportCISSameUID` → 12 events,
+  `BPREF-Info` `[L05, L06]`, merged 1, duplicates 0, in both object orders,
+  and equal — events and feed hash — to `reportCIS`'s result**; a higher
+  `SEQUENCE` (or a later `DTSTAMP`) on one → that one's lecturers only,
+  duplicates 1, merged 0, in both orders; a tie with different summaries →
+  13 events, two `BPREF-Info`, each under its content key; a three-way tie
+  → `[L04, L05, L06]`; the same VEVENT twice → one event, one lecturer.
+  Through the `REPORT`, planner and store: Import then sync of
+  `reportCISSameUID` (the second in the other object order) writes nothing,
+  ids unchanged, also with step 4 disabled; the stored event's inspector
+  row is `Lecturers` / `L05`, `L06`. The sync line's three fields (also
+  with a strict winner: `duplicates 1 · merged 0`), §20.8.4's own example
+  field for field, the `connect` line (`requests 5`, `objects 13 · vevents
+  13 · duplicates 0 · merged 1`, `ctag LVPlan-user01-1791454967`,
+  `previewed 12 events`) and the `import` line (`12 events · 3 before
+  today`), exactly one of each; no captured line contains the sentinel, an
+  `Authorization` or a `Basic` value.
+- Frame (item 25): taken in fix 11.
+- Verify: xcresult **863 passed / 0 failed** (854 + 9); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
+  store's `stat` unchanged.

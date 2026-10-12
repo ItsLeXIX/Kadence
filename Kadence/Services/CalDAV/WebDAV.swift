@@ -298,7 +298,16 @@ nonisolated struct SyncDiagnostics: Sendable, Equatable {
     var mode: FetchMode = .report
     var requests = 0
     var milliseconds = 0
+    /// Calendar objects read (one per href).
     var objects = 0
+    /// §20.8.4 (amended 2026-10-10, G-068/G-077): VEVENTs read, before
+    /// anything is dropped; VEVENTs replaced by a strict SEQUENCE/stamp
+    /// winner; events that are a merge of two or more VEVENTs. A co-taught
+    /// lecture that arrives as one VEVENT, or as two, is then visible in the
+    /// log without reading the store.
+    var vevents = 0
+    var duplicates = 0
+    var merged = 0
     var timeRangeHonoured: Bool?
     var ctags: [String] = []
     /// `href=etag` lines.
@@ -331,21 +340,46 @@ nonisolated final class SourceLogger: Sendable {
 
     func removeSink(_ id: UUID) { _ = sinks.withLock { $0.removeValue(forKey: id) } }
 
-    /// The §20.8.4 line: `sync user01 @ cis.technikum-wien.at · LVPlan · mode
-    /// report · requests 1 · 412 ms · objects 287 · time-range honoured ·
-    /// ctag — · etags 287 (set 3f9a01c2) · feed unchanged`.
+    /// The §20.8.4 line (amended 2026-10-10): `sync user01 @
+    /// cis.technikum-wien.at · LVPlan · mode report · requests 1 · 412 ms ·
+    /// objects 287 · vevents 287 · duplicates 0 · merged 9 · time-range
+    /// honoured · ctag — · etags 287 (set 3f9a01c2) · feed unchanged`.
+    ///
+    /// Read it with the subsystem-scoped command (a predicate on the category
+    /// alone also matches Apple's own `sync` categories):
+    /// `log show --last 1h --info --predicate 'subsystem == "XIX.Kadence" AND category == "sync"'`
     static func syncLine(account: String, diagnostics d: SyncDiagnostics, outcome: String) -> String {
+        line("sync", account: account, diagnostics: d, outcome: outcome)
+    }
+
+    /// The connect sheet's fetch: the same shape, starting `connect` and
+    /// ending `previewed {n} events` (no `Source` exists yet, so the logger
+    /// takes the account string).
+    static func connectLine(account: String, diagnostics d: SyncDiagnostics, events: Int) -> String {
+        line("connect", account: account, diagnostics: d, outcome: "previewed \(events) \(events == 1 ? "event" : "events")")
+    }
+
+    /// The Import makes no request: `import {account} · {n} events · {h}
+    /// before today`.
+    static func importLine(account: String, events: Int, beforeToday: Int) -> String {
+        "import \(account) · \(events) \(events == 1 ? "event" : "events") · \(beforeToday) before today"
+    }
+
+    private static func line(_ kind: String, account: String, diagnostics d: SyncDiagnostics, outcome: String) -> String {
         let range = switch d.timeRangeHonoured {
         case true?: "time-range honoured"
         case false?: "time-range ignored"
         case nil: "time-range —"
         }
-        return ["sync \(account)",
+        return ["\(kind) \(account)",
                 d.calendarNames.isEmpty ? "—" : d.calendarNames.joined(separator: ", "),
                 "mode \(d.mode.rawValue)",
                 "requests \(d.requests)",
                 "\(d.milliseconds) ms",
                 "objects \(d.objects)",
+                "vevents \(d.vevents)",
+                "duplicates \(d.duplicates)",
+                "merged \(d.merged)",
                 range,
                 "ctag \(d.ctags.isEmpty ? "—" : d.ctags.joined(separator: ", "))",
                 "etags \(d.etags.count) (set \(d.etagSet))",
@@ -373,6 +407,15 @@ nonisolated final class SourceLogger: Sendable {
     }
 
     func note(account: String, _ text: String) { emit("note \(account) · \(text)") }
+
+    /// The connect sheet's lines (§20.8.4, amended 2026-10-10).
+    func connect(account: String, diagnostics: SyncDiagnostics, events: Int) {
+        emit(Self.connectLine(account: account, diagnostics: diagnostics, events: events))
+    }
+
+    func imported(account: String, events: Int, beforeToday: Int) {
+        emit(Self.importLine(account: account, events: events, beforeToday: beforeToday))
+    }
 
     private func emit(_ line: String) {
         // Swift note: `privacy: .public` — the unified log redacts dynamic
