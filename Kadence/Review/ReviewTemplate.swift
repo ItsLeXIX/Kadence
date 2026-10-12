@@ -21,3 +21,14 @@ nonisolated enum ReviewTemplate {
         return String(decoding: data, as: UTF8.self)
     }
 }
+
+/// components.md §22.1 `fresh` — `cis-2026WS-redacted.ics`, a byte-for-byte
+/// copy of `fixtures/cis-2026WS-redacted.ics` (a test asserts the hash).
+/// Bundled with the app only so review mode can serve it; read nowhere else.
+nonisolated enum ReviewCISExport {
+    static var text: String {
+        guard let url = Bundle.main.url(forResource: "cis-2026WS-redacted", withExtension: "ics"),
+              let data = try? Data(contentsOf: url) else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
+}

@@ -47,11 +47,11 @@
 # `ConflictEngine.shortenOption` keeps "Focus review"'s back half — new
 # start 20:20, new end 21:00 (`CalendarState.applyFocusedConflictOption`'s
 # `.shorten` case calls `EventStore.resize`) — a +1200-second (20-minute)
-# move of `ZSTART` for the `Focus review` row, checked directly against the
-# real SwiftData store below (`ZEVENT`/`ZTITLE`/`ZSTART`, the schema
-# STATUS.md's P2-T35 entry already documents; `ZSTART` is Core Data
-# reference-date seconds, epoch 2001-01-01 UTC — the exact offset does not
-# matter here, only the +1200s delta does).
+# move of the `Focus review` block's start, read from the running app's
+# Accessibility tree (the block's own time range) before and after the
+# keypress. Until PHASE3-REVIEW fix 1 this was read with sqlite3 from the
+# app's real store file, which the script also deleted; a review launch now
+# runs on an in-memory store and no script touches the real one.
 #
 # Per this task's own brief: step 0 is the SAME lock probe
 # check-accessibility.sh uses (`CGSSessionScreenIsLocked` via
@@ -166,14 +166,13 @@ APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debug
 for PID in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill -9 "$PID" 2>/dev/null; done
 sleep 2
 
-# Fresh mock fixtures every run: `MockData.seedIfNeeded` only seeds an EMPTY
-# store, so a store left over from an earlier session (a different real-world
-# day) would not contain today's "Client call"/"Focus review" pair at all —
-# the exact stale-fixture trap STATUS.md's P2-T20 entry already documents.
-# Deleting it makes this launch reseed relative to *today*.
-STORE_DIR="$HOME/Library/Containers/XIX.Kadence/Data/Library/Application Support"
-STORE="$STORE_DIR/default.store"
-rm -f "$STORE" "$STORE-wal" "$STORE-shm"
+# Fresh mock fixtures every run: a `-KadenceReview` launch runs on its own
+# in-memory store (PHASE3-REVIEW fix 1; components.md §22.1 "Review mode never
+# touches the real store"), seeded relative to *today* at every launch. This
+# script used to delete the app's real store file to get that, and read the
+# result back from it with sqlite3; it no longer touches that file at all.
+# The verdict is read from the app itself, through the Accessibility tree:
+# the `Focus review` block's own time range, before and after the keypress.
 
 # -ApplePersistenceIgnoreState YES: see check-accessibility.sh for why —
 # suppresses this Mac's window-restoration flake so the main window is the
@@ -210,19 +209,6 @@ sleep 1
 "$WORK/kguard" park "$TARGET" || { pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 echo "driving pid $TARGET"
 
-# Give the freshly-reseeded store a moment before reading it — the app writes
-# its seed transaction on first launch.
-sleep 1
-BEFORE_START=$(sqlite3 "$STORE" "SELECT ZSTART FROM ZEVENT WHERE ZTITLE='Focus review';" 2>/dev/null)
-if [[ -z "$BEFORE_START" ]]; then
-  echo "FAIL: could not read a 'Focus review' row from $STORE before the test."
-  echo "      Either the store did not reseed, or MockData.swift's P2-T29 fixture"
-  echo "      (the 'Client call'/'Focus review' conflict pair) is missing/renamed."
-  [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null
-  exit 1
-fi
-echo "baseline 'Focus review' ZSTART: $BEFORE_START"
-
 # ------------------------------------------------------------------ the query
 # P2-T41: read the tree through the Accessibility API directly, not System
 # Events. On macOS 26.6 a SwiftUI button's attribute list carries
@@ -236,7 +222,7 @@ echo "baseline 'Focus review' ZSTART: $BEFORE_START"
 # the description field so the needs-attention row can also be found by its
 # `accessibilityIdentifier` ("needs-attention-row", SidebarView.swift).
 # Only the reading changed: the clicks are still real HID events, the key is
-# still a real HID Return, and the verdict is still the sqlite +1200 s check.
+# still a real HID Return, and the verdict is the block's own +20 min range.
 cat > "$WORK/axq.swift" <<'SWIFT'
 import ApplicationServices
 import Foundation
@@ -277,8 +263,34 @@ swiftc -O "$WORK/axq.swift" -o "$WORK/axq" 2>"$WORK/swiftc-axq.log" || {
 
 query() { "$WORK/axq" "$TARGET"; }
 
+# The `Focus review` block's time range as the app shows it ("HH:MM HH:MM"),
+# from an AX dump. Every element that names the block with a range must agree
+# (the block's label and its hover help both carry it); prints nothing when
+# none does or when they disagree.
+focus_review_range() {
+  python3 - "$1" <<'PY'
+import re, sys
+found = set()
+for line in open(sys.argv[1]).read().splitlines():
+    for m in re.finditer(r"focus review\D{1,8}(\d\d:\d\d)\D{1,8}(\d\d:\d\d)", line.lower()):
+        found.add((m.group(1), m.group(2)))
+if len(found) == 1:
+    print(*found.pop())
+PY
+}
+
 # --------------------------------------------------- find + click needs-attention
 query > "$WORK/baseline.txt"
+
+BEFORE_RANGE=$(focus_review_range "$WORK/baseline.txt")
+if [[ -z "$BEFORE_RANGE" ]]; then
+  echo "FAIL: could not read one 'Focus review' time range from the app before the test."
+  echo "      Either the review dataset did not seed, or MockData.swift's P2-T29 fixture"
+  echo "      (the 'Client call'/'Focus review' conflict pair) is missing/renamed."
+  [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null
+  exit 1
+fi
+echo "baseline 'Focus review' range: $BEFORE_RANGE"
 
 python3 - "$WORK/baseline.txt" "$WORK/plan1.txt" <<'PY'
 import sys
@@ -378,32 +390,40 @@ echo "sending a real HID Return keypress…"
 guarded_key "$KVK_RETURN" || { echo "$STOP_MSG"; [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null; exit 1; }
 sleep 2
 
+# Read the result from the running app BEFORE quitting it: the store is in
+# memory and goes with the process.
+query > "$WORK/after.txt"
+AFTER_RANGE=$(focus_review_range "$WORK/after.txt")
+
 [[ $KEEP -eq 0 ]] && pkill -f "Kadence.app/Contents/MacOS/Kadence" 2>/dev/null
 
 # ------------------------------------------------------------------- the verdict
-AFTER_START=$(sqlite3 "$STORE" "SELECT ZSTART FROM ZEVENT WHERE ZTITLE='Focus review';" 2>/dev/null)
 echo ""
-echo "after   'Focus review' ZSTART: $AFTER_START"
+echo "after   'Focus review' range: $AFTER_RANGE"
 
-if [[ -z "$AFTER_START" ]]; then
-  echo "FAIL: 'Focus review' vanished from the store after the keypress."
+if [[ -z "$AFTER_RANGE" ]]; then
+  echo "FAIL: no single 'Focus review' time range in the app after the keypress."
   exit 1
 fi
 
 # ConflictEngine.shortenOption keeps the back half: new start = otherInterval.end
-# (20:20), i.e. the original start (20:00) + exactly 1200 seconds (20 minutes).
+# (20:20), i.e. the original start (20:00) + exactly 20 minutes, same end.
 # CalendarState.applyFocusedConflictOption's `.shorten` case writes this via
-# EventStore.resize — a real, undoable, persisted store mutation, not a
-# preview. A no-op ↩ (the P2-T32 defect) would leave ZSTART unchanged.
-DELTA=$(python3 -c "print(int(\"$AFTER_START\".split('.')[0]) - int(\"$BEFORE_START\".split('.')[0]))" 2>/dev/null)
+# EventStore.resize — a real, undoable store mutation, not a preview (a
+# preview is abandoned when the panel closes, and the range read here is the
+# block's own). A no-op ↩ (the P2-T32 defect) would leave the start unchanged.
+DELTA=$(python3 -c "
+b, a = '$BEFORE_RANGE'.split(), '$AFTER_RANGE'.split()
+m = lambda t: int(t[:2]) * 60 + int(t[3:])
+print(m(a[0]) - m(b[0]) if a[1] == b[1] else 'end-moved')" 2>/dev/null)
 
-if [[ "$DELTA" == "1200" ]]; then
+if [[ "$DELTA" == "20" ]]; then
   echo "PASS: ↩ applied the recommended option — 'Focus review' shortened,"
-  echo "      ZSTART moved by exactly +1200s (20 min), matching"
+  echo "      its start moved by exactly +20 min and its end stayed, matching"
   echo "      ConflictEngine.shortenOption's own computed result."
   exit 0
 else
-  echo "FAIL: ZSTART moved by ${DELTA:-<unparseable>}s, expected exactly +1200s."
+  echo "FAIL: the start moved by ${DELTA:-<unparseable>} min, expected exactly +20."
   echo "      This is the P2-T32 signature if the delta is 0: the inspector's"
   echo "      .onKeyPress hook is not forwarding .return to handleKey, so the"
   echo "      conflict-apply case in MainWindow.handleKey (guarded on"

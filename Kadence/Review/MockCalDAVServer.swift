@@ -573,6 +573,43 @@ nonisolated enum ReviewFeed {
         MockCalDAVServer.objects(fromICS: render(template, today: today, zone: zone), hrefPrefix: "r", etagPrefix: "rev")
     }
 
+    /// `reportCIS` (caldav-mocks.md §2): the real export, one VEVENT per
+    /// object, `obj-01.ics` … `obj-13.ics`, ETag `"cis-NN-a"`.
+    static func reportCIS(export: String) -> [MockCalDAVServer.Object] {
+        MockCalDAVServer.objects(fromICS: export, hrefPrefix: "obj-", etagPrefix: "cis")
+    }
+
+    /// `reportCISOverlap` (caldav-mocks.md §2, added 2026-10-10): `reportCIS`
+    /// plus `obj-14.ics`, built here from the export's own first
+    /// `BPREF-Info` VEVENT (`obj-03.ics`) — a second session of the course,
+    /// 19:30–20:15, lecturer `L07`, inside the co-taught 18:35–20:15 one. The
+    /// shape Parsa's real feed has on Fri 2 Oct 2026. The export is never
+    /// edited.
+    static func reportCISOverlap(export: String) -> [MockCalDAVServer.Object] {
+        var objects = reportCIS(export: export)
+        guard objects.count == 13 else { return objects }
+        let data = objects[2].data
+            .replacingOccurrences(of: "WEBINAR02L05BPREF-Info20261002T183500", with: "WEBINAR02L07BPREF-Info20261002T193000")
+            .replacingOccurrences(of: "\\nL05\\n", with: "\\nL07\\n")
+            .replacingOccurrences(of: "DTSTART;TZID=Europe/Vienna:20261002T183500",
+                                  with: "DTSTART;TZID=Europe/Vienna:20261002T193000")
+        objects.append(MockCalDAVServer.Object(href: MockCalDAVServer.lvplan + "obj-14.ics", etag: "\"cis-14-a\"", data: data))
+        return objects
+    }
+
+    /// `reportCISSameUID` (caldav-mocks.md §2): `obj-04.ics`'s `UID` line is
+    /// `obj-03.ics`'s, so the two `BPREF-Info` halves share one UID and one
+    /// start and differ only in the lecturer line.
+    static func reportCISSameUID(export: String) -> [MockCalDAVServer.Object] {
+        var objects = reportCIS(export: export)
+        guard objects.count == 13 else { return objects }
+        objects[3] = MockCalDAVServer.Object(
+            href: objects[3].href, etag: objects[3].etag,
+            data: objects[3].data.replacingOccurrences(of: "UID:FHif-5WEBINAR02L06BPREF-Info",
+                                                       with: "UID:FHif-5WEBINAR02L05BPREF-Info"))
+        return objects
+    }
+
     /// `reportChanged` (§22.1's table), applied by template row: #2 lecturer
     /// L01 → L09 (new UID, same href, ETag `-b`); #3 room EDV_F4.26 (a new
     /// object); #5 and #7b absent; `KOKU-UE` on `{{D+9}}` added; H1's room →

@@ -179,7 +179,7 @@ struct ReviewModeTests {
         #expect(after.first?.lecturers == ["L08"] && after.first?.group == "BIF-5C")
     }
 
-    @Test("Without -KadenceReview an empty store stays empty: zero Sources, zero Events")
+    @Test("Without -KadenceReview the review seeding inserts nothing: zero Sources, zero Events (the launch adds only the two built-ins — AppStoreTests)")
     func emptyRealStore() throws {
         let (_, context) = try memory()
         var materialized = false

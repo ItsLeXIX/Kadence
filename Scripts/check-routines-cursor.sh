@@ -145,7 +145,6 @@ KVK_DOWN=125; KVK_RIGHT=124; KVK_ESC=53; KVK_R=15; KVK_RBRACKET=30; KVK_LBRACKET
 echo "building…"
 xcodebuild -scheme Kadence -destination 'platform=macOS' build >"$WORK/build.log" 2>&1 || { echo "FAIL: build"; exit 1; }
 APP=$(ls -td ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debug/Kadence.app | head -1)
-STORE="$HOME/Library/Containers/XIX.Kadence/Data/Library/Application Support/default.store"
 PID=""
 
 quit_app() { for p in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill "$p" 2>/dev/null; done; sleep 2; }
@@ -169,7 +168,10 @@ launch() {
   # Park the pointer inside Kadence's own window (P2-F21), so nothing is hovered.
   front; "$WORK/kguard" park "$PID" || { echo "STOP: could not park the pointer inside Kadence."; quit_app; exit 1; }
 }
-fresh_launch() { quit_app; rm -f "$STORE" "$STORE-wal" "$STORE-shm"; launch "$@"; }
+# A review launch runs on its own in-memory store (PHASE3-REVIEW fix 1,
+# components.md §22.1): every launch is fresh by construction, and no script
+# touches the app's real store.
+fresh_launch() { launch "$@"; }
 
 # Kadence must be frontmost before ANY input; re-activated only if it isn't.
 front() {

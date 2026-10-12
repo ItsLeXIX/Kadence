@@ -127,7 +127,6 @@ print([s(attr(e, "AXRole")), s(attr(e, "AXTitle")), s(attr(e, "AXDescription"))]
 SWIFT
 swiftc -O "$WORK/focus.swift" -o "$WORK/focus" 2>"$WORK/focus.log" || { echo "FAIL: helper focus"; cat "$WORK/focus.log"; exit 1; }
 
-APP_STORE="$HOME/Library/Containers/XIX.Kadence/Data/Library/Application Support/default.store"
 PID=""
 quit_app() { for p in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill "$p" 2>/dev/null; done; sleep 2; }
 front() {
@@ -164,10 +163,13 @@ PY2
   return 1
 }
 has() { "$WORK/axq" "$PID" > "$WORK/has.txt"; grep -qi -- "$1" "$WORK/has.txt"; }
-# launch ARGS… — a fresh store, then Kadence with the given arguments.
+# launch ARGS… — Kadence with the given arguments, on a fresh store: a review
+# launch runs on its own in-memory store (PHASE3-REVIEW fix 1, components.md
+# §22.1), so it is fresh by construction and no script touches the real one.
+# A launch without `-KadenceReview` would open the real store: refused.
 launch_fresh() {
+  case " $* " in *" -KadenceReview "*) ;; *) echo "STOP: launch_fresh without -KadenceReview would open the real store."; exit 1 ;; esac
   quit_app
-  rm -f "$APP_STORE" "$APP_STORE-wal" "$APP_STORE-shm"
   open -n "$APP" --args -ApplePersistenceIgnoreState YES "$@"
   sleep 9
   PID=$(pgrep -f "Kadence.app/Contents/MacOS/Kadence" | head -1)

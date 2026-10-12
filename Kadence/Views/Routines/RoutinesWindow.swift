@@ -383,7 +383,7 @@ struct RoutinesWindow: View {
             // opens (⌘⌥R), and the hand-seeded events must still arrive
             // before the first pass (see `MockData.seedAllIfNeeded`).
             let visibleEnd = calendarState.visibleInterval.end
-            ReviewMode.seedIfRequested(ReviewMode.dataset(), context: context) {
+            AppStore.seedLaunch(LaunchKind.current(), context: context) {
                 RoutineMaterialization.run(context: context, undo: undoStack, visibleEnd: visibleEnd)
             }
             // components.md §13.2 (task P2-T42): no `.shiftable` block

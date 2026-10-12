@@ -9635,3 +9635,73 @@ Outgoing Connections (Client) first. Then Kadence ▸ Settings… (⌘,) ▸ Sou
 `log show --last 1h --predicate 'category == "sync"' --info` for G-068. The UI
 scripts delete the app's store when they run — don't run them after
 connecting for real.
+
+## 121. P3-F1 — review mode gets its own store; no script touches the real one (PHASE3-REVIEW.md §8 fix 1; components.md §22.1 "Review mode never touches the real store", §21.1.1; G-076)
+
+- **Before anything ran:** `KadenceTests` is hosted by Kadence.app
+  (`TEST_HOST`), so a plain `xcodebuild … test` launches the app — and
+  before this fix that launch opened the real store and ran the launch sync
+  on it (DEVIATIONS **B45**). No test, script or launch was run until the
+  code below was in. The real store's three files were recorded first by
+  metadata only (`stat`: mtime, ctime, size, inode — last written Fri 9 Oct
+  23:23–23:26) and compared after every run in this entry: unchanged.
+- `Kadence/State/AppStore.swift` (new): `LaunchKind` — `.normal`,
+  `.review(dataset)`, `.testHost` (XCTest's environment variables, the
+  injected XCTest library, or a loaded `XCTestCase`) — decides store, secret
+  store and transport together. `AppStore.configuration(for:)`: the default
+  `default.store` only for `.normal`; in-memory for review and the test
+  host. `AppStore.makeContainer(for:open:)` is the one place a container is
+  built (`open` injectable, so a test sees what a launch would open without
+  opening it). `BuiltInSource` (`personal` / `Personal` / manual /
+  `graphite`; `routine` / `Daily routine` / routine / `green`) with an
+  idempotent `ensure(in:)`. `AppStore.seedLaunch` is what both windows call:
+  the built-ins always, a review dataset only in review mode, nothing else.
+  `RefusingTransport` (every request fails as offline before it is sent)
+  for the test host.
+- `KadenceApp.init`: review → in-memory store, `ReviewMode.secrets`, the
+  mock transport; test host → in-memory store, `InMemorySecretStore`,
+  `RefusingTransport`; normal → the real store, Keychain, `URLSession`.
+- `ReviewMode`: datasets `phase2`, `phase3`, `empty` (the two built-ins),
+  `fresh` (`empty`, then one connected source — `University timetable`,
+  `user01`, `LVPlan`, first non-graphite free slot — imported from
+  `reportCISOverlap` by the planner and applier, no request; the launch's
+  mock server serves the same feed). `ReviewFeed.reportCIS`,
+  `.reportCISOverlap` (`obj-14.ics`, built in code from the export's own
+  `obj-03`: 19:30–20:15, `L07`) and `.reportCISSameUID` (caldav-mocks.md §2).
+  The export is bundled byte for byte as
+  `Kadence/Review/cis-2026WS-redacted.ics` (DEVIATIONS note).
+  `-KadenceReviewVariant singleOption` replaces the two capture scripts'
+  `sqlite3` edits (DEVIATIONS note).
+- `Scripts/`: every `default.store` path, every `rm` of it and every
+  `sqlite3` call is gone (9 files). `fresh_launch` / `launch_fresh` just
+  launch — a review launch is fresh by construction — and `launch_fresh`
+  refuses arguments without `-KadenceReview`.
+  `check-conflict-apply-return.sh` reads its verdict from the app's
+  Accessibility tree (`Focus review` `20:00 21:00` → `20:20 21:00`).
+  `grep -rn "default.store" Scripts` → nothing (exit 1).
+- Tokens: `Tokens.swift` regenerated at 1.7.0 (fingerprint and the
+  `assignmentRule` string only) and the version pin test updated here, not
+  in fix 8, so that every item verifies green (DEVIATIONS note).
+- Tests (`AppStoreTests.swift`, 9; one parameterised over the 4 datasets): a
+  review launch's container is in-memory and never asks for the real
+  store's URL; the test-host launch likewise, and only `.normal` asks for
+  `default.store` (seen through the recording `open`, never opened); **this
+  process — the tests' host — is `.testHost` and holds no file descriptor
+  whose path contains `default.store`** (`fcntl(F_GETPATH)` over its own
+  descriptor table); launch-kind precedence; a normal launch on an empty
+  store inserts exactly `personal` and `routine` (twice called: still two)
+  and no `Event`, `RoutineTemplate`, `RoutineBlock` or `TimeWindow`, with
+  zero secret-store calls; `empty` and the test host seed the same; the
+  bundled export's SHA-256 equals the repo fixture's; `fresh` = 3 sources,
+  14 VEVENTs → 13 events, `BPREF-Info` 18:35 `[L05, L06]` and 19:30
+  `[L07]`, `importedAt` set; no script names `default.store`.
+- Verify: xcresult **836 passed / 0 failed** (827 + 9); no new app warning;
+  tokens `--check` up to date at 1.7.0; fresh pre-flight before each, on the
+  in-memory review store: `check-routines-window` PASS ·
+  `check-conflict-apply-return` PASS · `check-inspector-inset` PASS ·
+  `check-block-click-selects` PASS · `check-routines-cursor` PASS ·
+  `check-resync-escape` PASS (keyboard navigation on).
+- **The real store after all of it** (one test run of the new suite, two
+  full test runs, six script launches): `stat` of `default.store`,
+  `-shm`, `-wal` identical to the baseline in mtime, ctime, size and inode.
+  I never opened, copied or read the files.

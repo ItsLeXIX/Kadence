@@ -15,17 +15,24 @@
 //  - `-KadenceReview phase2` — the Phase 2 dataset alone (no connected
 //    source, no sync): what the Phase 2 regression scripts launch with
 //    (DEVIATIONS B41).
+//  - `-KadenceReview empty` — nothing but the two built-in sources: what a
+//    real first launch holds (§22.1, added 2026-10-10).
+//  - `-KadenceReview fresh` — `empty`, then one connected source imported
+//    from `reportCISOverlap` (caldav-mocks.md): the real export plus one
+//    overlapping session. Its dates are absolute.
 //  - `-KadenceMockCalDAV <case>` — the mocked server's case (default
 //    `reportOK`).
 //
-//  Without `-KadenceReview` nothing is seeded: an empty store stays empty.
+//  PHASE3-REVIEW.md fix 1 (G-076): every review launch runs on its own
+//  in-memory store (`AppStore`), never the real one. Without `-KadenceReview`
+//  nothing is seeded but the two built-in sources (§21.1.1).
 //
 
 import Foundation
 import SwiftData
 
 nonisolated enum ReviewMode {
-    enum Dataset: String, Sendable { case phase2, phase3 }
+    enum Dataset: String, Sendable, CaseIterable { case phase2, phase3, empty, fresh }
 
     /// The review password (components.md §22.1). In-memory only, never the
     /// Keychain; drawn only as `SecureField` bullets.
@@ -50,12 +57,42 @@ nonisolated enum ReviewMode {
         defaults.string(forKey: "KadenceMockCalDAV").flatMap(MockCalDAVServer.Case.init(rawValue:)) ?? .reportOK
     }
 
+    /// Review captures only: `-KadenceReviewVariant singleOption` — the Phase 2
+    /// "single option" frame (components.md §17.1): `Training` ±15 and
+    /// `Supervisor meeting` 16:45–18:45. The capture scripts used to make
+    /// these two edits in the store file with `sqlite3` between launches; a
+    /// review store is in memory now (fix 1), so the launch makes them.
+    static func variant(_ defaults: UserDefaults = .standard) -> String? {
+        guard dataset(defaults) != nil else { return nil }
+        return defaults.string(forKey: "KadenceReviewVariant")
+    }
+
+    @MainActor
+    static func applySingleOptionVariant(context: ModelContext) {
+        for block in (try? context.fetch(FetchDescriptor<RoutineBlock>())) ?? [] where block.title == "Training" {
+            block.shiftableMinutes = 15
+        }
+        for event in (try? context.fetch(FetchDescriptor<Event>())) ?? [] where event.title == "Supervisor meeting" {
+            event.start = event.start.addingTimeInterval(-2700)
+            event.end = event.end.addingTimeInterval(1800)
+        }
+        try? context.save()
+    }
+
     /// The account of the review source.
     static let server = ServerAddress(host: MockCalDAVServer.host)
     static let calendar = SourceCalendar(href: MockCalDAVServer.lvplan, displayName: "LVPlan")
 
     /// The mocked server for this launch, its feed rendered at `now`.
-    static func server(case mockCase: MockCalDAVServer.Case, now: Date, zone: TimeZone = .current) -> MockCalDAVServer {
+    /// `fresh` serves `reportCISOverlap` (absolute dates) instead of the
+    /// review template.
+    static func server(case mockCase: MockCalDAVServer.Case, now: Date, zone: TimeZone = .current,
+                       dataset: Dataset? = nil) -> MockCalDAVServer {
+        if dataset == .fresh {
+            let feed = ReviewFeed.reportCISOverlap(export: ReviewCISExport.text)
+            return MockCalDAVServer(case: mockCase, password: password, feed: feed, changed: feed,
+                                    html: Data(signInPage.utf8), acceptsAnyPassword: true)
+        }
         let template = ReviewTemplate.text
         return MockCalDAVServer(
             case: mockCase, password: password,
@@ -86,9 +123,80 @@ nonisolated enum ReviewMode {
             materialize()
             return MockFixtures()
         }
-        let fixtures = MockData.seedAllIfNeeded(context, now: now, materialize: materialize)
-        if dataset == .phase3 { seedPhase3(context: context, now: now, secrets: secrets) }
-        return fixtures
+        switch dataset {
+        case .empty:
+            materialize()
+            return MockFixtures()
+        case .fresh:
+            seedFresh(context: context, now: now, secrets: secrets)
+            materialize()
+            return MockFixtures()
+        case .phase2, .phase3:
+            let wasSeeded = ((try? context.fetchCount(FetchDescriptor<Event>())) ?? 0) > 0
+            let fixtures = MockData.seedAllIfNeeded(context, now: now, materialize: materialize)
+            if dataset == .phase3 { seedPhase3(context: context, now: now, secrets: secrets) }
+            if !wasSeeded, variant() == "singleOption" { applySingleOptionVariant(context: context) }
+            return fixtures
+        }
+    }
+
+    /// The id of `fresh`'s connected source. Fixed, so a second seeding call
+    /// (the other window's) finds it.
+    static let freshSourceID = "review-fresh-timetable"
+
+    /// §22.1 `fresh`: the two built-ins, then one connected source imported
+    /// from `reportCISOverlap` — written by the same planner and applier the
+    /// connect sheet's `Import` uses, with no request. Idempotent.
+    @MainActor
+    static func seedFresh(context: ModelContext, now: Date, secrets: any SecretStore, zone: TimeZone = .current) {
+        BuiltInSource.ensure(in: context)
+        let sources = (try? context.fetch(FetchDescriptor<Source>())) ?? []
+        guard !sources.contains(where: { $0.id == freshSourceID }) else { return }
+        let result = fetchResult(of: ReviewFeed.reportCISOverlap(export: ReviewCISExport.text), now: now, zone: zone)
+        let source = Source.connected(
+            id: freshSourceID, displayName: "University timetable", serverURL: server.normalized,
+            username: MockCalDAVServer.username, principalHref: MockCalDAVServer.principal,
+            calendarHomeHref: MockCalDAVServer.home, calendars: [calendar], capabilities: result.capabilities,
+            paletteKey: Source.firstUnusedPaletteKey(existing: sources.map(\.paletteKey)))
+        context.insert(source)
+        try? secrets.save(password, for: SecretAccount(host: server.host, username: MockCalDAVServer.username),
+                          info: .forSource(id: source.id, displayName: source.displayName))
+        importFetched(result, into: source, context: context, now: now, zone: zone)
+    }
+
+    /// What a full Import-window read of `objects` hands the planner: the
+    /// connect sheet's `fetchResult()` for one calendar, built without a
+    /// request.
+    static func fetchResult(of objects: [MockCalDAVServer.Object], now: Date, zone: TimeZone) -> ScheduleFetchResult {
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = zone
+        let feedObjects = objects.compactMap { object -> FeedObject? in
+            guard case .calendar(let parsed) = ICSParser.parse(object.data, currentZone: zone) else { return nil }
+            return FeedObject(calendarHref: calendar.href, objectHref: object.href, calendar: parsed)
+        }
+        let feed = FeedDerivation.derive(feedObjects, today: cal.startOfDay(for: now), zone: zone)
+        var diagnostics = SyncDiagnostics()
+        diagnostics.calendarNames = [calendar.displayName]
+        diagnostics.objects = feed.objectCount
+        diagnostics.etags = objects.map { "\($0.href)=\($0.etag)" }
+        return ScheduleFetchResult(
+            events: feed.events, problems: feed.problems, objectCount: feed.objectCount, mergedCount: feed.mergedCount,
+            calendarsReadInFully: [calendar.href], failedCalendars: [], adoptedCalendars: [],
+            capabilities: SourceCapabilities(fetchMode: .report, timeRangeHonoured: true, discoveredAt: now),
+            diagnostics: diagnostics, principalHref: MockCalDAVServer.principal,
+            calendarHomeHref: MockCalDAVServer.home)
+    }
+
+    /// The Import: one planner pass and one applier transaction.
+    @MainActor
+    static func importFetched(_ result: ScheduleFetchResult, into source: Source, context: ModelContext, now: Date,
+                              zone: TimeZone) {
+        let plan = SyncPlanner.plan(
+            existing: SyncApplier.snapshot(of: source, in: context, zone: zone),
+            source: SourceSnapshot(feedHash: source.feedHash, lastFeedEventCount: source.lastFeedEventCount,
+                                   calendars: source.calendars, importedAt: source.importedAt),
+            result: result, kind: .import, now: now, zone: zone)
+        _ = try? SyncApplier.apply(plan, to: source, context: context, now: now)
+        try? context.save()
     }
 
     /// §22.1's review source and the manual all-day event. Idempotent.

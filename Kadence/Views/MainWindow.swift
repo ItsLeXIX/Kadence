@@ -116,8 +116,9 @@ struct MainWindow: View {
             // (components.md §13.6.5). See `MockData.seedAllIfNeeded` for why
             // seeding and the first pass are one call.
             let visibleEnd = state.visibleInterval.end
-            // G-057: fixtures only in review mode; a normal launch seeds nothing.
-            fixtures = ReviewMode.seedIfRequested(ReviewMode.dataset(), context: context) {
+            // G-057, G-076: fixtures only in review mode; a normal launch seeds
+            // nothing but the two built-in sources (§21.1.1).
+            fixtures = AppStore.seedLaunch(LaunchKind.current(), context: context) {
                 RoutineMaterialization.run(context: context, undo: undoStack, visibleEnd: visibleEnd)
             }
             // components.md §13.2 (task P2-T42): no `.shiftable` routine block

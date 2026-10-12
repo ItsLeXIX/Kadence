@@ -112,9 +112,10 @@ swiftc -O Scripts/lib/kadence-guard.swift -o "$WORK/kguard" 2>"$WORK/kguard.log"
 echo "building…"
 xcodebuild -scheme Kadence -destination 'platform=macOS' build >"$WORK/build.log" 2>&1 || { echo "FAIL: build"; exit 1; }
 APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debug/Kadence.app | head -1)
-STORE="$HOME/Library/Containers/XIX.Kadence/Data/Library/Application Support/default.store"
 quit_app() { for p in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill "$p" 2>/dev/null; done; sleep 2; }
-quit_app; rm -f "$STORE" "$STORE-wal" "$STORE-shm"
+# A review launch runs on its own in-memory store (PHASE3-REVIEW fix 1): fresh
+# by construction; no script touches the app's real store.
+quit_app
 open -n "$APP" --args -ApplePersistenceIgnoreState YES -KadenceReview phase2
 sleep 9
 PID=$(pgrep -f "Kadence.app/Contents/MacOS/Kadence" | head -1)

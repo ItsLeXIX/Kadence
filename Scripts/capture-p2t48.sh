@@ -133,8 +133,6 @@ KVK_RETURN=36; KVK_DOWN=125; KVK_ESC=53; KVK_R=15; KVK_RBRACKET=30; KVK_LBRACKET
 echo "building…"
 xcodebuild -scheme Kadence -destination 'platform=macOS' build >"$WORK/build.log" 2>&1 || { echo "FAIL: build"; exit 1; }
 APP=$(ls -d ~/Library/Developer/Xcode/DerivedData/Kadence-*/Build/Products/Debug/Kadence.app | head -1)
-STORE_DIR="$HOME/Library/Containers/XIX.Kadence/Data/Library/Application Support"
-STORE="$STORE_DIR/default.store"
 PID=""
 
 quit_app() { for p in $(pgrep -f "Kadence.app/Contents/MacOS/Kadence"); do kill "$p" 2>/dev/null; done; sleep 2; }
@@ -153,7 +151,10 @@ launch() {   # launch [extra args…]
   front; "$WORK/kguard" park "$PID" || { echo "STOP: could not park the pointer inside Kadence."; quit_app; exit 1; }
 }
 
-fresh_launch() { quit_app; rm -f "$STORE" "$STORE-wal" "$STORE-shm"; launch "$@"; }
+# A review launch runs on its own in-memory store (PHASE3-REVIEW fix 1,
+# components.md §22.1): every launch is fresh by construction, and no script
+# touches the app's real store.
+fresh_launch() { launch "$@"; }
 
 # Kadence must be frontmost before ANY click or key; otherwise stop.
 front() {
@@ -262,11 +263,10 @@ shoot_window routines "template-conflict-preview-p2t48.png"
 
 # ===================================================================== run 4
 echo "run 4: single option (Training ±15, Supervisor meeting 16:45–18:45)"
-quit_app
-sqlite3 "$STORE" "UPDATE ZROUTINEBLOCK SET ZSHIFTABLEMINUTES = 15 WHERE ZTITLE = 'Training';
-                  UPDATE ZEVENT SET ZSTART = ZSTART - 2700, ZEND = ZEND + 1800 WHERE ZTITLE = 'Supervisor meeting';" \
-  || { echo "  sqlite edit failed"; exit 1; }
-launch -KadenceConflictUnderTest "Supervisor meeting"
+# The two fixture edits are made by the review launch itself
+# (`-KadenceReviewVariant singleOption`, ReviewMode.swift): the review store
+# is in memory, so there is no file to edit between launches.
+launch -KadenceReviewVariant singleOption -KadenceConflictUnderTest "Supervisor meeting"
 XY=$(find 0 "id:needs-attention-row") || { echo "  needs-attention row not found"; exit 1; }
 click $XY
 shoot_window main "conflict-single-option-p2t48.png"

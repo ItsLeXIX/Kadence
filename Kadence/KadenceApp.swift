@@ -31,32 +31,34 @@ struct KadenceApp: App {
     @State private var router = SourcesRouter()
 
     init() {
-        do {
-            container = try ModelContainer(
-                for: Schema(KadenceSchema.models))
-        } catch {
-            // BRIEF-PRODUCT.md: errors surface in the UI, never as a crash.
-            // An unopenable store is unrecoverable at launch, so fall back to
-            // an in-memory one and let the UI say so rather than trapping.
-            let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-            container = (try? ModelContainer(
-                for: Schema(KadenceSchema.models),
-                configurations: configuration))
-                ?? ModelContainer.emptyFallback()
-            StoreHealth.shared.failedToOpenPersistentStore = true
-        }
+        // PHASE3-REVIEW.md fix 1 (components.md §22.1, G-076): the launch
+        // decides its store. Only a normal launch opens the real one; a
+        // review launch and the unit tests' host run on an in-memory store
+        // that is gone when the process quits.
+        let kind = LaunchKind.current()
+        let opened = AppStore.makeContainer(for: kind)
+        container = opened.container
+        // BRIEF-PRODUCT.md: errors surface in the UI, never as a crash.
+        if opened.failedToOpenPersistentStore { StoreHealth.shared.failedToOpenPersistentStore = true }
         // Swift note: `_sync` is the property wrapper's own storage; assigning
         // `State(initialValue:)` there is how an `init` seeds a `@State`.
-        if ReviewMode.dataset() != nil {
+        switch kind {
+        case .review(let dataset):
             // Review mode (task 10): the mocked CIS server, the review
-            // password in memory — no network, no Keychain. `phase2` too:
-            // it has no connected source, but its connect sheet must still
-            // never reach the network (the task 13 captures).
-            let server = ReviewMode.server(case: ReviewMode.mockCase(), now: Date())
+            // password in memory — no network, no Keychain. `phase2` and
+            // `empty` too: they have no connected source, but their connect
+            // sheet must still never reach the network.
+            let server = ReviewMode.server(case: ReviewMode.mockCase(), now: Date(), dataset: dataset)
             _sync = State(initialValue: SyncCoordinator.live(
                 context: container.mainContext, secrets: ReviewMode.secrets,
                 makeTransport: { MockCalDAVTransport(server: server) }))
-        } else {
+        case .testHost:
+            // The unit tests' host: no Keychain, and every request refused
+            // before it is sent.
+            _sync = State(initialValue: SyncCoordinator.live(
+                context: container.mainContext, secrets: InMemorySecretStore(),
+                makeTransport: { RefusingTransport() }))
+        case .normal:
             _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext))
         }
     }
@@ -149,19 +151,4 @@ extension KadenceApp {
 final class StoreHealth {
     @MainActor static let shared = StoreHealth()
     var failedToOpenPersistentStore = false
-}
-
-private extension ModelContainer {
-    /// Last resort so `init` never traps. If even this fails the app is in a
-    /// state no UI can help with, and `fatalError` is honest about it.
-    static func emptyFallback() -> ModelContainer {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        do {
-            return try ModelContainer(
-                for: Schema(KadenceSchema.models),
-                configurations: configuration)
-        } catch {
-            fatalError("SwiftData could not create even an in-memory store: \(error)")
-        }
-    }
 }

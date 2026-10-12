@@ -2186,3 +2186,49 @@ continues the sections above (D after D5, A after A36, B after B39).
   events (⌫ is the only path; the system's own pasteboard `Delete` is not
   wired to the grid), so there is no item to disable. Not built; open for
   the design agent (add the item, or drop the clause).
+
+## Phase 3 slice 1 — fix run (2026-10-12)
+
+Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
+1–11). Numbering continues the section above (B after B44).
+
+- **B45 — components.md §22.1: the unit tests' host launch is a third launch
+  kind, and it is in-memory too (P3-F1).** §22.1 names two launches — normal
+  and `-KadenceReview`. There is a third: `KadenceTests` is hosted by
+  Kadence.app (`TEST_HOST`), so every `xcodebuild … test` runs
+  `KadenceApp.init` and shows the main window. Before fix 1 that launch
+  opened **the real store** with the Keychain secret store and the real
+  transport, and ran the launch materialisation and the launch sync against
+  whatever the store held — after 9 Oct 23:15, Parsa's real CalDAV source.
+  Built: `LaunchKind.testHost` (XCTest's environment variables, the injected
+  XCTest library, or a loaded `XCTestCase` class) gets an in-memory store, an
+  `InMemorySecretStore` and `RefusingTransport` (every request fails as
+  offline before it is sent). A test asserts that the host process is a
+  test-host launch and holds no file descriptor on `default.store`. Not in
+  the spec; it is what "never touches the real store" needs to be true of a
+  test run. Open for the design agent to record in §22.1.
+- **Review tooling — `-KadenceReviewVariant singleOption`** (review mode
+  only, P3-F1). `capture-p2t48.sh` and `capture-p2f20.sh` made the Phase 2
+  "single option" fixture (`Training` ±15, `Supervisor meeting` 16:45–18:45)
+  by editing the store file with `sqlite3` between two launches. A review
+  store is in memory now, so the launch applies the same two edits when it
+  seeds. Same data, no file.
+- **Note — `check-conflict-apply-return.sh` reads its verdict from the app**
+  (P3-F1). It used to delete the store file and read `Focus review`'s
+  `ZSTART` from it with `sqlite3` before and after the `↩`. It now reads the
+  block's own time range from the Accessibility tree, before the keypress
+  and after it (before quitting): `20:00 21:00` → `20:20 21:00`, +20 min,
+  end unchanged. The keypress is still a real HID Return.
+- **Note — the CIS export is bundled with the app for `fresh`** (P3-F1).
+  §22.1's `fresh` dataset is "imported from `reportCISOverlap`", whose base
+  is `fixtures/cis-2026WS-redacted.ics`. Review mode cannot read the repo, so
+  a byte-for-byte copy sits at `Kadence/Review/cis-2026WS-redacted.ics`
+  (like `cis-review.ics.template`); a test asserts its SHA-256 equals the
+  repo file's. Read only by `ReviewCISExport`, only for `fresh`. `fixtures/`
+  is untouched.
+- **Note — tokens regenerated at 1.7.0 in P3-F1, not P3-F8.** The design
+  commit moved `tokens.json` to 1.7.0, so `generate-tokens --check` and the
+  version pin test were red from step 0. Each item must verify green, so
+  `Tokens.swift` was regenerated (only the fingerprint and the
+  `assignmentRule` string differ; no value changed) and the pin test updated
+  in fix 1. Fix 8 keeps the rest of its list.
