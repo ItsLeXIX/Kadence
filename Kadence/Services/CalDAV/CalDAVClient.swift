@@ -127,14 +127,14 @@ nonisolated enum CalDAVClient {
                 }
                 let name = objectName(href)
                 if response.status == 404 || response.status == 410 {
-                    // SPEC-GAP G-069: per-problem sentence.
-                    fetch.problems.append(ImportProblem(sentence: "1 event couldn't be read",
+                    // §19.3 "The sentences": a member that could not be read.
+                    fetch.problems.append(ImportProblem(sentence: ProblemSentence.unreadable,
                                                         technical: "Object \(name): GET \(response.status)"))
                     continue
                 }
                 if response.status >= 500 { throw CalendarFetchFailure.failed(.serverError(response.status)) }
                 guard response.status == 200 else {
-                    fetch.problems.append(ImportProblem(sentence: "1 event couldn't be read",
+                    fetch.problems.append(ImportProblem(sentence: ProblemSentence.unreadable,
                                                         technical: "Object \(name): GET \(response.status)"))
                     continue
                 }
@@ -201,13 +201,13 @@ nonisolated enum CalDAVClient {
         for item in responses {
             let name = objectName(item.href)
             if let status = item.status, status != 200 {
-                fetch.problems.append(ImportProblem(sentence: "1 event couldn't be read",   // SPEC-GAP G-069
+                fetch.problems.append(ImportProblem(sentence: ProblemSentence.unreadable,
                                                     technical: "Object \(name): \(status)"))
                 continue
             }
             guard let found = item.property(DAVNamespace.caldav, "calendar-data") else { continue }
             guard found.status == 200 else {
-                fetch.problems.append(ImportProblem(sentence: "1 event couldn't be read",   // SPEC-GAP G-069
+                fetch.problems.append(ImportProblem(sentence: ProblemSentence.unreadable,
                                                     technical: "Object \(name): calendar-data \(found.status)"))
                 continue
             }
@@ -220,11 +220,17 @@ nonisolated enum CalDAVClient {
     /// One object's `calendar-data`; a bad one is a problem, not a failure.
     private static func read(object text: String, href: String, calendar: URL, into fetch: inout CalendarFetch,
                              zone: TimeZone) {
+        // §20.8.2 / §19.3: an object over 1 MB is not read, and says so.
+        guard text.utf8.count <= ICSParser.maxObjectBytes else {
+            fetch.problems.append(ImportProblem(sentence: ProblemSentence.tooLarge,
+                                                technical: "Object \(objectName(href)): over 1 MB"))
+            return
+        }
         switch ICSParser.parse(text, currentZone: zone) {
         case .calendar(let parsed):
             fetch.objects.append(FeedObject(calendarHref: calendar.storedPath, objectHref: href, calendar: parsed))
         case .notACalendar:
-            fetch.problems.append(ImportProblem(sentence: "1 event couldn't be read",   // SPEC-GAP G-069
+            fetch.problems.append(ImportProblem(sentence: ProblemSentence.unreadable,
                                                 technical: "Object \(objectName(href)): not calendar data"))
         }
     }

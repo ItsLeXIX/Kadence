@@ -2315,3 +2315,27 @@ Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
   problem at a Week column, so it is fitted the same way: `Cancelled`
   whole, the source name truncating, dropped below four characters. Its
   full form is unchanged.
+- ~~**Placeholder copy — GAPS G-069**~~ and ~~**Placeholder — GAPS G-074**~~
+  (the Phase 3 slice 1 section above): **resolved in P3-F8.** The sentences
+  are `components.md` §19.3's table, exact; the done meta on solid fills is
+  §6's rule. No `// SPEC-GAP G-069` or `G-074` is left in `Kadence/`.
+- **Placeholder copy — GAPS G-081** (P3-F8). Two cases §19.3's table has no
+  row for: a present-but-unreadable `DTEND` / `DURATION` (the generic `1
+  event couldn't be read.`, technical line `… line 9: DTEND`), and `{title}`
+  mid-sentence in the `THISANDFUTURE` sentence when there is no `SUMMARY`
+  (`an event`). Both `// SPEC-GAP G-081` in `ICSParser.swift`. Not reachable
+  on CIS.
+- **Note — technical lines for a negative `DURATION` and a `GET` member**
+  (P3-F8). The table's technical line for its second row is `DTEND before
+  DTSTART`; a negative `DURATION` shares the row and the sentence, and its
+  technical line names what was actually wrong (`… line 7: negative
+  DURATION`). In `get` mode a member that fails keeps `Object obj-11.ics:
+  GET 404` (the table's `Object obj-11.ics: 404` is the `207` member form).
+- **B47 — an unclosed `BEGIN:VEVENT` inside a closed calendar was dropped
+  silently** (found and fixed in P3-F8). `ICSParser` reported `VEVENT not
+  closed` only when the text ended inside the VEVENT — but such a text has
+  no `END:VCALENDAR` and is refused earlier as not calendar data, so the
+  branch never ran; and a VEVENT that `END:VCALENDAR` closed over simply
+  vanished, uncounted. It is now §19.3's `1 event couldn't be read.` with
+  `Line 3: VEVENT not closed`, and the source reads `Imported with
+  problems` (so no deletion that sync, §20.8's guard).

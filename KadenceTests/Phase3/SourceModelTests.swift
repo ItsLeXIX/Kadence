@@ -154,7 +154,7 @@ struct SourceModelTests {
         source.lastFeedEventCount = 13
         source.state = .partialImport
         source.stateDetail = "1 of 13 events couldn't be read and were skipped. Nothing was removed."
-        source.problems = [ImportProblem(line: 9, sentence: "1 event couldn't be read", technical: "Object obj-07.ics, line 9: DTEND before DTSTART")]
+        source.problems = [ImportProblem(line: 9, sentence: "SWQM-ILV ends before it starts, so it was skipped.", technical: "Object obj-07.ics, line 9: DTEND before DTSTART")]
         source.lastEventCount = 12
         source.lastChangeAt = date + 3
         source.lastChangeAdded = 2

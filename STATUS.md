@@ -9979,3 +9979,50 @@ connecting for real.
 - Verify: xcresult **880 passed / 0 failed** (874 + 6); app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
   store's `stat` unchanged.
+
+## 128. P3-F8 — copy and tokens (PHASE3-REVIEW.md §8 fix 8; components.md §19.3 "The sentences", §6 (G-074); tokens.json 1.7.0)
+
+- `ProblemSentence` (`ICSParser.swift`): §19.3's table, exact — `{title} has
+  no identifier, so it was skipped.` / `{title} ends before it starts, so it
+  was skipped.` / `{title} has no readable start time, so it was skipped.` /
+  `1 event couldn't be read.` / `1 event was too large to read.` / `A change
+  to {title} and its later repeats was applied to one occurrence only.`
+  `{title}` is the SUMMARY as §20.7 treats a title — the course code for a
+  CIS-profile VEVENT (`CISProfile.init(summary:description:)`) — and `An
+  event` without one. Technical lines: `Object obj-07.ics, line 16: no UID`,
+  `… line 31: DTEND before DTSTART`, `… line 42: DTSTART`, `Object
+  obj-11.ics: not calendar data`, `Object obj-11.ics: 404`, `Object
+  obj-11.ics: over 1 MB`, `… line 84: RECURRENCE-ID;RANGE=THISANDFUTURE`;
+  for a plain file they start `Line 16:`. `CalDAVClient.read` checks the
+  1 MB limit itself, so a too-large object is said to be too large (it was
+  "not calendar data").
+- §6 / G-074: the `// SPEC-GAP` mark is gone; the done rule on the three
+  solid-fill kinds (label, glyph, time and meta all `text.primary`) is the
+  spec's, with its measured ratios in the comment.
+- Tokens: regenerated at 1.7.0 in fix 1 (§121); `--check` clean here, the
+  pin test at 1.7.0.
+- Found on the way (DEVIATIONS **B47**): an unclosed `BEGIN:VEVENT` inside a
+  closed calendar was dropped silently; it is now reported.
+- GAPS **G-081** opened (appended): an unreadable `DTEND` / `DURATION`, and
+  `{title}` mid-sentence without a SUMMARY — two `// SPEC-GAP G-081`
+  placeholders, neither reachable on CIS.
+- Tests (`ProblemSentenceTests.swift`, 11; one parameterised ×3) — exact
+  strings for every row: `malformed-partial.ics` as an object (the three
+  skipped events and the unsupported rule) and as a plain file (`Line 16:`);
+  `{title}` as a course code and as `An event`, a missing `DTSTART`, a
+  negative `DURATION`, a collapsed SUMMARY; `truncated.ics` and
+  `html-login.html` served as objects of a `REPORT` (`Object obj-11.ics: not
+  calendar data`), and a VEVENT left open in a closed calendar; an object
+  over 1 MB; a failed member of a `207` (`Object obj-11.ics: 404`);
+  `edge-cases.ics` with its override marked `RANGE=THISANDFUTURE` (the event
+  kept, the same events as without it) and its unknown-zone sentence
+  unchanged; no `SPEC-GAP G-069` / `G-074` and no old placeholder string in
+  `Kadence/`; tokens 1.7.0; a done block's label, glyph and meta are
+  `text.primary` on `.fixedTimed`, `.examAllDay` and `.eventAllDay` (also
+  when past), and stay `text.secondary` on routine and planned blocks.
+  Updated: three tests that pinned the placeholder technical lines, and the
+  partial-details render's two problems (now built from `ProblemSentence`).
+- Frame (item 10's partial-details render): recaptured in fix 11.
+- Verify: xcresult **891 passed / 0 failed** (880 + 11); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
+  store's `stat` unchanged.

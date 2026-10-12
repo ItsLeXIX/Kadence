@@ -234,9 +234,11 @@ func resolveBlockStyle(
         let solid = kind == .fixedTimed || kind == .examAllDay || kind == .eventAllDay
         style.glyphColor = solid ? Tokens.Color.Text.primary : Tokens.Color.Text.secondary
         style.label = solid ? Tokens.Color.Text.primary : Tokens.Color.Text.secondary
-        // SPEC-GAP G-074: §6's done amendment names the label and glyph only;
-        // the meta (time, source) kept `text.onSolid` at 0.8 and is unreadable
-        // on the light blend. Placeholder: the label's `text.primary`.
+        // §6 (amended 2026-10-10; closes G-074): on the solid-fill kinds
+        // **every** text element of a done block is `text.primary` — the
+        // time and the meta line too. `text.onSolid` at 0.8 on the done
+        // blend measures 1.65:1 light / 2.44:1 dark worst; `text.primary`
+        // 9.00 / 6.17 (`tokens.json` `$measured_1_7_0`).
         if solid { style.meta = Tokens.Color.Text.primary }
 
     case .cancelled:

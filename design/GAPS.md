@@ -2859,3 +2859,32 @@ blocker.
   recorded.
 - **G-058**, **G-059**, **G-060**, **G-062**, **G-063**, **G-064**, **G-065**,
   **G-067** — deferred, unchanged.
+
+---
+
+## 2026-10-12 — Phase 3 slice 1 fix run (coding agent, appended during the run)
+
+### G-081 — OPEN (coding agent, P3-F8). `components.md` §19.3 "The sentences": two cases the table has no row for.
+
+Building the sentence table (fix 8) left two cases without an exact string:
+
+1. **A `DTEND` or a `DURATION` that is present and cannot be read**
+   (`DTEND:garbage`, `DURATION:P1X`). The table has "`DTSTART` missing or
+   unreadable" and "`DTEND` before `DTSTART`, or a negative `DURATION`", but
+   not this: the start is readable, so "has no readable start time" would be
+   false, and nothing ends before it starts. **Placeholder** (`// SPEC-GAP
+   G-081`, `ICSParser.swift` `ProblemSentence.Skip.unreadable`): the table's
+   own generic sentence, `1 event couldn't be read.`, with the technical line
+   `Object obj-07.ics, line 9: DTEND` (or `DURATION`). Wanted: a sentence of
+   the `{title} … , so it was skipped.` form, or a ruling that the generic one
+   stands.
+2. **`{title}` in the `THISANDFUTURE` sentence when there is no readable
+   `SUMMARY`.** The table says that without one "the sentence starts `An
+   event`", which fits the three sentences that begin with `{title}`. In `A
+   change to {title} and its later repeats was applied to one occurrence
+   only.` the title is mid-sentence. **Placeholder** (`// SPEC-GAP G-081`,
+   `ProblemSentence.thisAndFuture`): `A change to an event and its later
+   repeats …` (lower-case `an`). Wanted: confirm, or the intended wording.
+
+Neither is reachable on CIS (its VEVENTs have `DTEND` in the fixture's form
+and no recurrence). Not blocking.

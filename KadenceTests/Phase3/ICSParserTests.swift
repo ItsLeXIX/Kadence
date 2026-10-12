@@ -156,7 +156,7 @@ struct ICSParserTests {
         #expect(parsed.allProblems.count == 3)
         #expect(parsed.problems.map(\.line) == [16, 31, 42])
         #expect(parsed.problems.map { $0.technical ?? "" } ==
-                ["line 16: UID missing", "line 31: DTEND before DTSTART", "line 42: DTSTART can't be read"])
+                ["Line 16: no UID", "Line 31: DTEND before DTSTART", "Line 42: DTSTART"])
         // The monthly series is read here; skipping it is task 4's fourth problem.
         #expect(parsed.events.contains { $0.rrule == "FREQ=MONTHLY;BYDAY=2MO" })
     }

@@ -361,6 +361,6 @@ struct FeedDerivationTests {
         #expect(feed.problems.count == 4)
         #expect(feed.problems.last?.sentence == "1 repeating event uses a rule Kadence can't read yet: Mathe Tutorium")
         #expect(feed.problems.last?.technical == "Object malformed-partial.ics, line 51: RRULE FREQ=MONTHLY;BYDAY=2MO")
-        #expect(feed.problems.first?.technical == "Object malformed-partial.ics, line 16: UID missing")
+        #expect(feed.problems.first?.technical == "Object malformed-partial.ics, line 16: no UID")
     }
 }

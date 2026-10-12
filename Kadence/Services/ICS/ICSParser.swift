@@ -113,6 +113,64 @@ nonisolated enum ICSParseResult: Sendable, Equatable {
     case notACalendar
 }
 
+// MARK: - The sentences (components.md §19.3, added 2026-10-10; closes G-069)
+
+/// One exact sentence per problem — what `Show Details` lists. `{title}` is
+/// the VEVENT's `SUMMARY` treated as §20.7 treats a title (for a CIS-profile
+/// event: its course code); with no readable `SUMMARY` the sentence starts
+/// `An event`.
+nonisolated enum ProblemSentence {
+    /// `BEGIN:VEVENT` never closed; an object that is not calendar data; a
+    /// failed member of a `207`.
+    static let unreadable = "1 event couldn't be read."
+    /// An object over 1 MB (§20.8.2).
+    static let tooLarge = "1 event was too large to read."
+
+    /// Why one VEVENT was skipped.
+    enum Skip: Sendable {
+        /// No `UID` (§20.2).
+        case noIdentifier
+        /// `DTEND` before `DTSTART`, or a negative `DURATION` (§20.4).
+        case endsBeforeStart
+        /// `DTSTART` missing or unreadable.
+        case noStart
+        /// SPEC-GAP G-081: §19.3's table has no row for a `DTEND` or
+        /// `DURATION` that is present and unreadable (its start is readable,
+        /// so "no readable start time" would be false). Placeholder: the
+        /// table's own generic sentence, with the property in the technical
+        /// line.
+        case unreadable
+
+        func sentence(title: String) -> String {
+            switch self {
+            case .noIdentifier: "\(title) has no identifier, so it was skipped."
+            case .endsBeforeStart: "\(title) ends before it starts, so it was skipped."
+            case .noStart: "\(title) has no readable start time, so it was skipped."
+            case .unreadable: ProblemSentence.unreadable
+            }
+        }
+    }
+
+    /// `RANGE=THISANDFUTURE` override (§20.5; the event is kept).
+    static func thisAndFuture(title: String?) -> String {
+        // SPEC-GAP G-081: with no readable SUMMARY the table's `An event`
+        // would fall mid-sentence; lower-cased here.
+        "A change to \(title ?? "an event") and its later repeats was applied to one occurrence only."
+    }
+
+    /// `{title}`, or nil when there is no readable `SUMMARY`.
+    static func readableTitle(summary: String?, description: String?) -> String? {
+        if let profile = CISProfile(summary: summary, description: description) { return profile.courseCode }
+        let collapsed = ICSFormat.collapse(summary ?? "")
+        return collapsed.isEmpty ? nil : collapsed
+    }
+
+    /// `{title}` at the start of a sentence: `An event` without one.
+    static func title(summary: String?, description: String?) -> String {
+        readableTitle(summary: summary, description: description) ?? "An event"
+    }
+}
+
 // MARK: - Parser
 
 nonisolated enum ICSParser {
@@ -310,7 +368,18 @@ nonisolated enum ICSParser {
                         if let event = makeEvent(props, line: veventLine, index: index) { events.append(event) }
                         index += 1
                     }
-                    if let at = stack.lastIndex(of: component) { stack.removeSubrange(at...) }
+                    if let at = stack.lastIndex(of: component) {
+                        // §19.3: a `BEGIN:VEVENT` that an outer `END` closes
+                        // over was never closed itself. It used to vanish
+                        // here without a word; now it is a problem, like one
+                        // left open at the end of the text.
+                        if at == 0, stack.count >= 2, stack[1] == "VEVENT" {
+                            problems.append(ImportProblem(
+                                line: veventLine, sentence: ProblemSentence.unreadable,
+                                technical: "Line \(veventLine): VEVENT not closed"))
+                        }
+                        stack.removeSubrange(at...)
+                    }
                     continue
                 }
                 // Only the VEVENT's own properties: not its VALARM's, not a
@@ -320,22 +389,24 @@ nonisolated enum ICSParser {
                 }
             }
             if stack.count >= 2 && stack[1] == "VEVENT" {
+                // §19.3 "The sentences": `BEGIN:VEVENT` never closed.
                 problems.append(ImportProblem(
-                    line: veventLine, sentence: "1 event couldn't be read",  // SPEC-GAP G-069
-                    technical: "line \(veventLine): VEVENT not closed"))
+                    line: veventLine, sentence: ProblemSentence.unreadable,
+                    technical: "Line \(veventLine): VEVENT not closed"))
             }
             return ParsedCalendar(events: events, problems: problems, unknownZones: unknownZones,
                                   currentZoneID: currentZone.identifier)
         }
 
-        private mutating func skip(_ line: Int, _ technical: String, summary: String?) -> ParsedVEvent? {
-            let title = summary.map { ICSParser.unescape($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            // SPEC-GAP G-069: §19.1 fixes the state body (`{k} of {n} events
-            // couldn't be read…`) and the technical-line form, but not the
-            // per-problem sentence for one skipped VEVENT. Placeholder until
-            // the design agent rules.
-            let sentence = (title?.isEmpty == false) ? "\(title!) couldn't be read" : "1 event couldn't be read"
-            problems.append(ImportProblem(line: line, sentence: sentence, technical: "line \(line): \(technical)"))
+        /// One skipped VEVENT: §19.3's exact sentence for `reason` and its
+        /// technical line (`Line 9: DTEND before DTSTART`; the derivation
+        /// puts `Object obj-07.ics, ` in front when it knows the object).
+        private mutating func skip(_ line: Int, _ reason: ProblemSentence.Skip, technical: String,
+                                   props: [(name: String, params: [String: String], value: String, line: Int)]) -> ParsedVEvent? {
+            func text(_ name: String) -> String? { props.first { $0.name == name }.map { ICSParser.unescape($0.value) } }
+            let title = ProblemSentence.title(summary: text("SUMMARY"), description: text("DESCRIPTION"))
+            problems.append(ImportProblem(line: line, sentence: reason.sentence(title: title),
+                                          technical: "Line \(line): \(technical)"))
             return nil
         }
 
@@ -348,29 +419,31 @@ nonisolated enum ICSParser {
             }
             let summary = first("SUMMARY")?.value
             guard let uid = first("UID")?.value.trimmingCharacters(in: .whitespaces), !uid.isEmpty else {
-                return skip(line, "UID missing", summary: summary)
+                return skip(line, .noIdentifier, technical: "no UID", props: props)
             }
             guard let dtstart = first("DTSTART") else {
-                return skip(line, "DTSTART missing", summary: summary)
+                return skip(line, .noStart, technical: "DTSTART", props: props)
             }
             var usedUnknown: String?
             guard let start = dateValue(dtstart.value, params: dtstart.params, unknown: &usedUnknown) else {
-                return skip(dtstart.line, "DTSTART can't be read", summary: summary)
+                return skip(dtstart.line, .noStart, technical: "DTSTART", props: props)
             }
             var end: ICSDateValue
             if let dtend = first("DTEND") {
                 guard let value = dateValue(dtend.value, params: dtend.params, unknown: &usedUnknown) else {
-                    return skip(dtend.line, "DTEND can't be read", summary: summary)
+                    return skip(dtend.line, .unreadable, technical: "DTEND", props: props)
                 }
                 guard value.instant >= start.instant else {
-                    return skip(dtend.line, "DTEND before DTSTART", summary: summary)
+                    return skip(dtend.line, .endsBeforeStart, technical: "DTEND before DTSTART", props: props)
                 }
                 end = value
             } else if let dur = first("DURATION") {
                 guard let seconds = ICSParser.duration(dur.value) else {
-                    return skip(dur.line, "DURATION can't be read", summary: summary)
+                    return skip(dur.line, .unreadable, technical: "DURATION", props: props)
                 }
-                guard seconds >= 0 else { return skip(dur.line, "negative DURATION", summary: summary) }
+                guard seconds >= 0 else {
+                    return skip(dur.line, .endsBeforeStart, technical: "negative DURATION", props: props)
+                }
                 end = start
                 end.instant = start.isDate
                     ? Self.addDays(Int(seconds / 86_400), to: start.instant, zone: currentZone)

@@ -79,8 +79,8 @@ struct SourceRenderTests {
         let context = ModelContext(container)
         let source = connected("p", "University timetable", state: .partialImport, key: .blue, in: context)
         source.problems = [
-            ImportProblem(line: 9, sentence: "SWQM-ILV couldn't be read", technical: "Object obj-07.ics, line 9: DTEND before DTSTART"),
-            ImportProblem(sentence: "1 event couldn't be read", technical: "Object obj-11.ics: not calendar data"),
+            ImportProblem(line: 9, sentence: ProblemSentence.Skip.endsBeforeStart.sentence(title: "SWQM-ILV"), technical: "Object obj-07.ics, line 9: DTEND before DTSTART"),
+            ImportProblem(sentence: ProblemSentence.unreadable, technical: "Object obj-11.ics: not calendar data"),
         ]
         source.stateDetail = SourceStatusPresentation.storedDetail(.partialImport, StatusFacts(
             host: "cis.technikum-wien.at", user: "user01", name: "University timetable", calendars: ["LVPlan"], k: 2, n: 14))

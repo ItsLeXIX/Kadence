@@ -155,7 +155,11 @@ nonisolated enum FeedDerivation {
             let name = objectName(object.objectHref)
             for problem in object.calendar.problems {
                 var p = problem
-                if let name, let technical = p.technical { p.technical = "Object \(name), \(technical)" }
+                // §19.3: `Object obj-07.ics, line 9: …`; without an object
+                // name (a plain file) the parser's own `Line 9: …` stands.
+                if let name, let technical = p.technical {
+                    p.technical = "Object \(name), " + technical.prefix(1).lowercased() + technical.dropFirst()
+                }
                 problems.append(p)
             }
             for use in object.calendar.unknownZones {
@@ -374,18 +378,19 @@ nonisolated enum FeedDerivation {
         return String(last).removingPercentEncoding ?? String(last)
     }
 
+    /// `Object obj-07.ics, line 12: …`, or `Line 12: …` for a plain file.
     private static func technical(_ item: Located, _ text: String) -> String {
-        let line = "line \(item.event.line): \(text)"
-        return item.object.map { "Object \($0), \(line)" } ?? line
+        let line = "ine \(item.event.line): \(text)"
+        return item.object.map { "Object \($0), l\(line)" } ?? "L\(line)"
     }
 
+    /// §19.3 "The sentences" (2026-10-10, closes G-069): the event is kept,
+    /// the override applied to its one occurrence.
     private static func rangeProblem(_ item: Located) -> ImportProblem {
-        let title = ICSFormat.collapse(item.event.summary ?? "")
-        // SPEC-GAP G-069: §20.5 says RANGE=THISANDFUTURE "is treated as a
-        // single-occurrence override and reported" without a sentence.
-        return ImportProblem(line: item.event.line,
-                             sentence: "1 change to a repeating event was applied to one occurrence only: \(title)",
-                             technical: technical(item, "RECURRENCE-ID;RANGE=THISANDFUTURE"))
+        ImportProblem(line: item.event.line,
+                      sentence: ProblemSentence.thisAndFuture(
+                          title: ProblemSentence.readableTitle(summary: item.event.summary, description: item.event.description)),
+                      technical: technical(item, "RECURRENCE-ID;RANGE=THISANDFUTURE"))
     }
 
     private enum Precedence { case wins, loses, ties }
@@ -587,8 +592,12 @@ nonisolated struct CISProfile {
     /// Matches when DESCRIPTION, unescaped and split on line breaks (trailing
     /// empty lines dropped), has exactly four lines, and line 1 trimmed equals
     /// SUMMARY's first whitespace-separated token. Per event, never per feed.
-    init?(_ e: ParsedVEvent) {
-        guard let description = e.description, let summary = e.summary else { return nil }
+    init?(_ e: ParsedVEvent) { self.init(summary: e.summary, description: e.description) }
+
+    /// From the two (unescaped) properties alone, so a VEVENT that could not
+    /// be parsed can still be named by its course code (§19.3 `{title}`).
+    init?(summary: String?, description: String?) {
+        guard let description, let summary else { return nil }
         var lines = description.components(separatedBy: "\n").map { $0.replacingOccurrences(of: "\r", with: "") }
         while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty { lines.removeLast() }
         guard lines.count == 4 else { return nil }
