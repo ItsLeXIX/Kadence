@@ -68,6 +68,9 @@ struct KadenceApp: App {
         // reopen the main window with `openWindow(id:)` when it is closed.
         WindowGroup(id: "main") {
             MainWindow()
+                // components.md §21.1.1 (fix 2): every scene keeps the
+                // source directory in step with the store's `Source` records.
+                .tracksSources()
                 .environment(calendar)
                 .environment(undoStack)
                 .environment(sync)
@@ -85,6 +88,7 @@ struct KadenceApp: App {
         // `id: "routines"` is what that command's `openWindow(id:)` targets.
         WindowGroup(id: "routines") {
             RoutinesWindow()
+                .tracksSources()
                 // task P2-T11: without this, `RoutinesWindow`'s
                 // `@Environment(UndoStack.self)` (needed so its drag/resize/
                 // delete edits go through the same `RoutineBlockStore` undo
@@ -107,6 +111,7 @@ struct KadenceApp: App {
         // layouts.md §11 — Settings ▸ Sources (Phase 3 task 12).
         Settings {
             SettingsView()
+                .tracksSources()
                 .environment(sync)
                 .environment(router)
                 .environment(calendar)
@@ -124,6 +129,7 @@ struct KadenceApp: App {
         // ⌘Z in the main window also undoes something done from the menu bar.
         MenuBarExtra {
             MenuBarPopoverView()
+                .tracksSources()
                 .environment(undoStack)
                 // Task P2-F18: `Open` selects the item in the main window.
                 .environment(calendar)

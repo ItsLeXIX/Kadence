@@ -24,6 +24,9 @@ enum Phase3Render {
     @discardableResult
     static func render(_ name: String, _ view: some View, size: CGSize, dark: Bool = false,
                        suffix: String = "p3") -> NSImage? {
+        // Fix 2 (components.md §21.1.1): a rendered view names its sources
+        // through the directory; outside a scene the test supplies it.
+        SourceCatalog.install(.testTimetable)
         let host = NSHostingView(rootView: view.environment(\.colorScheme, dark ? .dark : .light))
         host.frame = CGRect(origin: .zero, size: size)
         let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)

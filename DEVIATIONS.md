@@ -2232,3 +2232,41 @@ Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
   `Tokens.swift` was regenerated (only the fingerprint and the
   `assignmentRule` string differ; no value changed) and the pin test updated
   in fix 1. Fix 8 keeps the rest of its list.
+- **B46 — components.md §21.1.1: "`Event.sourceID` is set at creation from
+  then on" does not hold for routine instances (P3-F2).** A materialised
+  routine instance's `sourceID` is its template's id: it is half of §13.6's
+  `(sourceID, externalID)` pair, which materialisation, withdrawal,
+  tombstones and Re-sync all key on. It cannot also be `routine`. Built:
+  manual events get `personal` at creation (`EventStore.commit`); a routine
+  instance keeps its template id and resolves to the built-in `Daily
+  routine` by origin, exactly as the same bullet's read-time rule resolves
+  an event with no `sourceID`. Every lookup still goes through the record,
+  never the slot. Open for the design agent (reword the bullet, or rule a
+  second field).
+- **Note — sidebar order in the `phase2` / `phase3` review datasets**
+  (P3-F2). §21.1.1 orders a real store: the built-ins, then connected
+  sources by name. It gives no place to the six fixture `local` sources
+  those two datasets also hold. A store that holds any fixture local keeps
+  the palette order the datasets were reviewed in
+  (`SourceDirectory.sidebarOrder`); `empty`, `fresh` and a real store use
+  the spec's order. No value invented; the old order kept where the spec is
+  silent.
+- **Note — resolution order in review mode** (P3-F2). §22.1 resolves the
+  detached `Statistik übung` "to the `Source` holding its stored slot, in
+  review mode only". The Phase 2 dataset's mock manual and planned events
+  (amber, blue, pink …) have no `sourceID` either, and §21.1.1's origin rule
+  would turn every one of them into `Personal` (graphite) and change every
+  accepted Phase 2 frame. So in a review launch the slot fallback runs
+  before the origin rule, for any event whose `sourceID` names no record;
+  an id always wins. A real launch has no slot fallback at all
+  (`SourceDirectory.allowsSlotFallback`; a test pins both).
+- **Note — the all-day pill's VoiceOver label speaks the source's name**
+  (P3-F2). It spoke the palette slot's colour word (`fixture.source
+  .displayName`: `Orange`), which §3.4 / §11 never asked for. With the slot
+  lookup gone the pill carries its source's name (`AllDayFixture
+  .sourceName`) and speaks that.
+- **Note — an existing source keeps the slot it was given** (P3-F2). The
+  "never `graphite`" rule applies at creation. A source created before this
+  fix (Parsa's, on `graphite`) keeps `graphite` until it is removed and
+  connected again — but it now reads `University timetable` and shows the
+  timetable symbol, because nothing resolves by slot.

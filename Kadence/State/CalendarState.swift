@@ -59,7 +59,6 @@ final class CalendarState {
 
     // MARK: Filters (layouts.md §2)
 
-    var hiddenSources: Set<SourceKey> = []
     var showAllDayOnly = false
     var showTimedOnly = false
     var hideDone = false
@@ -690,8 +689,13 @@ final class CalendarState {
 
     // MARK: Filtering
 
-    func isVisible(_ event: Event) -> Bool {
-        if hiddenSources.contains(event.sourceKey) { return false }
+    /// components.md §21.1.1 (fix 2): source visibility is `Source.isVisible`
+    /// on the record the event's `sourceID` resolves to — persisted, and the
+    /// only visibility state. There is no set of hidden palette slots:
+    /// unchecking `Personal` hides manual events and nothing else, whatever
+    /// slot another source holds.
+    func isVisible(_ event: Event, sources: SourceDirectory = SourceCatalog.directory) -> Bool {
+        if !sources.info(for: event).isVisible { return false }
         if showAllDayOnly && !event.isAllDay { return false }
         if showTimedOnly && event.isAllDay { return false }
         if hideDone && event.status == .done { return false }

@@ -157,7 +157,7 @@ nonisolated enum ReviewMode {
             id: freshSourceID, displayName: "University timetable", serverURL: server.normalized,
             username: MockCalDAVServer.username, principalHref: MockCalDAVServer.principal,
             calendarHomeHref: MockCalDAVServer.home, calendars: [calendar], capabilities: result.capabilities,
-            paletteKey: Source.firstUnusedPaletteKey(existing: sources.map(\.paletteKey)))
+            paletteKey: Source.paletteKeyForNewSource(existing: sources.map(\.paletteKey)))
         context.insert(source)
         try? secrets.save(password, for: SecretAccount(host: server.host, username: MockCalDAVServer.username),
                           info: .forSource(id: source.id, displayName: source.displayName))

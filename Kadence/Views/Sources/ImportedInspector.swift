@@ -113,7 +113,10 @@ struct ImportedInspectorDetails: View {
     @State private var isSourcePopoverShown = false
 
     private var source: Source? { sources.first { $0.id == event.sourceID } }
-    private var sourceName: String { source?.displayName ?? SourceCatalog.name(for: event.sourceKey) }
+    /// layouts.md §6.1 rows 1 and 7 (fix 2): the event's own `Source`
+    /// record's name, slot and symbol.
+    private var sourceModel: InspectorSourceModel { InspectorSourceModel(event: event) }
+    private var sourceName: String { sourceModel.name }
 
     var body: some View {
         let model = GridBlockModel(event: event, now: now)
@@ -123,8 +126,8 @@ struct ImportedInspectorDetails: View {
             VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
                 HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.sm) {
                     Image(systemName: model.glyphOverride ?? "building.columns")
-                        .foregroundStyle(event.sourceKey.text)
-                    SourceSwatch(key: event.sourceKey, symbol: SourceCatalog.symbol(for: event.sourceKey), isOn: true)
+                        .foregroundStyle(sourceModel.key.text)
+                    SourceSwatch(key: sourceModel.key, symbol: sourceModel.symbol, isOn: true)
                     Text(event.title)
                         .lineLimit(3)
                         .typeStyle(.inspectorTitle)
@@ -227,7 +230,7 @@ struct ImportedInspectorDetails: View {
             label("Source")
             VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
                 HStack(spacing: Tokens.Spacing.sm) {
-                    SourceSwatch(key: event.sourceKey, symbol: SourceCatalog.symbol(for: event.sourceKey), isOn: true)
+                    SourceSwatch(key: sourceModel.key, symbol: sourceModel.symbol, isOn: true)
                     Text(sourceName).typeStyle(.inspectorValue).foregroundStyle(Tokens.Color.Text.primary)
                 }
                 if let line = ImportedInspectorCopy.syncLine(source, now: now, isSyncing: source.map(sync.isSyncing) ?? false),

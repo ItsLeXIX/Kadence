@@ -11,21 +11,13 @@ import SwiftData
 struct SidebarView: View {
     @Environment(CalendarState.self) private var state
     @Environment(\.openWindow) private var openWindow
-    /// layouts.md §2.1 (Phase 3): the rows come from `Source` records, in
-    /// palette order (the order slots are handed out, §21.1).
+    /// layouts.md §2.1 (Phase 3; amended 2026-10-10, fix 2): the rows are the
+    /// `Source` records — the two built-ins (`Personal`, `Daily routine`),
+    /// then the connected sources by name, each once
+    /// (`SourceDirectory.sidebarOrder`, components.md §21.1.1).
     @Query private var sourceRecords: [Source]
 
-    private var sources: [CalendarSource] { sortedRecords.map(\.calendarSource) }
-
-    private var sortedRecords: [Source] {
-        sourceRecords
-            .sorted { lhs, rhs in
-                let order = SourceKey.allCases
-                let l = order.firstIndex(of: lhs.paletteKey) ?? order.count
-                let r = order.firstIndex(of: rhs.paletteKey) ?? order.count
-                return l != r ? l < r : lhs.displayName < rhs.displayName
-            }
-    }
+    private var sortedRecords: [Source] { SourceDirectory.sidebarOrder(sourceRecords) }
 
     var body: some View {
         @Bindable var state = state
@@ -112,7 +104,6 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .environment(\.defaultMinListRowHeight, 24)
-        .onChange(of: sources, initial: true) { _, new in SourceCatalog.update(new) }
     }
 
     /// components.md §10.2 — never red, never a filled alert colour.

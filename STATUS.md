@@ -9705,3 +9705,65 @@ connecting for real.
   full test runs, six script launches): `stat` of `default.store`,
   `-shm`, `-wal` identical to the baseline in mtime, ctime, size and inode.
   I never opened, copied or read the files.
+
+## 122. P3-F2 — a source is its record: identity by id, built-in sources, palette, visibility (PHASE3-REVIEW.md §8 fix 2; components.md §21.1, §21.1.1; layouts.md §2.1, §6.1; tokens.json `sourcePalette.assignmentRule`; G-075)
+
+- `Kadence/State/SourceDirectory.swift` (new): `SourceInfo` (id, name,
+  slot, symbol, visibility) and `SourceDirectory`, a value built from the
+  `Source` records. `info(for: event)` resolves, in order: the record
+  whose id is `Event.sourceID`; (review launches only) the record holding
+  the event's stored slot; by origin — `.manual` → `personal`, `.routine` →
+  `routine`; a stand-in, unreachable in a real store. `sidebarOrder`: the
+  built-ins, then connected sources by name. `SourceCatalog` is the running
+  app's directory — `@Observable`, kept in step with the store by
+  `.tracksSources()` on every scene's root — so a rename, a recolour or a
+  checkbox redraws whatever names or filters by a source.
+  `InspectorSourceModel` is the inspector's title swatch and Source row.
+- Every lookup by palette slot is gone: `GridBlockModel(event:now:)` takes
+  name **and hue** from the record (`BlockModels.swift`; the old
+  `SourceCatalog.name(for: SourceKey)` and its `MockData.sources` fallback
+  are deleted); `InspectorView` and `ImportedInspector` draw the record's
+  swatch, symbol and name; the menu bar popover's rail and its read-only
+  refusal row; the all-day pill (`AllDayFixture.sourceName`).
+  `CalendarState.hiddenSources` is deleted: `isVisible(_:)` reads
+  `Source.isVisible` on the resolved record and the sidebar checkbox writes
+  it (persisted).
+- `Source.paletteKeyForNewSource(existing:)` (was `firstUnusedPaletteKey`):
+  the first free slot other than `graphite`; with all seven used, the least
+  used, ties to the earlier. Never `graphite`.
+- `EventStore.commit`: a manual event carries `sourceID` `personal` from
+  creation. Routine instances keep their template id (DEVIATIONS **B46**).
+- Tests (`SourceIdentityTests.swift`, 11; one parameterised ×3) — the
+  regression, from `fixtures/cis-2026WS-redacted.ics` through `reportCIS`:
+  a store with the two built-ins, a decoy source **on the timetable's own
+  slot** and the timetable on `graphite` (Parsa's store), `green` or `blue`
+  → all 12 imported `GridBlockModel`s read `University timetable` with the
+  timetable's slot; the `.full` meta line, hover help and the spoken label
+  contain `University timetable` and never `Personal`; the inspector model's
+  swatch and Source row are `tablecells.fill`, never `person.fill`. Events
+  without a `sourceID` resolve by origin; `⌘N`'s event carries `personal`.
+  Palette: seven cases incl. Parsa's (`seven + graphite` → `blue`), never
+  `graphite`; an Import into the Phase 2 dataset's eight-source store takes
+  `blue`, and its 13 lectures still resolve to it though the mock timetable
+  is blue too. **Unchecking `Personal` hides the manual event and none of
+  the 12 lectures, and survives a relaunch** (a store file in the test's own
+  temporary folder, reopened in a second container; the timetable on
+  `graphite`). `fresh`'s sidebar: `Personal`, `Daily routine`, `University
+  timetable`. Slot fallback is review-only. Production code (everything but
+  `Mock/` and `Review/`) never mentions `MockData.sources`, `hiddenSources`
+  or a by-slot name/symbol lookup, and its one imported-`Event` construction
+  passes `sourceID: source.id`; after an Import and a sync all 13 imported
+  events carry their source's id.
+- Updated tests: the palette test and `SourcesSettingsTests` (new function
+  name; all-used now → `blue`); `InspectorSourceRowTests` (by event, with
+  the dataset's directory); four Phase 3 tests that built events by hand
+  now pass `SourceDirectory.testTimetable`; `Phase3Render` installs it for
+  offscreen renders.
+- DEVIATIONS: **B46**; notes on the review datasets' sidebar order, the
+  review resolution order, the all-day pill's VoiceOver label, and an
+  existing source keeping its slot.
+- Frames (items 22, 23, 25; item 1 recaptured as 22): taken in fix 11, one
+  build.
+- Verify: xcresult **847 passed / 0 failed** (836 + 11); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
+  store's `stat` unchanged after the runs.

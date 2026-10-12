@@ -63,12 +63,12 @@ struct ImportedCanvasTests {
 
     @Test("The .full meta line: `University timetable · Online` / `· HS_A3.15`; hover Kind Exam / Lecture")
     func metaAndHover() {
-        let online = GridBlockModel(event: imported("INNO3-EL", online: true, location: "WEBINAR01"), now: TestClock.now)
-        let room = GridBlockModel(event: imported(), now: TestClock.now)
+        let online = GridBlockModel(event: imported("INNO3-EL", online: true, location: "WEBINAR01"), now: TestClock.now, sources: .testTimetable)
+        let room = GridBlockModel(event: imported(), now: TestClock.now, sources: .testTimetable)
         #expect(online.metaLine == "University timetable · Online")
         #expect(room.metaLine == "University timetable · HS_A3.15")
         #expect(room.hoverHelp == "SWQM-ILV · 09:00–10:30 · University timetable · Lecture")
-        let exam = GridBlockModel(event: imported("REQEN-EXAM", kind: .exam), now: TestClock.now)
+        let exam = GridBlockModel(event: imported("REQEN-EXAM", kind: .exam), now: TestClock.now, sources: .testTimetable)
         #expect(exam.hoverHelp.hasSuffix("· Exam"))
         #expect(exam.accessibilityLabel(presentation: []).contains("exam"))
     }
@@ -84,7 +84,7 @@ struct ImportedCanvasTests {
         #expect(s.glyph == "xmark.circle" && s.glyphColor == Tokens.Color.Text.primary)
         #expect(s.label == Tokens.Color.Text.primary && s.meta == Tokens.Color.Text.primary)
         #expect(s.badge == nil && s.trailingBar == nil)
-        let model = GridBlockModel(event: event, now: TestClock.now)
+        let model = GridBlockModel(event: event, now: TestClock.now, sources: .testTimetable)
         #expect(model.metaLine == "Cancelled · University timetable")
         #expect(model.accessibilityLabel(presentation: []).hasSuffix("cancelled"))
         let past = style(.fixedTimed, status: .cancelled, presentation: [.past], glyph: "building.columns")
@@ -105,7 +105,7 @@ struct ImportedCanvasTests {
     @Test("Hover shows no handles on an imported block: it is not movable")
     func noHandles() {
         #expect(!imported().isMovable)
-        #expect(!GridBlockModel(event: imported(), now: TestClock.now).isMovable)
+        #expect(!GridBlockModel(event: imported(), now: TestClock.now, sources: .testTimetable).isMovable)
     }
 
     @Test("G-055 regression: a ⌘⌥N all-day event appears in the all-day row")

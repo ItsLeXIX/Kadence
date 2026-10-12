@@ -141,7 +141,7 @@ struct ImportedInspectorTests {
         #expect(MenuBarPopoverKeys.actionButtons(isLate: true, isImported: true).map(\.title) == ["Done", "Open"])
         #expect(MenuBarPopoverKeys.actionButtons(isLate: true).map(\.title) == ["Re-offer", "Done", "Snooze", "Open"])
         let (_, store, undo, event) = try rig()
-        let row = try #require(MenuBarPopoverView.SnoozeConfirmation.perform(event, store: store))
+        let row = try #require(MenuBarPopoverView.SnoozeConfirmation.perform(event, store: store, sources: .testTimetable))
         #expect(row.refusalLines == MenuBarFormatting.RefusalLines(first: "Not moved — SWQM-ILV",
                                                                   second: "is read-only (University timetable)"))
         #expect(row.text == "Not moved — SWQM-ILV is read-only (University timetable)")
@@ -179,6 +179,6 @@ struct ImportedInspectorTests {
     func voiceOver() throws {
         let (_, _, _, event) = try rig()
         event.isCancelled = true
-        #expect(GridBlockModel(event: event, now: TestClock.now).accessibilityLabel(presentation: []).hasSuffix(", cancelled"))
+        #expect(GridBlockModel(event: event, now: TestClock.now, sources: .testTimetable).accessibilityLabel(presentation: []).hasSuffix(", cancelled"))
     }
 }

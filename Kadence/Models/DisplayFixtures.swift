@@ -34,11 +34,13 @@ extension AllDayFixture {
     /// An all-day `Event` as an all-day pill (§5.1): `DTEND` is exclusive,
     /// so the last day is the day before `end`.
     @MainActor
-    init(event: Event, now: Date, calendar: Calendar = .current) {
+    init(event: Event, now: Date, calendar: Calendar = .current, sources: SourceDirectory = SourceCatalog.directory) {
         let last = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: event.end))
             .map { max($0, calendar.startOfDay(for: event.start)) } ?? event.start
+        // §21.1.1 (fix 2): hue and name from the event's own `Source` record.
+        let source = sources.info(for: event)
         self.init(title: event.title, startDay: calendar.startOfDay(for: event.start), endDay: last, kind: .event,
-                  source: event.sourceKey, status: event.blockStatus(now: now))
+                  source: source.key, sourceName: source.name, status: event.blockStatus(now: now))
         eventID = event.id
         glyph = event.glyphOverride
         importKind = event.origin == .imported ? event.importKind : nil
@@ -55,6 +57,11 @@ struct AllDayFixture: Identifiable, Equatable, Sendable {
     var endDay: Date
     var kind: AllDayKind
     var source: SourceKey
+    /// The source's display name, for hover help and VoiceOver (§3.4). Set by
+    /// whoever builds the fixture — from the `Source` record for an event,
+    /// from the mock source's own name for a review fixture — so nothing
+    /// looks a name up by palette slot (§21.1.1).
+    var sourceName: String = ""
     var status: BlockStatus = .scheduled
     /// `.event` only: the event it draws, and its glyph (§2.1).
     var eventID: UUID?

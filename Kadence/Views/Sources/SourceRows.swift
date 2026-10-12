@@ -79,7 +79,7 @@ struct SidebarSourceRow: View {
         @Bindable var state = state
         let presentation = SourceStatusPresentation(source: source, now: state.now, isSyncing: sync.isSyncing(source))
         HStack(spacing: Tokens.Spacing.sm) {
-            SourceSwatch(key: source.paletteKey, symbol: source.symbol, isOn: !state.hiddenSources.contains(source.paletteKey))
+            SourceSwatch(key: source.paletteKey, symbol: source.symbol, isOn: source.isVisible)
             Text(source.displayName)
                 .typeStyle(.sidebarItem)
                 .foregroundStyle(Tokens.Color.Text.primary)
@@ -107,10 +107,13 @@ struct SidebarSourceRow: View {
             }
             .frame(width: Tokens.Size.statusSlotWidth)
             .padding(.trailing, Tokens.Spacing.xs)
+            // §21.1.1 (fix 2): the checkbox writes `Source.isVisible` on this
+            // row's own record, and the store keeps it across launches.
             Toggle("", isOn: Binding(
-                get: { !state.hiddenSources.contains(source.paletteKey) },
+                get: { source.isVisible },
                 set: { isOn in
-                    if isOn { state.hiddenSources.remove(source.paletteKey) } else { state.hiddenSources.insert(source.paletteKey) }
+                    source.isVisible = isOn
+                    try? context.save()
                 }))
                 .labelsHidden()
                 .toggleStyle(.checkbox)

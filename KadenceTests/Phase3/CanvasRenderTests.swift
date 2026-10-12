@@ -32,7 +32,7 @@ struct CanvasRenderTests {
     func cancelledBlock() throws {
         let event = try Self.cancelledEvent()
         #expect(event.isCancelled && event.title == "Statistik")
-        let model = GridBlockModel(event: event, now: TestClock.now)
+        let model = GridBlockModel(event: event, now: TestClock.now, sources: .testTimetable)
         #expect(model.status == .cancelled && model.metaLine == "Cancelled · University timetable")
         let view = GridBlockView(model: model, presentation: [], renderedHeight: 66)
             .frame(width: 180, height: 66)

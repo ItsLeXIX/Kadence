@@ -622,12 +622,12 @@ enum MockData {
             AllDayFixture(
                 title: "Abgabe: ER-Diagramm",
                 startDay: today, endDay: today,
-                kind: .deadline, source: .orange),
+                kind: .deadline, source: .orange, sourceName: "Coursework"),
             // 10. Exam with T−6d, teal.
             AllDayFixture(
                 title: "Prüfung: Datenmodellierung",
                 startDay: examDay, endDay: examDay,
-                kind: .exam, source: .teal),
+                kind: .exam, source: .teal, sourceName: "Exams"),
         ]
     }
 }

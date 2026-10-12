@@ -235,12 +235,22 @@ extension Source {
                        symbolOverride: symbolOverride)
     }
 
-    /// §21.1 `paletteKey` at creation: the first slot in
-    /// `color.sourcePalette.order` no other `Source` uses, or `graphite`
-    /// when all are used (the rule's own fallback).
-    static func firstUnusedPaletteKey(existing: [SourceKey]) -> SourceKey {
-        let used = Set(existing)
-        return SourceKey.allCases.first { !used.contains($0) } ?? .graphite
+    /// §21.1 `paletteKey` at creation (amended 2026-10-10, G-075;
+    /// `tokens.json` `sourcePalette.assignmentRule`): the first slot in
+    /// `color.sourcePalette.order` **other than `graphite`** that no other
+    /// `Source` uses; when all seven are used, the least-used of them (ties:
+    /// the earlier in the order). **Never `graphite`**: it is `Personal`'s —
+    /// manual events — and a timetable drawn in it is indistinguishable from
+    /// them (that is how Parsa's real lectures came to read `Personal`).
+    /// Sharing one of the seven is safe because a source is found by its id,
+    /// never by its slot (§21.1.1).
+    static func paletteKeyForNewSource(existing: [SourceKey]) -> SourceKey {
+        let assignable = SourceKey.allCases.filter { $0 != .graphite }
+        if let free = assignable.first(where: { !existing.contains($0) }) { return free }
+        func uses(_ key: SourceKey) -> Int { existing.filter { $0 == key }.count }
+        // Swift note: `min(by:)` keeps the first of equal elements, so a tie
+        // goes to the slot earlier in the order.
+        return assignable.min { uses($0) < uses($1) } ?? .blue
     }
 }
 

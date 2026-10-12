@@ -106,9 +106,11 @@ struct MenuBarPopoverView: View {
 
         /// Snoozes `event` and returns the row to show. The one path both
         /// the `Snooze` button and `⌥⌘↩` take (via `performSnooze`).
-        static func perform(_ event: Event, store: EventStore) -> SnoozeConfirmation? {
+        static func perform(_ event: Event, store: EventStore,
+                            sources: SourceDirectory = SourceCatalog.directory) -> SnoozeConfirmation? {
             if event.origin == .imported {
-                return readOnly(event, sourceName: SourceCatalog.name(for: event.sourceKey))
+                // §21.1.1 (fix 2): the name of the event's own `Source` record.
+                return readOnly(event, sourceName: sources.info(for: event).name)
             }
             let oldStart = event.start
             return make(for: event, oldStart: oldStart, result: store.snooze(event))
@@ -267,7 +269,7 @@ struct MenuBarPopoverView: View {
             sectionLabel("NEXT")
 
             HStack(spacing: 0) {
-                RailView(style: .solid, color: next.sourceKey.rail)
+                RailView(style: .solid, color: SourceCatalog.directory.info(for: next).key.rail)
                 VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
                     Text(next.title)
                         .typeStyle(.popoverNextTitle)

@@ -142,8 +142,14 @@ enum BlockConflict: Equatable, Sendable {
 }
 
 extension GridBlockModel {
+    /// components.md §21.1.1 (fix 2, G-075): the block's source is the
+    /// `Source` record `Event.sourceID` names. Its name and its hue come from
+    /// that record — never from whichever source shares the event's stored
+    /// palette slot. `sources` defaults to the running app's directory; tests
+    /// pass their own.
     @MainActor
-    init(event: Event, now: Date) {
+    init(event: Event, now: Date, sources: SourceDirectory = SourceCatalog.directory) {
+        let source = sources.info(for: event)
         self.init(
             id: event.id,
             title: event.title,
@@ -153,42 +159,12 @@ extension GridBlockModel {
             kind: event.blockKind,
             flexibility: event.flexibility,
             status: event.blockStatus(now: now),
-            source: event.sourceKey,
-            sourceName: SourceCatalog.name(for: event.sourceKey),
+            source: source.key,
+            sourceName: source.name,
             glyphOverride: event.glyphOverride,
             isMovable: event.isMovable,
             importKind: event.origin == .imported ? event.importKind : nil,
             isOnline: event.isOnline)
-    }
-}
-
-/// Source name and symbol by palette slot. Phase 3 task 1: the catalogue is
-/// the `Source` records (components.md §21.1), mirrored here by the views that
-/// query them (`SourceCatalog.update`) so value-type models built outside a
-/// view (`GridBlockModel(event:now:)`) can still name their source. A slot no
-/// record holds falls back to the static mock list's name, then the slot name.
-@MainActor
-enum SourceCatalog {
-    /// Swift note: a `static var` on a `@MainActor` type is main-actor-isolated
-    /// global state — the compiler rejects reads from other threads.
-    private(set) static var records: [CalendarSource] = []
-
-    static func update(_ sources: [CalendarSource]) {
-        if sources != records { records = sources }
-    }
-
-    private static func source(for key: SourceKey) -> CalendarSource? {
-        records.first { $0.key == key } ?? MockData.sources.first { $0.key == key }
-    }
-
-    static func name(for key: SourceKey) -> String {
-        source(for: key)?.name ?? key.displayName
-    }
-
-    /// components.md §10.1 — the symbol comes from the source, and an
-    /// unclassified one falls back to a plain disc rather than an error glyph.
-    static func symbol(for key: SourceKey) -> String {
-        source(for: key)?.symbol ?? CalendarSourceKind.unknown.symbol
     }
 }
 

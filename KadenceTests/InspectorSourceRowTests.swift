@@ -18,7 +18,10 @@ struct InspectorSourceRowTests {
 
     /// Monday 5 Oct 2026, 12:00 — a template day, so `Daily routine`
     /// materialises instances today.
-    private func seededEvents() throws -> [Event] {
+    /// The Phase 2 dataset and its source directory. Its mock events carry
+    /// no `sourceID`, so — as in a review launch (components.md §22.1) — they
+    /// resolve to the source holding their slot.
+    private func seeded() throws -> ([Event], SourceDirectory) {
         let now = try #require(Calendar.current.date(from: DateComponents(
             year: 2026, month: 10, day: 5, hour: 12)))
         let container = try ModelContainer(
@@ -29,26 +32,32 @@ struct InspectorSourceRowTests {
         MockData.seedAllIfNeeded(context, now: now) {
             RoutineMaterialization.run(context: context, undo: undo, visibleEnd: nil, today: now)
         }
-        return try context.fetch(FetchDescriptor<Event>())
+        return (try context.fetch(FetchDescriptor<Event>()),
+                SourceDirectory(try context.fetch(FetchDescriptor<Source>()), allowsSlotFallback: true))
     }
 
     @Test("A materialised Daily routine instance reads `Daily routine`")
     func routineInstance() throws {
-        let instance = try #require(try seededEvents().first { $0.origin == .routine })
-        #expect(InspectorView.sourceRowName(for: instance.sourceKey) == "Daily routine")
+        let (events, sources) = try seeded()
+        let instance = try #require(events.first { $0.origin == .routine })
+        #expect(InspectorView.sourceRowName(for: instance, sources: sources) == "Daily routine")
     }
 
     @Test("An imported lecture reads `University timetable`")
     func importedLecture() throws {
-        let lecture = try #require(try seededEvents().first {
+        let (events, sources) = try seeded()
+        let lecture = try #require(events.first {
             $0.origin == .imported && $0.sourceKey == .blue
         })
-        #expect(InspectorView.sourceRowName(for: lecture.sourceKey) == "University timetable")
+        #expect(InspectorView.sourceRowName(for: lecture, sources: sources) == "University timetable")
     }
 
-    @Test("No source's row ever reads a palette colour word", arguments: SourceKey.allCases)
-    func neverAColourWord(_ key: SourceKey) {
-        let name = InspectorView.sourceRowName(for: key)
-        #expect(!SourceKey.allCases.map(\.displayName).contains(name))
+    @Test("No event's row ever reads a palette colour word")
+    func neverAColourWord() throws {
+        let (events, sources) = try seeded()
+        let words = SourceKey.allCases.map(\.displayName)
+        for event in events {
+            #expect(!words.contains(InspectorView.sourceRowName(for: event, sources: sources)))
+        }
     }
 }

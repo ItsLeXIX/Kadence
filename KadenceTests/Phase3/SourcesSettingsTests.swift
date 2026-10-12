@@ -86,7 +86,7 @@ struct SourcesSettingsTests {
         #expect(try f.context.fetch(FetchDescriptor<Event>()).allSatisfy { $0.sourceID != "timetable" })
         #expect(try conflicts() == 13)  // the source's one conflict (SWRM-ILV × Training) is gone
         let used = try f.context.fetch(FetchDescriptor<Source>()).map(\.paletteKey).filter { $0 != .blue }
-        #expect(Source.firstUnusedPaletteKey(existing: used) == .blue)  // the slot is free again
+        #expect(Source.paletteKeyForNewSource(existing: used) == .blue)  // the slot is free again
     }
 
     @Test("The alert: Cancel is the default button; the text says `password deleted from the Keychain`")

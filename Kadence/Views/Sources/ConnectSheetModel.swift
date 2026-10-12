@@ -414,7 +414,7 @@ final class ConnectSheetModel {
             serverURL: address.normalized, username: trimmedUsername, principalHref: discovery?.principalHref,
             calendarHomeHref: discovery?.calendarHomeHref,
             calendars: checkedCalendars.map { SourceCalendar(href: $0.calendar.href, displayName: $0.calendar.displayName) },
-            capabilities: result.capabilities, paletteKey: Source.firstUnusedPaletteKey(existing: used))
+            capabilities: result.capabilities, paletteKey: Source.paletteKeyForNewSource(existing: used))
         context.insert(source)
         try? context.save()
         // 3. The events already fetched, in one transaction (the Import).

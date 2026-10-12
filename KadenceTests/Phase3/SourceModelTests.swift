@@ -116,14 +116,16 @@ struct SourceModelTests {
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<Source>()) == 0)
     }
 
-    @Test("paletteKey: the first unused slot in palette order, graphite when all are used")
+    @Test("paletteKey: the first unused slot in palette order, never graphite (amended 2026-10-10, G-075)")
     func paletteKeyAssignment() {
-        #expect(Source.firstUnusedPaletteKey(existing: []) == .blue)
-        #expect(Source.firstUnusedPaletteKey(existing: [.blue]) == .teal)
-        #expect(Source.firstUnusedPaletteKey(existing: [.teal, .blue, .amber]) == .green)
+        #expect(Source.paletteKeyForNewSource(existing: []) == .blue)
+        #expect(Source.paletteKeyForNewSource(existing: [.blue]) == .teal)
+        #expect(Source.paletteKeyForNewSource(existing: [.teal, .blue, .amber]) == .green)
         let allButPurple = SourceKey.allCases.filter { $0 != .purple && $0 != .graphite }
-        #expect(Source.firstUnusedPaletteKey(existing: allButPurple) == .purple)
-        #expect(Source.firstUnusedPaletteKey(existing: SourceKey.allCases) == .graphite)
+        #expect(Source.paletteKeyForNewSource(existing: allButPurple) == .purple)
+        // All eight used: the least-used of the seven, the earliest on a tie —
+        // not graphite, which was the old fallback (SourceIdentityTests).
+        #expect(Source.paletteKeyForNewSource(existing: SourceKey.allCases) == .blue)
         // The order is tokens.json's color.sourcePalette.order.
         #expect(SourceKey.allCases.map(\.rawValue) ==
                 ["blue", "teal", "green", "amber", "orange", "pink", "purple", "graphite"])

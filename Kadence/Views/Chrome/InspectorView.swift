@@ -76,13 +76,16 @@ struct InspectorView: View {
     @ViewBuilder
     private func details(for event: Event) -> some View {
         let model = GridBlockModel(event: event, now: now)
+        // §21.1.1 (fix 2): the swatch and the Source row are the event's own
+        // `Source` record's, found by id.
+        let source = InspectorSourceModel(event: event)
 
         HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.sm) {
             Image(systemName: model.glyphOverride ?? "calendar")
-                .foregroundStyle(event.sourceKey.text)
+                .foregroundStyle(source.key.text)
             SourceSwatch(
-                key: event.sourceKey,
-                symbol: SourceCatalog.symbol(for: event.sourceKey),
+                key: source.key,
+                symbol: source.symbol,
                 isOn: true)
             Text(event.title)
                 .typeStyle(.inspectorTitle)
@@ -103,7 +106,7 @@ struct InspectorView: View {
         // layouts.md §6 row 4 (amended 2026-10-05) and components.md §3.4:
         // swatch + the source's NAME as the sidebar lists it. The palette
         // slot's `displayName` (`Green`) is a colour word, never a source name.
-        sourceField(for: event.sourceKey)
+        sourceField(source)
         field("Origin", event.origin.rawValue)
 
         // §13.4: "one line, `inspectorLabel` / `inspectorValue`, reading
@@ -211,18 +214,18 @@ struct InspectorView: View {
 
     /// The Source row's value text. `static` so a test can check it without
     /// rendering a view (Swift's equivalent of a pure helper method).
-    static func sourceRowName(for key: SourceKey) -> String {
-        SourceCatalog.name(for: key)
+    static func sourceRowName(for event: Event, sources: SourceDirectory = SourceCatalog.directory) -> String {
+        InspectorSourceModel(event: event, sources: sources).name
     }
 
     /// Same label/value grid as `field(_:_:)`, with the sidebar's swatch
     /// leading the value.
-    private func sourceField(for key: SourceKey) -> some View {
+    private func sourceField(_ source: InspectorSourceModel) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
             label("Source")
             HStack(alignment: .center, spacing: Tokens.Spacing.sm) {
-                SourceSwatch(key: key, symbol: SourceCatalog.symbol(for: key), isOn: true)
-                Text(Self.sourceRowName(for: key))
+                SourceSwatch(key: source.key, symbol: source.symbol, isOn: true)
+                Text(source.name)
                     .typeStyle(.inspectorValue)
                     .foregroundStyle(Tokens.Color.Text.primary)
             }

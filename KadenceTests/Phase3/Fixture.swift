@@ -8,6 +8,7 @@
 //
 
 import Foundation
+@testable import Kadence
 
 nonisolated enum Fixture {
     /// Swift note: `Bundle(for:)` needs a class that lives in the test bundle;
@@ -51,4 +52,16 @@ nonisolated enum TestClock {
     }
 
     static var now: Date { date("2026-10-08 10:00") }
+}
+
+/// The directory the Phase 3 tests' hand-built events resolve against: one
+/// connected source with the id those events carry (`timetable`), plus the
+/// two built-ins. Since fix 2 (components.md §21.1.1) a source is found by
+/// its id, so a test that builds an event by hand names its sources too.
+extension SourceDirectory {
+    nonisolated static let testTimetable = SourceDirectory(infos: [
+        SourceInfo(id: "personal", name: "Personal", key: .graphite, symbol: "person.fill"),
+        SourceInfo(id: "routine", name: "Daily routine", key: .green, symbol: "rectangle.stack.fill"),
+        SourceInfo(id: "timetable", name: "University timetable", key: .blue, symbol: "tablecells.fill", isConnected: true),
+    ])
 }

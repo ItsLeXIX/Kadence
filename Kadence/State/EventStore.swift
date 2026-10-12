@@ -89,7 +89,11 @@ struct EventStore {
             end: draft.end,
             isAllDay: draft.isAllDay,
             origin: .manual,
-            sourceKey: .graphite)
+            // components.md §21.1.1 (fix 2): `Event.sourceID` is set at
+            // creation — a manual event belongs to the built-in `Personal`.
+            // `sourceKey` stays as the stored copy of its slot.
+            sourceKey: BuiltInSource.personal.paletteKey,
+            sourceID: BuiltInSource.personal.id)
         let snapshot = EventSnapshot(template)
 
         undo.perform("New Event",
