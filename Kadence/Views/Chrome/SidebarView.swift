@@ -33,7 +33,7 @@ struct SidebarView: View {
             // Task P2-T46: the count includes template conflicts (§13.6.2's
             // third surface), and activating one opens the Routines window
             // (§14.6), because none of its options apply to a day.
-            if state.needsAttentionCount > 0 {
+            if SidebarSourcesRule.showsNeedsAttentionRow(count: state.needsAttentionCount) {
                 Button {
                     if case .template? = state.activateNeedsAttention() { RoutinesWindowOpener.open(using: openWindow) }
                 } label: {

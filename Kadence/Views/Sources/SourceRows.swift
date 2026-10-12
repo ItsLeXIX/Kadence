@@ -52,6 +52,10 @@ enum SourceActionRouting {
 nonisolated enum SidebarSourcesRule {
     static func showsConnectRow(connectedCount: Int) -> Bool { connectedCount == 0 }
 
+    /// components.md §10.2: the Needs attention row is hidden entirely at
+    /// zero — no empty-state counter, no zero badge.
+    static func showsNeedsAttentionRow(count: Int) -> Bool { count > 0 }
+
     /// §19.4's lines for the menu bar popover: every connected source's
     /// stale line, two at most, then `+N more sources not synced`.
     @MainActor

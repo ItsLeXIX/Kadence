@@ -9872,3 +9872,27 @@ connecting for real.
 - Verify: xcresult **863 passed / 0 failed** (854 + 9); app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
   store's `stat` unchanged.
+
+## 125. P3-F5 — two imported events never conflict (PHASE3-REVIEW.md §8 fix 5; components.md §20.9, stated 2026-10-10)
+
+- No behaviour change: `ConflictEngine.detect` only ever pairs a routine
+  occurrence with a manual or imported event (`routineOtherPair`), so two
+  lectures were never a conflict. The rule is now pinned by tests. One line
+  of production code moved: the sidebar's "hidden at zero" test for the
+  Needs attention row is `SidebarSourcesRule.showsNeedsAttentionRow(count:)`
+  (§10.2), so a test can assert the row is hidden.
+- Tests — the regression, from `fixtures/cis-2026WS-redacted.ics` through
+  `reportCISOverlap` on the `fresh` dataset, clock **2026-10-01 10:00** (so
+  Fri 2 Oct is not history) (`ImportedOverlapTests.swift`, 4): 13 events,
+  all imported; `BPREF-Info` 18:35–20:15 `[L05, L06]` and `BPREF-Info`
+  19:30–20:15 `[L07]` overlap **45 min**; `ConflictEngine.detect` returns
+  none (with the clock, without it, and for the pair alone); the
+  needs-attention count is 0 and the row is hidden. Lectures of two
+  different sources that overlap: 0. **With a routine block over
+  19:00–20:00 that day: exactly two conflicts, each the routine block ×
+  one session** (overlaps 60 and 30 min), never session × session. At a
+  clock after 2 Oct the pair is history: 0.
+- Frame (item 23, no Needs attention row): taken in fix 11.
+- Verify: xcresult **867 passed / 0 failed** (863 + 4); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
+  store's `stat` unchanged.
