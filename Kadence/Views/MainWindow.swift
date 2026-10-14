@@ -363,7 +363,6 @@ struct MainWindow: View {
             event: selectedEvent,
             dayEvents: eventsOnAnchorDay,
             day: state.anchor,
-            travel: selectedEvent.flatMap { fixtures.travel(forEvent: $0.id) },
             now: state.now,
             store: store,
             conflict: activeConflict,
@@ -465,7 +464,10 @@ struct MainWindow: View {
     /// reason as `conflictedEventIDs`: `KadenceTests` drives it directly.
     /// The fixtures plus the store's all-day events (components.md §5.1, G-055).
     private var canvasFixtures: MockFixtures {
-        fixtures.adding(events: events.filter { state.isVisible($0) }, now: state.now)
+        var copy = fixtures.adding(events: events.filter { state.isVisible($0) }, now: state.now)
+        // Slice 2 (§25): the bands and leg phrases from the stored legs.
+        copy.travelInfo = travel.travelInfo()
+        return copy
     }
 
     @MainActor

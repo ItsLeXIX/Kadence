@@ -160,6 +160,11 @@ struct ImportedInspectorDetails: View {
                 field(ImportedInspectorCopy.locationLabel(isCISProfile: event.courseCode != nil),
                       ImportedInspectorCopy.locationValue(location, isOnline: event.isOnline))
             }
+            // layouts.md §6.1 (amended 2026-10-14): `Place` as text, then
+            // `Leave by`; an online event has neither.
+            if !event.isOnline, !event.isAllDay {
+                TravelInspectorRows(event: event, store: store, now: now)
+            }
             // 7: source + sync line; origin.
             sourceRow
             field("Origin", "Imported")

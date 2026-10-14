@@ -567,6 +567,50 @@ final class TravelCoordinator {
 
     // MARK: Reading
 
+    /// Every leg as the canvas shows it (§25), by event id. Reads `revision`
+    /// so a view that calls it redraws when a pass writes.
+    func travelInfo() -> [UUID: TravelInfo] {
+        _ = revision
+        let names = placeNames()
+        var result: [UUID: TravelInfo] = [:]
+        for leg in (try? context.fetch(FetchDescriptor<TravelLeg>())) ?? [] {
+            result[leg.eventID] = TravelPresentation.info(LegValues(leg), placeNames: names, calendar: calendar)
+        }
+        return result
+    }
+
+    func placeNames() -> [String: String] {
+        Dictionary(((try? context.fetch(FetchDescriptor<KnownPlace>())) ?? []).map { ($0.id, $0.name) },
+                   uniquingKeysWith: { a, _ in a })
+    }
+
+    /// `Try Again` (§24.6 occasion 3): one request now at priority 0 for the
+    /// event's leg, still subject to a pause.
+    func tryAgain(eventID: UUID) {
+        guard let leg = leg(for: eventID).map(LegValues.init), leg.originKind == .place,
+              let originID = leg.originPlaceID,
+              let event = ((try? context.fetch(FetchDescriptor<Event>(predicate: #Predicate { $0.id == eventID }))) ?? []).first
+        else { return }
+        let places = Dictionary(((try? context.fetch(FetchDescriptor<KnownPlace>())) ?? []).map { ($0.id, PlaceSnapshot($0)) },
+                                uniquingKeysWith: { a, _ in a })
+        guard let origin = places[originID]?.endpoint, let destination = places[leg.destinationPlaceID]?.endpoint else { return }
+        let arrival = event.start.addingTimeInterval(-leg.buffer)
+        let key = TravelCacheKey(origin: origin, destination: destination, mode: leg.mode, arrival: arrival, calendar: calendar)
+        queue.tryAgain(TravelLegPlanner.Request(
+            key: key.string, origin: origin, destination: destination, mode: leg.mode, arrivingBy: arrival, priority: 0,
+            eventStart: event.start, eventIDs: [eventID], dayType: key.dayType, slotMinutes: key.slotMinutes,
+            originPlaceID: originID, destinationPlaceID: leg.destinationPlaceID))
+    }
+
+    /// The previous event an event chains from at its own place (§24.2's
+    /// `P`), for the inspector's `No travel needed after …`.
+    func chainedTitle(for eventID: UUID) -> String? {
+        _ = revision
+        guard let output = lastOutput, output.legs[eventID] == nil, let previous = output.chainedFrom[eventID]
+        else { return nil }
+        return ((try? context.fetch(FetchDescriptor<Event>(predicate: #Predicate { $0.id == previous }))) ?? []).first?.title
+    }
+
     /// The leg the store holds for an event.
     func leg(for eventID: UUID) -> TravelLeg? { TravelLegs.leg(for: eventID, in: context) }
 

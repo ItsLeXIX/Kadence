@@ -115,6 +115,7 @@ nonisolated enum ReviewTravel {
     /// pairs, buffer 0, and `Coffee with Nora` at `Café Sperl`. Idempotent.
     @MainActor
     static func seedPhase(context: ModelContext, now: Date) {
+        TravelBuiltIns.ensure(in: context)
         let places = Dictionary(((try? context.fetch(FetchDescriptor<KnownPlace>())) ?? []).map { ($0.id, $0) },
                                 uniquingKeysWith: { a, _ in a })
         guard places[cafeID] == nil else { return }

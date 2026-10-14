@@ -10909,3 +10909,44 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   (`off` and `not-allowed-yet` with `Routine` switched off, its pop-up
   disabled). Looked at.
 - Verify: **1051 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T16 — the band live, and the inspector
+
+- `TravelFixture` and `MockData.makeTravel` are **deleted**. The band is fed
+  by the event's `TravelLeg` with a time: `TravelCoordinator.travelInfo()`
+  → `MockFixtures.travelInfo` → `DayColumnView` (layout engine, case 1 /
+  case 2 unchanged; no band at a drag's drop preview).
+- `Kadence/Views/Blocks/TravelPresentation.swift` (pure): the band label
+  (`Leave 08:15` / `· 35min`, `· ≈35min` for an estimate; below 18pt
+  `Leave ≈08:15`; below 14pt the glyph), §25.1's hover help (buffer term
+  omitted at 0; `from where you are`), §25.3's hover suffix and §29's
+  phrase for a leg with no time, folded into `GridBlockModel`'s hover help
+  and VoiceOver label after the time; the inspector's `Leave by` row in its
+  four states with §24.10's sentences and buttons (`Add Address…`, `Change
+  Way to Travel…`, `Try Again` — disabled while paused with `Kadence will
+  try at HH:mm`), and its §29 label.
+- `Kadence/Views/Chrome/TravelInspectorRows.swift`: `Place` (a pop-up for a
+  manual timed event — `None` · places · `Edit Places…`; text for an
+  imported, non-online one, under `Room`) with `No travel needed after …`,
+  and `Leave by`; `Add Address…` / `Change Way to Travel…` open Settings ▸
+  Travel with the focus request; `Try Again` →
+  `TravelCoordinator.tryAgain` (one priority-0 request). Never
+  `semantic.now`. Without a travel coordinator in the environment (older
+  renders) the rows draw nothing.
+- `EventStore.setPlace` (`Set Place`, one undo step; the current value
+  writes nothing; never an imported event). `ReviewTravel.seedPhase` now
+  ensures the built-in places itself.
+- **Existing test updated to the spec**: `ReviewModeTests.datenmodellierung
+  Survives` checked the retired fixture's band; it now checks the computed
+  leg (22 min, after the review Import keeps the `Event.id`), and
+  `emptyRealStore` reads `travelInfo`.
+- Tests: `TravelBandInspectorTests.swift` (9): the band for every §24.4
+  leg; estimates and no-time legs; hover help; §29 VoiceOver for ready,
+  estimate, pending, unavailable; inspector copy for §30 items 9–12, 20, 21;
+  Try Again and its paused state; Set Place and the pop-up's items; no
+  `semantic.now`; renders.
+- Captures (offscreen): `band-states-p3bt16.png`, `inspector-{swqm-leave,
+  reqen-no-travel,dinner-place,no-address,epc-estimate,dinner-unavailable,
+  climbing-no-route}-p3bt16.png`. The canvas frames of item 5–8, 12, 20 and
+  the open pop-up are task 18's live captures.
+- Verify: **1060 passed / 0 failed**; real store `stat` unchanged.

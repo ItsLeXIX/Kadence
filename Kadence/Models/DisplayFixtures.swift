@@ -11,15 +11,6 @@
 
 import Foundation
 
-/// Stands in for `TravelLeg` (Phase 3).
-struct TravelFixture: Identifiable, Equatable, Sendable {
-    var id = UUID()
-    var eventID: UUID
-    var departAt: Date
-    var duration: TimeInterval
-    var mode: TravelMode
-}
-
 enum AllDayKind: Sendable, Equatable {
     /// `WorkItem.kind == .assignment / .project` — a date whose work is movable.
     case deadline

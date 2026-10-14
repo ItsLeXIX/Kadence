@@ -14,7 +14,6 @@ struct InspectorView: View {
     let event: Event?
     let dayEvents: [Event]
     let day: Date
-    let travel: TravelFixture?
     let now: Date
     let store: EventStore
     /// components.md §14.1 — non-nil puts the inspector into "conflict
@@ -98,9 +97,11 @@ struct InspectorView: View {
 
         if let location = event.location?.name {
             field("Location", location)
-            if let travel {
-                field("Travel", "Leave \(BlockFormatters.time.string(from: travel.departAt)) · \(Int(travel.duration / 60)) min \(travel.mode.label)")
-            }
+        }
+        // layouts.md §6 (amended 2026-10-14): `Place` (a pop-up) and `Leave
+        // by` for a manual timed event; not for routine or all-day events.
+        if event.origin == .manual, !event.isAllDay {
+            TravelInspectorRows(event: event, store: store, now: now)
         }
 
         // layouts.md §6 row 4 (amended 2026-10-05) and components.md §3.4:

@@ -479,6 +479,18 @@ struct EventStore {
                      undo: { edit(id) { $0.title = old; $0.routineLink = oldLink } })
     }
 
+    /// interactions.md §15.1 / components.md §28.2: a manual event's known
+    /// place, one undo step `Set Place`; the current value writes nothing.
+    /// Never an imported event's or a routine instance's.
+    func setPlace(_ event: Event, to placeID: String?) {
+        guard event.origin == .manual, placeID != event.placeID else { return }
+        let id = event.id
+        let old = event.placeID
+        undo.perform("Set Place", addressing: [id],
+                     redo: { edit(id) { $0.placeID = placeID } },
+                     undo: { edit(id) { $0.placeID = old } })
+    }
+
     func setNotes(_ event: Event, to notes: String) {
         guard notes != event.notes else { return }
         let id = event.id

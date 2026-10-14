@@ -31,6 +31,10 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
     /// when the presentation is `.conflicted`. Empty by default; the call
     /// sites that know the other half fill it in.
     var conflicts: [BlockConflict] = []
+    /// Slice 2 (§29): the leg's phrase, spoken after the time.
+    var travelSpoken: String?
+    /// Slice 2 (§25.3): a leg with no time adds `· Travel time from Home …`.
+    var travelHelpSuffix: String?
 
     /// `HH:mm-HH:mm`, 24-hour, monospaced digits (components.md §3.1).
     func timeRange(formatter: DateFormatter) -> String {
@@ -74,7 +78,8 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
     /// §3.4 — `Title · HH:mm–HH:mm · Source · Kind`.
     var hoverHelp: String {
         let range = "\(BlockFormatters.time.string(from: start))–\(BlockFormatters.time.string(from: end))"
-        return "\(title) · \(range) · \(sourceName) · \(hoverKindLabel)"
+        let base = "\(title) · \(range) · \(sourceName) · \(hoverKindLabel)"
+        return travelHelpSuffix.map { "\(base) \($0)" } ?? base
     }
 
     /// §20.7.1: hover help's Kind reads `Exam` / `Lecture` for imported
@@ -95,9 +100,9 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
         var parts = [
             title,
             "\(BlockFormatters.time.string(from: start)) to \(BlockFormatters.time.string(from: end))",
-            accessibilityKindLabel,
-            sourceName,
         ]
+        if let travelSpoken { parts.append(travelSpoken) }
+        parts += [accessibilityKindLabel, sourceName]
         switch status {
         case .done: parts.append("done")
         case .skipped: parts.append("skipped, re-offered")

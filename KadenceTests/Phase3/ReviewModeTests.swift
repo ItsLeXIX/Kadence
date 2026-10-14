@@ -168,18 +168,31 @@ struct ReviewModeTests {
 
     @Test("Datenmodellierung's Event.id and travel leg survive the review Import")
     func datenmodellierungSurvives() async throws {
-        let (_, context) = try memory()
+        let (container, context) = try memory()
+        defer { withExtendedLifetime(container) {} }
         let undo = UndoStack()
         let fixtures = ReviewMode.seedIfRequested(.phase3, context: context, now: TestClock.now, secrets: InMemorySecretStore()) {
             RoutineMaterialization.run(context: context, undo: undo, visibleEnd: nil, today: TestClock.now)
         }
         let before = try #require(try context.fetch(FetchDescriptor<Event>()).first { $0.title == "Datenmodellierung" })
         let id = before.id
-        #expect(fixtures.travel.contains { $0.eventID == id })
+        _ = fixtures
         _ = await reviewLaunch(context: context)
         let after = try context.fetch(FetchDescriptor<Event>()).filter { $0.title == "Datenmodellierung" }
-        #expect(after.map(\.id) == [id])
+        #expect(after.count == 1 && after.first?.id == id)
         #expect(after.first?.lecturers == ["L08"] && after.first?.group == "BIF-5C")
+        // P3S2-T16: the band is a computed `TravelLeg` now (the display
+        // fixture is retired, components.md §25.1): the surviving event has
+        // its leg, `Leave 08:38 · 22min`.
+        let clock = ManualTravelClock(TestClock.now)
+        let log = RoutingLog()
+        let queue = RouteRequestQueue(provider: ReviewTravel.provider(dataset: .phase3, variant: nil),
+                                      geocoder: MockPlaceGeocoder(), clock: clock, path: ScriptedPathMonitoring(), log: log)
+        let travel = TravelCoordinator(context: context, queue: queue, clock: clock, providerSource: "mock", log: log,
+                                       location: MockLocationSource())
+        travel.launched()
+        await queue.run(on: clock, until: TestClock.now.addingTimeInterval(60))
+        #expect(travel.leg(for: id)?.duration == TimeInterval(22 * 60))
     }
 
     @Test("Without -KadenceReview the review seeding inserts nothing: zero Sources, zero Events (the launch adds only the two built-ins — AppStoreTests)")
@@ -191,7 +204,7 @@ struct ReviewModeTests {
         #expect(materialized)
         #expect(try context.fetchCount(FetchDescriptor<Source>()) == 0)
         #expect(try context.fetchCount(FetchDescriptor<Event>()) == 0)
-        #expect(fixtures.travel.isEmpty && fixtures.allDay.isEmpty)
+        #expect(fixtures.travelInfo.isEmpty && fixtures.allDay.isEmpty)
         // And the test host itself was launched without it.
         #expect(ReviewMode.dataset() == nil)
     }

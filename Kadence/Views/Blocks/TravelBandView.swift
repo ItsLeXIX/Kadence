@@ -3,14 +3,17 @@
 //  Kadence
 //
 //  Geometry B — not a block. A leading edge attached to the event it belongs to
-//  (components.md §4).
+//  (components.md §4). Slice 2 (§25): fed by the event's `TravelLeg` with a
+//  time (`ready` or `estimate`); an estimate is marked by `≈`, a character,
+//  never a colour.
 //
 
 import SwiftUI
 
 struct TravelBandView: View {
-    let fixture: TravelFixture
+    let band: TravelBand
     let renderedHeight: CGFloat
+    var calendar: Calendar = .current
 
     var body: some View {
         let shape = PartialRoundedRectangle(
@@ -27,24 +30,20 @@ struct TravelBandView: View {
         .clipShape(shape)
         .frame(height: renderedHeight)
         // Not focusable and not independently selectable: the parent event owns
-        // both. VoiceOver folds this into the parent's label.
-        .help("Leave \(BlockFormatters.time.string(from: fixture.departAt)) · \(Int(fixture.duration / 60)) min \(fixture.mode.label)")
+        // both. VoiceOver folds this into the parent's label (§29).
+        .help(TravelPresentation.bandHelp(band, calendar: calendar))
         .accessibilityHidden(true)
         .allowsHitTesting(false)
     }
 
     @ViewBuilder
     private var content: some View {
-        let minutes = Int((fixture.duration / 60).rounded())
+        let label = TravelPresentation.bandLabel(band, height: renderedHeight, calendar: calendar)
         HStack(spacing: Tokens.Size.blockGlyphGap) {
-            Image(systemName: fixture.mode.glyph)
+            Image(systemName: band.mode.glyph)
                 .font(.system(size: Tokens.Size.blockGlyphSize - 1))
-            if renderedHeight >= 14 {
-                Text("Leave \(BlockFormatters.time.string(from: fixture.departAt))")
-            }
-            if renderedHeight >= 18 {
-                Text("· \(minutes)min")
-            }
+            if let time = label.time { Text(time) }
+            if let minutes = label.minutes { Text(minutes) }
         }
         .typeStyle(.travelLabel)
         .foregroundStyle(Tokens.Color.Text.secondary)

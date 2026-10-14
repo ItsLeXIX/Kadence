@@ -61,8 +61,8 @@ enum MockData {
             try? context.save()
         }
         let events = (try? context.fetch(FetchDescriptor<Event>())) ?? []
+        _ = events
         return MockFixtures(
-            travel: makeTravel(for: events, now: now),
             allDay: makeAllDay(now: now),
             windows: timeWindows)
     }
@@ -460,27 +460,9 @@ enum MockData {
     }
 
     // MARK: Travel bands — items 7–8
-
-    static func makeTravel(for events: [Event], now: Date) -> [TravelFixture] {
-        var result: [TravelFixture] = []
-        // 7. A 22-minute band on the lecture.
-        if let lecture = events.first(where: { $0.title == "Datenmodellierung" && $0.origin == .imported }) {
-            result.append(TravelFixture(
-                eventID: lecture.id,
-                departAt: lecture.start.addingTimeInterval(-22 * 60),
-                duration: 22 * 60,
-                mode: .walking))
-        }
-        // 8. A band whose true height is under the floor, so it grows upward.
-        if let coffee = events.first(where: { $0.title == "Coffee with Nora" }) {
-            result.append(TravelFixture(
-                eventID: coffee.id,
-                departAt: coffee.start.addingTimeInterval(-6 * 60),
-                duration: 6 * 60,
-                mode: .walking))
-        }
-        return result
-    }
+    //
+    // Slice 2 (components.md §25.1, §30.1 "Other datasets"): the bands come
+    // from real legs; `TravelFixture` and `makeTravel` are retired.
 
     // MARK: Routine templates (task P2-T10 — Routines window seed data)
 
@@ -634,13 +616,13 @@ enum MockData {
 
 /// The non-persisted half of the fixture set.
 struct MockFixtures: Equatable, Sendable {
-    var travel: [TravelFixture] = []
     var allDay: [AllDayFixture] = []
     var windows: [TimeWindowFixture] = []
+    /// Slice 2: each event's leg as the canvas shows it (§25), from the
+    /// stored `TravelLeg`s.
+    var travelInfo: [UUID: TravelInfo] = [:]
 
-    func travel(forEvent id: UUID) -> TravelFixture? {
-        travel.first { $0.eventID == id }
-    }
+    func band(forEvent id: UUID) -> TravelBand? { travelInfo[id]?.band }
 
     func allDayItems(on day: Date, calendar: Calendar = .current) -> [AllDayFixture] {
         let target = calendar.startOfDay(for: day)

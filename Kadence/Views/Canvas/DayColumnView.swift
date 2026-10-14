@@ -150,7 +150,7 @@ struct DayColumnView: View {
         var items = timedEvents.map {
             LayoutItem(
                 id: $0.id, start: $0.start, end: $0.end, title: $0.title,
-                departAt: fixtures.travel(forEvent: $0.id)?.departAt)
+                departAt: fixtures.band(forEvent: $0.id)?.departAt)
         }
         // The draft is laid out with everything else so the user sees where it
         // will land, even though it is not in the store (interactions.md §3).
@@ -212,7 +212,7 @@ struct DayColumnView: View {
     @ViewBuilder
     private func blockStack(event: Event, laidOut: LaidOutBlock) -> some View {
         let model = blockModel(for: event)
-        let band = fixtures.travel(forEvent: event.id)
+        let band = isBeingDragged(event) ? nil : fixtures.band(forEvent: event.id)
         let trueBandHeight = band.map { geometry.height(from: $0.departAt, to: event.start) } ?? 0
         // components.md §4, two cases. A short band no longer grows upward out of
         // its event: it becomes a strip inside the event's own top, because the
@@ -232,7 +232,7 @@ struct DayColumnView: View {
 
         VStack(spacing: 0) {
             if let band, bandFitsAbove {
-                TravelBandView(fixture: band, renderedHeight: aboveHeight)
+                TravelBandView(band: band, renderedHeight: aboveHeight)
             }
             ZStack(alignment: .top) {
                 GridBlockView(
@@ -247,7 +247,7 @@ struct DayColumnView: View {
                     squareTopCorners: bandFitsAbove,
                     contentTopInset: insideStrip ? Tokens.Size.travelBandHeight : 0)
                 if let band, insideStrip {
-                    TravelBandView(fixture: band, renderedHeight: Tokens.Size.travelBandHeight)
+                    TravelBandView(band: band, renderedHeight: Tokens.Size.travelBandHeight)
                         .clipShape(
                             PartialRoundedRectangle(
                                 topRadius: Tokens.Radius.block,
@@ -316,10 +316,16 @@ struct DayColumnView: View {
     /// statement that mutates a value (same reason as `presentation` below).
     private func blockModel(for event: Event) -> GridBlockModel {
         var model = GridBlockModel(event: event, now: now)
+        // §25.3 / §29: the leg folded into the hover help and the label.
+        model.travelSpoken = fixtures.travelInfo[event.id]?.spoken
+        model.travelHelpSuffix = fixtures.travelInfo[event.id]?.helpSuffix
         model.conflicts = (conflictPartnerTitles[event.id] ?? []).map { .event(title: $0) }
             + protectedWindowLabels(event).map { .protectedWindow(label: $0) }
         return model
     }
+
+    /// §25.2: no band at a drop preview; it reappears after the recompute.
+    private func isBeingDragged(_ event: Event) -> Bool { drag?.eventID == event.id }
 
     private func presentation(for event: Event, laidOut: LaidOutBlock) -> Presentation {
         var presentation: Presentation = []
