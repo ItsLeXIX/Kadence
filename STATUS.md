@@ -10374,3 +10374,40 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   at: `10:00` absent at 10:18, both `10:00` and `10:40` at 10:40.
 - Verify: **916 passed / 0 failed**; tokens `--check` clean; real store
   `stat` unchanged.
+
+### P3S2-T03 — places and the leg planner (pure)
+
+- `Kadence/Services/Travel/TravelTypes.swift`: `TravelEndpoint` (§24.9),
+  value snapshots of places, events, cache rows and legs (`LegValues`,
+  Equatable, so a recompute writes only what changed).
+- `Kadence/Services/Travel/TravelLegPlanner.swift`: `PlaceResolver` (§23.2's
+  six rules; the timetable rule reads the source's kind; mode = the pair's
+  override, else preferred), `TravelCacheKey` (origin and destination id +
+  coordinate to 5 decimals in direction order, mode, day type, 30-minute
+  arrival slot), `TravelLegPlanner.plan` (§24.1–§24.4: candidates, the origin
+  rule with the 120-minute chain and transparent placeless events, same place
+  → no leg; §24.3 statuses; §24.10's fallback order; a current-location leg
+  kept until its trip changes). Out: legs, the requests the queue must send
+  (one per key; priority 3 for today/tomorrow, 4 otherwise; a key whose
+  failure the queue remembers is not re-queued), rule origins and chains.
+  Calls no provider, reads no clock.
+- `EventOrigin`, `EventStatus`, `Flexibility`, `TimeWindowKind`,
+  `CalendarSourceKind` made `nonisolated` (value enums the pure planners use
+  off the main actor; no behaviour change).
+- GAPS **G-097** (dataset `travel`: the composition gives 14 VEVENTs / 13
+  events, the text says 15 / 14; built to the composition). DEVIATIONS
+  **B48** (travel time rounded up to the minute), **B49** (own last time only
+  for the same trip).
+- Tests: `KadenceTests/Slice2/TravelFixtures.swift` (the `travel` dataset in
+  code, `M` = Mon 2026-10-12, the mock table) and
+  `TravelLegPlannerTests.swift` (20): §24.4 row for row with no requests;
+  empty cache → all pending, **7** requests (one per key), priorities; cache
+  sharing; direction; `travelNoAddress`; `travelOffline` (estimates from the
+  stale 27 Sep entry, Saturday from the nearest weekday slot, Dinner and
+  Climbing unavailable · offline); the fallback order with ties; noRoute and
+  needsAddress never fall back; freshness 14 d / 14 d + 1 s / > 28 d; refresh
+  window ready vs estimate; throttle pause; the test day (overlap, chain
+  through a placeless event, 120 vs 121, skipped previous, cancelled /
+  all-day / routine, online never an origin, done still one, ties); §23.2;
+  the key.
+- Verify: **936 passed / 0 failed**; real store `stat` unchanged.

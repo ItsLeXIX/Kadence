@@ -2413,3 +2413,16 @@ check" (2026-10-14).
   the cursor time) with each hour label, dropping a label whose frame
   overlaps or comes within 2pt (`components.md` §8, amended 2026-10-14;
   `interactions.md` §1). **Scheduled in this slice, task 2.**
+- **B48 — the travel time is rounded up to the whole minute before
+  `departAt`** (`components.md` §24.3: `departAt = E.start − buffer −
+  duration`). `TravelLegPlanner` stores `duration` as the answer rounded up
+  to the minute, so `departAt` sits on a minute and the band's `Leave 08:15
+  · 35min` adds up to the arrival (`start − buffer`). An answer in whole
+  minutes — every mock answer — is unchanged; a MapKit answer of 34 min 20 s
+  leaves at most 40 s earlier than the raw figure, never later. Not a guess:
+  the provider's number, at the precision every surface shows.
+- **B49 — §24.10 step 2 ("this event's own last time") applies only to the
+  same trip**: the existing leg is used as a fallback only if its origin,
+  destination and mode are the new leg's. After a mode or address change the
+  old time is another trip's and would be a guess (§24.8); the fallback moves
+  on to the cache (steps 3–4), which is keyed by the trip.

@@ -18,7 +18,7 @@ import Foundation
 /// Only `.manual` and `.imported` are produced by real data in Phase 1
 /// (DECISIONS.md 2026-09-09); `.routine` and `.planned` exist so the style
 /// resolver can be specified and reviewed in full, fed by the mock generator.
-enum EventOrigin: String, Codable, CaseIterable, Sendable {
+nonisolated enum EventOrigin: String, Codable, CaseIterable, Sendable {
     case manual
     case routine
     case imported
@@ -27,7 +27,7 @@ enum EventOrigin: String, Codable, CaseIterable, Sendable {
 
 /// Lifecycle of an event. Deliberately has no "overdue" or "missed" case —
 /// BRIEF-PRODUCT.md: skipped items are re-offered, never counted against you.
-enum EventStatus: String, Codable, CaseIterable, Sendable {
+nonisolated enum EventStatus: String, Codable, CaseIterable, Sendable {
     case scheduled
     case done
     case skipped
@@ -35,7 +35,7 @@ enum EventStatus: String, Codable, CaseIterable, Sendable {
 
 /// How much freedom an automatic process has to move a block.
 /// In Phase 1 this only drives the rail treatment (components.md §2.3).
-enum Flexibility: String, Codable, CaseIterable, Sendable {
+nonisolated enum Flexibility: String, Codable, CaseIterable, Sendable {
     case fixed
     case shiftable
     case droppable
@@ -85,7 +85,7 @@ nonisolated enum TravelMode: String, Codable, CaseIterable, Sendable {
 /// The kind of background treatment a time window gets on the grid.
 /// `.peakFocus` is stored but deliberately renders nothing in Phase 1
 /// (components.md §7).
-enum TimeWindowKind: String, Codable, CaseIterable, Sendable {
+nonisolated enum TimeWindowKind: String, Codable, CaseIterable, Sendable {
     case protected
     case lowEnergy
     case peakFocus

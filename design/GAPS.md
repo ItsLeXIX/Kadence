@@ -3317,3 +3317,32 @@ and how answers re-enter the main-actor recompute. Any choice satisfying
   G-065, G-084, G-085, G-086, G-088, G-091, G-094.
 - **Spec closed, build open (this slice):** G-063, G-060 (sync paused), G-082
   (A42).
+
+---
+
+## 2026-10-14 — Phase 3 slice 2 build run (CA): gaps found while building
+
+Coding agent, `PHASE3-SLICE2-PLAN.md` run. Append-only; each entry names the
+reading the build took (the one closest to the spec's literal text and the
+DECISIONS) and continues.
+
+### G-097 — OPEN (design). Dataset `travel`'s counts don't match its composition.
+
+`components.md` §30.1 defines dataset `travel` as `cis-review.ics.template`
+(§22.1: 14 VEVENTs, 13 events after the 7a+7b merge, 2 history) **without
+row 1** plus **row T1**, and then states "So 15 VEVENTs, 14 events after the
+7a+7b merge, 2 of them history". The composition gives **14 VEVENTs → 13
+events** (14 − 1 + 1 VEVENTs; one merge). `PHASE3-SLICE2-PLAN.md` task 12
+("14 timetable events (15 VEVENTs, one merge)") and §30.1 "Cache sharing"
+("the 14 timetable events") repeat the stated numbers.
+
+**Reading built:** the composition (it is the definition; the counts are a
+derived claim). Tests assert 14 VEVENTs / 13 events / 2 history. No other
+value in §24.4 or the notification tables depends on the count.
+
+Also recorded (no gap): §30.1 "Cache sharing" lists the distinct keys of the
+dataset at Mon 06:00 without counting them. Built and tested: **7** —
+`home → campus` transit at the weekday slots 08:30, 09:30, 12:30, 15:30 and
+the Saturday 07:00 slot, `campus → home` 18:00 (Dinner), `home → Gym`
+walking Sunday 17:30. `RW-EXAM` (09:40, arrive 09:30) shares the 09:30 slot
+with both `SWEN3-LAB`s and `EPC-ILV` `M + 10`.

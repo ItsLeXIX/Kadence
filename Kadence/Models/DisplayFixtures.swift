@@ -139,7 +139,7 @@ struct TimeWindowFixture: Identifiable, Equatable, Sendable {
 /// feed or party the data arrived from. The two appear together in the inspector
 /// title row (layouts.md §6), so no symbol may appear in both tables. Check
 /// components.md §2.1, §3.2 and §5 before adding a case here.
-enum CalendarSourceKind: String, CaseIterable, Codable, Sendable {
+nonisolated enum CalendarSourceKind: String, CaseIterable, Codable, Sendable {
     case universityTimetable
     case coursework
     case exams
