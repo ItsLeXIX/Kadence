@@ -10675,3 +10675,38 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   Saturday's held leave-by; a foreign identifier survives; the degrade
   retry; the categories; the factory and the source scan; the mapping.
 - Verify: **1004 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T10 — notification actions
+
+- `Kadence/Services/Notifications/NotificationActionRouter.swift`: the
+  response handler (§27.7, interactions.md §14.1) through the same
+  `EventStore` verbs and undo stack as the popover, the event resolved by
+  id when the action runs. `Done` (already done → nothing); `Snooze`
+  (`EventStore.snooze`, the +15 placeholder with its protected-window
+  refusal; refused for anything but `kadence.event`) answered at once with
+  N5 / N6 as `result.{eventID}.{epochSeconds}`, category `kadence.result`,
+  no sound, `.active`; `Open` and a click (also on a result): page to the
+  event's day and select it, or today with nothing selected for an unknown
+  id; `kadence.source`'s `Open`: Settings ▸ Sources with that source
+  selected; dismiss: nothing.
+- `NotificationOpenHandler` (`.performsNotificationOpens`) performs an open
+  request — activate Kadence, bring the main window forward or open it,
+  or open Settings — from the main window and from the menu bar label,
+  whichever is alive.
+- `KadenceApp.init` now builds the calendar state, undo stack and sources
+  router up front, so the router shares them; the system centre's responses
+  go to the router. (Settings has one tab until task 13; the request names
+  `Sources`.)
+- Note (not testable here, checked at task 18 only as far as review allows):
+  whether `openWindow` / `openSettings` act from the menu bar label when the
+  main window is closed. The window-open path is the popover's own.
+- The notification rig in tests now observes saves as the app does
+  (`startObserving`).
+- Tests: `KadenceTests/Slice2/NotificationActionTests.swift` (7): §30.1
+  "Actions" — Done (one `Mark Done`, again nothing, the next pass removes
+  only it); Snooze at Thu 17:41 (18:45–20:15, one `Snooze`, N5 exact; then
+  `leave.{Dinner}` 17:55 `Leave by 18:00 …`); Snooze at Sat 23:01 refused
+  (nothing written, no step, N6 exact); the categories, and no Snooze on a
+  read-only event; Open / click / unknown id / Done and Snooze on an unknown
+  id / dismiss; `sync.` → Settings ▸ Sources with the source; sounds.
+- Verify: **1011 passed / 0 failed**; real store `stat` unchanged.

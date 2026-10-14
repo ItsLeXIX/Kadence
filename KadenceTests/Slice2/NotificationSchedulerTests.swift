@@ -30,6 +30,8 @@ final class NotificationRig {
         let scheduler = scheduler
         travel.coordinator.onPassCompleted = { kind in scheduler.requestPass(catchUp: kind != .ordinary) }
         scheduler.consumeRefreshed = { [weak coordinator = travel.coordinator] in coordinator?.consumeRefreshed() ?? [] }
+        // As the app does: event, place and settings saves trigger a recompute.
+        travel.coordinator.startObserving()
     }
 
     /// Launch the legs and let every pass (legs, then notifications) run.

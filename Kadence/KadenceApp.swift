@@ -20,15 +20,16 @@ struct KadenceApp: App {
     /// schema from it; there is no .xcdatamodeld any more.
     let container: ModelContainer
 
-    @State private var calendar = CalendarState()
+    @State private var calendar: CalendarState
     /// One stack for the whole app: the Edit menu and every view mutate through
-    /// the same instance, so ⌘Z means the same thing everywhere.
-    @State private var undoStack = UndoStack()
+    /// the same instance, so ⌘Z means the same thing everywhere — including
+    /// an action taken from a notification (interactions.md §14.1).
+    @State private var undoStack: UndoStack
     /// Phase 3 (interactions.md §13.3): the one sync coordinator. Built in
     /// `init` because it needs the container's main context.
     @State private var sync: SyncCoordinator
     /// Phase 3: which source Settings shows and which sheet it presents.
-    @State private var router = SourcesRouter()
+    @State private var router: SourcesRouter
     /// Phase 3 slice 2 (components.md §24): the travel recompute, its
     /// routing queue and the departure refreshes. The provider, geocoder and
     /// path monitor come from the launch's factories: MapKit and
@@ -37,8 +38,17 @@ struct KadenceApp: App {
     /// Phase 3 slice 2 (components.md §27): the notification passes; the
     /// centre is the system's in a normal launch only (§27.10).
     @State private var notifications: NotificationScheduler
+    /// Phase 3 slice 2 (components.md §27.7): Done, Snooze, Open from a
+    /// notification.
+    @State private var actions: NotificationActionRouter
 
     init() {
+        let calendar = CalendarState()
+        let undoStack = UndoStack()
+        let router = SourcesRouter()
+        _calendar = State(initialValue: calendar)
+        _undoStack = State(initialValue: undoStack)
+        _router = State(initialValue: router)
         // PHASE3-REVIEW.md fix 1 (components.md §22.1, G-076): the launch
         // decides its store. Only a normal launch opens the real one; a
         // review launch and the unit tests' host run on an in-memory store
@@ -71,9 +81,21 @@ struct KadenceApp: App {
                                                              path: PathMonitors.make(for: kind)))
         }
         let travel = Self.makeTravel(kind: kind, context: container.mainContext)
+        let centre = NotificationServices.make(for: kind, review: .current())
         let notifications = NotificationScheduler(
-            context: container.mainContext, centre: NotificationServices.make(for: kind, review: .current()),
+            context: container.mainContext, centre: centre,
             clock: travel.clock, log: RoutingLog(category: "notifications", forwardsToSystem: kind == .normal))
+        let actions = NotificationActionRouter(context: container.mainContext, undo: undoStack, centre: centre,
+                                               clock: travel.clock)
+        actions.calendarState = calendar
+        actions.sourcesRouter = router
+        // The system centre's delegate is set in its `init` — before the
+        // first launch response is delivered (G-092) — and hands responses
+        // to the router here.
+        if let system = centre as? SystemNotificationCenter {
+            system.onResponse { response in Task { await actions.handle(response) } }
+        }
+        _actions = State(initialValue: actions)
         // Every leg recompute ends by asking for a notification pass (§24.6);
         // the launch and wake passes are catch-ups (§27.6).
         travel.onPassCompleted = { [weak notifications] passKind in
@@ -112,6 +134,7 @@ struct KadenceApp: App {
                 .environment(router)
                 .environment(travel)
                 .environment(notifications)
+                .performsNotificationOpens(actions)
                 .preferredColorScheme(Self.reviewColorScheme)
                 .frame(
                     minWidth: Tokens.Size.windowMinWidth,
@@ -176,6 +199,7 @@ struct KadenceApp: App {
                 .environment(calendar)
         } label: {
             MenuBarStatusItemView(container: container)
+                .performsNotificationOpens(actions)
         }
         .modelContainer(container)
         .menuBarExtraStyle(.window)
