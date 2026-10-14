@@ -384,8 +384,20 @@ struct SourceStatusBlock: View {
     private func primaryButton(_ action: PrimaryAction) -> some View {
         let title = action == .showDetails && showDetails ? "Hide Details" : action.rawValue
         Button(title) { perform(action) }
-            .keyboardShortcut(.defaultAction)
+            .keyboardShortcut(Self.primaryShortcut(inPopover: showsSettingsButton))
             .buttonStyle(.bordered)
+    }
+
+    /// The primary action is the **default button (`↩`) in the source
+    /// popover only** (components.md §19.3). In Settings ▸ Sources it is a
+    /// plain `.bordered` button — "not the window's default button: no
+    /// `.keyboardShortcut(.defaultAction)`, no accent fill" (layouts.md §11,
+    /// clarified 2026-10-10; PHASE3-REVIEW fix 10b). There `↩` in the `Name`
+    /// field commits the name and must not also sync; `⌘R` is Sync Now's key.
+    ///
+    /// Swift note: `keyboardShortcut(_:)` takes an optional; nil = none.
+    static func primaryShortcut(inPopover: Bool) -> KeyboardShortcut? {
+        inPopover ? .defaultAction : nil
     }
 
     /// The effect comes from `SourceActionRouting` (tested): a state's

@@ -10069,3 +10069,51 @@ connecting for real.
 - Verify: xcresult **896 passed / 0 failed** (891 + 5); app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
   store's `stat` unchanged.
+
+## 130. P3-F10 — three small things (PHASE3-REVIEW.md §8 fix 10; interactions.md §1, §2, §13.4; layouts.md §11)
+
+- **a. Edit ▸ Delete** (A38): `KadenceCommands` adds `Delete` / `⌫` after
+  the pasteboard group. The grid publishes a `GridDeleteAction` focused
+  value (`EditDeleteItem.action`) — enabled for a selection the read-only
+  gate lets go (manual, routine, planned), not for none or an imported /
+  cancelled-imported event, and not while a new event's title is being
+  typed. Off the grid (inspector, Settings, the Routines window) no value is
+  published and the item is disabled, so a bare `⌫` never takes a text
+  field's backspace. Deleting is `MainWindow.deleteSelection`, the same call
+  as `⌫` (one undo step).
+- **b. Settings' `Sync Now`**: `SourceStatusBlock.primaryShortcut(inPopover:)`
+  — `.defaultAction` in the source popover (§19.3), none in Settings; the
+  button stays `.bordered`. `↩` in `Name` commits the name only.
+- **c. Focus after `⌘1` `⌘2` `⌘3`**: reproduced live first —
+  `check-view-switch-focus.sh` on the fix 9 build: after `⌘3` straight
+  after launch, key focus was `AXButton "Toggle sidebar"` in the
+  `AXToolbar` (FAIL). Cause: the mode switch rebuilds the canvas and, with
+  keyboard navigation on, AppKit hands focus to the next key view.
+  `FocusRegion.regionToRestoreAfterViewChange` (grid / all-day row → grid;
+  sidebar / inspector keep theirs; never the toolbar) and `MainWindow`
+  re-asserts it after the update. Same script afterwards: focus never in the
+  toolbar at launch or across two rounds of `⌘3` `⌘1` `⌘2`, and `↓ ↓` reach
+  the grid — PASS.
+- Scripts (new): `check-view-switch-focus.sh` (the AX check the fix asks
+  for) and `check-edit-delete.sh` (live: the item with `⌫` exists; enabled
+  with a manual event selected, disabled with nothing selected, while
+  Settings' `Name` has focus — where backspace edited `University
+  timetable` → `University timetabl` and the selected event survived — and
+  with an imported event selected; `⌫` deleted the manual event and `⌘Z`
+  restored it; `⌫` on `SWQM-ILV` refused). Both PASS.
+- Tests (`SmallFixesTests.swift`, 6): the menu model (title, `⌫`,
+  enabled/disabled for each kind of selection, none, grid unfocused; perform
+  deletes only a deletable selection); delete is one undo step and an
+  imported event is never deleted; the commands file places it after
+  `.pasteboard` with no modifiers; the primary-action shortcut rule and no
+  direct `.defaultAction` / `.borderedProminent` in Settings; a `Name`
+  commit does not sync (no fetch, no attempt; empty reverts); the focus
+  restoration rule.
+- DEVIATIONS: A38 struck (built); one observation about `⌘N` in the live
+  check (not investigated).
+- Frames (item 8 recaptured; the Day frame without the ring): fix 11.
+- Verify: xcresult **902 passed / 0 failed** (896 + 6); app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; fresh
+  pre-flight before each, on review launches: the six regression scripts
+  PASS, `check-view-switch-focus` PASS, `check-edit-delete` PASS; the real
+  store's `stat` unchanged.

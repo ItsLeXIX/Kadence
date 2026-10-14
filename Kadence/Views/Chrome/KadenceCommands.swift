@@ -29,6 +29,9 @@ struct KadenceCommands: Commands {
     /// Task P2-SF6: set while a Routines window is key — ⌥⌘I then toggles
     /// its editor inspector (layouts.md §8 → §1.1), not the main window's.
     @FocusedValue(\.routinesInspector) private var routinesInspector
+    /// PHASE3-REVIEW fix 10a (interactions.md §2, §13.4; DEVIATIONS A38):
+    /// set only while the main window's grid holds key focus.
+    @FocusedValue(\.gridDelete) private var gridDelete
 
     var body: some Commands {
         // interactions.md §9 — each action is named, so the menu reads
@@ -42,6 +45,23 @@ struct KadenceCommands: Commands {
             Button(undo.redoMenuTitle) { undo.redo() }
                 .keyboardShortcut("z", modifiers: [.command, .shift])
                 .disabled(!undo.canRedo)
+        }
+
+        // interactions.md §2 (added 2026-10-10, A38): **Edit ▸ Delete**, `⌫`,
+        // below the system's pasteboard group. Enabled when a deletable
+        // event is selected in the main window's grid; disabled with nothing
+        // selected and for an imported event — "so the menu shows the rule
+        // before the key does" (§13.4).
+        //
+        // Swift note: `@FocusedValue` is nil unless key focus is inside the
+        // view that publishes it. That is what keeps a bare `⌫` shortcut
+        // safe: while a text field (the inspector's title, the Routines
+        // window, Settings) has focus the item is disabled, and a disabled
+        // item never takes the key — backspace still edits the text.
+        CommandGroup(after: .pasteboard) {
+            Button(EditDeleteItem.title) { gridDelete?.perform() }
+                .keyboardShortcut(EditDeleteItem.key, modifiers: [])
+                .disabled(!EditDeleteItem.isEnabled(gridDelete))
         }
 
         CommandGroup(after: .newItem) {
@@ -129,6 +149,49 @@ struct KadenceCommands: Commands {
             .keyboardShortcut("r", modifiers: [.command, .option])
         }
     }
+}
+
+// MARK: - Edit ▸ Delete (interactions.md §2, §13.4)
+
+/// What the main window's grid offers the Edit menu while it holds key focus.
+struct GridDeleteAction {
+    /// A deletable event is selected.
+    var isEnabled: Bool
+    /// Deletes it exactly as `⌫` on the grid does (one undo step).
+    var perform: () -> Void
+}
+
+extension FocusedValues {
+    /// Swift note: `@Entry` declares a focused-value key and its accessor in
+    /// one line (the macro writes the `FocusedValueKey` type).
+    @Entry var gridDelete: GridDeleteAction?
+}
+
+/// The Edit ▸ Delete item, as a model a test can read.
+enum EditDeleteItem {
+    static let title = "Delete"
+    /// `⌫`, no modifiers.
+    static let key = KeyEquivalent.delete
+
+    /// Whether `⌫` / Edit ▸ Delete may delete `selection`: something is
+    /// selected, and the read-only gate allows it (§13.4: never an imported
+    /// event). Pure — it does not sound or emphasise anything.
+    static func canDelete(_ selection: Event?) -> Bool {
+        guard let selection else { return false }
+        return ReadOnlyGate.decide(.delete, origin: selection.origin, isCancelled: selection.isCancelled) == .allow
+    }
+
+    /// What the grid publishes: enabled for a deletable selection.
+    static func action(selection: Event?, delete: @escaping (Event) -> Void) -> GridDeleteAction {
+        GridDeleteAction(isEnabled: canDelete(selection)) {
+            if let selection, canDelete(selection) { delete(selection) }
+        }
+    }
+
+    /// The menu item's state: disabled when the grid is not focused (no
+    /// action is published), when nothing is selected, and for an imported
+    /// selection.
+    static func isEnabled(_ action: GridDeleteAction?) -> Bool { action?.isEnabled == true }
 }
 
 extension Notification.Name {

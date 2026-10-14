@@ -2345,3 +2345,17 @@ Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
   own table gives `emptyFeed` for that ("At the Import: allowed, 0 events.
   After events: `emptyFeed`"). It read `upToDate` while the launch sync was
   itself the Import. `ReviewModeTests.launchStates` follows the table.
+- ~~**A38 — Edit ▸ Delete**~~ **Built in P3-F10** (ruled "required now"
+  by PHASE3-REVIEW.md §2): `Delete`, `⌫`, after the system's pasteboard
+  group; enabled for a deletable selection while the main window's grid has
+  key focus (a SwiftUI focused value), disabled with nothing selected, for an
+  imported event, and whenever focus is elsewhere — so the bare `⌫`
+  shortcut never takes a text field's backspace (checked live). The Edit
+  menu therefore shows two `Delete` items: the system's pasteboard one (no
+  key, for text) and this one (`⌫`), as §2 places it.
+- **Observation (not investigated; outside the fix list)** (P3-F10). In the
+  live check, an HID `⌘N` sent while a manual event was selected in the
+  Week grid did not start a new-event draft (the selection survived, which
+  `beginDraft` would have cleared). The check was rebuilt on Settings'
+  `Name` field instead. Worth a look with the next event-creation task
+  (with A37).

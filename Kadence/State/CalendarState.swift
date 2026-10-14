@@ -497,6 +497,21 @@ final class CalendarState {
     enum FocusRegion: Int, CaseIterable, Sendable {
         case toolbar, sidebar, allDayRow, grid, inspector
 
+        /// interactions.md §1 / DECISIONS 2026-09-10 (PHASE3-REVIEW fix 10c):
+        /// "the toolbar is not a focus stop", and a view change must leave
+        /// focus in the grid. Switching Month / Week / Day rebuilds the
+        /// canvas; the view that held key focus goes with it, and with
+        /// keyboard navigation on AppKit hands focus to the next key view — a
+        /// toolbar button. So after a view change, focus that was in the
+        /// canvas (the grid, or its all-day row) is put back in the grid;
+        /// the sidebar and the inspector are not rebuilt and keep theirs.
+        var regionToRestoreAfterViewChange: FocusRegion? {
+            switch self {
+            case .grid, .allDayRow, .toolbar: .grid
+            case .sidebar, .inspector: nil
+            }
+        }
+
         /// The next region in the cycle, skipping any that are not currently
         /// available — the all-day row when it is hidden, the inspector when it
         /// is collapsed — and wrapping at either end.

@@ -87,7 +87,19 @@ struct MainWindow: View {
             // interactions.md §10.2 — changing view mode or paging also
             // abandons a pending preview; a hypothetical about a block on the
             // day you just left stops meaning anything.
-            .onChange(of: state.mode) { _, _ in state.selectedConflictOptionID = nil }
+            .onChange(of: state.mode) { _, _ in
+                state.selectedConflictOptionID = nil
+                // Fix 10c: the canvas was just rebuilt; put focus back in the
+                // grid rather than leave it to fall onto the toolbar.
+                // Swift note: `Task { @MainActor in … }` runs after this view
+                // update has finished, when the new canvas exists to take it.
+                if let region = state.focusedRegion.regionToRestoreAfterViewChange {
+                    Task { @MainActor in
+                        focusedRegion = region
+                        state.focusedRegion = region
+                    }
+                }
+            }
             .onChange(of: state.anchor) { _, _ in state.selectedConflictOptionID = nil }
             // interactions.md §10.2 — collapsing the inspector hides the
             // panel the preview belongs to.
@@ -245,6 +257,13 @@ struct MainWindow: View {
         // DEVIATIONS B21, GAPS G-039.
         .focusEffectDisabled()
         .focused($focusedRegion, equals: .grid)
+        // PHASE3-REVIEW fix 10a (interactions.md §2, A38): Edit ▸ Delete
+        // acts on the grid's selection, and only while focus is in the grid.
+        // Not while a new event's title is being typed: that text field
+        // lives inside the grid, and its backspace must stay its own.
+        .focusedValue(\.gridDelete, EditDeleteItem.action(selection: state.draft == nil ? selectedEvent : nil) {
+            deleteSelection($0)
+        })
         .onKeyPress(keys: [.tab]) { press in cycleFocus(press) }
         .onKeyPress(action: handleKey)
         // components.md §14.4 — "while any preview is active the calendar
