@@ -10592,3 +10592,37 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   `RoutingLogCheck` now allows only §24.11's two `location unavailable`
   words (`denied`, `timeout`).
 - Verify: **978 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T08 — notification planner (pure)
+
+- `Kadence/Services/Notifications/NotificationCopy.swift`: §27.4's copy —
+  N1, N1e, N2 (labelled / unlabelled window, `about` from an estimate), N3,
+  N4, N5 (`moved to tomorrow …` across a day, §16), N6, N7 (`pending` and
+  every reason), N8 (`unauthorized` / `forbidden`); `{where}` (location
+  text, `Online`, else the place's name, else omitted with its separator);
+  §24.10's short reasons (`TravelCopy.shortReason`, shared with the UI
+  tasks); the content hash (SHA-256 of title, body, category); the
+  categories, owned prefixes and interruption levels.
+- `NotificationPlanner.swift`: §27.2 (at most one notification per event:
+  leave-by N1 / N1e for a leg with a time, N7 for `pending` /
+  `unavailable`, else a "starts" under the origin's rule; none for all-day,
+  cancelled, done, skipped, before today, `.planned`); §27.3 (leave-by
+  `departAt − lead`, N7 `start − 60`, starts `start − lead` with the chain
+  clamp over §24.2's `P`); §27.5 (protected spans hold `F` unless the event
+  strictly overlaps the span, repeated across back-to-back spans; a held
+  leave-by after `departAt` is N2); §27.6's planning half (the 48-hour
+  window, the 48 cap, catch-up passes — N1 / N3 / N4 / N7 at once when no
+  record and the event has not started — the refresh catch-up for one leg,
+  records as "sent", a moved subject planned again). `QuietWindow` is
+  `TimeWindow.spans(on:)` as a value.
+- Tests: `KadenceTests/Slice2/NotificationPlannerTests.swift` (15): §30.1's
+  tables at Thu 06:00 (4) and Fri 23:00 (3) — identifiers, fire dates,
+  titles, bodies, categories, sounds, levels; `travelOffline` (N1e, N7) and
+  recovery (same ids, N1, new hashes); `travelNoAddress`; a pending N7; the
+  departure refresh (11:55, 12:15, and 78 min delivered at once in an
+  ordinary pass with nothing else late); catch-up 12:12 / 12:20 / 13:05 and
+  the same clocks ordinary; back-to-back spans (06:50 → 07:30); leave-by off
+  and all rules off; the exclusions; one per event in every case; the
+  window edges and the cap; records; the copy bans (the user's own titles
+  excepted); N5 / N6 / N8 / N2 exact.
+- Verify: **993 passed / 0 failed**; real store `stat` unchanged.

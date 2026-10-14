@@ -1,0 +1,161 @@
+//
+//  NotificationCopy.swift
+//  Kadence
+//
+//  Phase 3 slice 2 (PHASE3-SLICE2-PLAN.md task 8) — components.md §27.4
+//  "Copy — exact, tested" (N1–N8, N1e) and §24.10's short reasons, which the
+//  band's hover help, the popover and the notifications share.
+//
+//  Absolute times only (§27.3): a notification outlives its moment, and
+//  `08:15` stays true. Never `late`, `missed`, `overdue`, a count or an
+//  exclamation mark.
+//
+
+import Foundation
+
+nonisolated enum TravelCopy {
+    /// `HH:mm`, 24-hour, in `calendar`'s zone.
+    static func time(_ date: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
+    }
+
+    /// Whole minutes of a travel time (legs carry whole minutes, B48).
+    static func minutes(_ seconds: TimeInterval) -> Int { Int((seconds / 60).rounded(.up)) }
+
+    /// §24.10's short form: the band's hover help, the popover, N1e and N7.
+    /// `place`: the name of the place a `needsAddress` names.
+    static func shortReason(_ reason: TravelReason, place: String?, mode: TravelMode, retryAt: Date?,
+                            calendar: Calendar) -> String {
+        switch reason {
+        case .needsAddress: "\(place ?? "This place") has no address"
+        case .offline: "offline"
+        case .noRoute: "no route \(mode.copyPhrase)"
+        case .paused: "Apple Maps paused until \(retryAt.map { time($0, calendar: calendar) } ?? "later")"
+        case .failed: "Apple Maps didn't answer"
+        case .pending: "not worked out yet"
+        }
+    }
+
+    /// `{origin}`: the origin place's name, or `where you are` (§24.2.1).
+    static let whereYouAre = "where you are"
+}
+
+/// The identifier prefixes Kadence owns (§27.6). Anything else in the
+/// centre is never touched.
+nonisolated enum NotificationKindPrefix: String, Sendable, CaseIterable {
+    case leave, start, result, sync
+
+    static func of(_ identifier: String) -> NotificationKindPrefix? {
+        allCases.first { identifier.hasPrefix($0.rawValue + ".") }
+    }
+}
+
+/// §27.7's categories.
+nonisolated enum NotificationCategory: String, Sendable, CaseIterable {
+    case event = "kadence.event"
+    case readOnly = "kadence.readOnly"
+    case result = "kadence.result"
+    case source = "kadence.source"
+}
+
+/// §27.4's levels. The recording centre records the level asked for.
+nonisolated enum InterruptionLevel: String, Sendable {
+    case active
+    case timeSensitive
+}
+
+/// One title and body, exact.
+nonisolated struct NotificationText: Sendable, Equatable {
+    var title: String
+    var body: String
+}
+
+nonisolated enum NotificationCopy {
+    /// `{where}`, with its leading separator handled by the caller: the
+    /// location text (`Online` for an online event), else the place's name,
+    /// else nil.
+    static func whereText(locationText: String?, isOnline: Bool, placeName: String?) -> String? {
+        let text = (locationText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty { return isOnline ? "Online" : text }
+        if let placeName, !placeName.isEmpty { return placeName }
+        return nil
+    }
+
+    static func joined(_ parts: [String?]) -> String { parts.compactMap { $0 }.joined(separator: " · ") }
+
+    /// N1 — `Leave by {depart} for {title}` / `Starts {start} · {where} ·
+    /// {min} min from {origin}`.
+    static func n1(title: String, depart: String, start: String, where place: String?, minutes: Int,
+                   origin: String) -> NotificationText {
+        NotificationText(title: "Leave by \(depart) for \(title)",
+                         body: joined(["Starts \(start)", place, "\(minutes) min from \(origin)"]))
+    }
+
+    /// N1e — the same from an estimate.
+    static func n1e(title: String, depart: String, start: String, where place: String?, minutes: Int,
+                    origin: String, reason: String) -> NotificationText {
+        NotificationText(title: "Leave by about \(depart) for \(title)",
+                         body: joined(["Starts \(start)", place, "about \(minutes) min from \(origin)",
+                                       "estimate, \(reason)"]))
+    }
+
+    /// N2 — a leave-by held past `departAt` by a protected window.
+    static func n2(title: String, depart: String, start: String, where place: String?, window: String,
+                   isEstimate: Bool) -> NotificationText {
+        let inside = window.isEmpty ? "inside a protected window" : "inside \(window) (protected)"
+        return NotificationText(title: "Leave now for \(title)",
+                                body: joined(["Starts \(start)", place,
+                                              "Leave-by was \(isEstimate ? "about " : "")\(depart), \(inside)"]))
+    }
+
+    /// N3 — a catch-up after `departAt`.
+    static func n3(title: String, depart: String, start: String, where place: String?,
+                   isEstimate: Bool) -> NotificationText {
+        NotificationText(title: "Leave now for \(title)",
+                         body: joined(["Starts \(start)", place, "Leave-by was \(isEstimate ? "about " : "")\(depart)"]))
+    }
+
+    /// N4 — `{title} starts at {start}` / `{where} · {source}`.
+    static func n4(title: String, start: String, where place: String?, source: String) -> NotificationText {
+        NotificationText(title: "\(title) starts at \(start)", body: joined([place, source]))
+    }
+
+    /// N7 — travel unavailable. `reason` nil: `pending`.
+    static func n7(title: String, start: String, where place: String?, origin: String,
+                   reason: String?) -> NotificationText {
+        let sentence = reason.map { "Travel time from \(origin) unavailable: \($0). Check your route before you leave." }
+            ?? "Travel time from \(origin) isn't worked out yet. Check your route before you leave."
+        return NotificationText(title: "\(title) starts at \(start)", body: joined([place, sentence]))
+    }
+
+    /// N5 — `{title} moved to {new}` (`moved to tomorrow {new}` across a
+    /// day, §16) / `Snoozed from {old} · ⌘Z in Kadence undoes it`.
+    static func n5(title: String, oldStart: Date, newStart: Date, calendar: Calendar) -> NotificationText {
+        let new = TravelCopy.time(newStart, calendar: calendar)
+        let moved = calendar.isDate(newStart, inSameDayAs: oldStart) ? new : "tomorrow \(new)"
+        return NotificationText(title: "\(title) moved to \(moved)",
+                                body: "Snoozed from \(TravelCopy.time(oldStart, calendar: calendar)) · ⌘Z in Kadence undoes it")
+    }
+
+    /// N6 — `{title} not moved` / `{new} is inside {window} (protected)`.
+    static func n6(title: String, newStart: Date, window: String, calendar: Calendar) -> NotificationText {
+        let new = TravelCopy.time(newStart, calendar: calendar)
+        let inside = window.isEmpty ? "a protected window" : "\(window) (protected)"
+        return NotificationText(title: "\(title) not moved", body: "\(new) is inside \(inside)")
+    }
+
+    /// N8 — a source's background sync paused after a 401 or 403 (§27.4).
+    static func n8(name: String, host: String, user: String, forbidden: Bool) -> NotificationText {
+        NotificationText(
+            title: "\(name) isn't syncing",
+            body: forbidden
+                ? "\(host) refused access for \(user). Sync is paused until you check the account in Kadence."
+                : "\(host) didn't accept the password for \(user). Sync is paused until you update it in Kadence.")
+    }
+
+    /// §27.6: `userInfo["hash"]`, SHA-256 of title, body and category.
+    static func contentHash(_ text: NotificationText, category: NotificationCategory) -> String {
+        ICSFormat.sha256Hex([text.title, text.body, category.rawValue].joined(separator: "\u{1F}"))
+    }
+}
