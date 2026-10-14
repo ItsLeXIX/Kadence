@@ -80,7 +80,8 @@ struct KadenceApp: App {
                                       geocoder: TravelServices.makeGeocoder(for: kind), clock: clock,
                                       path: PathMonitors.make(for: kind), log: log)
         return TravelCoordinator(context: context, queue: queue, clock: clock,
-                                 providerSource: TravelServices.providerSource(for: kind), log: log)
+                                 providerSource: TravelServices.providerSource(for: kind), log: log,
+                                 location: LocationServices.make(for: kind))
     }
 
     var body: some Scene {

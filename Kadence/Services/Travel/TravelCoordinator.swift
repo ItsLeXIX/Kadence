@@ -42,6 +42,8 @@ final class TravelCoordinator {
     @ObservationIgnored let calendar: Calendar
     @ObservationIgnored let providerSource: String
     @ObservationIgnored let log: RoutingLog
+    /// §24.12: where the Mac is (a mock in tests and review).
+    @ObservationIgnored let location: any LocationSource
     /// Asks the notification scheduler for a pass (task 9).
     @ObservationIgnored var onPassCompleted: (() -> Void)?
 
@@ -68,10 +70,15 @@ final class TravelCoordinator {
     @ObservationIgnored private var ranSlots: [UUID: (start: Date, offsets: Set<TimeInterval>)] = [:]
     @ObservationIgnored private(set) var plannedSlots: [UUID: [Date]] = [:]
     @ObservationIgnored private var campusLookupInFlight = false
+    /// §24.2.1: the one location step in flight, and what to fall back to if
+    /// the request from where you are fails.
+    @ObservationIgnored private var locationTask: Task<Void, Never>?
+    @ObservationIgnored private var hereFallbacks: [UUID: () -> Void] = [:]
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     init(context: ModelContext, queue: RouteRequestQueue, clock: any TravelClock, calendar: Calendar = .current,
-         providerSource: String, log: RoutingLog) {
+         providerSource: String, log: RoutingLog, location: any LocationSource) {
+        self.location = location
         self.context = context
         self.queue = queue
         self.clock = clock
@@ -215,7 +222,8 @@ final class TravelCoordinator {
 
         let writes = apply(output, legs: legs, events: events, today: today)
         queue.syncPlanned(output.requests)
-        planRefreshes(output, events: snapshots, places: places, now: now, catchUp: kind != .ordinary)
+        planRefreshes(output, events: snapshots, places: places, settings: settings, now: now,
+                      catchUp: kind != .ordinary)
         if writes > 0 { revision += 1 }
         onPassCompleted?()
         return writes
@@ -267,6 +275,17 @@ final class TravelCoordinator {
             if case .success(let seconds) = result, let request = job.request {
                 store.upsert(request, travelSeconds: seconds, computedAt: at)
             }
+        case .refresh(let eventID, let slot, let fromHere) where fromHere:
+            let fallback = hereFallbacks.removeValue(forKey: eventID)
+            switch result {
+            case .success(let seconds):
+                writeHereLeg(eventID: eventID, seconds: seconds, at: at)
+                refreshOutcomes[eventID] = .init(slot: slot, failure: nil, key: nil, answeredAt: at)
+            case .failure:
+                // §24.2.1: a failed request from the fix refreshes from the
+                // rule origin as usual.
+                fallback?()
+            }
         case .refresh(let eventID, let slot, let fromHere):
             switch result {
             case .success(let seconds):
@@ -293,7 +312,7 @@ final class TravelCoordinator {
     /// missed while Kadence was not running or the Mac slept, once, before
     /// the start.
     private func planRefreshes(_ output: TravelLegPlanner.Output, events: [TravelEventSnapshot],
-                               places: [KnownPlace], now: Date, catchUp: Bool) {
+                               places: [KnownPlace], settings: AppSettings, now: Date, catchUp: Bool) {
         refreshWake?.cancel()
         refreshWake = nil
         let horizon = calendar.date(byAdding: .day, value: 2, to: calendar.startOfDay(for: now)) ?? now
@@ -304,6 +323,12 @@ final class TravelCoordinator {
             return (leg, event)
         }
         let nextDeparture = candidates.min { $0.1.start < $1.1.start }?.1.id
+        // §24.2.1: the next departure for location — the earliest
+        // not-started leg whose departure is due within 45 minutes.
+        let locationLeg = candidates.filter { leg, event in
+            let departure = leg.departAt ?? event.start.addingTimeInterval(-Self.unknownDepartureLead)
+            return departure.addingTimeInterval(-45 * 60) <= now
+        }.min { $0.1.start < $1.1.start }?.1.id
         var nextSlot: Date?
         plannedSlots = [:]
 
@@ -322,11 +347,16 @@ final class TravelCoordinator {
                 var offsets = ran
                 for slot in slots where slot.at <= due.at { offsets.insert(slot.offset) }
                 ranSlots[event.id] = (event.start, offsets)
-                // A leg still waiting for its first answer is being asked
-                // right now; that request is the refresh (DEVIATIONS B51).
-                if leg.status != .pending {
-                    sendRefresh(leg, event: event, slot: due.at, endpoints: endpoints,
-                                priority: event.id == nextDeparture ? 1 : 2, now: now)
+                let priority = event.id == nextDeparture ? 1 : 2
+                if due.offset == 45 * 60, event.id == locationLeg, settings.useCurrentLocation {
+                    // §24.2.1: the next departure's T−45 refresh may route
+                    // from where the Mac is.
+                    refreshFromHere(leg, event: event, slot: due.at, endpoints: endpoints, priority: priority,
+                                    settings: settings)
+                } else if leg.status != .pending {
+                    // A leg still waiting for its first answer is being asked
+                    // right now; that request is the refresh (DEVIATIONS B51).
+                    sendRefresh(leg, event: event, slot: due.at, endpoints: endpoints, priority: priority, now: now)
                 }
             }
             for slot in slots where slot.at > now && !ran.contains(slot.offset) {
@@ -358,6 +388,99 @@ final class TravelCoordinator {
                                            purpose: .refresh(eventID: event.id, slot: slot, fromHere: false),
                                            request: request)
         queue.enqueueRefresh(job, eventID: event.id, priority: priority, eventStart: event.start)
+    }
+
+    // MARK: Where you are (§24.2.1, §24.12)
+
+    /// The next departure's T−45 refresh. Asks once for permission when it
+    /// was never asked (that refresh uses the rule origin); with location
+    /// allowed, one fix — used if fresh, accurate and more than 300 m from
+    /// the rule origin. Never blocks the departure: anything else refreshes
+    /// from the rule origin. The fix lives in this function only.
+    private func refreshFromHere(_ leg: LegValues, event: TravelEventSnapshot, slot: Date,
+                                 endpoints: [String: TravelEndpoint?], priority: Int, settings: AppSettings) {
+        let fallback = { [weak self] in
+            guard let self else { return }
+            // B51: a leg still waiting for its first answer is being asked.
+            if leg.status != .pending {
+                self.sendRefresh(leg, event: event, slot: slot, endpoints: endpoints, priority: priority, now: self.clock.now)
+            }
+        }
+        guard let originID = leg.originPlaceID, let origin = endpoints[originID] ?? nil,
+              let destination = endpoints[leg.destinationPlaceID] ?? nil else { return fallback() }
+        let location = location
+        let previous = locationTask
+        locationTask = Task { [weak self] in
+            await previous?.value
+            guard let self else { return }
+            switch await location.authorization() {
+            case .notDetermined:
+                if settings.locationRequestedAt == nil {
+                    settings.locationRequestedAt = self.clock.now
+                    try? self.context.save()
+                    _ = await location.requestAuthorization()
+                }
+                fallback()
+            case .denied, .servicesOff:
+                self.log.write("location unavailable · denied")
+                fallback()
+            case .allowed:
+                guard let fix = await location.currentFix(timeout: LocationRules.timeout) else {
+                    self.log.write("location unavailable · timeout")
+                    return fallback()
+                }
+                switch LocationRules.verdict(fix, origin: origin, now: self.clock.now) {
+                case .use:
+                    self.log.write("location used")
+                    let here = TravelEndpoint(id: nil, latitude: fix.latitude, longitude: fix.longitude)
+                    let arrival = event.start.addingTimeInterval(-leg.buffer)
+                    let job = RouteRequestQueue.ETAJob(
+                        key: "here:" + event.id.uuidString, origin: here, destination: destination, mode: leg.mode,
+                        arrivingBy: arrival, purpose: .refresh(eventID: event.id, slot: slot, fromHere: true),
+                        request: nil)
+                    self.hereFallbacks[event.id] = fallback
+                    self.queue.enqueueRefresh(job, eventID: event.id, priority: priority, eventStart: event.start)
+                case .withinRadius:
+                    self.log.write("location not used · within 300 m")
+                    fallback()
+                case .unusable:
+                    fallback()
+                }
+            }
+        }
+    }
+
+    /// The answer from where you are: written onto the leg as
+    /// `currentLocation` — no place id, no coordinate (§24.11) — and kept
+    /// until the trip's inputs change (§24.2.1).
+    private func writeHereLeg(eventID: UUID, seconds: TimeInterval, at: Date) {
+        guard let leg = TravelLegs.leg(for: eventID, in: context),
+              let event = ((try? context.fetch(FetchDescriptor<Event>(predicate: #Predicate { $0.id == eventID }))) ?? []).first
+        else { return }
+        let duration = TravelLegPlanner.roundedUp(seconds)
+        var values = LegValues(leg)
+        values.status = .ready
+        values.reason = nil
+        values.reasonPlaceID = nil
+        values.retryAt = nil
+        values.duration = duration
+        values.departAt = event.start.addingTimeInterval(-leg.buffer - duration)
+        values.originKind = .currentLocation
+        values.originPlaceID = nil
+        values.source = providerSource
+        values.computedAt = at
+        values.refreshedAt = at
+        values.write(to: leg)
+        try? context.save()
+        revision += 1
+    }
+
+    /// Tests: wait for the location step in flight.
+    func settleLocation() async {
+        while let task = locationTask {
+            await task.value
+            if locationTask == task { locationTask = nil }
+        }
     }
 
     // MARK: The campus (§23.6)

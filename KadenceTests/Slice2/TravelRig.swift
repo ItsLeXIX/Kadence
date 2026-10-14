@@ -28,8 +28,12 @@ final class TravelRig {
     static let m = TravelFixtures.date("2026-10-12 00:00")
 
     /// `seed`: nil for an empty store with only the built-ins.
+    let location: MockLocationSource
+
     init(now: Date, variant: TravelDataset.Variant? = nil, seed: Bool = true,
-         geocoder: (any PlaceGeocoder)? = nil, provider: MockTravelTimeProvider? = nil) throws {
+         geocoder: (any PlaceGeocoder)? = nil, provider: MockTravelTimeProvider? = nil,
+         location: MockLocationSource = MockLocationSource(authorization: .notDetermined)) throws {
+        self.location = location
         container = try slice2MemoryContainer()
         context = container.mainContext
         if seed {
@@ -47,14 +51,25 @@ final class TravelRig {
         queue = RouteRequestQueue(provider: self.provider, geocoder: self.geocoder, clock: clock, path: path,
                                   calendar: TravelFixtures.calendar, log: log)
         coordinator = TravelCoordinator(context: context, queue: queue, clock: clock, calendar: TravelFixtures.calendar,
-                                        providerSource: "mock", log: log)
+                                        providerSource: "mock", log: log, location: location)
     }
 
     var store: EventStore { EventStore(context: context, undo: undo) }
 
     /// Runs every wake (debounce, queue, refresh) due up to `until`, letting
     /// each request finish.
-    func run(until: Date) async { await queue.run(on: clock, until: until) }
+    func run(until: Date) async {
+        while true {
+            await coordinator.settleLocation()
+            await queue.settle()
+            await coordinator.settleLocation()
+            guard let next = clock.nextWakeAt, next <= until else { break }
+            clock.advance(to: next)
+        }
+        clock.advance(to: until)
+        await coordinator.settleLocation()
+        await queue.settle()
+    }
     func run(for seconds: TimeInterval) async { await run(until: clock.now.addingTimeInterval(seconds)) }
 
     /// Launch and let the answers come in (a minute is plenty: 2 s apart).

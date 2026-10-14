@@ -269,7 +269,7 @@ nonisolated enum RoutingLogCheck {
         #"^queue paused · until \d{2}:\d{2}$"#,
         #"^lookup ok · \d+ results$"#, #"^lookup none$"#, #"^lookup failed · (offline|throttled|failed)$"#,
         #"^location used$"#, #"^location not used · within 300 m$"#,
-        #"^location unavailable · (denied|timeout|servicesOff|notDetermined|noFix)$"#,
+        #"^location unavailable · (denied|timeout)$"#,
     ]
 
     /// Fixture addresses, place names and event titles of the `travel`

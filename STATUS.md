@@ -10550,3 +10550,45 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   day, retried at the next launch); `NSCalendarDayChanged` moves the
   window; no event changes during a recompute.
 - Verify: **969 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T07 — where you are: the next departure's origin
+
+- `Kadence/Services/Travel/LocationSource.swift`: `LocationAuthorization`
+  (`allowed` / `denied` incl. restricted / `servicesOff` /
+  `notDetermined`), `LocationFix`, `LocationSource` (§24.12 exactly),
+  `LocationRules` (≤ 2 min old, ≤ 200 m accuracy, > 300 m from the rule
+  origin — haversine), `MockLocationSource` (actor; scripted authorization,
+  what asking turns it into, a fixed or "fresh" fix; counts every call) and
+  `LocationServices.make(for:)` (the launch-kind table).
+- `SystemLocationSource.swift` — **the only file that imports
+  CoreLocation**: `CLLocationManager`, hundred-metre accuracy, one
+  `requestLocation()` raced against the 10 s timeout, `requestWhenInUse…`
+  only when asked; normal launch only. Tested through its pure
+  authorization mapping.
+- `TravelCoordinator`: the location leg is the earliest not-started leg
+  whose departure is due within 45 min (`departAt − 45 ≤ now`, or
+  `start − 105 ≤ now` with no time); only its **T−45** refresh (or a launch
+  / wake catching that slot up) and only with `useCurrentLocation` on goes
+  through location: `notDetermined` and never asked → one
+  `requestAuthorization`, `locationRequestedAt` recorded, the rule origin
+  used; `denied` / `servicesOff` → `location unavailable · denied`; no fix →
+  `location unavailable · timeout`; a usable fix > 300 m away → `location
+  used`, the ETA from the fix (priority 1, never cached); within 300 m →
+  `location not used · within 300 m`, the rule origin. Anything else
+  refreshes from the rule origin, and a failed request from the fix does
+  too. The answer is written as `originKind currentLocation`,
+  `originPlaceID` nil — no coordinate anywhere — and kept by the planner
+  until the event, destination, mode or buffer changes.
+- Wired: `KadenceApp.makeTravel` passes `LocationServices.make(for:)`.
+- Tests: `KadenceTests/Slice2/TravelLocationTests.swift` (9): §30.1 "From
+  where you are" (12:22, `currentLocation`, no cache row, `eta ok · 28 min ·
+  transit · refresh · here`); within 300 m; never at T−3 h (no location call
+  at all), 3-minute-old and 250 m fixes unused; denied (no fix asked) and
+  the switch off (no call at all); ask once (one request, the time recorded,
+  no second ask a day later); the leg kept through an unrelated recompute
+  and replaced by a buffer change; a failed request from the fix; the
+  mapping; the factory and the CoreLocation source scan. After every case
+  no leg field, cache key, place or log line holds the fix's coordinate.
+  `RoutingLogCheck` now allows only §24.11's two `location unavailable`
+  words (`denied`, `timeout`).
+- Verify: **978 passed / 0 failed**; real store `stat` unchanged.
