@@ -228,8 +228,11 @@ struct CoveredBlockTests {
         Phase3Render.keep.append(f.container)
         let (layout, _) = layout([f.long, f.short], columnWidth: 124, hourHeight: Tokens.Size.hourHeightWeek)
         let block0 = try #require(layout.block(for: f.long.id)), block1 = try #require(layout.block(for: f.short.id))
+        // A margin of canvas on every side, as the other renders have, so no
+        // block touches the frame's edge (§17.2 rule 6's band).
+        let margin: CGFloat = 12
         let originY = block0.frame.minY - 10
-        let size = CGSize(width: 150, height: block0.frame.height + 20)
+        let size = CGSize(width: 150 + 2 * margin, height: block0.frame.height + 20)
 
         // The two blocks exactly as the day column draws them: the real
         // block view, the engine's frames, the same gap modifier.
@@ -239,7 +242,7 @@ struct CoveredBlockTests {
                           isCovered: laidOut.isCovered)
                 .frame(width: laidOut.frame.width, height: laidOut.frame.height, alignment: .topLeading)
                 .cascadeGapCuts(laidOut.gapCuts, origin: laidOut.frame.origin)
-                .offset(x: laidOut.frame.minX, y: laidOut.frame.minY - originY)
+                .offset(x: laidOut.frame.minX + margin, y: laidOut.frame.minY - originY)
         }
         let view = ZStack(alignment: .topLeading) {
             Tokens.Color.Surface.canvas
@@ -253,7 +256,7 @@ struct CoveredBlockTests {
 
         /// The colour at a point given in the day column's coordinates.
         func colour(_ x: CGFloat, _ y: CGFloat) throws -> [Int] {
-            let c = try #require(bitmap.colorAt(x: Int((x * scale).rounded(.down)), y: Int(((y - originY) * scale).rounded(.down)))?
+            let c = try #require(bitmap.colorAt(x: Int(((x + margin) * scale).rounded(.down)), y: Int(((y - originY) * scale).rounded(.down)))?
                 .usingColorSpace(.sRGB))
             return [c.redComponent, c.greenComponent, c.blueComponent].map { Int(($0 * 255).rounded()) }
         }

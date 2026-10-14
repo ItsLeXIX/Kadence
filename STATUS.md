@@ -10130,3 +10130,47 @@ own in-memory store.
   pre-flight before each, on review launches: the six regression scripts
   PASS, `check-view-switch-focus` PASS, `check-edit-delete` PASS; the real
   store's `stat` unchanged.
+
+## 131. P3-F11 — the recapture and `screenshots/3/INDEX.md` (PHASE3-REVIEW.md §8 fix 11; components.md §22 items 22–27, §17.2 rules 1–6)
+
+- `Scripts/capture-p3.sh` gains the real-use items: `real-first-run`
+  (`empty`), `fresh-week`, `fresh-overlap-week`, `fresh-overlap-day`,
+  `inspector-bpref`, `settings-fresh` (`fresh`; the week of 2 Oct reached by
+  date). Every live frame is a review launch on its own in-memory store, one
+  build, a fresh launch and a fresh pre-flight per item (all pre-flights
+  passed: unlocked, no full screen).
+- Group C (live), Wed 2026-10-14 10:08–10:18, app code of `1ca98aa`: new
+  items 22–27 and the recaptures of 8, 10 (forbidden), 11, 12 (both), 16,
+  21. Group D (renders), 10:19–10:20: item 10's partial-details popover and
+  item 24's `cascade-gap`. The first `fresh-overlap-day` run stopped (the
+  Day step went the wrong way through the week); fixed in the script and
+  rerun with a fresh pre-flight.
+- Every frame was looked at. What they show: item 22 — `Personal`, `Daily
+  routine`, `Connect Timetable…`, nothing else; 23 — one blue timetable row
+  with `tablecells.fill`, no Needs attention; 24 — the 18:35 `BPREF-Info`
+  titled in its band with the 2pt gap round the 19:30 one (Week), packed in
+  Day; 25 — `Lecturers L05 L06`, `Online · WEBINAR02`, `Done`/`Skip`
+  enabled; 26 / 11 / 12 — `HS_A3.15 · Univer…`, `Online · University…`,
+  `SWEN3-LAB` in `EDV_F4.26`, Friday's `SWRM-ILV` named; 8 / 27 — `Sync Now`
+  plain bordered; 10 / 21 — `Last synced … · 13 events`, never `Never
+  synced`; 10's render — §19.3's exact sentences; 16 — `10 of 15`.
+- Retired: `sidebar-first-run-p3.png` (superseded by item 22) and
+  `day-inno3-online-p3.png` (Week shows `Online` now; it also carried the
+  toolbar ring fixed in fix 10c) — `git rm`.
+- **Edge check** on all 40 frames: 39 ok, item 16 ok under the rule-6
+  exemption (`--preview`). `cascade-gap` first flagged (a render with no
+  margin, a lecture's blue fill at the edge); the render test now leaves
+  12pt of canvas round it, re-rendered: ok.
+- `INDEX.md` rewritten: the four groups (when, which build, which frames),
+  the clock and `M` / `k` of each, the dataset and mocked case per item, and
+  what each frame shows; every named file exists and every file is named.
+- **Secret grep** (STATUS §120's commands, on the staged tree): the sentinel
+  only in the same 8 test files that define it (and design/); the review
+  password only in `Kadence/Review/ReviewMode.swift` (and design/, STATUS);
+  no `Authorization: Basic|Digest <value>`, no `"Basic <base64>"`; the only
+  username in code and fixtures `user01`; no `webcal`, `••••••` or
+  `subscription link` in `Kadence/` or `KadenceTests/`. The real username:
+  `DECISIONS.md:339` only.
+- Verify: xcresult **902 passed / 0 failed**; app warnings: only
+  `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
+  store's `stat` unchanged after every capture.

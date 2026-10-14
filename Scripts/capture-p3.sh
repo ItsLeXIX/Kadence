@@ -387,6 +387,104 @@ item_popover_live() {
   quit_app
 }
 
+# ---- PHASE3-REVIEW fix 11: the real-use set (components.md §22 items 22–27),
+# on the datasets `empty` and `fresh` (§22.1). Every launch is a review launch
+# on its own in-memory store.
+KVK_LEFT=123
+# The week of 28 Sep – 4 Oct 2026 from today's week (fresh's dates are absolute).
+to_week_of_2_oct() {
+  key $KVK_2 cmd; sleep 1
+  local i
+  for i in $(seq 1 30); do
+    has "BPREF-Info" && return 0
+    key $KVK_LEFT cmd; sleep 0.8
+  done
+  echo "FAIL: never reached the week of 2 Oct"; quit_app; exit 1
+}
+item_real_first_run() {           # item 22 (and item 1's first-run evidence)
+  launch_fresh -KadenceReview empty
+  sleep 2
+  has "Connect Timetable…" || { echo "FAIL: no Connect Timetable… row"; quit_app; exit 1; }
+  has "Needs attention" && { echo "FAIL: a Needs attention row on a first run"; quit_app; exit 1; }
+  has "University timetable" && { echo "FAIL: a timetable row on a first run"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "real-first-run-$SUFFIX.png"
+  quit_app
+}
+item_fresh_week() {               # item 23
+  launch_fresh -KadenceReview fresh -KadenceMockCalDAV reportOK
+  sleep 3
+  to_week_of_2_oct
+  has "Needs attention" && { echo "FAIL: a Needs attention row after the Import"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "fresh-week-sidebar-$SUFFIX.png"
+  quit_app
+}
+item_fresh_overlap_week() {       # item 24, Week (cascade)
+  launch_fresh -KadenceReview fresh -KadenceMockCalDAV reportOK
+  sleep 3
+  to_week_of_2_oct
+  key $KVK_ESC; key $KVK_ESC
+  shoot_window "$(main_id)" "fresh-overlap-week-$SUFFIX.png"
+  quit_app
+}
+item_fresh_overlap_day() {        # item 24, Day (packed)
+  launch_fresh -KadenceReview fresh -KadenceMockCalDAV reportOK
+  sleep 3
+  to_week_of_2_oct
+  # Into the week's Friday: Day view, then step to 2 Oct.
+  key $KVK_3 cmd; sleep 1
+  local i
+  # The day view opens on the week's anchor day; Friday 2 Oct is within
+  # four days of it either way.
+  for i in 1 2 3 4 5 6; do
+    "$WORK/axq" "$PID" | grep -q "BPREF-Info" && break
+    key $KVK_RIGHT cmd; sleep 0.8
+  done
+  for i in $(seq 1 10); do
+    "$WORK/axq" "$PID" | grep -q "BPREF-Info" && break
+    key $KVK_LEFT cmd; sleep 0.8
+  done
+  # Bring 18:00–20:30 into view: scroll the canvas down.
+  local xy; xy=$(find_el "BPREF-Info") || { echo "FAIL: no BPREF-Info on this day"; quit_app; exit 1; }
+  front; "$WORK/hid" scroll 900 600 -300; sleep 1.5
+  key $KVK_ESC; key $KVK_ESC
+  shoot_window "$(main_id)" "fresh-overlap-day-$SUFFIX.png"
+  quit_app
+}
+item_inspector_bpref() {          # item 25
+  launch_fresh -KadenceReview fresh -KadenceMockCalDAV reportOK
+  sleep 3
+  to_week_of_2_oct
+  "$WORK/axq" "$PID" > "$WORK/ax-bpref.txt"
+  # The 18:35 block: of the two BPREF-Info elements, the higher one; click
+  # inside its title band, clear of the 19:30 session.
+  local xy; xy=$(python3 - "$WORK/ax-bpref.txt" <<'PY2'
+import sys
+best = None
+for line in open(sys.argv[1]).read().splitlines():
+    p = line.split("~")
+    if len(p) != 9 or "BPREF-Info" not in " ".join(p[1:5]): continue
+    x, y, w, h = map(int, p[5:9])
+    if w > 0 and h > 0 and (best is None or y < best[1]): best = (x, y, w, h)
+if not best: sys.exit(1)
+print(best[0] + 40, best[1] + 8)
+PY2
+) || { echo "FAIL: no BPREF-Info block"; quit_app; exit 1; }
+  click $xy
+  has "Read-only — from University timetable" || { echo "FAIL: BPREF-Info not selected"; quit_app; exit 1; }
+  has "L06" || { echo "FAIL: the inspector does not list L06"; quit_app; exit 1; }
+  shoot_window "$(main_id)" "inspector-bpref-two-lecturers-$SUFFIX.png"
+  quit_app
+}
+item_settings_fresh() {           # item 27
+  launch_fresh -KadenceReview fresh -KadenceMockCalDAV reportOK
+  sleep 3
+  local id; id=$(open_settings)
+  has "13 events" || { echo "FAIL: no '13 events' in Settings"; quit_app; exit 1; }
+  echo "  focus: $("$WORK/focus" "$PID")"
+  shoot_window "$id" "settings-sources-fresh-$SUFFIX.png"
+  quit_app
+}
+
 item_debug_emphasis() {   # diagnostics only
   launch_fresh -KadenceReview phase3 -KadenceMockCalDAV reportOK
   sleep 3; to_week_m
