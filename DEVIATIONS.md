@@ -2359,3 +2359,39 @@ Entries opened or closed by the fix run (`design/PHASE3-REVIEW.md` §8, fixes
   `beginDraft` would have cleared). The check was rebuilt on Settings'
   `Name` field instead. Worth a look with the next event-creation task
   (with A37).
+
+### Rulings from PHASE3-REVIEW.md, recorded (P3-HK, 2026-10-12)
+
+Per the review's §2 and §7 (DECISIONS 2026-10-10 "Phase 3 slice 1 gaps
+closed by review"). The entries above keep their text; their status is:
+
+- **D6** (UID 185 vs 186) — **ruled**: 185; the spec was wrong in three
+  places and is corrected (GAPS G-070 closed). Nothing to build.
+- **D7** (Import window formula) — **ruled**: one calendar year back, as
+  built; the formula was wrong (GAPS G-071 closed).
+- **B40** (Kadence builds the `Authorization` header) — **accepted**, with
+  required tests: built in P3-F3 (STATUS §123).
+- **B41** (`-KadenceReview phase2`) — **accepted**, superseded in part:
+  review mode has its own store and the datasets `empty` and `fresh` (built
+  in P3-F1).
+- **B42** (`Statistik übung` detached in `phase3`) — **accepted** (GAPS
+  G-073 closed).
+- **B43** (the review mock accepts any password for `user01`) —
+  **accepted**; tests keep the check on.
+- **A38** (Edit ▸ Delete) — **ruled required**; built in P3-F10.
+
+### Deferred by the review (logged here; text in GAPS "Deferred by this review")
+
+- **A39 — Digest authentication across several requests.** The build
+  reuses the first challenge's nonce with `nc=00000001` on later requests,
+  which a strict server may answer `401` (shown as `Sign-in failed`, and
+  paused). CIS uses Basic, so this is not on Parsa's path. When built: `nc`
+  increments, a fresh `cnonce` per request, and a `401` with `stale=true` is
+  answered once more instead of ending `unauthorized`. Deferred, still
+  normative.
+- **A40 — `↩` on a focused connected sidebar row** (layouts.md §2.1) is
+  wired (`onKeyPress(.return)`) but not observed live; a sidebar `List` row
+  rarely holds key focus. Three other paths open the popover (the status
+  slot, `Show Sync Status`, the inspector's sync line). Verify with the next
+  sidebar task. Deferred.
+- **A37** (`⌘⌥N`), **A33**, **A34** — unchanged, deferred.

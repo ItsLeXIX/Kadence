@@ -9636,6 +9636,19 @@ Outgoing Connections (Client) first. Then Kadence ▸ Settings… (⌘,) ▸ Sou
 scripts delete the app's store when they run — don't run them after
 connecting for real.
 
+
+**Correction (2026-10-12, P3-HK; PHASE3-REVIEW.md §5).** The log command
+above, `log show --last 1h --predicate 'category == "sync"' --info`, also
+matches Apple's own `sync` categories. The right one is subsystem-scoped:
+
+```
+log show --last 1h --info --predicate 'subsystem == "XIX.Kadence" AND category == "sync"'
+```
+
+And the warning about the UI scripts no longer applies: since P3-F1 (§121)
+no script deletes or writes the app's store, and a review launch runs on its
+own in-memory store.
+
 ## 121. P3-F1 — review mode gets its own store; no script touches the real one (PHASE3-REVIEW.md §8 fix 1; components.md §22.1 "Review mode never touches the real store", §21.1.1; G-076)
 
 - **Before anything ran:** `KadenceTests` is hosted by Kadence.app

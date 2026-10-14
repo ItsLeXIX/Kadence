@@ -2888,3 +2888,20 @@ Building the sentence table (fix 8) left two cases without an exact string:
 
 Neither is reachable on CIS (its VEVENTs have `DTEND` in the fixture's form
 and no recurrence). Not blocking.
+
+### Build status after the fix run (coding agent, 2026-10-12; for the design agent to close)
+
+The spec side of each was closed by the review; these lines record what was
+built, where, and what remains before each can be closed with its frames.
+
+- **G-076** (review mode's own store) — built, P3-F1 (`AppStore`,
+  `LaunchKind`; no script names `default.store`). Also the unit-test host
+  (DEVIATIONS B45).
+- **G-075** (a source is its record) — built, P3-F2 (`SourceDirectory`).
+- **G-077** (a tie is not a duplicate; log fields) — built, P3-F4.
+- **G-048 / G-078** (the covered title band; the cascade gap) — built,
+  P3-F6.
+- **G-079** (`Location · Source`) — built, P3-F7.
+- **G-069 / G-074** placeholders removed, P3-F8. **G-081** opened (above).
+- **G-080** (the deselection horizon) — built, P3-F9.
+- Frames for all of them: P3-F11 (`screenshots/3/INDEX.md`).
