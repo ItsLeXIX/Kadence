@@ -35,6 +35,19 @@ final class SourcesRouter {
 
     var selectedSourceID: String?
     var sheet: Sheet?
+
+    // Slice 2 (layouts.md §11, amended 2026-10-14): three tabs.
+    enum SettingsTab: String, Hashable, Sendable { case sources, travel, notifications }
+    /// The tab shown; `⌘,` reopens the last one shown this session.
+    var settingsTab: SettingsTab = .sources
+
+    /// layouts.md §13 "Focus": `Add Address…` focuses a place's address
+    /// field; `Change Way to Travel…` a pair's pop-up.
+    enum TravelFocus: Hashable, Sendable {
+        case address(placeID: String)
+        case pair(String, String)
+    }
+    var travelFocus: TravelFocus?
 }
 
 // MARK: - The model (pure decisions, tested)
@@ -147,12 +160,23 @@ enum SourcesSettingsModel {
 // MARK: - The Settings scene
 
 struct SettingsView: View {
+    @Environment(SourcesRouter.self) private var router
+
     var body: some View {
-        // A tab bar with one tab is on purpose (layouts.md §11): later phases
-        // add panes without moving this one.
-        TabView {
+        @Bindable var router = router
+        // layouts.md §11 (amended 2026-10-14): Sources (`link`), Travel
+        // (`mappin.and.ellipse`), Notifications (`bell`), in this order —
+        // chrome symbols, in no glyph vocabulary.
+        TabView(selection: $router.settingsTab) {
             SourcesSettingsView()
                 .tabItem { Label("Sources", systemImage: "link") }
+                .tag(SourcesRouter.SettingsTab.sources)
+            TravelSettingsPane()
+                .tabItem { Label("Travel", systemImage: "mappin.and.ellipse") }
+                .tag(SourcesRouter.SettingsTab.travel)
+            NotificationsSettingsPane()
+                .tabItem { Label("Notifications", systemImage: "bell") }
+                .tag(SourcesRouter.SettingsTab.notifications)
         }
         .frame(width: Tokens.Size.settingsWindowWidth, height: Tokens.Size.settingsWindowHeight)
     }

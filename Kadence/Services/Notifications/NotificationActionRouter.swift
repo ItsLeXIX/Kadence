@@ -80,6 +80,7 @@ final class NotificationActionRouter {
         if response.category == .source {
             guard response.action == .open, let sourceID = response.subjectID else { return }
             sourcesRouter?.selectedSourceID = sourceID
+            sourcesRouter?.settingsTab = .sources
             request(.settingsSources(sourceID: sourceID))
             return
         }

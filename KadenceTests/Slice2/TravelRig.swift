@@ -56,6 +56,12 @@ final class TravelRig {
 
     var store: EventStore { EventStore(context: context, undo: undo) }
 
+    /// Rigs whose objects a rendered window still shows: kept for the whole
+    /// process (PopoverCaptureTests' note — a freed container under a kept
+    /// view traps the test host later).
+    static var kept: [TravelRig] = []
+    func keepAlive() { Self.kept.append(self) }
+
     /// Runs every wake (debounce, queue, refresh) due up to `until`, letting
     /// each request finish.
     /// Other work to let finish between wakes (the notification rig's

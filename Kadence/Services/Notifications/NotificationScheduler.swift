@@ -61,7 +61,7 @@ final class NotificationScheduler {
     @ObservationIgnored private var passTask: Task<Void, Never>?
     @ObservationIgnored private var again = false
     @ObservationIgnored private var pendingCatchUp = false
-    @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    @ObservationIgnored nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var isStarted = false
 
     init(context: ModelContext, centre: any NotificationCenterClient, clock: any TravelClock,
@@ -104,6 +104,10 @@ final class NotificationScheduler {
                                             queue: nil) { [weak self] _ in
             TravelCoordinator.onMain { Task { await self?.refreshPermission() } }
         })
+    }
+
+    deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
     }
 
     /// §27.6: rule and `TimeWindow` edits trigger a pass (event edits do

@@ -90,7 +90,10 @@ final class TravelCoordinator {
     /// the request from where you are fails.
     @ObservationIgnored private var locationTask: Task<Void, Never>?
     @ObservationIgnored private var hereFallbacks: [UUID: () -> Void] = [:]
-    @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    /// Removed in `deinit` (a block observer is never removed on its own;
+    /// a stale one would match a later context at the same address).
+    @ObservationIgnored nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
+    @ObservationIgnored nonisolated(unsafe) private var workspaceObservers: [NSObjectProtocol] = []
 
     init(context: ModelContext, queue: RouteRequestQueue, clock: any TravelClock, calendar: Calendar = .current,
          providerSource: String, log: RoutingLog, location: any LocationSource) {
@@ -156,10 +159,15 @@ final class TravelCoordinator {
                 Self.onMain { self?.dayChanged() }
             })
         }
-        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+        workspaceObservers.append(NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: nil) { [weak self] _ in
             Self.onMain { self?.didWake() }
         })
+    }
+
+    deinit {
+        for observer in observers { NotificationCenter.default.removeObserver(observer) }
+        for observer in workspaceObservers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
     }
 
     /// Runs `work` on the main actor: at once when already on the main

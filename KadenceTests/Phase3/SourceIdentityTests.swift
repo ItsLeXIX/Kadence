@@ -161,7 +161,11 @@ struct SourceIdentityTests {
         // A store on disk, in this test's own temporary folder (never the app's).
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("kadence-fix2-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: folder) }
+        // P3S2-T13: the folder is left for the process, not removed here.
+        // SwiftData can still fault this store's objects on a timer after the
+        // test returns; with the file gone that fault traps the test host
+        // (seen once slice 2's suites made the run longer). The test host's
+        // temporary directory is the sandbox's own and is cleared by macOS.
         let url = folder.appendingPathComponent("test.store")
         #expect(url != AppStore.realStoreURL)
         let schema = Schema(KadenceSchema.models)

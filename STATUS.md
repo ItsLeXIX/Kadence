@@ -10801,3 +10801,51 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   unauthorized / forbidden / held at 03:00), asserted against the tables;
   written as `screenshots/3b/notification-plan-travel-p3bt12.txt`.
 - Verify: **1026 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T13 — Settings ▸ Travel: places and confirming an address
+
+- Settings has **three tabs** — `Sources` (`link`), `Travel`
+  (`mappin.and.ellipse`), `Notifications` (`bell`; task 15 fills it) —
+  selected through `SourcesRouter.settingsTab` (N8's `Open` sets `Sources`);
+  `SourcesRouter.travelFocus` carries the inspector's `Add Address…` /
+  `Change Way to Travel…` focus request (task 16).
+- `Kadence/Views/Settings/TravelSettingsModel.swift` (no SwiftUI): names
+  (trimmed, non-empty, unique case-insensitively, else revert); the address
+  field (confirmed address, else typed text; the draft while editing);
+  commit → exactly one lookup through the routing queue at priority 0, only
+  when the text differs from what the field showed (typing alone never looks
+  anything up); §23.5's line and controls in every state, copy exact
+  (`Looking up…` with a spinner; `Found: …` + `Cancel` / `Use This Address`
+  (default); `n addresses match. Choose one:` + up to 5 two-line rows; the
+  "more than 5" line; `No address found for “…”…` (`notFound` stored);
+  offline / paused (`Apple Maps asked Kadence to wait. Try again at HH:mm.`)
+  / other failures + `Try Again` (`lookupFailed` stored); `Not confirmed
+  yet…` + `Look Up`; `Still using {old}.`); a superseded lookup's answer is
+  discarded; confirm (the only coordinate write; old-coordinate cache rows
+  deleted; a recompute); cancel (restores the previous address, writes
+  nothing else); leaving the tab → `unconfirmed`; clearing → `none` and
+  the place's cache rows deleted; `Add Place` (`New Place`, `New Place 2` …);
+  removal (alert text exact; clears manual events' `placeID`, the place's
+  overrides and cache rows; built-ins can't); the match list's keyboard.
+- `TravelSettingsView.swift`: the grouped form's Places section (fields with
+  hidden labels and prompts, the line under the address field — wrapping,
+  never truncating, no colour — the match rows, `minus.circle` with
+  `Remove {name}`, the footer with the campus's current name, `Add Place`),
+  and the pane that builds the model and calls `leave()` on disappear.
+- **B52** (test harness; DEVIATIONS): a slice 1 test's temporary file store
+  is no longer deleted under SwiftData's timers — the trap it caused once the
+  run grew is gone. `Slice2Render` renders without spinning the run loop and
+  tears its window down.
+- Tests: `KadenceTests/Slice2/TravelSettingsPlacesTests.swift` (15 incl.
+  6 parameterised): commit rules (unchanged / changed / typing); every
+  mock case's line and controls; paused; confirm and cancel; `Still using`
+  and clearing (legs `needsAddress (home)`); leaving → `unconfirmed`, `Look
+  Up`; names, `Add Place`, removal text and effects, built-ins; the
+  keyboard; §29 labels; the renders.
+- Captures (offscreen renders of the real Places section, §17.2 rule 3;
+  layout and copy — the live capture of the pane is task 18's):
+  `settings-travel-first-run-p3bt13.png` (`empty`, campus confirmed by the
+  mock), `settings-travel-filled-p3bt13.png` (`travel`), and item 18's
+  `settings-travel-lookup-{one,several,many,none,offline,searching,
+  still-using}-p3bt13.png`. Looked at: fields, lines and controls as §13.
+- Verify: **1036 passed / 0 failed**; real store `stat` unchanged.

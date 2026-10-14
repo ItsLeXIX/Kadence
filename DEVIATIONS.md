@@ -2446,3 +2446,14 @@ check" (2026-10-14).
   as the refresh: it is just as current, and its answer updates the same
   cache entry. A leg that has a time (`ready`, `estimate`, or an
   `unavailable` with a reason) gets its own refresh as specified.
+- **B52 — test harness: a slice 1 test's file store is no longer deleted
+  at the end of its test** (`SourceIdentityTests.visibilityIsTheRecordsAnd
+  Persists`, P3-F2). Its `defer` removed the temporary folder holding
+  `test.store` while SwiftData could still fault that store's objects on a
+  timer; once slice 2's suites made the run longer, the timer fired during
+  another test's run-loop wait and trapped the test host ("Unhandled error …
+  during faulting … test.store couldn't be opened", nine tests reported as
+  crashed). The folder is left in the test host's sandbox temporary
+  directory. No assertion changed. Slice 2's offscreen renders
+  (`Slice2Render`) also tear their window down after the capture and draw
+  without spinning the run loop.
