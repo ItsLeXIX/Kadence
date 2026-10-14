@@ -12,6 +12,7 @@
 
 import SwiftUI
 import SwiftData
+import AppKit
 
 /// The Travel tab: builds its model from the environment, and tells it when
 /// the tab is left (a result left unconfirmed becomes `unconfirmed`).
@@ -28,7 +29,17 @@ struct TravelSettingsPane: View {
                 Color.clear
             }
         }
-        .onAppear { if model == nil { model = TravelSettingsModel(context: context, travel: travel) } }
+        .onAppear {
+            if model == nil {
+                model = TravelSettingsModel(context: context, travel: travel,
+                                            openURL: { NSWorkspace.shared.open($0) })
+            }
+            // §24.12: re-read when the tab opens (reading never asks).
+            Task { await model?.refreshLocation() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await model?.refreshLocation() }
+        }
         .onDisappear { model?.leave() }
     }
 }
@@ -253,10 +264,106 @@ struct MatchRow: View {
     }
 }
 
-/// Task 14's sections (Ways to travel, Leave by, Where you are).
+/// layouts.md §13: Ways to travel, Leave by, Where you are (task 14).
 struct TravelWaysSections: View {
     let model: TravelSettingsModel
-    var body: some View { EmptyView() }
+    @Environment(SourcesRouter.self) private var router
+    @FocusState private var focusedPair: String?
+
+    var body: some View {
+        Section {
+            Picker("Usually", selection: Binding(get: { model.preferredMode }, set: { model.setPreferredMode($0) })) {
+                ForEach(TravelSettingsModel.modeChoices, id: \.self) { mode in Text(mode.settingsLabel).tag(mode) }
+            }
+            .accessibilityLabel(TravelSettingsModel.usuallyLabel)
+            .accessibilityValue(model.preferredMode.settingsLabel)
+            ForEach(model.pairs) { pair in
+                Picker(selection: Binding(get: { model.mode(for: pair) }, set: { model.setMode($0, for: pair) })) {
+                    Text("Usual").tag(TravelMode?.none)
+                    Divider()
+                    ForEach(TravelSettingsModel.modeChoices, id: \.self) { mode in
+                        Text(mode.settingsLabel).tag(TravelMode?.some(mode))
+                    }
+                } label: {
+                    Text(pair.label).lineLimit(1).truncationMode(.tail).help(pair.label)
+                }
+                .focused($focusedPair, equals: pair.id)
+                .accessibilityLabel(TravelSettingsModel.pairLabel(pair))
+                .accessibilityValue(model.pairValue(pair))
+            }
+        } header: {
+            Text("Ways to travel")
+        } footer: {
+            Text("Kadence asks Apple Maps how long each trip takes, at the time you travel.")
+                .foregroundStyle(Tokens.Color.Text.secondary)
+        }
+        .onAppear {
+            if case .pair(let a, let b) = router.travelFocus {
+                focusedPair = model.pairs.first { Set([$0.a.id, $0.b.id]) == Set([a, b]) }?.id
+            }
+        }
+
+        Section {
+            Picker("Buffer", selection: Binding(get: { model.bufferMinutes }, set: { model.setBuffer($0) })) {
+                ForEach(TravelSettingsModel.bufferChoices, id: \.self) { minutes in
+                    Text(TravelSettingsModel.bufferLabel(minutes)).tag(minutes)
+                }
+            }
+        } header: {
+            Text("Leave by")
+        } footer: {
+            Text("Added to every trip, so you arrive early.").foregroundStyle(Tokens.Color.Text.secondary)
+        }
+
+        Section {
+            Toggle(TravelSettingsModel.locationSwitchLabel,
+                   isOn: Binding(get: { model.usesCurrentLocation }, set: { model.setUsesCurrentLocation($0) }))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+            if let block = model.locationBlock {
+                StatusBlockView(title: block.title, message: block.body, button: block.button.rawValue) {
+                    Task { await model.locationButton(block.button) }
+                }
+            }
+        } header: {
+            Text("Where you are")
+        } footer: {
+            Text("Kadence asks for your location only around your next departure, sends it to Apple Maps to work out the trip, and doesn't keep it.")
+                .foregroundStyle(Tokens.Color.Text.secondary)
+        }
+    }
+}
+
+/// layouts.md §14's status block anatomy (also §13's location block): title
+/// `sourceStatusTitle`, body `inspectorValue`, the button `.bordered`
+/// trailing, not default. One accessibility element (title then body), the
+/// button separately (§29).
+struct StatusBlockView: View {
+    let title: String
+    let message: String
+    let button: String
+    let action: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+            VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+                Text(title)
+                    .lineLimit(nil)
+                    .typeStyle(.sourceStatusTitle)
+                Text(message)
+                    .lineLimit(nil)
+                    .typeStyle(.inspectorValue)
+                    .foregroundStyle(Tokens.Color.Text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+            HStack {
+                Spacer(minLength: 0)
+                Button(button, action: action)
+                    .buttonStyle(.bordered)
+            }
+        }
+    }
 }
 
 /// Task 15's pane.

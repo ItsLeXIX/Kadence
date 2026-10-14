@@ -10849,3 +10849,38 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   `settings-travel-lookup-{one,several,many,none,offline,searching,
   still-using}-p3bt13.png`. Looked at: fields, lines and controls as §13.
 - Verify: **1036 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T14 — Settings ▸ Travel: ways to travel, buffer, where you are
+
+- `TravelSettingsModel+Ways.swift`: `Usually` (Public transport · Walking ·
+  Driving — never cycling or `.any`); one pop-up per unordered pair (home
+  pairs first by `sortIndex`, then the rest), `Usual` deletes the override,
+  a mode stores one; `Buffer` None … 30 minutes; `Use where you are` and
+  §24.12's status block (denied / servicesOff / notDetermined after an ask,
+  copy exact; none for allowed, never asked, or the switch off); `Open
+  System Settings…` through an injected opener; `Allow Location…` asks once
+  and opens System Settings when the answer is not `allowed`; the state is
+  re-read when the tab opens and on `didBecomeActive` (reading never asks).
+  Every edit saves and requests a recompute.
+- `TravelSettingsView.swift`: the three sections and `StatusBlockView`
+  (§14's anatomy, reused by task 15).
+- Tests: `TravelSettingsWaysTests.swift` (8): pair order and overrides with
+  only uncached keys asked; choices; buffer 0 → `08:25` with the 09:00 slot
+  asked; the blocks; the buttons and URL; opening never asks; §29 labels;
+  renders.
+- Captures (offscreen): `settings-travel-ways-p3bt14.png`,
+  `settings-travel-location-{denied,services-off,not-allowed-yet,switch-off}-p3bt14.png`.
+- Verify: **1044 passed / 0 failed**; real store `stat` unchanged.
+
+## 134. Run summary — Phase 3 slice 2 (2026-10-14) — STOPPED after task 14 (usage limit)
+
+- Done and committed: tasks 1–14 (see §133). **Not done: tasks 15–18**
+  (Settings ▸ Notifications pane — `NotificationsSettingsPane` is still an
+  empty placeholder; the live band and inspector — `TravelFixture` /
+  `MockData.makeTravel` still feed the band; the menu bar leave states; the
+  §30 recapture and `screenshots/3b/INDEX.md`). No STOP rule triggered; the
+  run ended on the usage limit.
+- Tests: baseline 900 passed / 2 failed (token pins, fixed in task 1) →
+  **1044 passed / 0 failed**.
+- Real store `stat`: identical at step 0, after every task, and at the end.
+- GAPS added: G-097, G-098. DEVIATIONS added: A41, A42 (heading), B48–B52.

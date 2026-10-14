@@ -57,6 +57,10 @@ final class TravelSettingsModel {
     @ObservationIgnored let clock: any TravelClock
     @ObservationIgnored let calendar: Calendar
     @ObservationIgnored let recompute: () -> Void
+    /// §24.12: where the Mac is (the mock in tests and review).
+    @ObservationIgnored var location: (any LocationSource)?
+    /// Opens a URL (System Settings); injected so tests see the URL.
+    @ObservationIgnored var openURL: (URL) -> Void = { _ in }
 
     private(set) var lookups: [String: Lookup] = [:]
     /// The field's text while it is being edited (not yet committed).
@@ -69,6 +73,10 @@ final class TravelSettingsModel {
     var selectedMatch: [String: Int] = [:]
     /// A revision bump so views re-read the store after a write.
     private(set) var revision = 0
+    /// §24.12: the location state, as last read (nil before the first read).
+    var locationState: LocationAuthorization?
+
+    func markChanged() { revision += 1 }
 
     init(context: ModelContext, queue: RouteRequestQueue, clock: any TravelClock, calendar: Calendar = .current,
          recompute: @escaping () -> Void) {
@@ -79,9 +87,11 @@ final class TravelSettingsModel {
         self.recompute = recompute
     }
 
-    convenience init(context: ModelContext, travel: TravelCoordinator) {
+    convenience init(context: ModelContext, travel: TravelCoordinator, openURL: @escaping (URL) -> Void = { _ in }) {
         self.init(context: context, queue: travel.queue, clock: travel.clock, calendar: travel.calendar,
                   recompute: { [weak travel] in travel?.requestRecompute() })
+        location = travel.location
+        self.openURL = openURL
     }
 
     // MARK: Reading
