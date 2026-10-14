@@ -10278,3 +10278,74 @@ clean start:
    and `BPREF-Info` now lists two lecturers, the tie was the cause (G-077).
    If `vevents` equals `objects` and `merged` is 0, CIS's CalDAV sends only
    one VEVENT for that lecture and there is nothing more to fix.
+
+## 133. Phase 3 slice 2 run — leave-by (Apple Maps) and notifications (2026-10-14)
+
+Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
+`CA P3S2-T<NN>`.
+
+### Step 0
+
+- `git status --short`: only `DECISIONS.md` and the six design files were
+  modified. DECISIONS.md holds the eleven 2026-10-14 slice-2 entries ("Travel
+  times come from Apple Maps…" through "Kadence targets macOS 26.5.") and no
+  longer "Leave-by comes from known places and typed travel times."
+  Committed as `b5d7ab2` "design: Phase 3 slice 2 spec (Apple Maps routing)
+  + DECISIONS 2026-10-14".
+- **Xcode keys (informational)**: `project.pbxproj` has
+  `ENABLE_RESOURCE_ACCESS_LOCATION = YES` (both Kadence configurations).
+  **Not present**: `INFOPLIST_KEY_NSLocationUsageDescription`,
+  `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription`, and
+  `CODE_SIGN_ENTITLEMENTS` (no `.entitlements` file in the repo — so no
+  time-sensitive entitlement; commit `5216286` says "no Time Sensitive: not
+  offered for this team"). Nothing in this slice needs them to build or test.
+- **Real store `stat`** (metadata only, never opened), recorded before
+  anything ran:
+  `default.store` mtime/ctime Oct 14 10:37:08, 114688 B, inode 144862795;
+  `-shm` mtime 11:05:30 ctime 11:51:18, 32768 B, inode 144862800;
+  `-wal` mtime/ctime 11:35:59, 436752 B, inode 144862799.
+- **Baseline suite**: **900 passed / 2 failed** (902). The two failures are
+  token-version pins — `WeekdayToggleFocusTests/tokens()` and
+  `ProblemSentenceTests/tokensAtOneSevenZero()` expect `tokens.json` 1.7.0 —
+  and fail only because the step-0 design commit moves `tokens.json` to
+  1.9.0 (slice 1's step 0 hit the same: STATUS §132 "Tests"). Not a code
+  regression; task 1 regenerates at 1.9.0 and moves both pins with the spec.
+
+### P3S2-T01 — data model and built-ins; tokens 1.9.0; A41 / A42 logged
+
+- `Kadence/Models/Travel.swift`: `KnownPlace` (coordinate writable only as a
+  pair through `setCoordinate`, a half pair refused), `TravelModeOverride`
+  (pair stored sorted; `TravelModeOverrides.insert` refuses a second row for
+  the pair in either order), `AppSettings` (id `app`), `TravelLeg`,
+  `TravelETACache`; enums `GeocodeState`, `TravelLegStatus`, `TravelReason`,
+  `TravelOriginKind`, `TravelDayType`, `BuiltInPlace`. Every field
+  defaulted, enums as raw strings.
+- `Kadence/Models/NotificationModels.swift`: `NotificationRule`
+  (`NotificationRuleKind`'s five, §27.1 defaults and labels),
+  `NotificationRecord` (with `subjectID`).
+- `TravelMode` reordered to `transit`, `walking`, `driving` (Settings'
+  order), `nonisolated`, with §23.3's `settingsLabel` and `copyPhrase`;
+  `label` is now the raw word (the routing log's).
+- `Event.placeID` (§28.2); `EventSnapshot` carries it (delete → undo
+  restores it); `duplicate` copies it. All seven models in
+  `KadenceSchema.models`.
+- `TravelBuiltIns.ensure` runs in `AppStore.seedLaunch` — every launch kind:
+  `home` (no address, `none`), `campus` (`Höchstädtplatz 6, 1200 Wien`,
+  `unconfirmed`, no coordinate), the settings row, the five rules; a store
+  with four rules gains `syncPaused`. Idempotent.
+- Tokens regenerated at **1.9.0** (`settingsAddressMatchRowHeight` 36,
+  `settingsAddressMatchListMaxHeight` 180, `settingsPlaceNameFieldWidth`
+  160; `settingsMinutesFieldWidth` was never generated). `--check` clean.
+- **Existing tests updated to the spec** (the pin is the spec change):
+  `WeekdayToggleFocusTests/tokens()` (1.9.0, 64 pairs) and
+  `ProblemSentenceTests/tokensAtOneSevenZero()` (1.9.0).
+- DEVIATIONS.md: new heading "Phase 3 slice 2 — leave-by and notifications
+  (2026-10-14)" with **A41** (deferred, still normative) and **A42**
+  (scheduled, task 2).
+- Tests: `KadenceTests/Slice2/TravelModelTests.swift` (9): a slice 1 store
+  (frozen `VersionedSchema`, temporary file) opens with `placeID` nil and no
+  slice-2 row until the built-ins run; built-ins twice → 2 / 1 / 5 with the
+  defaults; every launch kind; the fifth rule; the coordinate pair; the
+  override pair; `placeID` through delete/undo and duplicate; tokens; modes;
+  DEVIATIONS.
+- Verify: **911 passed / 0 failed**; real store `stat` unchanged.

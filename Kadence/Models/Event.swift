@@ -102,6 +102,14 @@ final class Event {
     /// §20.7 `URL` (generic feeds; CIS sends none).
     var link: String?
 
+    // MARK: Phase 3 slice 2 (components.md §28.2)
+
+    /// The known place a **manual** event is at (§23.2 rule 3). Set only by
+    /// the user (`Set Place`, an undo step). Never written on an imported
+    /// event (its place is derived, §23.2 rule 5) or a routine instance
+    /// (G-084). Defaulted, so a slice 1 store opens without a migration.
+    var placeID: String?
+
     init(
         title: String,
         start: Date,

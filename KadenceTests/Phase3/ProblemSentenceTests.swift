@@ -186,12 +186,13 @@ struct ProblemSentenceTests {
         #expect(ProblemSentence.tooLarge == "1 event was too large to read.")
     }
 
-    @Test("Tokens are 1.7.0 and generated from it; the palette rule is the amended one")
+    @Test("Tokens are 1.9.0 and generated from it; the palette rule is the amended one")
     func tokensAtOneSevenZero() throws {
         let json = try #require(try JSONSerialization.jsonObject(
             with: Data(contentsOf: Fixture.repoRoot.appendingPathComponent("design/tokens.json"))) as? [String: Any])
         let meta = try #require(json["$meta"] as? [String: Any])
-        #expect(meta["version"] as? String == "1.7.0")
+        // P3S2-T01: 1.9.0 since the slice 2 spec commit (the pin moves with it).
+        #expect(meta["version"] as? String == "1.9.0")
         // 1.7.0 changed no value; the one generated string it amended is the palette rule.
         #expect(Tokens.Color.SourcePalette.assignmentRule.hasPrefix("Assign in listed order as sources are added, skipping graphite"))
     }

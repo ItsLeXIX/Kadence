@@ -115,6 +115,9 @@ enum AppStore {
     static func seedLaunch(_ kind: LaunchKind, context: ModelContext, now: Date = Date(),
                            secrets: any SecretStore = ReviewMode.secrets, materialize: () -> Void) -> MockFixtures {
         BuiltInSource.ensure(in: context)
+        // Slice 2 (components.md §23.1, §28.1, §27.1): the built-in places,
+        // the settings row and the five rules, in every launch kind.
+        TravelBuiltIns.ensure(in: context)
         // Swift note: `if case .review(let dataset) = kind` is pattern
         // matching on one enum case, binding its payload — an `instanceof`
         // with a cast in one step.

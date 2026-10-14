@@ -453,6 +453,8 @@ struct EventStore {
             flexibility: event.flexibility,
             sourceKey: event.sourceKey,
             notes: event.notes)
+        // components.md §28.2: duplicate copies the known place.
+        copy.placeID = event.placeID
         // Same as `commit`: the redo closure performs the one insert.
         let snapshot = EventSnapshot(copy)
 
@@ -550,6 +552,8 @@ struct EventSnapshot: Sendable {
     var routineLink: RoutineLink
     var locationName: String?
     var locationAddress: String?
+    /// components.md §28.2: kept so undoing a delete restores it.
+    var placeID: String?
 
     @MainActor
     init(_ event: Event) {
@@ -569,6 +573,7 @@ struct EventSnapshot: Sendable {
         routineLink = event.routineLink
         locationName = event.location?.name
         locationAddress = event.location?.address
+        placeID = event.placeID
     }
 
     @MainActor
@@ -589,6 +594,7 @@ struct EventSnapshot: Sendable {
             isLocked: isLocked)
         event.id = id
         event.routineLink = routineLink
+        event.placeID = placeID
         return event
     }
 }

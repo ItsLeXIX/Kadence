@@ -98,7 +98,7 @@ struct WeekdayToggleFocusTests {
         #expect(lastDay.focusStroke == .focusRingOnAccent)
     }
 
-    @Test("Tokens 1.7.0: focusRingOnAccent = text.onSolid; 63 contrast pairs incl. the two strokes")
+    @Test("Tokens 1.9.0: focusRingOnAccent = text.onSolid; 64 contrast pairs incl. the two strokes")
     func tokens() throws {
         // `focusRingOnAccent` must stay equal to `text.onSolid` (tokens.json's note).
         #expect(Tokens.Color.Interactive.focusRingOnAccent == Tokens.Color.Text.onSolid)
@@ -109,11 +109,12 @@ struct WeekdayToggleFocusTests {
             .deletingLastPathComponent().appendingPathComponent("design/tokens.json")
         let json = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         let meta = try #require(json["$meta"] as? [String: Any])
-        // P3-F1: tokens.json is 1.7.0 since the Phase 3 slice 1 review commit
-        // (no value changed, no pair added: still 63).
-        #expect(meta["version"] as? String == "1.7.0")
+        // P3S2-T01: tokens.json is 1.9.0 since the Phase 3 slice 2 spec
+        // commit; 1.8.0 declared one pair (semantic.now on surface.popover),
+        // 1.9.0 none: 64.
+        #expect(meta["version"] as? String == "1.9.0")
         let pairs = try #require((meta["contrastPairs"] as? [String: Any])?["pairs"] as? [[String: Any]])
-        #expect(pairs.count == 63)
+        #expect(pairs.count == 64)
         func declared(_ fg: String, _ bg: String) -> Bool {
             pairs.contains { $0["fg"] as? String == fg && $0["bg"] as? String == bg && ($0["min"] as? Double) == 3.0 }
         }

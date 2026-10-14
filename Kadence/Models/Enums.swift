@@ -41,10 +41,14 @@ enum Flexibility: String, Codable, CaseIterable, Sendable {
     case droppable
 }
 
-enum TravelMode: String, Codable, CaseIterable, Sendable {
+/// components.md §23.3 (Phase 3 slice 2, routing amendment): exactly the
+/// transport types Kadence asks Apple Maps for. Cycling is not offered
+/// (G-095) and `.any` is never used: a leave-by must say how you travel.
+/// `allCases` is Settings' order: `Public transport`, `Walking`, `Driving`.
+nonisolated enum TravelMode: String, Codable, CaseIterable, Sendable {
+    case transit
     case walking
     case driving
-    case transit
 
     /// components.md §2.1 — the travel band's glyph is chosen by mode.
     var glyph: String {
@@ -55,11 +59,25 @@ enum TravelMode: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    var label: String {
+    /// The raw word, as the routing log writes it (§24.11: `eta ok · 34 min
+    /// · transit`).
+    var label: String { rawValue }
+
+    /// §23.3 "Settings label".
+    var settingsLabel: String {
         switch self {
+        case .transit: "Public transport"
+        case .walking: "Walking"
+        case .driving: "Driving"
+        }
+    }
+
+    /// §23.3 "Copy phrase" — also the VoiceOver phrase (§29).
+    var copyPhrase: String {
+        switch self {
+        case .transit: "by public transport"
         case .walking: "walking"
         case .driving: "driving"
-        case .transit: "transit"
         }
     }
 }

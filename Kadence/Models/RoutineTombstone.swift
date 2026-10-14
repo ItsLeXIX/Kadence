@@ -50,6 +50,10 @@ enum KadenceSchema {
         RoutineTombstone.self,
         // Phase 3 task 1 (components.md §21.1): sources become records.
         Source.self,
+        // Phase 3 slice 2 task 1 (components.md §28.1): travel and
+        // notifications.
+        KnownPlace.self, TravelModeOverride.self, AppSettings.self, TravelLeg.self, TravelETACache.self,
+        NotificationRule.self, NotificationRecord.self,
     ]
 }
 

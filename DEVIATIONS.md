@@ -2395,3 +2395,21 @@ closed by review"). The entries above keep their text; their status is:
   slot, `Show Sync Status`, the inspector's sync line). Verify with the next
   sidebar task. Deferred.
 - **A37** (`⌘⌥N`), **A33**, **A34** — unchanged, deferred.
+
+## Phase 3 slice 2 — leave-by and notifications (2026-10-14)
+
+Coding agent, slice 2 build run (`PHASE3-SLICE2-PLAN.md`). Entries in the
+order they were logged. Wording of A41 / A42 as GAPS.md "Deferred by this
+check" (2026-10-14).
+
+- **A41 — the `copies` log field and the step-2 count of `merged − copies`**
+  (`components.md` §20.8.4, `layouts.md` §12.2, `caldav-mocks.md`
+  `reportCISCopies`); and G-081's end-time sentence. Diagnostics and copy
+  only; with the next CalDAV task. **Deferred, still normative, not built in
+  this slice** (DECISIONS 2026-10-14 "Slice 2 defaults": "A41 stays
+  deferred").
+- **A42 — G-082, the now time and hour labels measured as drawn**: the time
+  gutter's suppression compares the drawn text frames of the now time (and
+  the cursor time) with each hour label, dropping a label whose frame
+  overlaps or comes within 2pt (`components.md` §8, amended 2026-10-14;
+  `interactions.md` §1). **Scheduled in this slice, task 2.**
