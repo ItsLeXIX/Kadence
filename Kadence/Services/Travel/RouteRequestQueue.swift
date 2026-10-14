@@ -149,7 +149,8 @@ final class RouteRequestQueue {
         return TravelLegPlanner.QueueState(
             failures: failures,
             pausedUntil: pausedUntil.flatMap { $0 > now ? $0 : nil },
-            budgetResumesAt: budgetResumesAt.flatMap { $0 > now ? $0 : nil })
+            budgetResumesAt: budgetResumesAt.flatMap { $0 > now ? $0 : nil },
+            isOffline: offlinePausedUntil.map { $0 > now } ?? false)
     }
 
     var queuedIDs: [String] { items.sorted(by: Self.order).map(\.id) }

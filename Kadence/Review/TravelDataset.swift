@@ -27,8 +27,8 @@ import SwiftData
 
 @MainActor
 enum TravelDataset {
-    static let sourceID = "timetable"
-    static let gymID = "gym"
+    nonisolated static let sourceID = "timetable"
+    nonisolated static let gymID = "gym"
 
     enum Variant: String, CaseIterable, Sendable {
         case travelNoAddress, travelOffline, travelPending, travelNoRoute

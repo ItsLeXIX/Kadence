@@ -32,7 +32,8 @@ import Foundation
 import SwiftData
 
 nonisolated enum ReviewMode {
-    enum Dataset: String, Sendable, CaseIterable { case phase2, phase3, empty, fresh }
+    /// Slice 2 adds `travel` (components.md §30.1).
+    enum Dataset: String, Sendable, CaseIterable { case phase2, phase3, empty, fresh, travel }
 
     /// The review password (components.md §22.1). In-memory only, never the
     /// Keychain; drawn only as `SecureField` bullets.
@@ -93,6 +94,16 @@ nonisolated enum ReviewMode {
             return MockCalDAVServer(case: mockCase, password: password, feed: feed, changed: feed,
                                     html: Data(signInPage.utf8), acceptsAnyPassword: true)
         }
+        if dataset == .travel {
+            // §30.1: the travel template, `M` the first Monday ≥ today + 2.
+            let m = ReviewFeed.firstMonday(after: now, zone: zone)
+            let template = ReviewTravelTemplate.text
+            return MockCalDAVServer(
+                case: mockCase, password: password,
+                feed: ReviewFeed.reportTravel(template: template, today: now, m: m, zone: zone),
+                changed: ReviewFeed.reportTravelChanged(template: template, today: now, m: m, zone: zone),
+                html: Data(signInPage.utf8), acceptsAnyPassword: true)
+        }
         let template = ReviewTemplate.text
         return MockCalDAVServer(
             case: mockCase, password: password,
@@ -123,8 +134,18 @@ nonisolated enum ReviewMode {
             materialize()
             return MockFixtures()
         }
+        // Slice 2: `-KadenceLocation notDetermined` / `-KadenceNotifications
+        // notDetermined` are "after a recorded ask".
+        ReviewTravel.applyArguments(context: context, now: now)
         switch dataset {
         case .empty:
+            materialize()
+            return MockFixtures()
+        case .travel:
+            // components.md §30.1: dataset `travel` and its variants; P6, the
+            // live event, only here.
+            TravelDataset.seed(context: context, now: now, m: ReviewFeed.firstMonday(after: now, zone: .current),
+                               zone: .current, variant: ReviewTravel.variant(), liveEvent: true)
             materialize()
             return MockFixtures()
         case .fresh:
@@ -135,6 +156,8 @@ nonisolated enum ReviewMode {
             let wasSeeded = ((try? context.fetchCount(FetchDescriptor<Event>())) ?? 0) > 0
             let fixtures = MockData.seedAllIfNeeded(context, now: now, materialize: materialize)
             if dataset == .phase3 { seedPhase3(context: context, now: now, secrets: secrets) }
+            // Slice 2 (§30.1 "Other datasets"): §12's bands from real legs.
+            ReviewTravel.seedPhase(context: context, now: now)
             if !wasSeeded, variant() == "singleOption" { applySingleOptionVariant(context: context) }
             return fixtures
         }

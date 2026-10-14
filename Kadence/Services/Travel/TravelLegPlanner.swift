@@ -145,6 +145,11 @@ nonisolated enum TravelLegPlanner {
         var pausedUntil: Date?
         /// The day budget is spent: priorities 3–4 wait until this time.
         var budgetResumesAt: Date?
+        /// The queue is paused because a request failed `offline`: every
+        /// request it would send now fails the same way, so a waiting key is
+        /// `offline` too (§24.4 `travelOffline`: "every leg asks, fails
+        /// offline and falls back").
+        var isOffline: Bool = false
     }
 
     /// The outcome of a leg's departure refresh in its current window
@@ -312,6 +317,8 @@ nonisolated enum TravelLegPlanner {
                     waiting = KeyFailure(reason: .paused, retryAt: until)
                 } else if priority >= 3, let resumes = input.queue.budgetResumesAt, resumes > input.now {
                     waiting = KeyFailure(reason: .paused, retryAt: resumes)
+                } else if input.queue.isOffline {
+                    waiting = KeyFailure(reason: .offline, retryAt: nil)
                 }
             }
             // A refresh due in this window that failed (§24.3 `ready`: "if a
@@ -322,7 +329,7 @@ nonisolated enum TravelLegPlanner {
                 return KeyFailure(reason: reason, retryAt: outcome.retryAt)
             }
 
-            if let entry, isFresh || failure == nil, refreshFailure == nil {
+            if let entry, isFresh || (failure == nil && waiting?.reason != .offline), refreshFailure == nil {
                 // Ready: Apple Maps answered for this key — a stale entry
                 // counts while its new request is outstanding.
                 fill(&leg, from: entry, start: event.start, buffer: buffer, source: input.providerSource)

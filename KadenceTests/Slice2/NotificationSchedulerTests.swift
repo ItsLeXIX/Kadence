@@ -32,6 +32,10 @@ final class NotificationRig {
         scheduler.consumeRefreshed = { [weak coordinator = travel.coordinator] in coordinator?.consumeRefreshed() ?? [] }
         // As the app does: event, place and settings saves trigger a recompute.
         travel.coordinator.startObserving()
+        travel.extraSettle = { [weak scheduler] in
+            await scheduler?.settle()
+            await scheduler?.settle()
+        }
     }
 
     /// Launch the legs and let every pass (legs, then notifications) run.

@@ -1,0 +1,275 @@
+# Notification plan — dataset travel (M = Mon 12 Oct 2026, Europe/Vienna)
+# Produced by NotificationPlanDumpTests from the real TravelCoordinator, NotificationScheduler and
+# NotificationPlanner, mock provider / geocoder / location, recording centre; clocks pinned.
+
+== Thu 15 Oct 06:00, ordinary pass
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 12:10
+title:      Leave by 12:15 for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · 35 min from Home
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+identifier: start.{REQEN-EXAM}
+fire:       Thu 15 Oct 15:30
+title:      REQEN-EXAM starts at 16:00
+body:       EDV_A5.09 · University timetable
+category:   kadence.readOnly
+sound:      default
+level:      active
+
+identifier: leave.{Dinner with flatmates}
+fire:       Thu 15 Oct 17:40
+title:      Leave by 17:45 for Dinner with flatmates
+body:       Starts 18:30 · Home · 35 min from FH Technikum Wien
+category:   kadence.event
+sound:      default
+level:      timeSensitive
+
+identifier: leave.{SWRM-ILV}
+fire:       Fri 16 Oct 15:10
+title:      Leave by 15:15 for SWRM-ILV
+body:       Starts 16:00 · UEB_B2.01 · 35 min from Home
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Fri 16 Oct 23:00, ordinary pass
+
+identifier: leave.{Early study group}
+fire:       Sat 17 Oct 07:00
+title:      Leave now for Early study group
+body:       Starts 07:30 · FH Technikum Wien · Leave-by was 06:45, inside Sleep (protected)
+category:   kadence.event
+sound:      default
+level:      timeSensitive
+
+identifier: start.{Late call}
+fire:       Sat 17 Oct 23:00
+title:      Late call starts at 23:15
+body:       Personal
+category:   kadence.event
+sound:      default
+level:      active
+
+identifier: leave.{Climbing}
+fire:       Sun 18 Oct 17:40
+title:      Leave by 17:45 for Climbing
+body:       Starts 18:00 · Gym · 5 min from Home
+category:   kadence.event
+sound:      default
+level:      timeSensitive
+
+== Routing: travelOffline, Thu 06:00
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 12:10
+title:      Leave by about 12:15 for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · about 35 min from Home · estimate, offline
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+identifier: start.{REQEN-EXAM}
+fire:       Thu 15 Oct 15:30
+title:      REQEN-EXAM starts at 16:00
+body:       EDV_A5.09 · University timetable
+category:   kadence.readOnly
+sound:      default
+level:      active
+
+identifier: leave.{Dinner with flatmates}
+fire:       Thu 15 Oct 17:30
+title:      Dinner with flatmates starts at 18:30
+body:       Home · Travel time from FH Technikum Wien unavailable: offline. Check your route before you leave.
+category:   kadence.event
+sound:      default
+level:      timeSensitive
+
+identifier: leave.{SWRM-ILV}
+fire:       Fri 16 Oct 15:10
+title:      Leave by about 15:15 for SWRM-ILV
+body:       Starts 16:00 · UEB_B2.01 · about 35 min from Home · estimate, offline
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Routing: travelOffline after the provider recovers (same identifiers, N1)
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 12:10
+title:      Leave by 12:15 for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · 35 min from Home
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+identifier: start.{REQEN-EXAM}
+fire:       Thu 15 Oct 15:30
+title:      REQEN-EXAM starts at 16:00
+body:       EDV_A5.09 · University timetable
+category:   kadence.readOnly
+sound:      default
+level:      active
+
+identifier: leave.{Dinner with flatmates}
+fire:       Thu 15 Oct 17:40
+title:      Leave by 17:45 for Dinner with flatmates
+body:       Starts 18:30 · Home · 35 min from FH Technikum Wien
+category:   kadence.event
+sound:      default
+level:      timeSensitive
+
+identifier: leave.{SWRM-ILV}
+fire:       Fri 16 Oct 15:10
+title:      Leave by 15:15 for SWRM-ILV
+body:       Starts 16:00 · UEB_B2.01 · 35 min from Home
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Routing: travelNoAddress, Thu 06:00
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 12:00
+title:      EPC-ILV starts at 13:00
+body:       LAB_F5.12 · Travel time from Home unavailable: Home has no address. Check your route before you leave.
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+identifier: start.{REQEN-EXAM}
+fire:       Thu 15 Oct 15:30
+title:      REQEN-EXAM starts at 16:00
+body:       EDV_A5.09 · University timetable
+category:   kadence.readOnly
+sound:      default
+level:      active
+
+identifier: leave.{Dinner with flatmates}
+fire:       Thu 15 Oct 17:30
+title:      Dinner with flatmates starts at 18:30
+body:       Home · Travel time from FH Technikum Wien unavailable: Home has no address. Check your route before you leave.
+category:   kadence.event
+sound:      default
+level:      timeSensitive
+
+identifier: leave.{SWRM-ILV}
+fire:       Fri 16 Oct 15:00
+title:      SWRM-ILV starts at 16:00
+body:       UEB_B2.01 · Travel time from Home unavailable: Home has no address. Check your route before you leave.
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Departure refresh at Thu 11:30, the mock answering 50 min
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 11:55
+title:      Leave by 12:00 for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · 50 min from Home
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Departure refresh at Thu 11:30, the mock answering 78 min
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 11:30 (at once, 1-second trigger)
+title:      Leave by 11:32 for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · 78 min from Home
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Departure refresh at Thu 11:30, the mock answering 30 min
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 12:15
+title:      Leave by 12:20 for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · 30 min from Home
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== From where you are (Thu 11:30, -KadenceLocation allowed, fix cafe)
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 12:17
+title:      Leave by 12:22 for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · 28 min from where you are
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Catch-up at Thu 12:12 (launch pass)
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 12:14 (at once, 1-second trigger)
+title:      Leave by 12:15 for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · 35 min from Home
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Catch-up at Thu 12:20 (launch pass)
+
+identifier: leave.{EPC-ILV}
+fire:       Thu 15 Oct 12:22 (at once, 1-second trigger)
+title:      Leave now for EPC-ILV
+body:       Starts 13:00 · LAB_F5.12 · Leave-by was 12:15
+category:   kadence.readOnly
+sound:      default
+level:      timeSensitive
+
+== Catch-up at Thu 13:05 (launch pass)
+
+(nothing)
+
+== Snooze results (N5 at Thu 17:41, N6 at Sat 23:01)
+
+identifier: result.{…}
+title:      Dinner with flatmates moved to 18:45
+body:       Snoozed from 18:30 · ⌘Z in Kadence undoes it
+category:   kadence.result
+sound:      none
+level:      active
+
+identifier: result.{…}
+title:      Late call not moved
+body:       23:30 is inside Sleep (protected)
+category:   kadence.result
+sound:      none
+level:      active
+
+== Sync paused: unauthorized, background sync at 10:00
+
+identifier: sync.{source}
+fire:       Thu 15 Oct 10:00 (at once, 1-second trigger)
+title:      University timetable isn't syncing
+body:       cis.technikum-wien.at didn't accept the password for user01. Sync is paused until you update it in Kadence.
+category:   kadence.source
+sound:      default
+level:      active
+
+== Sync paused: forbidden, background sync at 10:00
+
+identifier: sync.{source}
+fire:       Thu 15 Oct 10:00 (at once, 1-second trigger)
+title:      University timetable isn't syncing
+body:       cis.technikum-wien.at refused access for user01. Sync is paused until you check the account in Kadence.
+category:   kadence.source
+sound:      default
+level:      active
+
+== Sync paused: unauthorized, background sync at 03:00
+
+identifier: sync.{source}
+fire:       Thu 15 Oct 07:00
+title:      University timetable isn't syncing
+body:       cis.technikum-wien.at didn't accept the password for user01. Sync is paused until you update it in Kadence.
+category:   kadence.source
+sound:      default
+level:      active

@@ -58,17 +58,23 @@ final class TravelRig {
 
     /// Runs every wake (debounce, queue, refresh) due up to `until`, letting
     /// each request finish.
+    /// Other work to let finish between wakes (the notification rig's
+    /// scheduler passes), so each runs at the clock time it was due.
+    var extraSettle: (() async -> Void)?
+
     func run(until: Date) async {
         while true {
             await coordinator.settleLocation()
             await queue.settle()
             await coordinator.settleLocation()
+            await extraSettle?()
             guard let next = clock.nextWakeAt, next <= until else { break }
             clock.advance(to: next)
         }
         clock.advance(to: until)
         await coordinator.settleLocation()
         await queue.settle()
+        await extraSettle?()
     }
     func run(for seconds: TimeInterval) async { await run(until: clock.now.addingTimeInterval(seconds)) }
 

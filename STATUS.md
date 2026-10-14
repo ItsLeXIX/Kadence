@@ -10740,3 +10740,64 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   delivered; Sync Now, frontmost, and the Import path send nothing; the rule
   off, then on while paused → nothing; removal; not repeated once delivered.
 - Verify: **1018 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T12 — review mode: datasets, variants and mocks
+
+- `ReviewMode.Dataset.travel` (`-KadenceReview travel`): `TravelDataset`
+  (task 6) seeded with `M` = the first Monday ≥ today + 2 and the live event
+  P6 (`Pick up parcel`, launch time rounded up to the quarter hour + 60
+  min, campus); the mocked CalDAV server serves `cis-travel.ics.template`
+  (`reportTravel` / `reportTravelChanged`). Variants via
+  `-KadenceReviewVariant travelNoAddress | travelOffline | travelPending |
+  travelNoRoute` (store and mocks).
+- `Kadence/Review/ReviewTravel.swift`: `-KadenceGeocode` (default `one`),
+  `-KadenceLocation` (default `notAsked`; `allowed` → fix `cafe`;
+  `notDetermined` = after a recorded ask, `locationRequestedAt` set at
+  seeding), `-KadenceNotifications notDetermined` likewise sets
+  `notificationsRequestedAt`; each dataset's / variant's mock provider
+  (travel: §30.1's table, `travelOffline` everything offline, `travelPending`
+  held, `travelNoRoute` home → Gym walking `noRoute`; phase2 / phase3: 22 min
+  home ↔ campus and 6 min every Café trip, walking); `seedPhase` for phase2 /
+  phase3 (Home, campus, `Café Sperl` confirmed with the fixture coordinates,
+  the three walking pairs, buffer 0, `Coffee with Nora` at `Café Sperl`).
+  The `MockTravelTimeProvider` init takes `everything:` / `held:`.
+- `KadenceApp.makeTravelServices(kind:defaults:)`: the launch's provider,
+  geocoder and location source through the factories (review: scripted as
+  above). Review launches write `kadence-review/launch-services.txt` (type
+  names) and `notification-plan-live.txt` (every pass's plan) in the sandbox
+  temporary directory (`Kadence/Review/ReviewEvidence.swift`,
+  `NotificationPlanText`).
+- **G-098** (design): §30.1 says `empty` / `fresh` look the campus up at
+  launch; §23.6 says when first needed. Built: real launches per §23.6;
+  review `empty` / `fresh` set `looksUpCampusAtLaunch`.
+- Two fixes found by this task's evidence:
+  - **The offline pause now reaches the planner** (`QueueState.isOffline`):
+    while the queue is paused after an `offline` failure, a waiting key is
+    `offline` too, so `travelOffline` shows every campus leg as an estimate
+    as §24.4 says (before: only the first key's leg; the rest stayed `ready`
+    from the stale entry until each was tried, 5 minutes apart).
+  - **The refresh catch-up's events are published after the applying
+    pass**: a notification pass could read them between the refresh answer
+    and the recompute that writes the new `departAt`, and the 78-minute
+    catch-up was lost. (Task 8's planner test passes the set directly; the
+    end-to-end dump test below now proves it.)
+- Test harness: `TravelRig.run` lets the notification rig's scheduler passes
+  finish between wakes (`extraSettle`), so each pass runs at its due time.
+- `travelPending`: the in-flight request hits the queue's 20 s timeout
+  (`failed`); the variant's "every leg pending" holds within those 20 s.
+  Item 15's pending render (task 17) uses the leg state directly.
+- Tests: `KadenceTests/Slice2/ReviewTravelTests.swift` (8 incl.
+  parameterised): dataset `travel` (13 events from 14 VEVENTs, 2 history,
+  no conflicts, §24.4); every variant's legs; phase3 and phase2 legs
+  (`Datenmodellierung` 08:38 22 min walking, `Coffee with Nora` 10:54 6 min
+  from campus; conflicts still 14 / 13 — `ReviewModeTests` keeps pinning
+  14 / 15); `empty` / `fresh` (Home none, campus confirmed with the mock
+  coordinate, transit, 10, five rules); every dataset × variant builds only
+  `Mock…` / `Scripted…` / `Recording…` services; the arguments; P6's start.
+  `NotificationPlanDumpTests` (1): the §30 items 14 / 23 dump from the real
+  coordinator + scheduler at every §30.1 clock (Thu 06:00, Fri 23:00,
+  `travelOffline` + recovery, `travelNoAddress`, the refresh 50 / 78 / 30,
+  from where you are, catch-up 12:12 / 12:20 / 13:05, N5 / N6, N8
+  unauthorized / forbidden / held at 03:00), asserted against the tables;
+  written as `screenshots/3b/notification-plan-travel-p3bt12.txt`.
+- Verify: **1026 passed / 0 failed**; real store `stat` unchanged.

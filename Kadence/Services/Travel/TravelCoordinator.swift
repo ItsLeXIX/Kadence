@@ -50,6 +50,9 @@ final class TravelCoordinator {
     /// Events whose departure refresh answered since the scheduler last
     /// read them (§27.6's refresh catch-up).
     @ObservationIgnored private var refreshedEvents: Set<UUID> = []
+    /// Refresh answers not yet applied by a pass; published to
+    /// `refreshedEvents` only once the pass has written the new times.
+    @ObservationIgnored private var answeredRefreshes: Set<UUID> = []
 
     func consumeRefreshed() -> Set<UUID> {
         defer { refreshedEvents = [] }
@@ -63,6 +66,10 @@ final class TravelCoordinator {
     /// The last plan (its rule origins and chains — the inspector's
     /// "No travel needed after …").
     @ObservationIgnored private(set) var lastOutput: TravelLegPlanner.Output?
+
+    /// Review datasets `empty` / `fresh` only (§30.1, GAPS G-098): look the
+    /// campus up at launch even when no leg needs it yet.
+    @ObservationIgnored var looksUpCampusAtLaunch = false
 
     static let debounce: TimeInterval = 0.5
     /// §24.6: T−3 h and T−45 min.
@@ -223,13 +230,17 @@ final class TravelCoordinator {
         let output = TravelLegPlanner.plan(input)
         lastOutput = output
 
-        if lookupDue, let campus, output.legs.values.contains(where: {
+        if lookupDue, let campus, (kind == .launch && looksUpCampusAtLaunch) || output.legs.values.contains(where: {
             $0.originPlaceID == campus.id || $0.destinationPlaceID == campus.id
         }) {
             startCampusLookup(campus, settings: settings, now: now)
         }
 
         let writes = apply(output, legs: legs, events: events, today: today)
+        // The legs now carry the refreshed times: the notification pass this
+        // one asks for may treat them as refreshed (§27.6).
+        refreshedEvents.formUnion(answeredRefreshes)
+        answeredRefreshes = []
         queue.syncPlanned(output.requests)
         planRefreshes(output, events: snapshots, places: places, settings: settings, now: now,
                       catchUp: kind != .ordinary)
@@ -289,7 +300,7 @@ final class TravelCoordinator {
             switch result {
             case .success(let seconds):
                 writeHereLeg(eventID: eventID, seconds: seconds, at: at)
-                refreshedEvents.insert(eventID)
+                answeredRefreshes.insert(eventID)
                 refreshOutcomes[eventID] = .init(slot: slot, failure: nil, key: nil, answeredAt: at)
             case .failure:
                 // §24.2.1: a failed request from the fix refreshes from the
@@ -304,7 +315,7 @@ final class TravelCoordinator {
                 if !fromHere, let request = job.request {
                     store.upsert(request, travelSeconds: seconds, computedAt: at)
                 }
-                refreshedEvents.insert(eventID)
+                answeredRefreshes.insert(eventID)
                 refreshOutcomes[eventID] = .init(slot: slot, failure: nil, key: job.request?.key, answeredAt: at)
             case .failure(let error):
                 refreshOutcomes[eventID] = .init(slot: slot, failure: error.reason,

@@ -3346,3 +3346,21 @@ dataset at Mon 06:00 without counting them. Built and tested: **7** —
 the Saturday 07:00 slot, `campus → home` 18:00 (Dinner), `home → Gym`
 walking Sunday 17:30. `RW-EXAM` (09:40, arrive 09:30) shares the 09:30 slot
 with both `SWEN3-LAB`s and `EPC-ILV` `M + 10`.
+
+### G-098 — OPEN (design). When is the campus looked up in an empty store?
+
+`components.md` §23.6: the campus is looked up automatically "the first
+time a recompute needs it (in practice the first launch after the timetable
+is imported)". §30.1 "Other datasets": "`empty` and `fresh`: … the campus
+with its built-in address, looked up by the mock geocoder **at launch** and
+`confirmed` (§23.6) … what a real store holds", and §30 item 1 (dataset
+`empty`) expects `FH Technikum Wien` confirmed in Settings ▸ Travel. In
+`empty` nothing needs the campus, so §23.6 never looks it up, and a real
+first launch without a timetable shows it `Not confirmed yet`.
+
+**Reading built:** real launches follow §23.6 (lookup when first needed —
+it never sends a request nobody needs). Review launches of `empty` and
+`fresh` look it up at launch, as §30.1 states, so item 1 shows what §30
+expects. Item 1 therefore shows the state a real store reaches after its
+first Import, not on a first launch with no timetable. Design to confirm
+which §30 item 1 should show, or to amend §23.6 to "at the first launch".

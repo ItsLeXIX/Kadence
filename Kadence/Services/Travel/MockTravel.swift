@@ -56,9 +56,12 @@ actor MockTravelTimeProvider: TravelTimeProvider {
     private var waiting: [CheckedContinuation<Void, Never>] = []
     private(set) var calls: [Call] = []
 
-    init(table: [Route: Answer] = [:], fixes: [String: (latitude: Double, longitude: Double)] = [:]) {
+    init(table: [Route: Answer] = [:], fixes: [String: (latitude: Double, longitude: Double)] = [:],
+         everything: Answer? = nil, held: Bool = false) {
         self.table = table
         self.fixes = fixes
+        self.everything = everything
+        self.isHeld = held
     }
 
     /// §30.1's table: home ↔ campus 35 min transit, home ↔ Gym 5 min

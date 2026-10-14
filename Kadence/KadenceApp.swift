@@ -83,6 +83,9 @@ struct KadenceApp: App {
         }
         _sync = State(initialValue: sync)
         let travel = Self.makeTravel(kind: kind, context: container.mainContext)
+        if case .review(let dataset) = kind, dataset == .empty || dataset == .fresh {
+            travel.looksUpCampusAtLaunch = true   // §30.1, G-098
+        }
         let centre = NotificationServices.make(for: kind, review: .current())
         let notifications = NotificationScheduler(
             context: container.mainContext, centre: centre,
@@ -108,6 +111,12 @@ struct KadenceApp: App {
         sync.onStateEvent = { [weak notifications] event in notifications?.sourceStateChanged(event) }
         _travel = State(initialValue: travel)
         _notifications = State(initialValue: notifications)
+        if case .review = kind {
+            // §30 item 14 / task 18's evidence: which services this launch
+            // built (type names only), and the plan after every pass.
+            ReviewEvidence.writeLaunchServices(ServiceLaunchLog.constructed)
+            notifications.onPlan = { plan in ReviewEvidence.writePlan(plan) }
+        }
     }
 
     /// The launch's travel coordinator (slice 2), from the per-service
@@ -116,12 +125,31 @@ struct KadenceApp: App {
     static func makeTravel(kind: LaunchKind, context: ModelContext) -> TravelCoordinator {
         let log = RoutingLog(forwardsToSystem: kind == .normal)
         let clock = SystemTravelClock()
-        let queue = RouteRequestQueue(provider: TravelServices.makeProvider(for: kind),
-                                      geocoder: TravelServices.makeGeocoder(for: kind), clock: clock,
+        let services = makeTravelServices(kind: kind)
+        let queue = RouteRequestQueue(provider: services.provider, geocoder: services.geocoder, clock: clock,
                                       path: PathMonitors.make(for: kind), log: log)
         return TravelCoordinator(context: context, queue: queue, clock: clock,
                                  providerSource: TravelServices.providerSource(for: kind), log: log,
-                                 location: LocationServices.make(for: kind))
+                                 location: services.location)
+    }
+
+    /// The provider, geocoder and location source of a launch, from the
+    /// factories: the real ones in a normal launch only; in review, the mocks
+    /// scripted by the dataset, variant, `-KadenceGeocode` and
+    /// `-KadenceLocation` (components.md §30.1); plain mocks for the test host.
+    @MainActor
+    static func makeTravelServices(kind: LaunchKind, defaults: UserDefaults = .standard)
+    -> (provider: any TravelTimeProvider, geocoder: any PlaceGeocoder, location: any LocationSource) {
+        switch kind {
+        case .review(let dataset):
+            return (TravelServices.makeProvider(for: kind, mock: ReviewTravel.provider(
+                        dataset: dataset, variant: ReviewTravel.variant(defaults))),
+                    TravelServices.makeGeocoder(for: kind, mock: MockPlaceGeocoder(case: ReviewTravel.geocodeCase(defaults))),
+                    LocationServices.make(for: kind, mock: ReviewTravel.location(ReviewTravel.locationCase(defaults))))
+        case .normal, .testHost:
+            return (TravelServices.makeProvider(for: kind), TravelServices.makeGeocoder(for: kind),
+                    LocationServices.make(for: kind))
+        }
     }
 
     var body: some Scene {

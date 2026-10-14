@@ -48,6 +48,8 @@ final class NotificationScheduler {
     /// The last plan (review's plan dump, §30 item 14).
     @ObservationIgnored private(set) var lastPlan: [PlannedNotification] = []
     @ObservationIgnored private(set) var passCount = 0
+    /// Review mode writes each pass's plan to a file (§30 item 14).
+    @ObservationIgnored var onPlan: (([PlannedNotification]) -> Void)?
 
     static let debounce: TimeInterval = 1
     static let hourly: TimeInterval = 3600
@@ -179,6 +181,7 @@ final class NotificationScheduler {
         let now = clock.now
         let plan = makePlan(now: now, catchUp: catchUp)
         lastPlan = plan
+        onPlan?(plan)
 
         var authorization = await centre.authorization()
         // §27.8: ask once, the first time a pass has something to schedule.
