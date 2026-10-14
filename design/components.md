@@ -980,7 +980,8 @@ no TravelLeg computation, no routine engine, no work item model behind them.
 
 *(Amended 2026-10-14, Phase 3 slice 2.)* Items 7 and 8 are no longer
 fixtures: `TravelFixture` is retired, and both bands come from legs computed
-from seeded places and routes (§30.1 "Other datasets"), drawing the same
+from seeded places, walking overrides and the mock travel provider (§30.1
+"Other datasets"), drawing the same
 `Leave 08:38 · 22min` and `Leave 10:54 · 6min` as before.
 
 ---
@@ -4096,29 +4097,42 @@ Written 2026-10-14, after slice 1 was accepted (`PHASE3-REVIEW.md` "Final —
 `layouts.md` §6, §6.1, §9, §11 (amended), §13, §14 (new). Interactions:
 `interactions.md` §14, §15 (new).
 
-**Scope.** Two things, and only these:
+**Scope.** Two things, and only these. *(Amended 2026-10-14, routing
+amendment: travel times are worked out by Apple Maps, not typed.)*
 
 1. **Leave by.** Each event that needs travel gets a departure time:
-   `start − travel time − buffer`. Travel time comes from a
-   `TravelTimeProvider`. In this slice the only provider is **manual**: the
-   user types a travel time between a small set of **known places** (at least
-   Home and the FH campus). The travel band (§4), the inspector and the menu
-   bar show the result.
+   `start − travel time − buffer`. The travel time comes from a
+   `TravelTimeProvider`; the slice's only real provider is **MapKit**
+   (`MKDirections` ETAs, §24.9), between **known places** whose addresses
+   MapKit looked up and the user confirmed (Home, FH Technikum Wien — built
+   in with its real address — and any the user adds, §23). The user chooses
+   only how they usually travel (§23.3). The travel band (§4), the inspector
+   and the menu bar show the result, and say so when Apple Maps could not
+   answer (§24.10).
 2. **Notifications**, local, through `UNUserNotificationCenter`: a leave-by
    notification for an event with travel, a "starts at" notification for an
-   event without, with Done / Snooze / Open.
+   event without, with Done / Snooze / Open; and one notification when a
+   connected source's sync pauses after a 401 or 403 (§27.4 N8; G-060).
 
-Not in this slice: routing, MapKit, geocoding, location (slice 3 — §24.9 is
-the seam it plugs into); Moodle, work items, deadline notifications, the
-morning summary (G-088); mail; the planner; notifications about sync failures
-(G-060, still deferred). Every Phase 1–3 slice 1 value stands; in-place
-amendments are marked 2026-10-14 in §4, §11, §15.1 and §15.2.
+Not in this slice: cycling (G-095), a per-event way to travel (G-094),
+routes drawn on a map, Moodle, work items, deadline notifications, the
+morning summary (G-088); mail; the planner; notifications about timetable
+changes (G-060's remainder). Every Phase 1–3 slice 1 value stands; in-place
+amendments are marked 2026-10-14 in §4, §8 (A42, built in this slice), §11,
+§15.1 and §15.2.
 
 Three rules govern the slice:
 
 - **Nothing important depends on checking the app** (BRIEF-PRODUCT). A
   departure the user would miss is told to them; when Kadence cannot tell them
-  (no permission, no travel time), it says so where they look (§26.3, §27.8).
+  (no permission, no travel time), it says so where they look (§24.10, §26.3,
+  §27.8).
+- **Never a guessed number.** A travel time is Apple Maps' answer, or Apple
+  Maps' last answer marked as an estimate, or "unavailable" with the reason
+  (§24.10). Nothing is typed, defaulted or extrapolated.
+- **Where you are stays yours.** Addresses and coordinates go to Apple Maps
+  only; the current location is used for one departure and never kept or
+  logged (§24.11).
 - **Derived, never upstream.** A leave-by is computed from the event; it is
   stored beside the event and never written onto it (§24.7). Imported events
   stay read-only exactly as §18.1 says.
@@ -4127,7 +4141,13 @@ Three rules govern the slice:
 
 ---
 
-## 23. Places and travel times
+## 23. Places, addresses and ways to travel
+
+*(Rewritten 2026-10-14, routing amendment. Parsa does not type travel times:
+Kadence works them out with Apple Maps, like a navigation app. The user
+chooses where places are and how they usually travel; nothing else. The
+first draft's typed minutes per route, `TravelRoute` and the manual provider
+are withdrawn, never built.)*
 
 ### 23.1 Known places
 
@@ -4140,27 +4160,29 @@ Every store has two **built-in** known places, created at first launch if
 missing, idempotently, with fixed ids — the same pattern as §21.1.1's
 built-in sources:
 
-| id | Default name | Address | Can be removed |
+| id | Default name | Address at first launch | Can be removed |
 |---|---|---|---|
-| `home` | `Home` | none | no |
-| `campus` | `FH Technikum Wien` | none | no |
+| `home` | `Home` | none — the user types it (§23.5) | no |
+| `campus` | `FH Technikum Wien` | **`Höchstädtplatz 6, 1200 Wien`**, looked up by Kadence itself (§23.6) | no |
 
 - **Name**: required, trimmed, unique among known places (case-insensitive).
   Renamable in Settings ▸ Travel (`layouts.md` §13); an empty or duplicate
   name reverts to the last name, like a source's name (`layouts.md` §11).
   Renaming changes every place it is shown and nothing else.
-- **Address**: optional free text. **Not looked up in this slice**: no
-  geocoding, no coordinate, no location permission. It is shown in Settings
-  only, and kept so slice 3 can geocode it.
+- **Address**: what the user typed, looked up once with MapKit and
+  **confirmed by the user** before Kadence uses it (§23.5). Only a confirmed
+  address has a coordinate, and only a place with a coordinate can be
+  travelled from or to.
 - **More places**: the user may add places (`Add Place`, `layouts.md` §13),
-  e.g. `Gym`. A user place can be removed; a built-in cannot (it can be
-  renamed — `campus` stays the place timetable rooms are at, whatever it is
-  called).
+  e.g. `Gym`, each with an address confirmed the same way. A user place can
+  be removed; a built-in cannot (it can be renamed — `campus` stays the place
+  timetable rooms are at, whatever it is called).
 
 ### 23.2 Which place an event is at
 
 An event's **place** is resolved by these rules, first match wins. Nothing is
-inferred from free text beyond rule 4's one test.
+inferred from free text beyond rule 4's one test. **Unchanged by the routing
+amendment** — routing changes how long a trip takes, never where an event is.
 
 | # | Event | Place |
 |---|---|---|
@@ -4168,7 +4190,7 @@ inferred from free text beyond rule 4's one test.
 | 2 | `origin == .routine` (or `.planned`) | **none** in this slice (G-084). A routine block is transparent to travel: it is never a leg's origin or destination |
 | 3 | `origin == .manual` | the known place `Event.placeID` names (§28.2); `nil`, or an id no known place has, is **none** — "manual events with no place need no travel unless the user sets one" |
 | 4 | `origin == .imported`, `isOnline` | **none** (G-063: online events need no travel) |
-| 5 | `origin == .imported`, its `Source` (resolved by §21.1.1) has kind `.universityTimetable`, and its location text is not empty after trimming | **`campus`**. Every CIS room — `HS_A3.15`, `EDV_F4.25`, `LAB_F5.12`, `UEB_B2.01`, `FH B.2.09` — is on the FH campus, so no room pattern is needed or kept |
+| 5 | `origin == .imported`, its `Source` (resolved by §21.1.1) has kind `.universityTimetable`, and its location text is not empty after trimming | **`campus`**. Every CIS room — `HS_A3.15`, `EDV_F4.25`, `LAB_F5.12`, `UEB_B2.01`, `FH B.2.09` — is on the FH campus, so no room pattern is needed or kept, and **no room is ever geocoded** |
 | 6 | any other imported event | **none** in this slice (no other connected kind exists; G-085) |
 
 An imported event's place is **never stored on the event** and cannot be set
@@ -4176,41 +4198,116 @@ by the user in this slice (G-085): it is a function of upstream fields, so a
 sync that changes the room or makes a lecture online changes the place by
 itself.
 
-### 23.3 Travel times
+### 23.3 Ways to travel
 
-A **route** is an unordered pair of known places with a travel mode and an
-optional manual time (§28.1 `TravelRoute`):
+**Modes.** Exactly the transport types MapKit's `MKDirections` offers on
+macOS 15 (BRIEF-PRODUCT's floor), checked, not assumed:
 
-- **Symmetric.** `Home ↔ FH Technikum Wien` is one route; the time is the same
-  both ways. A manual provider has no reason to be told twice (judgement 3 in
-  the plan).
-- **Mode** — `.transit` (`Public transport`), `.walking` (`Walking`),
-  `.driving` (`Driving`). Default `.transit`. The mode sets the band's glyph
-  (§2.1: `tram.fill` / `figure.walk` / `car.fill`) and the words in copy.
-- **Minutes** — a whole number **1 … 240**, or **not set**. Not set is the
-  state of the built-in route on a fresh store: Kadence does not guess a
-  travel time (Parsa's own number is a decision for him; the review dataset
-  uses 35).
-- The built-in route `home ↔ campus` exists at first launch (mode `.transit`,
-  minutes not set). Other routes are stored when the user first gives them a
-  time or a mode; an absent route reads as "not set, `.transit`".
-- Removing a place removes its routes.
+| `TravelMode` raw | `MKDirectionsTransportType` | Settings label | Copy phrase | Glyph (§2.1) |
+|---|---|---|---|---|
+| `transit` | `.transit` (ETA only — MapKit gives transit ETAs, not transit routes, which is all a leave-by needs) | `Public transport` | `by public transport` | `tram.fill` |
+| `walking` | `.walking` | `Walking` | `walking` | `figure.walk` |
+| `driving` | `.automobile` | `Driving` | `driving` | `car.fill` |
+
+**Cycling is not offered.** `MKDirectionsTransportType` on macOS 15 has
+automobile, walking, transit and any; a cycling type arrived with the 2025
+MapKit (macOS 26), and a developer report on macOS 26 shows a cycling request
+answered with a driving route. Kadence's brief sets macOS 15 as the floor, so
+cycling waits (G-095, with the deployment-target question). `.any` is never
+used: a leave-by must say how you are travelling.
+
+- **Preferred mode** — one setting, `AppSettings.preferredTravelMode`,
+  default **`transit`** (Vienna's public transport covers every campus trip;
+  Parsa's default). Settings ▸ Travel, `Usually` (`layouts.md` §13).
+- **Per pair of places** — optional: a pair of known places may have its own
+  mode (`Home ↔ Gym`: `Walking`), stored as a `TravelModeOverride` (§28.1)
+  only when it differs from "usual". **Symmetric**: the same mode both ways
+  (the trip itself is routed in its own direction, §24.9). Removing a place
+  removes its overrides. In scope because a short walk to the gym routed as
+  public transport is the one case the preferred mode gets wrong every week.
+- **Per event** — **not in this slice** (G-094). A one-off "I'm driving
+  today" would be a local field on the event and a pop-up on the inspector;
+  the pair override covers the repeated cases.
+
+A leg's mode = the pair's override if one exists, else the preferred mode.
 
 ### 23.4 Buffer
 
 One **buffer**, added to every trip so the user arrives early: **0, 5, 10, 15,
 20 or 30 minutes**, default **10** (Parsa's decision; §28.1 `AppSettings`).
 The buffer is part of the band's interval (§25) and is named in the inspector
-(`layouts.md` §6), never folded silently into the travel time.
+(`layouts.md` §6), never folded silently into the travel time. Kadence asks
+Apple Maps to **arrive by `start − buffer`** (§24.9).
+
+### 23.5 Looking up an address
+
+Every address is looked up **once**, when the user commits it, with MapKit's
+address search (`PlaceGeocoder`, §24.9: `MKLocalSearch` with
+`resultTypes = .address`, the region biased to Vienna — a bias, not a filter).
+No address is ever looked up again on its own, and no coordinate is typed.
+
+**States** (`KnownPlace.geocodeState`, §28.1), as Settings ▸ Travel shows them
+under the address field (`layouts.md` §13; copy exact, `{typed}` is the
+user's text, `{found}` MapKit's one-line address):
+
+| State | When | Line under the field | Controls |
+|---|---|---|---|
+| `none` | no address typed | — (placeholder `Address`) | — |
+| `searching` (not stored) | a lookup is running | `Looking up…` with a small spinner | — |
+| one result | MapKit found exactly one | `Found: {found}` | **`Use This Address`** (default, `↩`) · `Cancel` |
+| several results | 2 or more | `{n} addresses match. Choose one:` then the list (up to 5; name and address, `layouts.md` §13). More than 5: `More than 5 addresses match. Add the postcode or district, for example 1200 Wien.` above the first 5 | click / `↩` on a row confirms it · `Cancel` |
+| `notFound` | 0 results | `No address found for “{typed}”. Check the spelling, or add the postcode or district.` | the field stays editable · `Cancel` |
+| `lookupFailed` | the lookup failed | offline: `Couldn't look up the address because this Mac is offline.` · throttled or paused (§24.10): `Apple Maps asked Kadence to wait. Try again at {HH:mm}.` · anything else: `Apple Maps didn't answer. Try again in a moment.` | `Try Again` · `Cancel` |
+| `confirmed` | the user chose a result | the field shows `{found}`; no line | — |
+| `unconfirmed` | the user typed an address and left without choosing | `Not confirmed yet. Kadence can't work out trips to or from {name} until you do.` | `Look Up` |
+
+- **Nothing is used until it is confirmed.** `Use This Address` (or choosing a
+  row) stores `confirmedAddress = {found}` and the coordinate, and sets
+  `confirmed`; that is the only write of a coordinate.
+- **A confirmed address stays in effect while a new one is looked up.** If
+  `{name}` already had a confirmed address and the user types a different
+  one, the old coordinate is kept until a new result is confirmed; the line
+  adds `Still using {old found}.` `Cancel` restores the old text.
+- Clearing the field removes the address and the coordinate (`none`); trips
+  to and from the place become `unavailable · needsAddress` (§24.3).
+- A lookup is one request in the routing queue at the top priority (§24.9),
+  so it obeys the same budget and the same pause after throttling.
+- The typed text and `{found}` are user data: shown in Settings only, never
+  logged (§24.11), never shown in the popover or a notification (they name
+  the place by its **name**).
+
+### 23.6 FH Technikum Wien's address
+
+The campus is built in with its real address, **`Höchstädtplatz 6, 1200
+Wien`** (`KnownPlace.addressText` of `campus`). **No coordinate is hard-coded**:
+the coordinate is what MapKit returns for that address, so the campus and
+every trip to it come from one source, Apple Maps.
+
+- The campus is looked up **automatically**, without asking, the first time a
+  recompute needs it (in practice the first launch after the timetable is
+  imported): the address is Kadence's own, not something the user typed. It
+  is accepted without confirmation when the first result's one-line address
+  contains both `Höchstädtplatz 6` and `1200`; that is `confirmed`.
+- Any other answer — no result, a first result that does not match, or a
+  failure — leaves the campus `unconfirmed` / `notFound` / `lookupFailed`,
+  shown in Settings ▸ Travel like any place, and the user confirms it there.
+  A failed automatic lookup is retried at the next launch or wake, at most
+  once a day; it is never retried in a loop.
+- Until the automatic lookup has answered, legs to and from the campus are
+  `pending`; if it does not confirm, they are `unavailable · needsAddress
+  (FH Technikum Wien)` and Settings ▸ Travel asks the user to confirm.
+- If the user edits the campus address, it becomes an ordinary typed address
+  (§23.5) and is never looked up automatically again.
 
 ---
 
 ## 24. Travel legs
 
 A `TravelLeg` is the computed departure for one event. It is **derived data**:
-stored so every surface reads one answer and so slice 3's asynchronous routing
-can fill it, but never edited, never an undo step and never written onto the
-event.
+stored so every surface reads one answer and so routing can fill it
+asynchronously, but never edited, never an undo step and never written onto
+the event. *(Amended 2026-10-14, routing amendment: the time comes from Apple
+Maps, §24.9; a leg can be an estimate or unavailable, §24.3, §24.10.)*
 
 ### 24.1 Which events get a leg
 
@@ -4234,11 +4331,12 @@ For a leg candidate `E`:
    starts): that is the same chain.
 3. Otherwise the origin is **`home`**.
 
-**`chainGap` = 120 minutes** (§28.1 `AppSettings`, not shown in Settings in
-this slice; Parsa's decision). Reading: with less than two hours between two
-things, you stay where the first one was; with more, you are assumed to be at
-home. Events with no place — routine blocks, online lectures, manual events
-without a place — are **transparent**: they neither break nor make a chain.
+This is the **rule origin**. **`chainGap` = 120 minutes**, fixed (§28.1
+`AppSettings`, not shown in Settings; Parsa's decision). Reading: with less
+than two hours between two things, you stay where the first one was; with
+more, you are assumed to be at home. Events with no place — routine blocks,
+online lectures, manual events without a place — are **transparent**: they
+neither break nor make a chain.
 
 | Case (review dataset `travel`, §30.1) | `P` | Origin |
 |---|---|---|
@@ -4249,27 +4347,80 @@ without a place — are **transparent**: they neither break nor make a chain.
 | `INNO3-EL` Wed 14:00, online | — | — (no place, no leg) |
 | `Climbing` Sun 18:00 at Gym, after `Late call` (no place) and `Early study group` –09:00 Sat | `Early study group` (33 h) | `home` |
 
+#### 24.2.1 Where you are now — the next departure only
+
+The rule origin is a guess about where you will be. For **one** leg — the
+**next departure** — Kadence may use where the Mac actually is:
+
+- **Which leg**: the leg of the earliest not-started leg candidate whose
+  departure is due within the next 45 minutes (`departAt − 45 min ≤ now`, or
+  `start − 105 min ≤ now` while the leg has no time yet). One leg at a time.
+- **When**: at that leg's **T−45 refresh** (§24.6) and at a launch or wake
+  inside that window — never at T−3 h (you will probably still move), never
+  for any other leg, never in the background on a timer of its own.
+- **Only with** `AppSettings.useCurrentLocation` on (default **on**) and
+  location `allowed` (§24.12). One request for one fix
+  (`requestLocation()`, accuracy hundred metres), **10 s** timeout.
+- **The fix is used** if it is at most 2 minutes old, its horizontal accuracy
+  is 200 m or better, **and** it is more than **300 m** from the rule origin's
+  coordinate. Within 300 m you are where the rule says: the leg keeps the
+  rule origin and its name (`from Home`). Otherwise the ETA is requested from
+  the fix, and the leg's origin is **`currentLocation`**, named **`where you
+  are`** in every copy (§26–§27, §29).
+- **Mode**: the mode the leg would have with its rule origin (§23.3).
+- **It never blocks the departure.** No fix, a denied permission, a timeout,
+  or a failed request from the fix → the leg keeps its rule-origin value
+  (refreshed as usual); nothing is shown on the leg about location.
+- **It never outlives its computation** (§24.11): the coordinate is held in
+  memory for the one request, never cached (§24.9), never written to the leg
+  (which stores `originKind = currentLocation` and no place id, no
+  coordinate), never logged.
+- A `currentLocation` leg keeps its values until its next refresh or until
+  the event, its destination, its mode or the buffer changes; a recompute for
+  any other reason leaves it alone. At the event's start it is history like
+  any leg.
+
 ### 24.3 The leg
 
-- **Origin = destination** (same known place): **no leg**. Nothing is stored;
-  the event needs no travel.
-- **Route time set**: a leg with status **`ready`**:
-  - `duration` = the route's minutes (travel only);
-  - `buffer` = the buffer at compute time (§23.4);
-  - `departAt` = `E.start − duration − buffer`;
-  - `mode` = the route's mode; `originPlaceID`, `destinationPlaceID`;
-    `provider` = `manual`.
-- **Route time not set**: a leg with status **`needsTravelTime`**, `departAt`
-  and `duration` nil, `mode` the route's (or `.transit`). It exists so the
-  inspector and the popover can say *why* there is no leave-by (§25.3, §26.2)
-  — a missing travel time is never silent, and never a guessed number.
+- **Origin = destination** (same known place, by rule origin): **no leg**.
+  Nothing is stored; the event needs no travel. (A `currentLocation` origin
+  is only ever considered for an existing leg, so it never creates one.)
+- Otherwise a leg exists, with `mode` (§23.3), `originPlaceID` (or
+  `originKind = currentLocation`), `destinationPlaceID`, `buffer` (the buffer
+  at compute time), and **one status**:
+
+| Status | Meaning | `departAt`, `duration` | Drawn (§25) | Notified (§27.2) |
+|---|---|---|---|---|
+| **`ready`** | Apple Maps answered for this trip's cache key (§24.9) — a stale entry counts while its new request is outstanding — and, if a refresh was due (§24.6), the refresh answered | set | band | leave-by N1 |
+| **`estimate`** | the latest request this leg needed **failed**, and the last known time is used instead (§24.10's fallback); `isEstimate = true`, with the failure's reason | set, from the last known time | band marked `≈` | leave-by N1e |
+| **`pending`** | no time yet; a request is queued and has not failed | nil | none | travel unavailable N7 (reason `pending`) if still pending at planning |
+| **`unavailable`** | no time and none to fall back on, or the failure rules out a fallback (`noRoute`, `needsAddress`); with its reason | nil | none | travel unavailable N7 |
+
+- `duration` = the ETA's travel time, **without the buffer**.
+- **`departAt = E.start − buffer − duration`**, for every mode. Kadence asks
+  to arrive by `E.start − buffer` (transit: `arrivalDate`, so the ETA follows
+  the timetable at that hour), and takes the answer's travel time; one
+  formula, the same for every mode and every surface.
+- `computedAt` = when Apple Maps produced the time the leg uses (for an
+  estimate: when the last known time was produced). `source` = the provider
+  that produced it: `mapKit`, or `mock` in tests and review.
+- **Reasons** (`TravelLeg.unavailableReason`, also carried by an estimate):
+  `needsAddress` (the origin or destination place has no confirmed address;
+  names that place), `offline`, `noRoute` (Apple Maps has no route for this
+  mode at this time), `paused` (Kadence is waiting after a throttle, or its
+  own budget, §24.9 — carries the retry time), `failed` (any other error),
+  `pending` (asked, no answer yet). Exact copy per surface: §24.10.
 
 `departAt` may fall **before `P.end`** (you must leave before the previous
 thing ends) or **inside a protected window** (you must leave during Sleep).
 Both are facts and are drawn and told as they are: §25 draws the band, §27.5
 holds the notification. Neither is a conflict in this slice (G-086).
 
-### 24.4 Worked example (review dataset `travel`, route 35 min, buffer 10)
+### 24.4 Worked example (review dataset `travel`, buffer 10, the mock provider)
+
+The mock provider (§30.1) answers `home → campus` and `campus → home` 35 min
+by public transport, `home → Gym` 5 min walking (the pair `Home ↔ Gym` is
+overridden to `Walking`). Every leg below is `ready`, source `mock`.
 
 | Event | Place | Origin | Leg |
 |---|---|---|---|
@@ -4284,45 +4435,81 @@ holds the notification. Neither is a conflict in this slice (G-086).
 | `SWRM-ILV` Fri 16:00–17:45 `UEB_B2.01` | campus | home | ready, depart **15:15** |
 | `Early study group` Sat 07:30–09:00 | campus | home | ready, depart **06:45** (inside Sleep) |
 | `Late call` Sat 23:15–23:45 | none | — | none |
-| `Climbing` Sun 18:00–19:30 | Gym | home | ready, depart **17:45**, 5 min walking (route `home ↔ Gym`) |
+| `Climbing` Sun 18:00–19:30 | Gym | home | ready, depart **17:45**, 5 min walking (pair override) |
 
-With the `home ↔ campus` time not set (variant `travelUnset`, §30.1), the five
-campus legs from home are `needsTravelTime`; `Dinner with flatmates` (campus →
-home, the same route) is too; `Climbing` stays ready.
+Variants (§30.1):
+
+- **`travelNoAddress`** — Home has no address: the five campus legs from home,
+  `Dinner with flatmates` (to Home) and `Climbing` (from Home) are
+  `unavailable · needsAddress (Home)`; no bands at all.
+- **`travelOffline`** — the provider answers `offline` to every request; the
+  cache holds only `home → campus` transit 35 min, computed Sun 27 Sep 18:00
+  (stale, so it is asked for and the request fails): the five campus legs from home are **`estimate`** (depart as
+  above, `≈`, reason `offline`); `Dinner with flatmates` (`campus → home`, no
+  last known time in that direction) and `Climbing` are `unavailable ·
+  offline`.
 
 ### 24.5 Storage and ownership
 
 - One `TravelLeg` per event at most, keyed by `eventID` (unique).
 - **The recompute owns every leg whose event starts on or after
   `startOfDay(today)`**, with no upper bound: it creates, updates and deletes
-  them so they equal §24.1–§24.3 exactly. A manual provider costs nothing per
-  leg, so every future lecture of the semester shows its band. (Slice 3 sets
-  its own horizon for routed times, §24.9.)
+  them so they equal §24.1–§24.3 exactly. A leg far in the future costs no
+  request of its own: legs share ETAs through the cache (§24.9), and a
+  semester's lectures repeat a handful of trips at a handful of times, so
+  every future lecture shows its band.
 - **Legs of events before today are history**: never recomputed, never
-  deleted except with their event. Changing a travel time in Settings does not
+  deleted except with their event. Changing the address or the mode does not
   rewrite yesterday's band — the same reading as "the past is never written"
   (§20.1).
-- A leg whose values are unchanged is **not rewritten** (`computedAt` keeps
-  the time its values last changed). Two recomputes of the same inputs write
-  nothing.
+- A leg whose values are unchanged is **not rewritten**. Two recomputes of
+  the same inputs and the same cache write nothing.
 - Deleting an event deletes its leg in the same transaction. Undoing the
   delete brings the event back with the same `id` (DECISIONS 2026-09-09) and
-  the next recompute brings the leg back.
+  the next recompute brings the leg back (from the cache, without a request).
 
-### 24.6 When legs are recomputed
+### 24.6 When legs are recomputed, and when Apple Maps is asked
+
+**The recompute** is pure and local: it reads the store and the ETA cache
+(§24.9) and writes legs. It **never waits for the network**. Where the cache
+has no answer, it writes the leg as `pending` (or `estimate` / `unavailable`
+by §24.10) and hands a request to the routing queue; when the answer arrives,
+it is cached and triggers another recompute.
 
 One recompute pass, on the main actor, in **one store transaction**,
-**debounced 0.5 s** so a burst (a drag, a sync writing 80 events) is one pass.
-Triggers:
+**debounced 0.5 s** so a burst (a drag, a sync writing 80 events, ten answers
+arriving) is one pass. Triggers:
 
 | Trigger | Why |
 |---|---|
 | Any `Event` insert, update or delete (move, resize, status, place, title …), including undo and redo | start, place, status and order are all inputs |
 | A sync or Import applied (§20.8.3 step 6) — including one that wrote nothing, which costs one cheap pass | a moved or vanished lecture, an online switch |
-| A known place, route or the buffer edited in Settings | inputs |
+| A known place's address confirmed or cleared, a place removed, the preferred mode, a pair's mode, the buffer, or `useCurrentLocation` edited in Settings | inputs |
+| **An answer from the routing queue** (success or failure) | the cache or a failure changed |
+| **A departure refresh** completing (below) | the leg's time is current |
 | Launch (after the store loads and the built-ins exist), wake (`NSWorkspace.didWakeNotification`), the day changing (`NSCalendarDayChanged`) and the clock or time zone changing (`NSSystemClockDidChange`, `NSSystemTimeZoneDidChange`) | the window starts at `startOfDay(today)` |
 
 Every pass ends by asking the notification scheduler for a pass (§27.6).
+
+**When Apple Maps is asked** — three occasions, nothing else:
+
+1. **On change**: a leg whose cache key (§24.9) has no fresh entry. That is
+   a new event, a moved event in a new time slot, a new or changed address, a
+   new mode, a new buffer that moves the arrival into another slot, or a
+   first launch.
+2. **Departure refreshes** — for each leg of a not-started event today or
+   tomorrow, two scheduled refreshes that **bypass the cache** for that one
+   request, so transit delays and traffic are current: at **T−3 h** and at
+   **T−45 min**, where T is the leg's `departAt` (while the leg has no time,
+   T is `start − 60 min`). The refresh times are re-planned on every
+   recompute. A refresh that changes `departAt` re-plans the notification
+   (§27.6). A refresh whose slot passed while Kadence was not running or the
+   Mac slept runs once at launch or wake, if the event has not started.
+3. **The user asks**: `Try Again` (inspector, Settings) — one request now,
+   at the top priority, still subject to a pause (§24.9).
+
+Never: on a timer of its own, on every recompute, for events before today,
+for an event that has started, or for an online, routine or all-day event.
 
 - **Not an undo step**, and it never clears or edits the undo stack.
 - **Not held by a conflict preview.** A preview only ever moves routine
@@ -4332,9 +4519,10 @@ Every pass ends by asking the notification scheduler for a pass (§27.6).
 
 ### 24.7 A leg never writes the event
 
-The recompute reads `Event`, `KnownPlace`, `TravelRoute`, `AppSettings` and
-`Source`, and writes **only `TravelLeg` rows**. In particular it never writes
-an imported event's upstream fields (§18.1), never its `status`, and never a
+The recompute reads `Event`, `KnownPlace`, `TravelModeOverride`,
+`AppSettings`, `Source` and the ETA cache, and writes **only `TravelLeg`
+rows** (and asks the queue for requests). In particular it never writes an
+imported event's upstream fields (§18.1), never its `status`, and never a
 manual event's `placeID`. Consequences, all tested:
 
 - A recompute leaves every `Event`'s §20.8.4 event hash, and every source's
@@ -4342,7 +4530,7 @@ manual event's `placeID`. Consequences, all tested:
 - Because a sync keeps `Event.id` on an in-place update (§20.8.4 "Local
   identity"), a lecturer change keeps its leg untouched; a CIS room or time
   change (delete + add, §20.10) deletes the old event's leg and computes a new
-  one for the new event.
+  one for the new event — from the cache when the slot is the same.
 - Leg writes are not sync writes: they do not appear in a source's
   last-change line and never touch `lastChange*`.
 
@@ -4351,48 +4539,202 @@ manual event's `placeID`. Consequences, all tested:
 - **Not a block.** It never enters conflict detection (G-086), never counts in
   Needs attention, is never selected (§4) and never drawn in Month or in the
   Routines window (§4, §13.1).
-- **Not a promise.** A manual time is the user's estimate; Kadence states it
-  with the mode and the origin so it can be checked (§25.2).
+- **Not a promise.** An ETA is Apple Maps' estimate at `computedAt`; Kadence
+  states it with the mode, the origin and, in the inspector, when and by whom
+  it was worked out (`layouts.md` §6), so it can be checked. An estimate says
+  so (`≈`, §24.10). **No number is ever invented**: with no answer and nothing
+  to fall back on, the leg is `unavailable` and every surface says why.
 
-### 24.9 The provider seam (for slice 3)
+### 24.9 The provider, the geocoder, the cache and the queue
 
 ```swift
-struct TravelEndpoint: Sendable, Equatable {   // a value snapshot of a KnownPlace
-    var id: String; var name: String; var address: String?
-    var latitude: Double?; var longitude: Double?   // nil in this slice
+struct TravelEndpoint: Sendable, Equatable {   // a value snapshot of a KnownPlace,
+    var id: String?                             // or of the current location (id nil)
+    var latitude: Double; var longitude: Double // required: no coordinate, no request
 }
 enum TravelTimeError: Error, Equatable, Sendable {
-    case notSet            // manual: no minutes for this route and mode
-    case unsupportedMode   // slice 3: .transit without an external provider
-    case unavailable       // slice 3: routing failed (offline, no route)
+    case offline            // no network (URLError.notConnectedToInternet and kin)
+    case noRoute            // MKError.directionsNotFound, or an answer in another mode
+    case throttled          // MKError.loadingThrottled
+    case failed             // anything else (serverFailure, unknown, a timeout of 20 s)
 }
-protocol TravelTimeProvider: Sendable {
+protocol TravelTimeProvider: Sendable {         // BRIEF-PRODUCT's signature, typed
     func duration(from: TravelEndpoint, to: TravelEndpoint,
                   arrivingBy: Date, mode: TravelMode) async throws(TravelTimeError) -> TimeInterval
 }
+
+struct GeocodedAddress: Sendable, Equatable { var line: String; var latitude: Double; var longitude: Double }
+enum GeocodeError: Error, Equatable, Sendable { case offline, throttled, failed }
+protocol PlaceGeocoder: Sendable {
+    func lookUp(_ address: String) async throws(GeocodeError) -> [GeocodedAddress]   // [] = not found
+}
 ```
 
-BRIEF-PRODUCT's signature, with endpoints as `Sendable` value snapshots (a
-SwiftData model is not `Sendable`) and typed errors.
+- **`MapKitTravelTimeProvider`** — the slice's only real provider. One
+  `MKDirections.Request` per call: source and destination `MKMapItem`s from
+  the coordinates, `transportType` by §23.3's table, **`arrivalDate =
+  arrivingBy`**, `requestsAlternateRoutes = false`; `calculateETA()`; returns
+  `expectedTravelTime`. An answer whose `transportType` is not the requested
+  one is **`noRoute`** (never accepted as a different mode). Errors map as in
+  the enum's comments. Nothing else in the app imports MapKit for routing.
+- **`MapKitPlaceGeocoder`** — `MKLocalSearch` with
+  `resultTypes = .address`, region centred on Vienna (48.21, 16.37) spanning
+  0.5°, as a **bias**; at most the first 6 results are kept (5 shown, the 6th
+  only tells "more than 5"). `line` is the map item's one-line formatted
+  address. (If the deployment floor becomes macOS 26, `MKGeocodingRequest` may
+  replace the search behind the same protocol; G-095.)
+- **`MockTravelTimeProvider`** and **`MockPlaceGeocoder`** — scripted tables
+  (§30.1), counting calls, with injectable failures and an injectable delay.
+  **Every test and every review launch uses them** — the three-launch rule of
+  §22.1 / §27.10 (B45): only a normal launch constructs the MapKit ones.
+  No test needs a network, a location or a prompt.
+- **The manual provider is removed.** There is no typed travel time anywhere,
+  not even as a hidden fallback: a typed number would be the guess §24.8
+  forbids, and the fallback is the last *Apple Maps* answer (§24.10).
 
-- **`ManualTravelTimeProvider`** — looks the unordered pair up in
-  `TravelRoute`; returns `minutes × 60` when the route's mode equals `mode`
-  and minutes are set; otherwise throws `.notSet`. `arrivingBy` is ignored.
-- **The planner** (`TravelLegPlanner`) is a pure function of value snapshots
-  plus a provider: it resolves places (§23.2), origins (§24.2), asks the
-  provider once per distinct (origin, destination, mode, arrivingBy), and maps
-  `.notSet` to `needsTravelTime`. Tests inject a mock provider and a clock.
-- **What slice 3 adds, without changing this slice's model:**
-  - a `MapKitTravelTimeProvider` (`.walking`, `.driving`; `.transit` stubbed
-    → `.unsupportedMode`), and a composite that decides whether a manual time
-    overrides a routed one;
-  - geocoding `KnownPlace.address` into `latitude`/`longitude`;
-  - `TravelLeg.provider` values other than `manual`, and a status for
-    `.unavailable`;
-  - a horizon for routed legs and the brief's "recompute on the morning of".
+**The ETA cache** (`TravelETACache`, §28.1) — what lets a semester of legs
+cost a few dozen requests:
 
-  The trigger list (§24.6), ownership (§24.5) and every consumer (§25–§27)
-  read the leg, never the provider, so none of them changes.
+- **Key**: origin place id + its coordinate (rounded to 5 decimals, so a new
+  address is a new key), destination likewise, mode, **direction** (a trip and
+  its return are separate keys — transit is not symmetric), **day type**
+  (`weekday` Mon–Fri, `saturday`, `sunday`), and the **slot**: the arrival
+  time (`start − buffer`) rounded down to 30 minutes.
+- **Value**: `travelSeconds`, `computedAt`, the arrival date it was computed
+  for.
+- **Fresh** for planning while `computedAt` is at most **14 days** old.
+  Entries older than **28 days** are deleted at launch. A departure refresh
+  (§24.6) ignores freshness and asks anyway; its answer updates the entry.
+- **Current-location trips are never cached** (§24.2.1).
+- Failures are not cached; the queue remembers the last failure per key
+  (memory only) so a recompute does not re-queue a key it is pausing on.
+
+**The routing queue** (`RouteRequestQueue`) — every MapKit request, ETA or
+lookup, goes through it:
+
+- **One request in flight**, at least **2 s** between two requests, at most
+  **20 requests per rolling 10 minutes** and **150 per day** (G-093: MapKit
+  publishes no number; these are well under what one device has been seen to
+  get). Each request has a 20 s timeout (→ `failed`).
+- **Priority**, highest first: (0) the user asked (an address lookup, `Try
+  Again`); (1) the next departure's refresh; (2) other departure refreshes;
+  (3) legs of today and tomorrow; (4) the rest, by event start. A key already
+  queued is not queued twice; a queued request whose leg disappeared is
+  dropped.
+- **Throttled** (`MKError.loadingThrottled`): the whole queue **pauses** 10
+  minutes, doubling on each consecutive throttle up to 60, reset by a
+  success. **Budget spent**: priorities 3–4 wait for the next day (priorities
+  0–2 may use 30 more). Either way the waiting legs carry reason **`paused`**
+  with the time the queue resumes.
+- **Offline**: a request that fails `offline` pauses the queue until the
+  network path is satisfied again (an injected `NetworkPathMonitor`, the
+  `Network` framework's `NWPathMonitor` in a normal launch) or 5 minutes pass.
+- The queue, the cache's clock and the monitor are injected; tests drive
+  them without waiting.
+
+### 24.10 When routing fails — never silent, never a guessed number
+
+A failed request **never removes a leave-by silently** and **never invents
+a time**. The leg falls back in this order, first match wins:
+
+1. **The reason rules out a fallback** — `noRoute` (Apple Maps has no route
+   in this mode at this hour: transit at 03:00 is not 35 minutes) or
+   `needsAddress` (no place to route from) → **`unavailable`** with the
+   reason, even if an older time exists.
+2. **This event's own last time** (the leg already had `departAt` from an
+   earlier answer) → **`estimate`**, keeping that time and its `computedAt`.
+3. **The cache's entry for this key**, any age up to 28 days → **`estimate`**.
+4. **The nearest cached slot** for the same origin, destination, mode and
+   direction — the same day type first, then any day type; ties to the
+   earlier slot → **`estimate`**.
+5. **Nothing** → **`unavailable`** with the reason (`offline`, `paused`,
+   `failed`), or **`pending`** if nothing has failed yet.
+
+An estimate becomes `ready` again with the next successful answer; there is
+no "estimate" that outlives a success.
+
+**Copy — exact, tested.** `{place}` is the place a `needsAddress` names;
+`{mode}` the copy phrase (§23.3: `by public transport`); `{retry}` the queue's
+resume time `HH:mm`; `{origin}` the origin's name (`Home`, `where you are`).
+
+| Reason | Short (band hover, popover, notification) | Inspector sentence | Inspector button |
+|---|---|---|---|
+| `needsAddress` | `{place} has no address` | `Add the address of {place} in Settings ▸ Travel so Kadence can work out the trip.` | `Add Address…` (opens Settings ▸ Travel, that place's address field focused) |
+| `offline` | `offline` | `This Mac is offline. Kadence will ask Apple Maps again when it's back online.` | — |
+| `noRoute` | `no route {mode}` | `Apple Maps has no route {mode} for this trip at this time. Choose another way to travel between these places in Settings ▸ Travel.` | `Change Way to Travel…` (opens Settings ▸ Travel, that pair's pop-up focused) |
+| `paused` | `Apple Maps paused until {retry}` | `Kadence is waiting before it asks Apple Maps again, and will try at {retry}.` | — |
+| `failed` | `Apple Maps didn't answer` | `Apple Maps didn't answer. Kadence will try again at the next refresh.` | `Try Again` |
+| `pending` | `not worked out yet` | `Kadence is asking Apple Maps for the trip from {origin}.` | — |
+
+Where each surface puts them: the band §25.3, the status item and popover
+§26, notifications §27.4 (N1e, N7), the inspector `layouts.md` §6. An
+estimate also says when its time was worked out: the inspector's `Last worked
+out {when} by Apple Maps.` (`{when}` per §19.5).
+
+### 24.11 Privacy and trust
+
+- **Addresses and coordinates go to Apple Maps only** — through
+  `MapKitTravelTimeProvider`, `MapKitPlaceGeocoder` and nothing else. No other
+  service, no URL built from an address, no analytics.
+- **Stored**: a place's typed address, its confirmed one-line address and its
+  coordinate (`KnownPlace`), and the cache's place ids and rounded
+  coordinates of known places. **Never stored**: the current location, in any
+  form, anywhere — not in the leg, the cache, `AppSettings`, a log or a
+  crash-report string.
+- **Logged**: the routing log (category `travel`, the same one-line style as
+  the sync log, §20.8.4) carries **no address, no coordinate, no place name,
+  no event title and no search text**. Exactly these forms:
+  - `eta ok · 34 min · transit` (`· refresh` appended for a departure
+    refresh; `· here` when the origin was the current location)
+  - `eta failed · offline · transit` / `· noRoute ·` / `· throttled ·` /
+    `· failed ·`
+  - `queue paused · until 10:40`
+  - `lookup ok · 3 results` / `lookup none` / `lookup failed · offline`
+  - `location used` / `location not used · within 300 m` / `location
+    unavailable · denied` / `· timeout`
+- **Review mode and tests** use the mock provider, the mock geocoder, a mock
+  location source and a mock path monitor; a launch XCTest started or one
+  with `-KadenceReview` **never constructs** a MapKit, CoreLocation or
+  `NWPathMonitor` object (asserted as B45's store is). No task needs network,
+  location services or a permission prompt.
+
+### 24.12 Location permission
+
+Location is **optional**: every leg works from the rule origin without it.
+Behind a protocol like the notification centre (§27.10):
+
+```swift
+protocol LocationSource: Sendable {
+    func authorization() async -> LocationAuthorization      // allowed / denied / servicesOff / notDetermined
+    func requestAuthorization() async -> LocationAuthorization
+    func currentFix(timeout: Duration) async -> LocationFix?   // nil on any failure; never throws
+}
+```
+
+`SystemLocationSource` (CoreLocation, `CLLocationManager`, normal launch
+only) and `MockLocationSource` (scripted authorization and fix).
+
+- **When Kadence asks.** Not at launch, not in Settings by itself. The first
+  time §24.2.1 wants a fix while authorization is `notDetermined` and Kadence
+  has never asked (`AppSettings.locationRequestedAt == nil`), it requests
+  authorization once and records the time; that refresh uses the rule origin.
+  `Allow Location…` in Settings asks the same way. Kadence never asks twice on
+  its own.
+- **States** (Settings ▸ Travel, `layouts.md` §13 — the only place they
+  show; the popover, the inspector and notifications never mention
+  location). Shown only while `Use where you are` is on:
+
+| State | Title | Body | Button |
+|---|---|---|---|
+| `denied` (or restricted) | `Location is off for Kadence` | `Kadence works out each trip from Home or from your previous event instead. To use where you are, allow Kadence in System Settings ▸ Privacy & Security ▸ Location Services.` | `Open System Settings…` — `x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices` |
+| `servicesOff` | `Location Services are off` | `Location Services are off on this Mac, so Kadence works out each trip from Home or from your previous event.` | `Open System Settings…` — the same URL |
+| `notDetermined`, Kadence has asked | `Location isn't allowed yet` | `Kadence can use where you are to work out the trip to your next event.` | `Allow Location…` — asks again; if macOS shows no prompt, opens the URL above |
+| `allowed`, or `notDetermined` and never asked | — | — | — |
+
+- Turning `Use where you are` off stops every location request at once; it
+  does not revoke the system permission (System Settings does that).
+- The state is re-read on launch, on `didBecomeActive` and when Settings ▸
+  Travel opens.
 
 ---
 
@@ -4409,11 +4751,12 @@ data and the words.
 | §4 said | From 2026-10-14 |
 |---|---|
 | Fed by a display fixture (`TravelFixture`, §12 items 7–8) | Fed by the event's **`TravelLeg` with status `ready`**. `TravelFixture` is retired; the review datasets compute real legs (§30.1) |
-| "Never drawn for an event with no location" | Drawn **exactly when the event has a `ready` leg**. No leg (no place, same place, online, skipped, cancelled, all-day, routine) → no band. A `needsTravelTime` leg → **no band**: there is no time to draw, and a band without one would be a guess. The inspector and popover say why (§25.3) |
+| "Never drawn for an event with no location" | Drawn **exactly when the event has a `ready` or `estimate` leg**. No leg (no place, same place, online, skipped, cancelled, all-day, routine) → no band. A `pending` or `unavailable` leg → **no band**: there is no time to draw, and a band without one would be a guess. The inspector and popover say why (§25.3) |
 | Occupies `departAt → event.start` | Unchanged — and `departAt` now includes the **buffer**, so the band is travel **plus** buffer tall |
 | Label `Leave HH:mm · NNmin` | Unchanged form. **`HH:mm` is `departAt`; `NN` is the travel time without the buffer** (`Leave 08:15 · 35min` on a 09:00 lecture: 35 min trip, 10 min buffer, 45 min band). Below 18pt the duration drops, below 14pt the glyph only — as §4 |
-| Glyph by mode | The leg's `mode` |
-| Hover help `Leave 08:12 · 22 min walking` (as built) | **`Leave 08:15 · 35 min by public transport from Home · 10 min buffer`** (`· N min buffer` omitted at 0) |
+| Glyph by mode | The leg's `mode` (§23.3: `tram.fill`, `figure.walk`, `car.fill`) |
+| — | **An estimate** (§24.3) is marked by **`≈` before the minutes**: `Leave 08:15 · ≈35min`. Below 18pt, where the minutes drop, `≈` moves before the time: `Leave ≈08:15`. Same font, colour, fill and hatch — the mark is a character, not a colour, so it survives template rendering and greyscale |
+| Hover help `Leave 08:12 · 22 min walking` (as built) | **`Leave 08:15 · 35 min by public transport from Home · 10 min buffer`** (`· N min buffer` omitted at 0). Estimate: **`Leave about 08:15 · about 35 min by public transport from Home · 10 min buffer · estimate, offline`** (the short reason, §24.10). Current location: `from where you are` |
 | VoiceOver phrase `leave by 08:12, 22 minutes walking` | §29 |
 
 ### 25.2 States
@@ -4433,12 +4776,19 @@ The band takes **its parent's presentation**, nothing of its own:
   is **not** drawn at the drop preview; it reappears after the drop when the
   recompute has run (§24.6). An imported event never drags (§18.2).
 
-### 25.3 A leg that needs a travel time
+### 25.3 A leg with no time — `pending` or `unavailable`
 
-No band (§25.1). The inspector's `Leave by` row says `Not set` with a way to
-set it (`layouts.md` §6), the popover's leave line says it (§26.2), and the
-event gets a "starts at" notification instead of a leave-by (§27.2). Hover
-help on the block gains `· Travel time from Home not set`.
+*(Rewritten 2026-10-14, routing amendment; was "a leg that needs a travel
+time".)* No band (§25.1). The inspector's `Leave by` row says `Working out…`
+or `Unavailable` with the reason and, where there is one, the way to fix it
+(`layouts.md` §6); the popover's leave line says it (§26.2); the event gets
+the travel-unavailable notification N7 instead of a leave-by (§27.2). Hover
+help on the block gains `· Travel time from Home unavailable: offline` (the
+short reason, §24.10; `pending`: `· Travel time from Home not worked out
+yet`).
+
+A band does not animate when a refresh moves it (§24.6): it is redrawn at the
+next frame, like any derived data arriving.
 
 ---
 
@@ -4451,7 +4801,8 @@ truncation and template-rendering rules all stand.
 ### 26.1 The status item
 
 Two states are added between Normal and Late. They apply when NEXT has a
-`ready` leg:
+leg with a time — `ready` or `estimate` (§24.3; "a `ready` leg" below means
+either):
 
 | State | When | Content | Colour (popover and offscreen only, §15.1 2026-10-05) |
 |---|---|---|---|
@@ -4476,8 +4827,13 @@ Two states are added between Normal and Late. They apply when NEXT has a
   DECISIONS entry for Parsa (plan, "DECISIONS.md").
 - The glyph is the Late state's `clock.badge.exclamationmark`: the same fact
   — the time that mattered has passed. No new symbol.
-- **A leg that needs a travel time** shows the Normal state (start time). The
-  popover says why (§26.2).
+- **An estimate** puts `≈` before the time inside the unit: `Leave ≈08:15 ·
+  SWQM-ILV` (the degrade point is measured on `Leave ≈08:15`). Leave now is
+  unchanged by an estimate — the instruction is the same. *(Routing
+  amendment, 2026-10-14.)*
+- **A leg with no time** (`pending`, `unavailable`) shows the Normal state
+  (start time). The popover says why (§26.2). The status item never shows a
+  reason: it is one glance, and the reason needs a sentence.
 - The item switches state at the minute boundary on its existing timer
   (§15: "updates on a timer and on any data change"); no animation (§12.1).
 
@@ -4515,14 +4871,18 @@ has a leg:
 | NEXT's state | Leave line | Colour |
 |---|---|---|
 | Leave | `Leave by 08:15 · 35 min from Home` | `color.text.primary` |
-| Leave now | `Leave now · leave-by was 08:15` | **`color.semantic.now`** (4.55 / 5.12 on `surface.popover`, `tokens.json` 1.8.0) |
+| Leave, estimate | `Leave by ≈08:15 · estimate, offline` (the short reason, §24.10) | `color.text.primary` |
+| Leave, from the current location (§24.2.1) | `Leave by 08:22 · 28 min from where you are` | `color.text.primary` |
+| Leave now | `Leave now · leave-by was 08:15` (estimate: `was ≈08:15`) | **`color.semantic.now`** (4.55 / 5.12 on `surface.popover`, `tokens.json` 1.8.0) |
 | Late (started) | — (omitted; the meta line says `Started 12m ago`) | |
-| `needsTravelTime` | `No travel time from Home yet` | `color.text.secondary` |
+| `pending` | `Travel time from Home not worked out yet` | `color.text.secondary` |
+| `unavailable` | `Travel time unavailable · offline` — the short reason: `· Home has no address`, `· no route by public transport`, `· Apple Maps paused until 10:40`, `· Apple Maps didn't answer` | `color.text.secondary` |
 | No leg | — (omitted) | |
 
 - `popoverNextMeta`, `lineLimit` 1, tail truncation. The time comes first and
   is never truncated; the place name (the user's text) truncates.
-- The origin is the place **name** (`from Home`, `from FH Technikum Wien`).
+- The origin is the place **name** (`from Home`, `from FH Technikum Wien`),
+  or `from where you are` (§24.2.1).
   The mode is not on this line (the hover help, inspector and VoiceOver carry
   it); the line is for arm's length.
 - **The meta line's order follows §3.4's 2026-10-10 amendment from now on:**
@@ -4571,7 +4931,7 @@ the app icon, ever (§27.9).
 
 ### 27.1 Rules
 
-Four `NotificationRule`s (§28.1), created at first launch with these
+Five `NotificationRule`s (§28.1), created at first launch with these
 defaults, edited in Settings ▸ Notifications (`layouts.md` §14):
 
 | Kind (`kind` raw) | Settings label | Applies to | Default | Lead choices |
@@ -4580,18 +4940,20 @@ defaults, edited in Settings ▸ Notifications (`layouts.md` §14):
 | `timetableStart` | `Timetable` | an imported event that gets no leave-by | **on, 30 min** | `At start time` · 5 · 10 · 15 · 30 min · 1 hour |
 | `personalStart` | `Personal events` | a manual event that gets no leave-by | **on, 15 min** | as `timetableStart` |
 | `routineStart` | `Routine` | a routine block | **on, 5 min** | as `timetableStart` |
+| `syncPaused` | `Sync problems` | a connected source whose sync pauses after a 401 or 403 (§27.4 N8; G-060) | **on** | none — delivered when it happens |
 
-The defaults for `leaveBy` (5) and timetable (30) are BRIEF-PRODUCT's
-Phase 4 numbers; 15 and 5 and "routine on" are proposals. All four are
-Parsa's decisions (plan, "For Parsa"). A disabled rule keeps its lead time.
+The defaults are Parsa's, confirmed 2026-10-14: leave-by 5, timetable 30,
+personal 15, routine 5 and on, sync problems on. A disabled rule keeps its
+lead time.
 
 ### 27.2 Which notification an event gets — at most one
 
 | Event | Notification |
 |---|---|
 | all-day, cancelled, `.done`, `.skipped`, or starting before `startOfDay(today)` | **none** |
-| has a `ready` leg **and** `leaveBy` is enabled | **leave-by** |
-| otherwise (no leg, a `needsTravelTime` leg, or `leaveBy` disabled) | **starts**, under its origin's rule (`timetableStart` / `personalStart` / `routineStart`), if that rule is enabled |
+| has a `ready` or `estimate` leg **and** `leaveBy` is enabled | **leave-by** (N1, or N1e for an estimate) |
+| has a `pending` or `unavailable` leg **and** `leaveBy` is enabled | **travel unavailable** (N7): the leave-by that could not be worked out, never dropped silently. When the leg gets a time, the next pass replaces it with N1 under the same identifier |
+| otherwise (no leg, or `leaveBy` disabled) | **starts**, under its origin's rule (`timetableStart` / `personalStart` / `routineStart`), if that rule is enabled |
 | `.planned` (Phase 6) | none in this slice |
 
 An event with a leave-by gets **no** "starts" notification: one event, one
@@ -4603,7 +4965,10 @@ start rule rather than silencing the event.
 The **subject time** is what the notification is about: `departAt` for a
 leave-by, `start` for a starts. The **fire time** `F`:
 
-1. Leave-by: `F = departAt − lead`.
+1. Leave-by: `F = departAt − lead`. Travel unavailable (N7): **`F = start −
+   60 min`** (`unavailableLead`, a behaviour constant, not a token): the hour
+   in which you would check your route. It names no travel time, so it guesses
+   none. The quiet rule applies as to a starts.
 2. Starts: `F = start − lead`. **Chain clamp:** if §24.2 finds a `P` within
    `chainGap` (whatever its place), `F = min(max(F, P.end), start)` — the
    notification for the second of two back-to-back lectures comes when the
@@ -4633,6 +4998,15 @@ its separator when both are empty. `{origin}`: the origin place's name.
 | N4 | Starts | `{title} starts at {start}` | `{where} · {source}`; no `{where}`: `{source}` | by event |
 | N5 | Snooze result, moved | `{title} moved to {new}` — `moved to tomorrow {new}` across a day, as §16 | `Snoozed from {old} · ⌘Z in Kadence undoes it` | `result` |
 | N6 | Snooze result, refused | `{title} not moved` | `{new} is inside {window} (protected)` / `{new} is inside a protected window` — §16's family | `result` |
+| **N1e** | Leave-by from an **estimate** (§24.3) | `Leave by about {depart} for {title}` | `Starts {start} · {where} · about {min} min from {origin} · estimate, {reason}` | by event |
+| **N7** | **Travel unavailable** (a `pending` or `unavailable` leg, §27.2) | `{title} starts at {start}` | `{where} · Travel time from {origin} unavailable: {reason}. Check your route before you leave.` — `pending`: `{where} · Travel time from {origin} isn't worked out yet. Check your route before you leave.` | by event |
+| **N8** | **Sync paused** (§19.1 `unauthorized`, `forbidden`; G-060) | `{name} isn't syncing` | `unauthorized`: `{host} didn't accept the password for {user}. Sync is paused until you update it in Kadence.` · `forbidden`: `{host} refused access for {user}. Sync is paused until you check the account in Kadence.` | `source` |
+
+*(N1e, N7, N8 and `{origin}` = `where you are` added 2026-10-14, routing
+amendment.)* `{reason}` is §24.10's **short** form (`offline`, `Home has no
+address`, `no route by public transport`, `Apple Maps paused until 10:40`,
+`Apple Maps didn't answer`). N2 and N3 from an estimate write `Leave-by was
+about {depart}`. `{origin}` is `where you are` for a current-location leg.
 
 Examples (§30.1, buffer 10): N1 `Leave by 12:15 for EPC-ILV` /
 `Starts 13:00 · LAB_F5.12 · 35 min from Home`. N1 for a manual event at Home:
@@ -4646,9 +5020,29 @@ starts at 14:00` / `Online · University timetable`; `Late call starts at
 - **Never** `late`, `missed`, `overdue`, a count, or an exclamation mark.
 - Titles are the system's to truncate; the body repeats nothing the title
   says except the time it is about.
-- Sound: the default sound for N1–N4; **none** for N5–N6 (the user just
-  acted). Interruption level `.active` for all (time-sensitive needs an
-  entitlement — G-089, Parsa).
+- Sound: the default sound for N1–N4, N1e, N7 and N8; **none** for N5–N6
+  (the user just acted).
+- **Interruption level** *(ruled 2026-10-14, G-089 closed — Parsa:
+  time-sensitive)*: **`.timeSensitive`** for N1, N1e, N2, N3 and N7 — a
+  departure is what Focus is meant to let through; `.active` for N4 and N8;
+  `.active` without sound for N5–N6. **Degrades, never fails**: without the
+  `com.apple.developer.usernotifications.time-sensitive` entitlement, or with
+  time-sensitive notifications off for Kadence, macOS delivers them as
+  `.active`. If `add` itself throws for a time-sensitive request, the applier
+  adds it again once with `.active` and logs `notification degraded ·
+  time-sensitive unavailable`. No test depends on the entitlement: the
+  recording centre records the level asked for.
+- **N8, the sync-paused notification** (G-060, pulled into this slice by
+  Parsa): sent once when a source **enters** `unauthorized` or `forbidden`
+  in a sync Kadence started on its own (background, wake, launch) — not when
+  the user is looking at it (`Sync Now`, Import, the connect sheet, while
+  Kadence is frontmost). Identifier `sync.{sourceID}`; delivered with a
+  1-second trigger, or held to the end of a protected window like any
+  notification (§27.5 — it is not urgent). Not repeated while the source stays
+  paused; removed, pending and delivered, when the source leaves the paused
+  state or is removed. Category `kadence.source` (§27.7). `{name}`, `{host}`,
+  `{user}` as §19.1 — the username and host are not secret (§19.1's rules);
+  the password never appears.
 
 ### 27.5 Quiet: protected windows hold notifications
 
@@ -4683,8 +5077,9 @@ a catch-up pass → planned requests with identifier, fire date, title, body,
 category, sound, `userInfo`) and an **applier** that diffs the plan against
 the centre (§27.10).
 
-- **Identifiers**: `leave.{eventID}`, `start.{eventID}`;
-  `result.{eventID}.{epochSeconds}` for N5/N6. Deterministic, so a pass that
+- **Identifiers**: `leave.{eventID}` (N1, N1e, N2, N3 and N7 — one
+  leave-by slot per event, whatever its leg's state), `start.{eventID}`;
+  `result.{eventID}.{epochSeconds}` for N5/N6; `sync.{sourceID}` for N8. Deterministic, so a pass that
   plans what is already pending changes nothing, a relaunch cannot duplicate,
   and an event has at most one of `leave.`/`start.` pending (a leg appearing
   removes `start.` and adds `leave.`).
@@ -4697,8 +5092,8 @@ the centre (§27.10).
 - **Diff**: a pending Kadence request whose identifier is not in the plan is
   removed; one whose fire date or content hash (`userInfo["hash"]`, SHA-256 of
   title, body, category) differs is replaced; an identical one is left alone.
-  Requests whose identifiers do not start with `leave.`, `start.` or
-  `result.` are never touched.
+  Requests whose identifiers do not start with `leave.`, `start.`,
+  `result.` or `sync.` are never touched.
 - **Records** (`NotificationRecord`, §28.1): for each scheduled identifier the
   fire date it was given. **A record whose fire date has passed means "sent"**
   — the system delivers a scheduled request even when Kadence is not running.
@@ -4709,7 +5104,8 @@ the centre (§27.10).
 - **Passes** run (debounced 1 s, one at a time — a trigger during a pass is
   coalesced into one more pass after it):
   - after every leg recompute (§24.6 — which already covers every event
-    change, sync, place or route edit, launch, wake, day and clock change);
+    change, sync, place, address, mode or buffer edit, routing answer,
+    departure refresh, launch, wake, day and clock change);
   - when a rule is edited, a `TimeWindow` is created, edited or deleted, or
     authorization changes (§27.8);
   - **hourly** while running, so the 48-hour window rolls forward on a quiet
@@ -4717,6 +5113,11 @@ the centre (§27.10).
 - **Never scheduled**: anything §27.2 excludes; any request whose subject time
   has passed; any request whose `F` has passed — **except in a catch-up
   pass**.
+- **A departure refresh is a catch-up for its own leg** *(routing
+  amendment)*: when a refresh (§24.6) moves `departAt` earlier so that the
+  pending leave-by's new `F` has passed while `departAt` has not, that one
+  request is delivered at once (N1 / N1e). Traffic got worse; being told late
+  is better than not at all. No other request in that pass is late.
 - **Catch-up pass** (the pass after **launch** and after **wake** only): a
   request with no record, whose `F` has passed but whose event has not
   started, is delivered **at once**, with N1 if `now < departAt`, N3 if
@@ -4747,6 +5148,7 @@ from `userInfo`, resolved at the moment the action runs (DECISIONS
 | `kadence.event` | a manual or routine event | `Done` · `Snooze` · `Open` |
 | `kadence.readOnly` | an imported event | `Done` · `Open` — **no `Snooze`**: snoozing moves the event, and an imported event cannot move (§18.3) |
 | `kadence.result` | N5, N6 | none (clicking opens, below) |
+| `kadence.source` | N8 | `Open` only. `Open` and clicking open Settings ▸ Sources with that source selected (`layouts.md` §11), where its status block's `Update Password…` / `Edit Account…` is one click |
 
 | Action | Does | Undo step |
 |---|---|---|
@@ -4838,17 +5240,22 @@ protocol NotificationCenterClient: Sendable {
   (§30 item 14).
 - Responses are simulated in tests by calling the delegate's handler with an
   action identifier and `userInfo`; no real response object is needed.
+- `ScheduledRequest` carries the **interruption level** asked for (§27.4), so
+  tests assert `.timeSensitive` without the entitlement.
 
 ---
 
 ## 28. Data model additions (slice 2) — PROPOSED
 
 *Proposed by the design agent, 2026-10-14, for Parsa's confirmation (plan,
-"DECISIONS.md"). BRIEF-PRODUCT's draft has `Place(name, address,
-coordinate)`, `TravelLeg(eventID, departAt, duration, mode, computedAt)` and
+"DECISIONS.md"); **rewritten the same day for the routing amendment**.
+BRIEF-PRODUCT's draft has `Place(name, address, coordinate)`,
+`TravelLeg(eventID, departAt, duration, mode, computedAt)` and
 `NotificationRule(kind, leadTime, isEnabled)`. Below: what changes and why.*
 SwiftData `@Model`s, enums as raw strings, every new field with a default so
-a slice 1 store opens without a migration step (as §21.3).
+a slice 1 store opens without a migration step (as §21.3). **Withdrawn before
+it was built:** `TravelRoute` (typed minutes per pair) — replaced by
+`TravelModeOverride` and `TravelETACache`.
 
 ### 28.1 New models
 
@@ -4863,20 +5270,21 @@ as it is, and the travel endpoint is new.
 |---|---|---|
 | `id` | `String` | `home`, `campus` for the built-ins; a UUID string otherwise. A String, as `Source.id` |
 | `name` | `String` | §23.1 |
-| `address` | `String?` | free text, not geocoded in this slice |
-| `latitude`, `longitude` | `Double?` | nil in this slice; slice 3 |
+| `addressText` | `String?` | what the user typed (`campus`: `Höchstädtplatz 6, 1200 Wien` at first launch, §23.6) |
+| `confirmedAddress` | `String?` | MapKit's one-line address the user confirmed (§23.5) |
+| `latitude`, `longitude` | `Double?` | the confirmed result's coordinate; **both set or both nil**, and set only by a confirmation (§23.5) or the campus's automatic match (§23.6) |
+| `geocodeState` | raw `none` / `unconfirmed` / `notFound` / `lookupFailed` / `confirmed` | §23.5; `searching` is not stored. A place keeps its last confirmed coordinate in any state but `none` |
+| `geocodedAt` | `Date?` | when the coordinate was confirmed |
 | `isBuiltIn` | `Bool` | `home`, `campus`: renamable, not removable |
 | `sortIndex` | `Int` | display order: `home` 0, `campus` 1, user places in creation order |
 
-**`TravelRoute`** — new; the manual provider's data and the user's mode
-choice per pair.
+**`TravelModeOverride`** — new; a pair of places travelled in another mode
+than the preferred one (§23.3).
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | `UUID` | |
 | `placeA`, `placeB` | `String` | known place ids, **stored sorted** (`placeA < placeB`); the pair is unique |
-| `mode` | `TravelMode` raw | default `transit` |
-| `manualMinutes` | `Int?` | 1 … 240, or nil (not set) |
+| `mode` | `TravelMode` raw | `transit` / `walking` / `driving`. Choosing `Usual` in Settings **deletes** the row |
 
 **`AppSettings`** — new, one row, id `app`: the settings that are not per
 source, per place or per rule. In the store (not `UserDefaults`), so a review
@@ -4884,8 +5292,12 @@ or test launch — in-memory stores — can never read or write the real ones.
 
 | Field | Type | Default |
 |---|---|---|
+| `preferredTravelMode` | `TravelMode` raw | `transit` (§23.3) |
 | `travelBufferMinutes` | `Int` | 10 (§23.4) |
-| `travelChainGapMinutes` | `Int` | 120 (§24.2) |
+| `travelChainGapMinutes` | `Int` | 120 (§24.2; fixed, not in Settings) |
+| `useCurrentLocation` | `Bool` | `true` (§24.2.1) |
+| `locationRequestedAt` | `Date?` | nil (§24.12) |
+| `campusLookupAttemptedAt` | `Date?` | nil (§23.6: at most one automatic retry a day) |
 | `notificationsRequestedAt` | `Date?` | nil (§27.8) |
 
 **`TravelLeg`** — BRIEF's draft, amended:
@@ -4893,21 +5305,38 @@ or test launch — in-memory stores — can never read or write the real ones.
 | Field | Type | Notes |
 |---|---|---|
 | `eventID` | `UUID` | unique; the event's local `id` (not `externalID`) |
-| `status` | raw `ready` / `needsTravelTime` | added: a missing travel time is a state, not an absence (§24.3) |
-| `departAt` | `Date?` | optional: nil when `needsTravelTime` |
+| `status` | raw `ready` / `estimate` / `pending` / `unavailable` | §24.3 — a missing time is a state, not an absence |
+| `isEstimate` | `Bool` | `status == .estimate`; stored so every reader tests one field (BRIEF-style flag the brief asked for) |
+| `unavailableReason` | raw `needsAddress` / `offline` / `noRoute` / `paused` / `failed` / `pending`, or nil | §24.3; set for `estimate`, `pending` and `unavailable`, nil for `ready` |
+| `reasonPlaceID` | `String?` | the place a `needsAddress` names |
+| `retryAt` | `Date?` | `paused`: when the queue resumes |
+| `departAt` | `Date?` | nil for `pending` / `unavailable` |
 | `duration` | `TimeInterval?` | travel only, without the buffer |
-| `buffer` | `TimeInterval` | added: the buffer used, so the band and the inspector can say it |
+| `buffer` | `TimeInterval` | the buffer used, so the band and the inspector can say it |
 | `mode` | `TravelMode` raw | |
-| `originPlaceID`, `destinationPlaceID` | `String` | added: the copy names the origin (§27.4) |
-| `provider` | `String` | added: `manual`; slice 3 adds others |
-| `computedAt` | `Date` | when the values last changed (§24.5) |
+| `originKind` | raw `place` / `currentLocation` | §24.2.1 |
+| `originPlaceID` | `String?` | the origin place; **nil for `currentLocation`** (no coordinate is ever stored) |
+| `destinationPlaceID` | `String` | |
+| `source` | `String` | the provider that produced the time: `mapKit`, `mock`; empty for `pending` / `unavailable` |
+| `computedAt` | `Date?` | when that provider produced the time (§24.3); nil with no time |
+| `refreshedAt` | `Date?` | the last departure refresh that succeeded (§24.6: decides `ready` vs `estimate` inside a refresh window) |
 
-**`NotificationRule`** — BRIEF's draft: `kind` raw (§27.1's four),
+**`TravelETACache`** — new, bookkeeping only, never shown (§24.9):
+`key: String` (unique — the key's fields joined, coordinates of known places
+only), `originPlaceID`, `destinationPlaceID`, `mode` raw, `dayType` raw,
+`slotMinutes: Int` (minutes after midnight, multiple of 30),
+`travelSeconds: Double`, `computedAt: Date`, `arrivalDate: Date`. Rows of a
+removed place, or of an old coordinate, are deleted with the change.
+
+**`NotificationRule`** — BRIEF's draft: `kind` raw (§27.1's five),
 `leadMinutes: Int` (BRIEF's `leadTime`, in whole minutes because every choice
-is), `isEnabled: Bool`. One row per kind, created at first launch.
+is; 0 and unused for `syncPaused`), `isEnabled: Bool`. One row per kind,
+created at first launch; a store that has the four slice-2 rules gains
+`syncPaused` on the next launch, idempotently.
 
 **`NotificationRecord`** — new, bookkeeping only, never shown:
-`identifier: String` (unique), `eventID: UUID`, `kind` raw, `fireAt: Date`,
+`identifier: String` (unique), `subjectID: String` (the event's `id` as a
+string, or the source's id for `sync.`), `kind` raw, `fireAt: Date`,
 `contentHash: String` (§27.6).
 
 ### 28.2 `Event` addition
@@ -4921,8 +5350,9 @@ is), `isEnabled: Bool`. One row per kind, created at first launch.
 ### 28.3 Not added
 
 No `Source` field (the timetable → campus rule reads `Source.kind`); no
-per-event lead time; no stored "origin event"; no notification history. A
-`TravelLeg` relationship on `Event` is not added: legs are found by
+per-event lead time; no per-event travel mode (G-094); no stored "origin
+event"; no notification history; no stored current location, ever (§24.11).
+A `TravelLeg` relationship on `Event` is not added: legs are found by
 `eventID`, like sources by `sourceID` (§21.1.1).
 
 ---
@@ -4938,17 +5368,20 @@ same phrases; Settings' pop-up shows `Public transport`, `Walking`,
 | Element | Spoken |
 |---|---|
 | A block with a `ready` leg (§11's label, the band folded in after the time) | `SWQM-ILV, 09:00 to 10:30, leave by 08:15, 35 minutes by public transport from Home, lecture, University timetable` — and `, 10 minute buffer` is **not** spoken (the leave-by time already includes it) |
-| A block with a `needsTravelTime` leg | `…, 09:00 to 10:30, travel time from Home not set, lecture, …` |
-| Status item, Leave | label `Leave by 08:15 for SWQM-ILV` |
+| A block with an `estimate` leg | `SWQM-ILV, 09:00 to 10:30, leave by about 08:15, about 35 minutes by public transport from Home, estimate, lecture, University timetable` |
+| A block with a `pending` / `unavailable` leg | `…, 09:00 to 10:30, travel time from Home not worked out yet, lecture, …` / `…, 09:00 to 10:30, travel time from Home unavailable, offline, lecture, …` (the short reason, §24.10) |
+| Status item, Leave | label `Leave by 08:15 for SWQM-ILV`; estimate: `Leave by about 08:15 for SWQM-ILV, estimate` |
 | Status item, Leave now | label `Leave now for SWQM-ILV, leave-by was 08:15` |
 | Popover NEXT (one element, as built) | label `SWQM-ILV`; value `Leave by 08:15, 35 minutes from Home. 09:00 to 10:30, HS_A3.15, University timetable` — Leave now: `Leave now, leave-by was 08:15. …` |
 | Popover notifications line | its text, as a static text element |
 | Inspector `Place` row (imported) | `Place, FH Technikum Wien`; with the explanation: `Place, FH Technikum Wien, no travel needed after EPC-ILV` |
 | Inspector `Place` pop-up (manual) | label `Place`, value `Home` / `None` |
-| Inspector `Leave by` row | `Leave by, 08:15, 35 minutes by public transport from Home, plus 10 minutes buffer`; not set: `Leave by, not set, no travel time from Home to FH Technikum Wien yet` and the button `Set travel time` |
-| Settings ▸ Travel, a route's minutes field | label `Travel time, Home to FH Technikum Wien, in minutes`; value `35`, or `not set` when empty |
-| Settings ▸ Travel, a route's mode pop-up | label `Travel mode, Home to FH Technikum Wien` |
-| Settings ▸ Travel, a place's name field | label `Place name`; address field `Address of Home, optional` |
+| Inspector `Leave by` row | `Leave by, 08:15, 35 minutes by public transport from Home, plus 10 minutes buffer, worked out at 06:02 by Apple Maps`; estimate: `Leave by, about 08:15, estimate, …, last worked out Sunday 18:00 by Apple Maps, couldn't update, offline`; pending: `Leave by, working out`; unavailable: `Leave by, unavailable, ` + the inspector sentence (§24.10), and the button by its title (`Add Address`, `Change Way to Travel`, `Try Again`) |
+| Settings ▸ Travel, `Usually` pop-up | label `Usual way to travel`, value `Public transport` |
+| Settings ▸ Travel, a pair's mode pop-up | label `Way to travel, Home to Gym`, value `Walking` / `Usual, public transport` |
+| Settings ▸ Travel, a place's name field | label `Place name`; address field `Address of Home` |
+| Settings ▸ Travel, an address's state line | its text, read after the field; a match row in the list: `{name}, {address}`, button trait |
+| Settings ▸ Travel, `Use where you are` switch | label `Use where you are for the next departure`, value on/off |
 | Settings ▸ Travel, remove button | `Remove Gym` |
 | Settings ▸ Notifications, a rule's switch | label `Leave by notifications`, value on/off |
 | Settings ▸ Notifications, a rule's pop-up | label `Leave by, notify`, value `5 minutes before` |
@@ -4964,19 +5397,26 @@ label shows no tooltip).
 
 Same rules as §17 and §22: display fixtures, mocked services, all six of
 §17.2's evidence rules. **No item needs a network, a location, or a real
-notification permission prompt**: every launch uses the recording centre
-(§27.10). Captures go to `screenshots/3b/`. Datasets and variants: §30.1.
+permission prompt**: every launch uses the recording centre (§27.10), the
+mock travel provider, geocoder, location source and path monitor (§24.11).
+Captures go to `screenshots/3b/`. Datasets and variants: §30.1.
+*(Items 1, 2, 3, 12, 13, 15 amended and items 18–23 added 2026-10-14,
+routing amendment.)*
 
 1. **Settings ▸ Travel, first run** (dataset `empty`): the three tabs
-   `Sources` · `Travel` · `Notifications`; `Home`, `FH Technikum Wien`, no
-   addresses; the route `Home ↔ FH Technikum Wien` with an **empty** minutes
-   field (`—`) and `Public transport`; `Buffer` `10 minutes`.
-2. **Settings ▸ Travel, filled** (dataset `travel`): the three places
-   (`Gym` with its remove button, the built-ins without), the three routes
-   (`35` transit, `5` walking, `—` for `FH Technikum Wien ↔ Gym`), and the
-   Places footer naming `FH Technikum Wien`.
-3. **Settings ▸ Notifications, allowed**: four rules at their defaults, no
-   status block, the quiet footer.
+   `Sources` · `Travel` · `Notifications`; `Home` with an empty address field
+   (placeholder `Address`); `FH Technikum Wien` showing `Höchstädtplatz 6,
+   1200 Wien, Austria` confirmed (the mock geocoder's automatic match,
+   §23.6); `Usually` `Public transport`; no pair rows changed (`Usual`);
+   `Buffer` `10 minutes`; `Use where you are` on, no status block
+   (`-KadenceLocation notAsked`).
+2. **Settings ▸ Travel, filled** (dataset `travel`): the three places with
+   confirmed addresses (`Gym` with its remove button, the built-ins without),
+   the Places footer naming `FH Technikum Wien`, the pair rows (`Home ↔ Gym`
+   `Walking`, the other two `Usual (Public transport)`).
+3. **Settings ▸ Notifications, allowed**: five rules at their defaults
+   (`Sync problems` with a switch and no pop-up), no status block, the quiet
+   footer.
 4. **Settings ▸ Notifications, `off`** (`-KadenceNotifications off`) and
    **`notAllowedYet`** (`notDetermined` after a recorded ask): the status
    block with `Open System Settings…` / `Allow Notifications…`; one rule
@@ -5005,9 +5445,10 @@ notification permission prompt**: every launch uses the recording centre
     Technikum Wien · 10 min buffer`. A second frame with the pop-up open:
     `None`, separator, `Home`, `FH Technikum Wien`, `Gym`, separator, `Edit
     Places…`.
-12. **Inspector, `needsTravelTime`** (variant `travelUnset`), `SWQM-ILV`
-    selected: `Leave by` `Not set`, the sentence and `Set Travel Time…`; Week
-    `M` with **no** campus bands and `Climbing`'s band still drawn.
+12. **Inspector, unavailable — no address** (variant `travelNoAddress`),
+    `SWQM-ILV` selected: `Leave by` `Unavailable`, `Add the address of Home in
+    Settings ▸ Travel so Kadence can work out the trip.` and `Add Address…`;
+    Week `M` with **no** bands at all.
 13. **Status item renders** (offscreen, §17.2 rule 3; `travel` dataset, clock
     pinned per row):
 
@@ -5019,6 +5460,8 @@ notification permission prompt**: every launch uses the recording centre
     | late | Thu 13:05 | `EPC-ILV` | 180 | glyph + `5m ago · EPC-ILV` (Phase 2, unchanged) |
     | takeover | Thu 17:20, `EPC-ILV` and `REQEN-EXAM` not done | `Dinner with flatmates` | 180 | `Leave 17:45 · Dinner with fl…` |
     | no takeover | Thu 17:10, the same | `EPC-ILV` (late) | 180 | glyph + `250m ago · EPC-ILV` |
+    | estimate | Thu 11:50, variant `travelOffline` | `EPC-ILV` | 180 | `Leave ≈12:15 · EPC-ILV` |
+    | unavailable | Thu 17:20, variant `travelOffline`, `EPC-ILV` and `REQEN-EXAM` done | `Dinner with flatmates` | 180 | `18:30 · Dinner with flatmates` (Normal: no time to leave by) |
 
 14. **The notification plan** — not a screenshot: the review launch's
     recorded plan (§27.10) as `screenshots/3b/notification-plan-travel.txt`,
@@ -5031,23 +5474,64 @@ notification permission prompt**: every launch uses the recording centre
     appearance), Late (Thu 13:05, no leave line), takeover (Thu 17:20,
     `EPC-ILV` as the first rest row), a manual NEXT with a leg (Thu 17:30,
     `EPC-ILV` and `REQEN-EXAM` marked done, `Dinner with flatmates`: `Done` ·
-    `Snooze` · `Open`), `needsTravelTime`
-    (variant `travelUnset`, Thu 11:50), the notifications line in `off` and
-    in `notAllowedYet`, and the meta line `13:00 – 14:30 · LAB_F5.12 ·
-    University timetable`.
+    `Snooze` · `Open`), the notifications line in `off` and in
+    `notAllowedYet`, and the meta line `13:00 – 14:30 · LAB_F5.12 ·
+    University timetable`. Routing states: **estimate** (variant
+    `travelOffline`, Thu 11:50: `Leave by ≈12:15 · estimate, offline`),
+    **unavailable** (variant `travelOffline`, Thu 17:30 as the manual-NEXT
+    row: `Travel time unavailable · offline`), **no address** (variant
+    `travelNoAddress`, Thu 11:50: `Travel time unavailable · Home has no
+    address`), **pending** (variant `travelPending`, Thu 11:50: `Travel time
+    from Home not worked out yet`), and **from where you are** (Thu 12:00,
+    `-KadenceLocation allowed` with the mock fix `cafe`, §30.1: `Leave by
+    12:22 · 28 min from where you are`).
 16. **Live**: one live capture of the status item in the Leave state and one
     of the popover with its leave line (dataset `travel`, the live event
     `Pick up parcel`, §30.1), cropped from the real menu bar.
 17. **Regression**: the `phase3` dataset's Week `M` and today's
     `Datenmodellierung` band `Leave 08:38 · 22min` (§12 item 7) drawn from a
     computed leg (§30.1, "Other datasets").
+18. **Settings ▸ Travel, looking up an address** (dataset `empty`, Home's
+    field, `-KadenceGeocode <case>`, one frame each): `one` — `Found:
+    Example Straße 1, 1020 Wien, Austria` with `Use This Address` (default)
+    and `Cancel`; `several` — `3 addresses match. Choose one:` and the list;
+    `many` — the `More than 5 addresses match…` line above five rows;
+    `none` — `No address found for “Exampel Strasse 1”…`; `offline` —
+    `Couldn't look up the address because this Mac is offline.` with `Try
+    Again`; `searching` — `Looking up…` (the mock's delay held). Plus a
+    frame of `Gym` with a new unconfirmed address and `Still using Example
+    Straße 1, 1020 Wien, Austria.`
+19. **Settings ▸ Travel, location states** (dataset `travel`,
+    `-KadenceLocation denied`, `servicesOff`, `notDetermined` after a
+    recorded ask): the three status blocks of §24.12, exact; and `Use where
+    you are` switched off with no block.
+20. **Week `M`, estimates** (variant `travelOffline`, scrolled to 07:00): the
+    campus bands from home marked `≈` (`Leave 08:15 · ≈35min`); **no** band on
+    `Dinner with flatmates`. Plus the inspector of `EPC-ILV` (`12:15`,
+    `estimate`, `About 35 min by public transport from Home · 10 min buffer`,
+    `Last worked out 27 Sep 18:00 by Apple Maps. Couldn't update: this Mac is
+    offline.`) and of `Dinner with flatmates` (`Unavailable`, the `offline`
+    sentence).
+21. **Inspector, `noRoute`** (variant `travelNoRoute`: the mock answers
+    `noRoute` for `home → Gym` walking): `Climbing` selected, `Unavailable`,
+    the sentence and `Change Way to Travel…`.
+22. **The now time and an hour label** (A42, §8 amended): Week and Day with
+    the clock pinned at 10:18 (offscreen): the `10:00` label dropped, the
+    now time `10:18` clear of every other label by at least 2pt; at 10:40
+    both `10:00` and `10:40` drawn. The cursor time likewise (hover at
+    10:18).
+23. **Notification plan, routing and sync** — appended to item 14's file:
+    the `travelOffline` and `travelNoAddress` plans at Thu 06:00 (N1e, N7),
+    the departure-refresh catch-up, and N8 for `unauthorized` and
+    `forbidden` (§30.1).
 
 ### 30.1 Fixtures
 
 #### Dataset `travel` (review)
 
 `-KadenceReview travel`. In-memory store (§22.1), built-in sources, the
-recording notification centre. Contents:
+recording notification centre, **the mock travel provider, geocoder,
+location source and path monitor** (§24.11). Contents:
 
 - **One connected source**, `University timetable` (`blue`), seeded as
   already imported (§22.1), served by `MockCalDAVTransport` from
@@ -5063,12 +5547,44 @@ recording notification centre. Contents:
 - **No routine template** and therefore no conflicts and no Needs attention
   row: travel is reviewed on its own.
 - **One time window**: `Sleep`, `.protected`, every day, 22:00–07:00.
-- **Known places**: `Home`, `FH Technikum Wien`, and `Gym` (user place,
-  address `Example Straße 1`).
-- **Routes**: `home ↔ campus` 35 min `.transit`; `home ↔ Gym` 5 min
-  `.walking`; `campus ↔ Gym` not set.
-- **Buffer** 10 min; chain gap 120 min.
-- **Rules**: the four defaults (§27.1).
+- **Known places**, all `confirmed`, seeded with the mock geocoder's
+  results (no lookup at launch):
+
+  | Place | `addressText` | `confirmedAddress` | Coordinate (mock) |
+  |---|---|---|---|
+  | `Home` | `Example Gasse 5, 1030 Wien` | `Example Gasse 5, 1030 Wien, Austria` | 48.2000, 16.3900 |
+  | `FH Technikum Wien` | `Höchstädtplatz 6, 1200 Wien` | `Höchstädtplatz 6, 1200 Wien, Austria` | 48.2390, 16.3770 |
+  | `Gym` | `Example Straße 1, 1020 Wien` | `Example Straße 1, 1020 Wien, Austria` | 48.2050, 16.3950 |
+
+  The coordinates are **fixture values** for the mocks, invented for review
+  and tests only; they are never shipped as data, and the real campus
+  coordinate is always MapKit's (§23.6). `Example` street names are
+  deliberately not real addresses.
+- **Ways to travel**: preferred `transit`; override `Home ↔ Gym` `walking`.
+- **Mock travel provider** (`MockTravelTimeProvider`, scripted by directed
+  pair and mode, independent of the arrival time unless a case says so):
+
+  | From → to | Mode | Answer |
+  |---|---|---|
+  | `home → campus`, `campus → home` | transit | 35 min |
+  | `home → Gym`, `Gym → home` | walking | 5 min |
+  | `campus → Gym`, `Gym → campus` | transit | 20 min |
+  | mock fix `cafe` → `campus` | transit | 28 min |
+  | anything else | any | `noRoute` |
+
+- **Mock geocoder** cases (`-KadenceGeocode`, default `one`): `one` → 1
+  result (`Example Straße 1, 1020 Wien, Austria`); `several` → 3 (`Example
+  Straße 1, 1020 Wien, Austria` / `Example Straße 1, 1210 Wien, Austria` /
+  `Example Straße 1, 2340 Mödling, Austria`); `many` → 6; `none` → 0;
+  `offline` → `offline`; `searching` → `one` after a held delay. The campus
+  query `Höchstädtplatz 6, 1200 Wien` always answers 1 result,
+  `Höchstädtplatz 6, 1200 Wien, Austria`, 48.2390, 16.3770.
+- **Mock location** (`-KadenceLocation allowed|denied|servicesOff|notDetermined|notAsked`,
+  default `notAsked`): authorization as named; with `allowed`, the fix
+  **`cafe`** at 48.2150, 16.3800, accuracy 50 m, age 0 — 1.7 km from Home,
+  so it is used (§24.2.1).
+- **Buffer** 10 min; chain gap 120 min; `useCurrentLocation` on.
+- **Rules**: the five defaults (§27.1).
 - **Manual events** (`Personal`, `graphite`; `M` as §22.1):
 
   | # | Day / time | Title | `placeID` |
@@ -5084,10 +5600,19 @@ recording notification centre. Contents:
   captures: nothing placed precedes it today (row 1 is removed), so its
   origin is `home` and its leave-by is 15 min after the rounded launch time.
   Capture item 16 between 07:00 and 20:00.
-- **Variant `travelUnset`** (`-KadenceReviewVariant travelUnset`): the same,
-  with `home ↔ campus` minutes not set (item 12).
+- **Variants** (`-KadenceReviewVariant <name>`), each the same dataset with:
+  - `travelNoAddress` — Home's address cleared (`none`, no coordinate)
+    (items 12, 15, 23);
+  - `travelOffline` — the provider answers `offline` to everything; the ETA
+    cache seeded with one entry, `home → campus` transit, weekday, every slot
+    of the dataset's campus lectures, 35 min, `computedAt` **`M − 15 days`
+    18:00** (Sun 27 Sep): older than 14 days, so every leg asks, fails
+    `offline` and falls back to it (§24.10 step 3) (items 13, 15, 20, 23);
+  - `travelPending` — the provider never answers (held), nothing cached
+    (item 15);
+  - `travelNoRoute` — `home → Gym` walking answers `noRoute` (item 21).
 
-Expected legs: §24.4. Expected bands: item 5.
+Expected legs: §24.4 (and its variants). Expected bands: item 5.
 
 #### Notification table (tests, and item 14)
 
@@ -5119,6 +5644,64 @@ does not move it.
 
 `SWRM-ILV`'s leave-by (Fri 15:10) has passed: not planned, not sent late.
 
+Interruption levels in both tables: every `leave.` request
+`.timeSensitive`, every `start.` request `.active` (§27.4).
+
+**Routing states at Thu 06:00, ordinary pass** *(routing amendment)*:
+
+Variant `travelOffline` — 4 pending:
+
+| Identifier | Fire | Title | Body |
+|---|---|---|---|
+| `leave.{EPC-ILV}` | Thu 12:10 | `Leave by about 12:15 for EPC-ILV` | `Starts 13:00 · LAB_F5.12 · about 35 min from Home · estimate, offline` |
+| `start.{REQEN-EXAM}` | Thu 15:30 | `REQEN-EXAM starts at 16:00` | `EDV_A5.09 · University timetable` |
+| `leave.{Dinner}` | Thu 17:30 (start − 60) | `Dinner with flatmates starts at 18:30` | `Home · Travel time from FH Technikum Wien unavailable: offline. Check your route before you leave.` |
+| `leave.{SWRM-ILV}` | Fri 15:10 | `Leave by about 15:15 for SWRM-ILV` | `Starts 16:00 · UEB_B2.01 · about 35 min from Home · estimate, offline` |
+
+Then the provider recovers (`ok`) and the queue drains: the next pass
+**replaces** all three `leave.` requests with the ordinary table's N1 rows
+(same identifiers, new content hash) and adds nothing else.
+
+Variant `travelNoAddress` — `leave.{EPC-ILV}` fires Thu 12:00, `EPC-ILV
+starts at 13:00` / `LAB_F5.12 · Travel time from Home unavailable: Home has
+no address. Check your route before you leave.`; `leave.{Dinner}` 17:30 the
+same with `Home · Travel time from FH Technikum Wien unavailable: Home has no
+address. …`; `leave.{SWRM-ILV}` Fri 15:00 likewise; `start.{REQEN-EXAM}`
+unchanged. No request is sent to the provider for any of them.
+
+**Departure refresh** (variant `travel`, clock Thu 11:30, the T−45 refresh of
+`EPC-ILV`; `-KadenceLocation notAsked`): the mock answers 50 min instead of
+35 → `departAt` 12:00, `leave.{EPC-ILV}` replaced to fire 11:55 with `Leave by
+12:00 for EPC-ILV` / `… · 50 min from Home`. Same refresh answering 78 min →
+`departAt` 11:32, new `F` 11:27 has passed, `departAt` has not → delivered
+**at once** (§27.6). Answering 30 → fire 12:15, `Leave by 12:20`. The refresh
+asks for location authorization exactly once (`notDetermined`, never asked)
+and uses the rule origin.
+
+**From where you are** (clock Thu 11:30, `-KadenceLocation allowed`, fix
+`cafe`): the T−45 refresh asks the mock from `cafe` → 28 min → `departAt`
+12:22, `leave.{EPC-ILV}` `Leave by 12:22 for EPC-ILV` / `Starts 13:00 ·
+LAB_F5.12 · 28 min from where you are`; the leg has `originKind
+currentLocation`, `originPlaceID` nil; the cache has no new row; the log has
+`eta ok · 28 min · transit · refresh · here` and no coordinate. With the fix
+at Home's coordinate + 100 m → `location not used · within 300 m`, the rule
+origin, `from Home`.
+
+**Sync paused** (N8; `travel` dataset, the source's next background sync
+answered `unauthorized`, then in a second case `forbidden`; Kadence not
+frontmost):
+
+| Identifier | Title | Body | Category |
+|---|---|---|---|
+| `sync.{source}` | `University timetable isn't syncing` | `cis.technikum-wien.at didn't accept the password for user01. Sync is paused until you update it in Kadence.` | `kadence.source` |
+| `sync.{source}` | `University timetable isn't syncing` | `cis.technikum-wien.at refused access for user01. Sync is paused until you check the account in Kadence.` | `kadence.source` |
+
+Delivered with a 1-second trigger (or at 07:00 when the sync ran at 03:00,
+inside Sleep); a second paused sync adds nothing; `Sync Now` that succeeds
+removes it, pending and delivered; the same `unauthorized` reached by `Sync
+Now` while Kadence is frontmost sends nothing; `Sync problems` off sends
+nothing.
+
 **Catch-up** (a launch pass, no records): at Thu 12:12 → `leave.{EPC-ILV}`
 delivered at once with N1; at Thu 12:20 → delivered at once with N3, `Leave
 now for EPC-ILV` / `Starts 13:00 · LAB_F5.12 · Leave-by was 12:15`; at Thu
@@ -5148,10 +5731,10 @@ not touched by it):
 | Change upstream | Expected for legs |
 |---|---|
 | `SWQM-ILV` Mon, lecturer `L01` → `L09` (in place) | same `Event.id`; leg row unchanged, `computedAt` unchanged |
-| `SWEN3-LAB` Tue, room → `EDV_F4.26` (delete + add) | the old event's leg deleted with it; the new event's leg: depart 09:15; `SWEN3-ILV` still chained (no leg) |
+| `SWEN3-LAB` Tue, room → `EDV_F4.26` (delete + add) | the old event's leg deleted with it; the new event's leg: depart 09:15, **from the cache — no provider call** (same key); `SWEN3-ILV` still chained (no leg) |
 | `EPC-ILV` Thu vanishes | its leg deleted; **`REQEN-EXAM` loses its chain**: origin home, new leg depart **15:15**, and its `start.` notification becomes `leave.` |
 | `SWRM-ILV` Fri loses co-teacher `L06` (in place) | leg unchanged |
-| new `KOKU-UE` `M + 9` 10:00 `UEB_B2.02` | new leg, depart 09:15 |
+| new `KOKU-UE` `M + 9` 10:00 `UEB_B2.02` | new leg, depart 09:15 (weekday slot 09:30 already cached by `SWEN3-LAB`: no provider call) |
 
 **Legs and `Event`**: after any recompute, every event's §20.8.4 hash and the
 source's `feedHash` are byte-equal to before.
@@ -5161,29 +5744,36 @@ source's `feedHash` are byte-equal to before.
 `TravelFixture` is retired, so the `phase2` and `phase3` datasets get real
 legs that reproduce §12 items 7–8:
 
-- places `Home`, `FH Technikum Wien`, and a user place `Café Sperl`;
-- routes `home ↔ campus` 22 min `.walking`, `campus ↔ Café Sperl` 6 min
-  `.walking`, `home ↔ Café Sperl` 6 min `.walking`; buffer **0**;
+- places `Home`, `FH Technikum Wien`, and a user place `Café Sperl`, all
+  `confirmed` with mock coordinates (Home and campus as dataset `travel`;
+  `Café Sperl` 48.2000, 16.3640);
+- preferred mode `transit`; overrides `Home ↔ FH Technikum Wien`,
+  `FH Technikum Wien ↔ Café Sperl` and `Home ↔ Café Sperl`, all `walking`;
+  the mock answers 22 min for home ↔ campus walking and 6 min for every Café
+  trip walking, both directions; buffer **0**;
 - `Coffee with Nora` (manual, 11:00) has `placeID` = `Café Sperl`.
 
 `Datenmodellierung` (imported, `FH B.2.09`, 09:00) → campus, origin home →
 `Leave 08:38 · 22min`, as before. `Coffee with Nora` → origin campus (it
 follows `Datenmodellierung`, 30 min earlier; `Statistik übung` has no room and
 is transparent) → 6 min → `Leave 10:54 · 6min`, as before. Both Café routes
-are 6, so the result would not change if a fixture ever gave it another
+trips are 6, so the result would not change if a fixture ever gave it another
 predecessor. In `phase3`, week `M`'s lectures gain
 22-minute bands from home where nothing placed precedes them; conflicts and
 the counts 14 / 15 are unchanged (a leg is never a conflict, §24.8).
 
-`empty` and `fresh`: built-in places, the unset built-in route, buffer 10,
-default rules — what a real store holds.
+`empty` and `fresh`: built-in places — Home with no address, the campus
+with its built-in address, looked up by the mock geocoder at launch and
+`confirmed` (§23.6) — preferred mode `transit`, no overrides, buffer 10,
+`useCurrentLocation` on, the five default rules: what a real store holds.
 
 #### The test day for the planners
 
 Unit tests construct the `travel` dataset's events directly (no review
-launch), with `M` = 2026-10-12, zone Europe/Vienna, a mock provider, the
-recording centre and an injected clock. They pin §24.4's table, the
-notification table above and these cases on top:
+launch), with `M` = 2026-10-12, zone Europe/Vienna, the mock provider,
+geocoder, location source and path monitor, the recording centre, an
+injected queue scheduler and an injected clock. They pin §24.4's table, the
+notification tables above and these cases on top:
 
 - **Overlap**: a manual event at Home 12:00–12:30 while `EPC-ILV` runs
   11:00–13:00 (moved for the test) → origin campus, depart 11:15, before
@@ -5199,3 +5789,47 @@ notification table above and these cases on top:
 - **All rules off** → nothing planned, and no authorization request.
 - **First pass with something to plan, `notDetermined`, never asked** →
   exactly one `requestAuthorization`; a second pass → none.
+
+*Routing cases (routing amendment):*
+
+- **Cache sharing**: the 14 timetable events of dataset `travel` at Mon
+  06:00 with an empty cache → exactly one provider call per distinct key
+  (`home → campus` transit at each distinct weekday slot, `campus → home`
+  for `Dinner`, `home → Gym` walking) — never one per event; a second
+  recompute → zero calls.
+- **Directional**: `campus → home` and `home → campus` are two keys; an
+  answer for one never fills the other.
+- **New address**: confirming a new Home coordinate invalidates every key
+  with the old one (new calls), and deletes the old rows.
+- **Freshness**: an entry 14 days old is used without a call; 14 days + 1 s
+  → a call; a failure then → `estimate` from that entry; 28 days + 1 s →
+  deleted at launch.
+- **Fallback order** (§24.10): own last time → exact key → nearest slot
+  same day type → any day type → `unavailable`; `noRoute` and
+  `needsAddress` never fall back.
+- **Mode mismatch**: the mock answers `walking` to a `transit` request →
+  `noRoute`.
+- **Queue**: one in flight; ≥ 2 s apart; the 21st request in 10 minutes
+  waits; a `throttled` answer pauses 10 min, then 20, 40, 60, 60, reset by a
+  success, with `retryAt` on every waiting leg; priority order 0 → 4; a
+  duplicate key is queued once; `offline` pauses until the path monitor
+  reports satisfied.
+- **Refresh schedule**: a leg with `departAt` 12:15 today has refreshes at
+  09:15 and 11:30; moving the event re-plans them; a refresh slot missed
+  while asleep runs once at wake if the event has not started, and never
+  after its start.
+- **Ready vs estimate in a window**: at 11:31 with the 11:30 refresh failed
+  `offline` → `estimate` (reason `offline`); with it succeeded → `ready`,
+  `refreshedAt` 11:30.
+- **Location** (§24.2.1): used only for the next departure inside its 45
+  minutes; never at T−3 h; a fix 3 min old, or 250 m accuracy, is not used;
+  `denied` → rule origin and no further request; `useCurrentLocation` off →
+  no location call at all; the coordinate appears in no stored row and no
+  log line.
+- **Campus lookup** (§23.6): first recompute needing the campus → one lookup;
+  a matching first result → `confirmed` without asking; a non-matching one →
+  `unconfirmed`, legs `unavailable · needsAddress (FH Technikum Wien)`; a
+  failure → retried at the next launch, not within the same day.
+- **Logging**: every routing log line produced by the cases above matches
+  §24.11's forms; none contains a digit pattern of a coordinate
+  (`\d+\.\d{3,}`), a fixture address, a place name or an event title.

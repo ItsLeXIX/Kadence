@@ -405,15 +405,34 @@ by`.** For a **manual** event, after the Time rows and before Source:
   `color.text.secondary` explains a missing leave-by when the event chains
   from the same place: `No travel needed after EPC-ILV` (the title of
   `components.md` §24.2's `P`).
-- **`Leave by`** — only when the event has a leg (`components.md` §24.3):
-  - `ready`: value `08:15` (`inspectorValue`, monospaced digits), and under it
-    in `blockMeta` / `color.text.secondary`: `35 min by public transport from
-    Home · 10 min buffer` (`· N min buffer` omitted at 0).
-  - `needsTravelTime`: value `Not set` (`color.text.secondary`); under it
-    `No travel time from Home to FH Technikum Wien yet.` (`blockMeta`,
-    `color.text.secondary`, `lineLimit` 0) and a borderless link-style button
-    **`Set Travel Time…`** (`inspectorValue`, `color.interactive.link`), which
-    opens Settings ▸ Travel with that route's minutes field focused.
+- **`Leave by`** — only when the event has a leg (`components.md` §24.3).
+  *(Rewritten 2026-10-14, routing amendment.)* Lines under the value are
+  `blockMeta` / `color.text.secondary`, `lineLimit` 0; buttons are
+  borderless link-style (`inspectorValue`, `color.interactive.link`, 5.21 /
+  5.69 on `surface.inspector`, declared since 1.5.0).
+  - `ready`: value `08:15` (`inspectorValue`, monospaced digits); under it
+    `35 min by public transport from Home · 10 min buffer` (`· N min buffer`
+    omitted at 0; `from where you are` for a current-location leg); then
+    `Worked out {when} by Apple Maps.` (`{when}` per `components.md` §19.5:
+    `Worked out today 06:02 by Apple Maps.`).
+  - `estimate`: value `08:15` followed by the word **`estimate`**
+    (`blockMeta`, `color.text.secondary`, `spacing.xs` after the time — a
+    word, never a colour or a badge); under it `About 35 min by public
+    transport from Home · 10 min buffer`; then `Last worked out {when} by
+    Apple Maps. Couldn't update: {sentence}` with `components.md` §24.10's
+    inspector sentence for the reason (`… Couldn't update: this Mac is
+    offline. Kadence will ask Apple Maps again when it's back online.`); the
+    reason's button if it has one (`Try Again` for `failed`).
+  - `pending`: value `Working out…` (`color.text.secondary`); under it
+    `Kadence is asking Apple Maps for the trip from Home.`
+  - `unavailable`: value `Unavailable` (`color.text.secondary`); under it the
+    reason's inspector sentence (`components.md` §24.10, exact) and its
+    button: **`Add Address…`** (Settings ▸ Travel, that place's address field
+    focused and its text selected), **`Change Way to Travel…`** (Settings ▸
+    Travel, the pair's pop-up focused; the preferred-mode pop-up when the
+    pair is not shown) or **`Try Again`** (one request at priority 0; while
+    the queue is paused, disabled with hover help `Kadence will try at
+    {retry}`).
   - Never coloured `color.semantic.now`, also when the user should have left:
     `semantic.now` on `surface.inspector` measures 4.25:1 in light and fails
     (`tokens.json` 1.8.0 `$measured_1_8_0`). The menu bar carries that state
@@ -421,7 +440,8 @@ by`.** For a **manual** event, after the Time rows and before Source:
 
 The Phase 1 `Location` row (the stated location text) stays above them when
 present. Phase 1's `Travel` row (`Leave 08:12 · 22 min walking`, from a
-fixture) is replaced by `Leave by`.
+fixture) is replaced by `Leave by`. The inspector never shows an address or
+a coordinate — places are named, Settings holds the addresses.
 
 Section spacing `spacing.xl`, horizontal padding `spacing.xl`, label column
 width 84.
@@ -842,7 +862,7 @@ not used for the tab. Same window size for every tab (640 × 440, not
 resizable); a pane taller than that scrolls inside its own `Form`. The tab
 opened by `⌘,` is the last one shown in this session (`Sources` at launch).
 Ways to reach the new tabs: `⌘,` and the tab bar; the inspector's `Edit
-Places…` and `Set Travel Time…` (Travel); the popover's notifications line
+Places…`, `Add Address…` and `Change Way to Travel…` (Travel); the popover's notifications line
 names Settings ▸ Notifications (it is not a button).
 Content size is `size.settingsWindowWidth` × `size.settingsWindowHeight`
 (640 × 440).
@@ -1189,8 +1209,11 @@ amendments. Rules: `components.md` §23–§30.
 
 ## 13. Settings ▸ Travel
 
-A standard grouped form (`Form`, `.formStyle(.grouped)`), three sections. No
-custom chrome; values are the platform's controls.
+*(Rewritten 2026-10-14, routing amendment: addresses looked up and
+confirmed, a usual way to travel and per-pair modes, the location switch;
+no typed minutes.)* A standard grouped form (`Form`, `.formStyle(.grouped)`),
+four sections. No custom chrome; values are the platform's controls. The
+pane scrolls inside its `Form` when taller than the window (§11).
 
 ```
 +------------------------------------------------------------------+
@@ -1198,27 +1221,39 @@ custom chrome; values are the platform's controls.
 +------------------------------------------------------------------+
 |  Places                                                          |
 |  ┌────────────────────────────────────────────────────────────┐  |
-|  │ [Home              ]  [Address (optional)              ]   │  |
-|  │ [FH Technikum Wien ]  [Address (optional)              ]   │  |
-|  │ [Gym               ]  [Example Straße 1                ] ⊖ │  |
+|  │ [Home              ]  [Example Gasse 5, 1030 Wien, Aus…  ]   │  |
+|  │ [FH Technikum Wien ]  [Höchstädtplatz 6, 1200 Wien, Aus… ]   │  |
+|  │ [Gym               ]  [Example Straße 1                  ] ⊖ │  |
+|  │                        Found: Example Straße 1, 1020 Wien,   │  |
+|  │                        Austria   [ Cancel ] [Use This Address]│  |
 |  └────────────────────────────────────────────────────────────┘  |
 |  Timetable rooms are at FH Technikum Wien. Online lectures need  |
-|  no travel.                                       [ Add Place ]  |
+|  no travel. Addresses are looked up with Apple Maps.             |
+|                                                   [ Add Place ]  |
 |                                                                  |
-|  Travel times                                                    |
+|  Ways to travel                                                  |
 |  ┌────────────────────────────────────────────────────────────┐  |
-|  │ Home ↔ FH Technikum Wien       [ 35 ] min [Public transport⌄]│ |
-|  │ Home ↔ Gym                     [  5 ] min [Walking         ⌄]│ |
-|  │ FH Technikum Wien ↔ Gym        [  — ] min [Public transport⌄]│ |
+|  │ Usually                            [ Public transport    ⌄ ]│  |
+|  │ Home ↔ FH Technikum Wien           [ Usual               ⌄ ]│  |
+|  │ Home ↔ Gym                         [ Walking             ⌄ ]│  |
+|  │ FH Technikum Wien ↔ Gym            [ Usual               ⌄ ]│  |
 |  └────────────────────────────────────────────────────────────┘  |
-|  The same time is used both ways. Leave a time empty if you      |
-|  never travel between two places.                                |
+|  Kadence asks Apple Maps how long each trip takes, at the time    |
+|  you travel.                                                     |
 |                                                                  |
 |  Leave by                                                        |
 |  ┌────────────────────────────────────────────────────────────┐  |
 |  │ Buffer                               [ 10 minutes        ⌄ ]│  |
 |  └────────────────────────────────────────────────────────────┘  |
 |  Added to every trip, so you arrive early.                       |
+|                                                                  |
+|  Where you are                                                   |
+|  ┌────────────────────────────────────────────────────────────┐  |
+|  │ Use where you are for the next departure              (●)  │  |
+|  └────────────────────────────────────────────────────────────┘  |
+|  Kadence asks for your location only around your next departure, |
+|  sends it to Apple Maps to work out the trip, and doesn't keep   |
+|  it.                                                             |
 +------------------------------------------------------------------+
 ```
 
@@ -1228,50 +1263,90 @@ custom chrome; values are the platform's controls.
   `sidebarItem`. It commits on `↩` or blur; an empty or duplicate name
   (case-insensitive) reverts to the last name — the same rule as a source's
   `Name` (§11).
-- Address: a `TextField`, flexible width, placeholder `Address (optional)`.
-  Free text; nothing is looked up (`components.md` §23.1).
+- Address: a `TextField`, flexible width, placeholder `Address`, tail
+  truncation with the full text as hover help. It shows the **confirmed**
+  address when there is one, else the typed text. Committing a changed text
+  (`↩` or blur) starts a lookup (`components.md` §23.5); the lookup's line
+  and controls appear **under the field**, indented to the field's leading
+  edge, `blockMeta` / `color.text.secondary`, `lineLimit` 0, `spacing.xs`
+  above:
+  - `searching`: a `ProgressView` (`.controlSize(.small)`) then `Looking
+    up…`.
+  - one result: `Found: {found}` and, trailing, `Cancel` then **`Use This
+    Address`** (`.bordered`, small, the default button of the row while it is
+    shown: `↩` confirms). `⎋` is `Cancel`.
+  - several results: `{n} addresses match. Choose one:` (or the "more than
+    5" line) and a **match list**: rows of height
+    `size.settingsAddressMatchRowHeight` (36), the list at most
+    `size.settingsAddressMatchListMaxHeight` (180, five rows) — never
+    scrolls, because at most five are shown. Each row: the first line of the
+    match (`sidebarItem`) over the rest of its address (`blockMeta`,
+    `color.text.secondary`), both tail-truncated with hover help; hover and
+    keyboard selection use the platform's list selection. Click, or `↓` / `↑`
+    then `↩`, confirms. `Cancel` trailing below the list.
+  - `notFound`, `lookupFailed`, `unconfirmed`: the line of §23.5's table and
+    its button(s) (`Try Again`, `Look Up`, `Cancel`), `.bordered`, small,
+    trailing. Not default buttons.
+  - A place that keeps an older confirmed address adds `Still using
+    {old found}.` as a second line.
+  - None of these lines uses colour: the words carry the state (`components.md`
+    §1).
 - User places only: a trailing borderless `minus.circle` button (hit target ≥
   24 × 24, hover help `Remove {name}`). If any **manual** event's `placeID`
   names the place, it asks first with a standard alert: message `Remove
   “Gym”?`, informative text `{n} events are at Gym. They will have no place,
   and no leave-by.` (`1 event is …`), buttons `Remove` (destructive) and
   `Cancel` (default). With no such event it removes at once. Removing deletes
-  the place and its routes and sets those events' `placeID` to nil; it is not
-  an undo step (Settings edits are not, as §11's `Name`).
+  the place, its mode overrides and its cache rows, and sets those events'
+  `placeID` to nil; it is not an undo step (Settings edits are not, as §11's
+  `Name`).
 - Footer (the section's footer text, `color.text.secondary`): `Timetable rooms
-  are at {campus name}. Online lectures need no travel.` — the rule of
-  `components.md` §23.2 in one line, with the campus place's current name.
+  are at {campus name}. Online lectures need no travel. Addresses are looked
+  up with Apple Maps.` — with the campus place's current name.
 - **`Add Place`** — a `.bordered` small button at the section's trailing
   bottom. It appends a row named `New Place` (`New Place 2` … if taken) with
-  its name field focused and selected.
+  its name field focused and selected; its address is empty (`none`).
 
-**Travel times** — one row per **unordered pair** of known places: pairs with
-`home` first (by the other place's `sortIndex`), then the rest by `sortIndex`.
+**Ways to travel**:
 
-- Label `{A} ↔ {B}` (`sidebarItem`, tail-truncated; hover help carries the
-  full text).
-- Minutes: a `TextField` with an integer formatter, width
-  `size.settingsMinutesFieldWidth` (48), right-aligned, monospaced digits,
-  placeholder `—`; then the unit `min` (`color.text.secondary`). Accepts
-  1 … 240. Empty clears the time (not set). A value outside the range or not a
-  whole number reverts to the last value on commit, with the system beep — no
-  alert.
-- Mode: a pop-up, `Public transport` · `Walking` · `Driving`.
-- A change commits on `↩` / blur / pop-up choice and triggers a leg recompute
-  (`components.md` §24.6). The canvas and menu bar follow on their own.
-- Footer: `The same time is used both ways. Leave a time empty if you never
-  travel between two places.`
+- First row: label `Usually`, a pop-up `Public transport` · `Walking` ·
+  `Driving` (`components.md` §23.3; no `Cycling`, G-095). Default `Public
+  transport`.
+- Then one row per **unordered pair** of known places: pairs with `home`
+  first (by the other place's `sortIndex`), then the rest by `sortIndex`.
+  Label `{A} ↔ {B}` (`sidebarItem`, tail-truncated; hover help carries the
+  full text). A pop-up: `Usual` · separator · `Public transport` ·
+  `Walking` · `Driving`. `Usual` shows as `Usual` in the closed pop-up (the
+  preferred mode is the row above it); VoiceOver reads `Usual, public
+  transport` (`components.md` §29). Choosing `Usual` deletes the override.
+- A change commits on the pop-up choice and triggers a leg recompute
+  (`components.md` §24.6); trips that are not cached for the new mode are
+  asked for through the queue. The canvas and menu bar follow on their own.
+- Footer: `Kadence asks Apple Maps how long each trip takes, at the time you
+  travel.`
 
 **Leave by** — one row: label `Buffer`, a pop-up `None` · `5 minutes` · `10
 minutes` · `15 minutes` · `20 minutes` · `30 minutes` (default `10
 minutes`). Footer: `Added to every trip, so you arrive early.`
 
-`chainGap` (`components.md` §24.2) is **not** shown in this slice.
+**Where you are** — one row: label `Use where you are for the next
+departure`, a `Toggle` (`.toggleStyle(.switch)`, `.controlSize(.small)`),
+default on. Footer as drawn. When the switch is on and location is `denied`,
+`servicesOff` or not allowed yet after an ask, the **location status block**
+(`components.md` §24.12's table, exact) sits between the switch row and the
+footer, with the same anatomy as §14's notifications status block (title
+`sourceStatusTitle`, body `inspectorValue`, the button `.bordered` trailing,
+not default). Switched off, the block is hidden. The section never prompts
+by being shown.
 
-**Focus**: `⇥` moves through name, address, remove button, `Add Place`, then
-each route's minutes field and mode pop-up, then the buffer pop-up, in reading
-order. `Set Travel Time…` (inspector) opens this tab with the named route's
-minutes field focused and its text selected.
+`chainGap` (`components.md` §24.2) is **not** shown.
+
+**Focus**: `⇥` moves through each place's name, address, its lookup controls
+when shown, the remove button; `Add Place`; `Usually`, each pair's pop-up;
+the buffer pop-up; the location switch and its block's button — in reading
+order. `Add Address…` (inspector) opens this tab with that place's address
+field focused and its text selected; `Change Way to Travel…` opens it with the
+pair's pop-up focused.
 
 ## 14. Settings ▸ Notifications
 
@@ -1297,6 +1372,8 @@ A grouped form, one optional status block above one section.
 |  │ Events you created, with no travel                          │  |
 |  │ Routine                           [5 minutes before   ⌄] (●)│  |
 |  │ Routine blocks                                              │  |
+|  │ Sync problems                                           (●)│  |
+|  │ When a calendar stops syncing and needs you                 │  |
 |  └────────────────────────────────────────────────────────────┘  |
 |  Kadence stays quiet during Sleep and your other protected       |
 |  windows: a notification due then arrives when the window ends,  |
@@ -1311,7 +1388,10 @@ A grouped form, one optional status block above one section.
   between, the button `.bordered`, trailing, `spacing.lg` above it — **not**
   the default button. Then `spacing.lg` and the section. No glyph, no colour:
   the words carry it. Hidden in `allowed` and `notAsked`.
-- **Notify me** — four rows, `components.md` §27.1's order. Each row is a
+- **Notify me** — five rows, `components.md` §27.1's order. *(Amended
+  2026-10-14, routing amendment: the fifth row, `Sync problems` — G-060 —
+  has a switch and no pop-up, and its second line is `When a calendar stops
+  syncing and needs you`.)* Each row is a
   `LabeledContent`: the label is the rule's name (`sidebarItem`) with a second
   line (`blockMeta`, `color.text.secondary`): `Events at a place you travel
   to` · `Lectures and exams with no travel` · `Events you created, with no

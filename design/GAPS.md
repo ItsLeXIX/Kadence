@@ -3188,3 +3188,132 @@ acceptable.
 - **Deferred:** G-058, G-059, G-060, G-062, G-064, G-065, G-084, G-085,
   G-086, G-088, G-091.
 - **Spec closed, build open:** G-063, G-082 (A42).
+
+---
+
+## 2026-10-14 — Phase 3 slice 2 routing amendment: gaps opened, closed, restated
+
+Design agent, amendment session before anything of slice 2 was built.
+Parsa (2026-10-14): travel times are worked out automatically, like a
+navigation app; the user chooses only how they usually travel. Spec:
+`components.md` §22 slice-2 intro, §23 and §24 (rewritten), §25.1, §25.3,
+§26.1, §26.2, §27.1–§27.4, §27.6, §27.7, §27.10, §28 (rewritten), §29, §30,
+§30.1 (amended); `layouts.md` §6 (`Leave by` rewritten), §13 (rewritten), §14
+(fifth rule); `interactions.md` §14.1, §15.3 (amended), §15.4, §15.5 (new);
+`tokens.json` 1.9.0. Plan: `PHASE3-SLICE2-PLAN.md` (rewritten).
+
+### Withdrawn before it was built
+
+Typed travel times: `TravelRoute`, `ManualTravelTimeProvider`, the minutes
+field and `size.settingsMinutesFieldWidth`, the leg status
+`needsTravelTime`, review variant `travelUnset` and `Set Travel Time…`. No
+code exists for any of them; nothing to migrate.
+
+### G-087 — CLOSED (Parsa, 2026-10-14). `components.md` §24.2.
+
+The chain gap is 120 minutes, fixed, not in Settings.
+
+### G-089 — CLOSED (Parsa, 2026-10-14). `components.md` §27.4.
+
+Leave-by notifications (N1, N1e, N2, N3, N7) are `.timeSensitive`; they
+degrade to `.active` without the entitlement, never fail. The entitlement is
+Parsa's Xcode step (G-096).
+
+### G-090 — CLOSED (Parsa, 2026-10-14). `components.md` §27.5 rule 5.
+
+Notifications are allowed during lectures; the chain clamp holds the next
+lecture's "starts" until the one before ends.
+
+### G-060 — split. Sync-paused notification: spec CLOSED, build OPEN. `components.md` §27.1, §27.4 N8, §27.6, §27.7; `layouts.md` §14; `interactions.md` §14.1.
+
+Parsa pulled the 401/403 notification into slice 2: rule `syncPaused`
+(`Sync problems`, on), one notification `sync.{sourceID}` when a source
+enters `unauthorized` or `forbidden` in a sync Kadence started on its own,
+removed when it recovers. **Still DEFERRED**: notifications about timetable
+changes ("your lecture tomorrow moved / was cancelled") and other failure
+states.
+
+### G-082 — spec CLOSED; build OPEN **in this slice** (A42). `components.md` §8 (amended 2026-10-14), §30 item 22.
+
+Parsa: A42 is fixed in slice 2. Plan task 2.
+
+### G-063 — spec CLOSED, build OPEN. Unchanged by the amendment.
+
+Places are unchanged (§23.2); routing changes how long a trip takes, never
+where an event is. No CIS room is ever geocoded.
+
+### G-093 — OPEN (real use). MapKit's real throttle.
+
+MapKit documents `MKError.loadingThrottled` but publishes no number. The
+queue's budget (one in flight, 2 s apart, 20 per 10 minutes, 150 a day,
+pause 10 → 60 min; `components.md` §24.9) is a design choice, sized so a
+semester's legs cost a few dozen requests through the cache. If real use
+shows `queue paused` lines in the routing log, the numbers are revisited;
+they are behaviour constants in one place, not tokens.
+
+### G-094 — DEFERRED (later). A way to travel per event.
+
+`components.md` §23.3: preferred mode plus a per-pair override is in scope;
+a one-off "I'm driving today" is not. It would be a local field on `Event`
+(beside `placeID`) and a pop-up in the inspector. Revisit if the pair
+override proves not enough.
+
+### G-095 — OPEN (Parsa). Deployment target, and cycling.
+
+BRIEF-PRODUCT and CONTEXT say macOS 15+, but the Xcode project's
+`MACOSX_DEPLOYMENT_TARGET` is **26.5** (project and test targets;
+`Kadence.xcodeproj/project.pbxproj`). The spec is written to the brief's
+floor: `MKDirectionsTransportType` on macOS 15 has automobile, walking,
+transit and any, so **cycling is not offered**. A cycling type arrived with
+the 2025 MapKit (macOS 26), and a developer report on macOS 26 shows a cycling
+request answered with an automobile route, so even on 26 it needs a real
+check before it is offered. Parsa decides: (a) the floor is macOS 15 — fix
+the project setting, cycling waits; or (b) the floor is macOS 26 — then
+cycling can be added as one pop-up item after a verified real request, and
+`MKGeocodingRequest` may replace `MKLocalSearch` behind `PlaceGeocoder`. No
+slice-2 task depends on the answer.
+
+### G-096 — OPEN (Parsa, Xcode). Capabilities and Info keys.
+
+The slice's code needs, at run time only (no test needs any of them):
+
+1. **App Sandbox ▸ Location** (`com.apple.security.personal-information.location`;
+   the build setting `ENABLE_RESOURCE_ACCESS_LOCATION`, currently `NO`).
+2. **Info keys** `NSLocationUsageDescription` and
+   `NSLocationWhenInUseUsageDescription` (the project generates its
+   Info.plist, so as `INFOPLIST_KEY_…` build settings), text: `Kadence uses
+   your location only to work out how long the trip to your next event takes.
+   It is sent to Apple Maps for that and is not stored.`
+3. **Time Sensitive Notifications** capability
+   (`com.apple.developer.usernotifications.time-sensitive`). Commit db97278
+   is titled "Add Time Sensitive Notifications capability" but changes no
+   project file, and the project has no `.entitlements` file
+   (`CODE_SIGN_ENTITLEMENTS` unset) — so it is not in the build yet.
+4. Already present, nothing to do: App Sandbox, Outgoing Connections
+   (Client) — MapKit needs no other capability; the Maps capability is for
+   routing apps and is **not** wanted.
+
+Without 1–2 Kadence works from the rule origin (location `denied`-like:
+`requestAuthorization` answers without a prompt); without 3 leave-by
+notifications arrive as `.active`.
+
+### G-092 — still OPEN (CA judgement, record it). Now also the routing queue.
+
+Added: how `RouteRequestQueue` is isolated (an actor is expected), how its
+2 s spacing, rolling budget and pause are driven by the injected scheduler,
+and how answers re-enter the main-actor recompute. Any choice satisfying
+`components.md` §24.6 and §24.9 is acceptable.
+
+### G-016, G-084, G-085, G-086, G-088, G-091 — unchanged.
+
+### Still open after this pass
+
+- **Parsa:** G-095, G-096; G-067.
+- **Design:** G-083.
+- **Real use:** G-093.
+- **CA judgement:** G-092.
+- **Unchanged:** G-016, G-003.
+- **Deferred:** G-058, G-059, G-060 (timetable changes), G-062, G-064,
+  G-065, G-084, G-085, G-086, G-088, G-091, G-094.
+- **Spec closed, build open (this slice):** G-063, G-060 (sync paused), G-082
+  (A42).

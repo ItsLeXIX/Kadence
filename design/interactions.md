@@ -892,6 +892,9 @@ The actions are the popover's (§12), reached from outside the app.
   pages to its month) and select it, with the inspector showing it. Focus goes
   to the grid in selection mode (§1). The popover is not opened.
 - **Dismissing** does nothing (`components.md` §27.9).
+- **N8 (sync paused)** has only `Open`: it activates Kadence and opens
+  Settings ▸ Sources with that source selected, where its status block's
+  button is the remedy (`components.md` §27.7). *(Added 2026-10-14.)*
 - Actions address the event by id at the moment they run (DECISIONS
   2026-09-09). An imported event never offers `Snooze` (§13.4).
 
@@ -936,4 +939,36 @@ behaves the same.
 blur or a pop-up choice, are not undo steps (like every Settings edit), and
 take effect through the recompute and the notification pass with no further
 confirmation — except removing a place that manual events use, which asks
-first (`layouts.md` §13).
+first (`layouts.md` §13), and **an address, which is used only once the user
+confirms what Apple Maps found** (§15.4).
+
+### 15.4 Confirming an address *(added 2026-10-14, routing amendment)*
+
+- Committing a changed address field (`↩`, blur) starts one lookup
+  (`components.md` §23.5). Typing alone never looks anything up: no search as
+  you type, no request per keystroke.
+- While a result waits for confirmation, the field stays editable; editing
+  and committing again replaces the lookup (the old one's answer is
+  discarded).
+- One result: `↩` (the row's default button) or `Use This Address` confirms;
+  `⎋` or `Cancel` drops it and restores the field to the confirmed address
+  (or empties it). Several: `↓` from the field moves into the match list,
+  `↑` / `↓` move within it, `↩` or a click confirms, `⎋` cancels.
+- Leaving the tab or closing Settings with a result unconfirmed keeps the
+  typed text and sets `unconfirmed`; nothing is confirmed by leaving.
+- Confirming triggers the leg recompute; legs that were `unavailable ·
+  needsAddress` become `pending` and fill in as the queue answers.
+- No confirmation is ever an undo step, and no alert is ever shown for a
+  lookup: the line under the field is the whole conversation.
+
+### 15.5 Location *(added 2026-10-14, routing amendment)*
+
+- Kadence never asks for location at launch or when Settings opens. The one
+  automatic request comes at the first departure refresh that wants a fix
+  (`components.md` §24.12); `Allow Location…` is the only other way.
+- Nothing in the main window, the popover or a notification mentions
+  location: a denied permission changes where trips are worked out from, not
+  whether there is a leave-by. Settings ▸ Travel's block is the only place
+  the state shows.
+- `Open System Settings…` opens the URL through the injected opener and does
+  nothing else; Kadence re-reads the state on `didBecomeActive`.
