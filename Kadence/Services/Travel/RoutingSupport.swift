@@ -64,11 +64,15 @@ final class SystemTravelClock: TravelClock {
 /// are kept in memory (the last 500) so tests can read what was logged.
 @MainActor
 final class RoutingLog {
-    private let logger = Logger(subsystem: "XIX.Kadence", category: "travel")
+    private let logger: Logger
     private let forwardsToSystem: Bool
     private(set) var lines: [String] = []
 
-    init(forwardsToSystem: Bool = false) {
+    /// `category`: `travel` (§24.11) or `notifications` (§27.4's degrade
+    /// line) — the same one-line style, the same rule: no address,
+    /// coordinate, place name, title or search text.
+    init(category: String = "travel", forwardsToSystem: Bool = false) {
+        logger = Logger(subsystem: "XIX.Kadence", category: category)
         self.forwardsToSystem = forwardsToSystem
     }
 

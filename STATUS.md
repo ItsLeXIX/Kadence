@@ -10626,3 +10626,52 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   window edges and the cap; records; the copy bans (the user's own titles
   excepted); N5 / N6 / N8 / N2 exact.
 - Verify: **993 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T09 — the centre, the applier, scheduling and permission
+
+- `Kadence/Services/Notifications/NotificationCenterClient.swift`: §27.10's
+  protocol exactly; `NotificationAuthorization`, Kadence's
+  `NotificationPermission` (`allowed` / `off` / `notAllowedYet` /
+  `notAsked`), `ScheduledRequest` (carries the interruption level asked
+  for), the four categories and their actions; `RecordingNotificationCenter`
+  (actor: in memory, injectable authorization and answer, scripted
+  time-sensitive rejection, call log; never prompts, never posts);
+  `NotificationServices.make(for:)` and review's `-KadenceNotifications
+  allowed|off|notDetermined|notAsked`.
+- `SystemNotificationCenter.swift` — **the only file that names
+  `UNUserNotificationCenter`**: calendar triggers to the second, 1-second
+  triggers for at-once requests, `userInfo` subject / hash / fire date,
+  `requestAuthorization([.alert, .sound])`, `willPresent` (banner + list +
+  sound; results without sound), responses mapped to `NotificationResponse`
+  for task 10's router. Its delegate is set in `KadenceApp.init` (before the
+  first launch response, G-092). Tested only through its pure §27.8 mapping.
+- `NotificationScheduler.swift`: passes after every leg recompute (the
+  launch and wake passes are catch-ups), on `NotificationRule` /
+  `TimeWindow` saves, on an authorization change (`didBecomeActive`),
+  hourly; debounced 1 s on the injected clock, one at a time, coalesced.
+  Permission: asked once the first time a pass has something to schedule;
+  not `allowed` → the planner still runs (state for Settings / popover) and
+  nothing is added, removed or recorded. The diff: owned prefixes only
+  (`leave.`, `start.`, `sync.`; `result.` left to fire), replace on fire date
+  or content hash, records written per add, a request already due left to
+  fire; delivered notifications of ended / deleted / done / skipped /
+  cancelled events cleared; records pruned with their event and a day after
+  it ended. A rejected time-sensitive add is retried once as `.active` and
+  logged `notification degraded · time-sensitive unavailable` (category
+  `notifications`). `TravelCoordinator` gained `onPassCompleted(kind)` and
+  `consumeRefreshed()` (the refresh catch-up's events).
+- Wired in `KadenceApp` (the scheduler shares the travel clock) and started
+  with the travel coordinator in `MainWindow` (not in the test host's own
+  app instance); in the environment of the main window, Settings and the
+  menu bar.
+- **G-092 recorded**: the scheduler is a main-actor class; the centre's
+  calls are the only `await`s; store reads and writes happen on the main
+  actor between them.
+- Tests: `KadenceTests/Slice2/NotificationSchedulerTests.swift` (11): two
+  passes → no add, no remove (4 records); move → replaced, never duplicated;
+  Done → removed; delete → removed and delivered cleared; N7 → N1 under
+  `leave.`; `off` → nothing, then `allowed` → the plan as an ordinary pass;
+  ask once, never twice, never with every rule off; the hourly pass adds
+  Saturday's held leave-by; a foreign identifier survives; the degrade
+  retry; the categories; the factory and the source scan; the mapping.
+- Verify: **1004 passed / 0 failed**; real store `stat` unchanged.

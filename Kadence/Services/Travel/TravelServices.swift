@@ -7,7 +7,7 @@
 //  launch"): which implementation of each external service a launch gets.
 //  The same three-launch rule as the store and the transport (B45): only a
 //  normal launch constructs the real ones (MapKit, CoreLocation,
-//  `NWPathMonitor`, `UNUserNotificationCenter`); a launch XCTest started
+//  `NWPathMonitor`, the system notification centre); a launch XCTest started
 //  and a `-KadenceReview` launch get the mocks. One factory per service,
 //  each with its launch-kind table, and a launch log of what was
 //  constructed — the evidence tests and review read.

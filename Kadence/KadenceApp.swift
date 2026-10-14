@@ -34,6 +34,9 @@ struct KadenceApp: App {
     /// path monitor come from the launch's factories: MapKit and
     /// `NWPathMonitor` in a normal launch only, mocks otherwise (§24.11).
     @State private var travel: TravelCoordinator
+    /// Phase 3 slice 2 (components.md §27): the notification passes; the
+    /// centre is the system's in a normal launch only (§27.10).
+    @State private var notifications: NotificationScheduler
 
     init() {
         // PHASE3-REVIEW.md fix 1 (components.md §22.1, G-076): the launch
@@ -67,7 +70,18 @@ struct KadenceApp: App {
             _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext,
                                                              path: PathMonitors.make(for: kind)))
         }
-        _travel = State(initialValue: Self.makeTravel(kind: kind, context: container.mainContext))
+        let travel = Self.makeTravel(kind: kind, context: container.mainContext)
+        let notifications = NotificationScheduler(
+            context: container.mainContext, centre: NotificationServices.make(for: kind, review: .current()),
+            clock: travel.clock, log: RoutingLog(category: "notifications", forwardsToSystem: kind == .normal))
+        // Every leg recompute ends by asking for a notification pass (§24.6);
+        // the launch and wake passes are catch-ups (§27.6).
+        travel.onPassCompleted = { [weak notifications] passKind in
+            notifications?.requestPass(catchUp: passKind != .ordinary)
+        }
+        notifications.consumeRefreshed = { [weak travel] in travel?.consumeRefreshed() ?? [] }
+        _travel = State(initialValue: travel)
+        _notifications = State(initialValue: notifications)
     }
 
     /// The launch's travel coordinator (slice 2), from the per-service
@@ -97,6 +111,7 @@ struct KadenceApp: App {
                 .environment(sync)
                 .environment(router)
                 .environment(travel)
+                .environment(notifications)
                 .preferredColorScheme(Self.reviewColorScheme)
                 .frame(
                     minWidth: Tokens.Size.windowMinWidth,
@@ -136,6 +151,7 @@ struct KadenceApp: App {
                 .tracksSources()
                 .environment(sync)
                 .environment(travel)
+                .environment(notifications)
                 .environment(router)
                 .environment(calendar)
                 .environment(undoStack)
@@ -155,6 +171,7 @@ struct KadenceApp: App {
                 .tracksSources()
                 .environment(undoStack)
                 .environment(travel)
+                .environment(notifications)
                 // Task P2-F18: `Open` selects the item in the main window.
                 .environment(calendar)
         } label: {

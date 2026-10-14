@@ -15,6 +15,7 @@ struct MainWindow: View {
     @Environment(UndoStack.self) private var undoStack
     @Environment(SyncCoordinator.self) private var sync
     @Environment(TravelCoordinator.self) private var travel
+    @Environment(NotificationScheduler.self) private var notifications
     @Environment(\.modelContext) private var context
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -146,7 +147,10 @@ struct MainWindow: View {
             // components.md §24.6 "Launch (after the store loads and the
             // built-ins exist)". The test host's own app instance never
             // starts it: the tests drive their own coordinators.
-            if LaunchKind.current() != .testHost { travel.start() }
+            if LaunchKind.current() != .testHost {
+                notifications.start()
+                travel.start()
+            }
         }
         // §13.6.5's other two triggers: a template/block/window edit, and a
         // change to the visible range (paging, Today, switching mode).

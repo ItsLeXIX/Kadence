@@ -44,8 +44,17 @@ final class TravelCoordinator {
     @ObservationIgnored let log: RoutingLog
     /// §24.12: where the Mac is (a mock in tests and review).
     @ObservationIgnored let location: any LocationSource
-    /// Asks the notification scheduler for a pass (task 9).
-    @ObservationIgnored var onPassCompleted: (() -> Void)?
+    /// Asks the notification scheduler for a pass (task 9) — a catch-up
+    /// after the launch and wake passes (§27.6).
+    @ObservationIgnored var onPassCompleted: ((PassKind) -> Void)?
+    /// Events whose departure refresh answered since the scheduler last
+    /// read them (§27.6's refresh catch-up).
+    @ObservationIgnored private var refreshedEvents: Set<UUID> = []
+
+    func consumeRefreshed() -> Set<UUID> {
+        defer { refreshedEvents = [] }
+        return refreshedEvents
+    }
 
     /// Bumped by every pass that wrote a leg, so views can redraw.
     private(set) var revision = 0
@@ -225,7 +234,7 @@ final class TravelCoordinator {
         planRefreshes(output, events: snapshots, places: places, settings: settings, now: now,
                       catchUp: kind != .ordinary)
         if writes > 0 { revision += 1 }
-        onPassCompleted?()
+        onPassCompleted?(kind)
         return writes
     }
 
@@ -280,6 +289,7 @@ final class TravelCoordinator {
             switch result {
             case .success(let seconds):
                 writeHereLeg(eventID: eventID, seconds: seconds, at: at)
+                refreshedEvents.insert(eventID)
                 refreshOutcomes[eventID] = .init(slot: slot, failure: nil, key: nil, answeredAt: at)
             case .failure:
                 // §24.2.1: a failed request from the fix refreshes from the
@@ -294,6 +304,7 @@ final class TravelCoordinator {
                 if !fromHere, let request = job.request {
                     store.upsert(request, travelSeconds: seconds, computedAt: at)
                 }
+                refreshedEvents.insert(eventID)
                 refreshOutcomes[eventID] = .init(slot: slot, failure: nil, key: job.request?.key, answeredAt: at)
             case .failure(let error):
                 refreshOutcomes[eventID] = .init(slot: slot, failure: error.reason,
