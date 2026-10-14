@@ -51,6 +51,17 @@ struct MenuBarPopoverView: View {
     @State private var focusIndex = 0
     @Query(sort: \Event.start) private var events: [Event]
     @State private var now = Date()
+    /// Slice 2 (§26): legs and place names from the travel coordinator, the
+    /// notification permission from the scheduler. Optional: older renders
+    /// supply neither.
+    @Environment(TravelCoordinator.self) private var travel: TravelCoordinator?
+    @Environment(NotificationScheduler.self) private var notifications: NotificationScheduler?
+    @Query private var legRows: [TravelLeg]
+    @Query private var rules: [NotificationRule]
+
+    private var legs: [UUID: LegValues] {
+        Dictionary(legRows.map { ($0.eventID, LegValues($0)) }, uniquingKeysWith: { a, _ in a })
+    }
 
     /// Holds the currently-shown snooze result row, if any. `expectedStart`
     /// is what ties this to a *specific* mutation: if the event's start no
@@ -146,7 +157,7 @@ struct MenuBarPopoverView: View {
         // Task P2-T49: a held snooze confirmation keeps its event as NEXT,
         // at the time it landed, even across midnight (§16).
         NextUpProvider.pinning(
-            NextUpProvider.evaluate(events: events, now: now),
+            NextUpProvider.evaluate(events: events, now: now, legs: legs),
             events: events,
             to: snoozeConfirmation.map { ($0.eventID, $0.expectedStart) })
     }
@@ -166,6 +177,17 @@ struct MenuBarPopoverView: View {
             // components.md §19.4 (Phase 3 task 14): a stalled source says so.
             StaleSourceLines(now: now)
                 .padding(.horizontal, Tokens.Spacing.lg)
+            // §26.3: the notifications line, after the stale lines.
+            if let line = MenuBarFormatting.notificationsLine(notifications?.permission ?? .notAsked,
+                                                             anyRuleOn: rules.contains { $0.isEnabled }) {
+                Text(line)
+                    .lineLimit(nil)
+                    .typeStyle(.popoverRefusalRow)
+                    .foregroundStyle(Tokens.Color.Text.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, Tokens.Spacing.lg)
+                    .padding(.horizontal, Tokens.Spacing.lg)
+            }
         }
         .padding(.vertical, Tokens.Spacing.md)
         .frame(width: Tokens.Size.popoverWidth, alignment: .leading)
@@ -274,6 +296,13 @@ struct MenuBarPopoverView: View {
                     Text(next.title)
                         .typeStyle(.popoverNextTitle)
                         .foregroundStyle(Tokens.Color.Text.primary)
+                    // §26.2: the leave line, between the title and the meta line.
+                    if let line = MenuBarFormatting.leaveLine(result, now: now, placeNames: travel?.placeNames() ?? [:]) {
+                        Text(line.text)
+                            .typeStyle(.popoverNextMeta)
+                            .foregroundStyle(line.tone == .now ? Tokens.Color.Semantic.now
+                                             : line.tone == .primary ? Tokens.Color.Text.primary : Tokens.Color.Text.secondary)
+                    }
                     Text(MenuBarFormatting.nextMeta(for: next, now: now, isLate: isLate))
                         .typeStyle(.popoverNextMeta)
                         .foregroundStyle(isLate ? Tokens.Color.Semantic.now : Tokens.Color.Text.secondary)
@@ -281,6 +310,12 @@ struct MenuBarPopoverView: View {
                 .padding(.leading, Tokens.Spacing.sm)
             }
             .frame(maxWidth: .infinity, minHeight: Tokens.Size.popoverNextBlockMinHeight, alignment: .leading)
+            // §29: one element — label the title, value the leave line and
+            // the meta line spoken.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(next.title)
+            .accessibilityValue(MenuBarFormatting.nextAccessibilityValue(result, now: now,
+                                                                          placeNames: travel?.placeNames() ?? [:]) ?? "")
             // interactions.md §12 (amended 2026-10-06): while NEXT is focused
             // (every open starts there), `hoverOverlay` behind the next-item
             // block's full width at `radius.card` — the rest rows' focus

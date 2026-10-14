@@ -10950,3 +10950,36 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   climbing-no-route}-p3bt16.png`. The canvas frames of item 5–8, 12, 20 and
   the open pop-up are task 18's live captures.
 - Verify: **1060 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T17 — the menu bar: leave states, takeover, the popover
+
+- `NextUpProvider.evaluate(…, legs:)`: NEXT's leg; §26.1's states
+  (`normal`, `leave`, `leaveNow`, `late`, `empty`) for a leg with a time;
+  the **takeover** — a late NEXT gives way to the earliest not-started event
+  today whose leg is due within 30 minutes (`leaveDueLookahead`), the late
+  item first in REST OF TODAY.
+- Status item: `Leave 08:15` / `Leave ≈08:15` and glyph + `Leave now` take
+  the time's role in §15.1's layout (never truncated, degrade to the unit
+  alone); Leave now in `semantic.now`; a leg without a time shows Normal;
+  §29's labels. The status item fetches legs with its events.
+- Popover: the leave line between title and meta in its seven forms (Leave,
+  estimate, from where you are, Leave now in `semantic.now`, omitted when
+  late or without a leg, `pending`, `unavailable` + short reason); the meta
+  line in §3.4's order (`13:00 – 14:30 · LAB_F5.12 · University timetable`,
+  `Online · …`, `17:30 – 18:15 · Daily routine`); the notifications line
+  after the stale lines (`off` / `notAllowedYet`, with a rule on); NEXT as
+  one accessibility element with §29's value. No Re-offer in Leave now (not
+  late); imported `Done · Open`. REST OF TODAY rows unchanged.
+- Phase 2's meta-line tests still pass unchanged: none pinned the old
+  `Source · Location` order of NEXT (they cover REST rows and late prefixes).
+- GAPS **G-099**: §30 item 13's `18:30 · Dinner with flatmates` does not fit
+  180pt; §15.1's truncation is kept.
+- Tests: `MenuBarLeaveTests.swift` (7): item 13's eight rows; actions; the
+  leave line's forms and tones; the meta line; the notifications line;
+  §29's labels; renders.
+- Captures (offscreen): `status-item-{leave-full,leave-degraded,leave-now,
+  late,takeover,no-takeover,estimate}-p3bt17.png`, `popover-{leave,leave-now,
+  leave-now-dark,late,takeover,notifications-off,notifications-not-allowed-
+  yet,estimate,manual-next,unavailable,no-address}-p3bt17.png`. The live
+  status item / popover (item 16) are task 18's.
+- Verify: **1067 passed / 0 failed**; real store `stat` unchanged.

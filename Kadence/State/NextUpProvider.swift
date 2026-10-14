@@ -34,24 +34,63 @@ enum NextUpProvider {
         /// Every other not-done/not-skipped event starting today, in start
         /// order, after `next`.
         let restOfToday: [Event]
+        /// Slice 2 (components.md §26): NEXT's leg, if it has one.
+        var leg: LegValues? = nil
 
         static let empty = Result(next: nil, isLate: false, restOfToday: [])
+
+        /// §26.1's states.
+        enum State: Equatable {
+            case empty
+            case normal
+            /// A leg with a time, `now < departAt`.
+            case leave(departAt: Date, isEstimate: Bool)
+            /// `departAt ≤ now < start`: the should-have-left state.
+            case leaveNow(departAt: Date, isEstimate: Bool)
+            case late
+        }
+
+        func state(now: Date) -> State {
+            guard let next else { return .empty }
+            if isLate { return .late }
+            if let leg, leg.hasTime, let departAt = leg.departAt {
+                return now < departAt ? .leave(departAt: departAt, isEstimate: leg.isEstimate)
+                    : .leaveNow(departAt: departAt, isEstimate: leg.isEstimate)
+            }
+            return .normal
+        }
     }
+
+    /// §26.1: a departure due within 30 minutes takes NEXT from a late item.
+    static let leaveDueLookahead: TimeInterval = 30 * 60
 
     /// - Parameters:
     ///   - events: the live query, unfiltered — this function filters to
     ///     today's non-all-day, not-done/not-skipped events itself.
     ///   - now: injected rather than read from the system clock, so this is
     ///     testable with a fixed reference time.
-    static func evaluate(events: [Event], now: Date, calendar: Calendar = .current) -> Result {
+    static func evaluate(events: [Event], now: Date, legs: [UUID: LegValues] = [:],
+                         calendar: Calendar = .current) -> Result {
         let today = events
             .filter { !$0.isAllDay && !$0.isCancelled }   // §20.6: never NEXT
             .filter { $0.status != .done && $0.status != .skipped }
             .filter { calendar.isDate($0.start, inSameDayAs: now) }
             .sorted { $0.start < $1.start }
 
-        guard let next = today.first else { return .empty }
-        return Result(next: next, isLate: next.start <= now, restOfToday: Array(today.dropFirst()))
+        guard let first = today.first else { return .empty }
+        // §26.1 "A due departure outranks a late item": NEXT by Phase 2's
+        // rule is late, and another not-started event today has a leg with a
+        // time due within 30 minutes → the earliest such is NEXT; the late
+        // item heads REST OF TODAY.
+        if first.start <= now, let due = today.first(where: { event in
+            guard event.start > now, let leg = legs[event.id], leg.hasTime, let departAt = leg.departAt else { return false }
+            return departAt <= now.addingTimeInterval(leaveDueLookahead)
+        }) {
+            let rest = [first] + today.dropFirst().filter { $0.id != due.id }
+            return Result(next: due, isLate: false, restOfToday: rest, leg: legs[due.id])
+        }
+        return Result(next: first, isLate: first.start <= now, restOfToday: Array(today.dropFirst()),
+                      leg: legs[first.id])
     }
 
     /// components.md §16 (task P2-T49): while a snooze confirmation is held,
@@ -76,7 +115,7 @@ enum NextUpProvider {
         else { return result }
         var rest = result.restOfToday.filter { $0.id != event.id }
         if let previous = result.next, previous.id != event.id { rest.insert(previous, at: 0) }
-        return Result(next: event, isLate: false, restOfToday: rest)
+        return Result(next: event, isLate: false, restOfToday: rest, leg: event.id == result.next?.id ? result.leg : nil)
     }
 
     /// What "REST OF TODAY" actually renders (components.md §15.2): at most

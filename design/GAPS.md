@@ -3364,3 +3364,13 @@ it never sends a request nobody needs). Review launches of `empty` and
 expects. Item 1 therefore shows the state a real store reaches after its
 first Import, not on a first launch with no timetable. Design to confirm
 which §30 item 1 should show, or to amend §23.6 to "at the first launch".
+
+### G-099 — OPEN (design, copy). §30 item 13's last row doesn't fit 180pt.
+
+§30 item 13 expects `18:30 · Dinner with flatmates` at width 180 (the
+`unavailable` row, Normal state). Measured with the `statusItem` font, the
+time, the separator and the whole title exceed §15.1's 180pt budget, so
+§15.1's unchanged rule truncates the title (`18:30 · Dinner with flatmat…`).
+**Built:** §15.1's rule; the test asserts the Normal state (start time, no
+`Leave`) and the truncated title. The takeover row (`Leave 17:45 · Dinner
+with fl…`) is truncated the same way, as §30 shows it.

@@ -29,6 +29,8 @@ struct MenuBarStatusItemView: View {
     /// uses, so no extra wakeups).
     let container: ModelContainer
     @State private var events: [Event] = []
+    /// Slice 2 (§26.1): legs by event, fetched with the events.
+    @State private var legs: [UUID: LegValues] = [:]
     @State private var now = Date()
 
     var body: some View {
@@ -37,7 +39,7 @@ struct MenuBarStatusItemView: View {
         // So the budget itself is the available width here; the degrade rule
         // still applies whenever the content needs more than it.
         StatusItemLabel(
-            result: NextUpProvider.evaluate(events: events, now: now),
+            result: NextUpProvider.evaluate(events: events, now: now, legs: legs),
             now: now,
             available: Tokens.Size.statusItemMaxWidth)
             // interactions.md §12.1 — "the status item's text changes
@@ -59,6 +61,9 @@ struct MenuBarStatusItemView: View {
     private func fetchEvents() {
         let descriptor = FetchDescriptor<Event>(sortBy: [SortDescriptor(\Event.start)])
         events = (try? container.mainContext.fetch(descriptor)) ?? []
+        legs = Dictionary(((try? container.mainContext.fetch(FetchDescriptor<TravelLeg>())) ?? []).map {
+            ($0.eventID, LegValues($0))
+        }, uniquingKeysWith: { a, _ in a })
     }
 }
 
@@ -107,12 +112,22 @@ struct StatusItemLabel: View {
     /// part of what gets cut.
     static func text(for result: NextUpProvider.Result, now: Date, available: CGFloat) -> String? {
         guard let next = result.next else { return nil }
-        let primary = result.isLate
-            ? MenuBarFormatting.elapsed(since: next.start, now: now)
-            : MenuBarFormatting.time(next.start)
+        // §26.1: Leave's unit `Leave 08:15` (`Leave ≈08:15`) and Leave now's
+        // glyph + `Leave now` take the time's role — never truncated, first.
+        let primary: String
+        switch result.state(now: now) {
+        case .leave(let departAt, let isEstimate):
+            primary = MenuBarFormatting.leaveUnit(departAt: departAt, isEstimate: isEstimate)
+        case .leaveNow:
+            primary = "Leave now"
+        case .late:
+            primary = MenuBarFormatting.elapsed(since: next.start, now: now)
+        case .normal, .empty:
+            primary = MenuBarFormatting.time(next.start)
+        }
         let separatorWidth = width(of: separator)
         let layout = StatusItemLayout.resolve(
-            leadingWidth: width(of: primary) + (result.isLate ? lateGlyphWidth : 0),
+            leadingWidth: width(of: primary) + (showsGlyph(result, now: now) ? lateGlyphWidth : 0),
             separatorWidth: separatorWidth,
             titleWidth: width(of: next.title),
             available: available)
@@ -133,10 +148,20 @@ struct StatusItemLabel: View {
         return "…"
     }
 
+    /// The late glyph: Late, and Leave now (§26.1 — the same fact: the time
+    /// that mattered has passed).
+    static func showsGlyph(_ result: NextUpProvider.Result, now: Date) -> Bool {
+        switch result.state(now: now) {
+        case .late, .leaveNow: true
+        default: false
+        }
+    }
+
     var body: some View {
         if let text = Self.text(for: result, now: now, available: available) {
+            let glyph = Self.showsGlyph(result, now: now)
             HStack(spacing: Tokens.Spacing.xxs) {
-                if result.isLate {
+                if glyph {
                     Image(systemName: Self.lateGlyph)
                         .font(.system(size: Tokens.Size.statusItemGlyphSize))
                 }
@@ -144,7 +169,9 @@ struct StatusItemLabel: View {
                     .typeStyle(.statusItem)
                     .fixedSize()
             }
-            .foregroundStyle(result.isLate ? Tokens.Color.Semantic.now : Tokens.Color.Text.primary)
+            .foregroundStyle(glyph ? Tokens.Color.Semantic.now : Tokens.Color.Text.primary)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(MenuBarFormatting.statusAccessibilityLabel(result, now: now) ?? text)
         } else {
             Text("Nothing left today")
                 .typeStyle(.statusItem)

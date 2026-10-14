@@ -39,10 +39,106 @@ enum MenuBarFormatting {
     /// (`Location · Source`) and says "The menu bar popover's meta line
     /// (§15) is not changed", so the popover keeps its own
     /// `GridBlockModel.popoverQualifier`.
+    ///
+    /// **Slice 2 (components.md §26.2, 2026-10-14): from now on the order is
+    /// §3.4's** — time, then location, then source: `09:00 – 10:30 · HS_A3.15
+    /// · University timetable`; `14:00 – 15:30 · Online · University
+    /// timetable`; `17:30 – 18:15 · Daily routine` with no location. With
+    /// the leave line above it, a truncated room would hide the one fact the
+    /// leave line points at. REST OF TODAY rows keep their own form.
     static func nextMeta(for event: Event, now: Date, isLate: Bool) -> String {
-        let qualifier = GridBlockModel(event: event, now: now).popoverQualifier
+        let line = GridBlockModel(event: event, now: now).metaLine
         let lead = isLate ? "Started \(elapsed(since: event.start, now: now))" : timeRange(event.start, event.end)
-        return "\(lead) · \(qualifier)"
+        return "\(lead) · \(line)"
+    }
+
+    // MARK: Leave-by (components.md §26)
+
+    /// The status item's unit in Leave: `Leave 08:15`, `Leave ≈08:15`.
+    static func leaveUnit(departAt: Date, isEstimate: Bool) -> String {
+        "Leave \(isEstimate ? "≈" : "")\(time(departAt))"
+    }
+
+    /// §26.2's leave line: its text and how it is drawn.
+    struct LeaveLine: Equatable {
+        enum Tone: Equatable { case primary, now, secondary }
+        var text: String
+        var tone: Tone
+    }
+
+    /// The popover's leave line for NEXT, in its seven forms (nil: omitted —
+    /// no leg, or late).
+    static func leaveLine(_ result: NextUpProvider.Result, now: Date, placeNames: [String: String],
+                          calendar: Calendar = .current) -> LeaveLine? {
+        guard result.next != nil, let leg = result.leg else { return nil }
+        let origin = TravelPresentation.originName(leg, placeNames: placeNames)
+        switch result.state(now: now) {
+        case .leave(let departAt, let isEstimate):
+            if isEstimate {
+                let reason = TravelPresentation.shortReason(leg, placeNames: placeNames, calendar: calendar) ?? "offline"
+                return LeaveLine(text: "Leave by ≈\(time(departAt)) · estimate, \(reason)", tone: .primary)
+            }
+            return LeaveLine(text: "Leave by \(time(departAt)) · \(TravelCopy.minutes(leg.duration ?? 0)) min from \(origin)",
+                             tone: .primary)
+        case .leaveNow(let departAt, let isEstimate):
+            return LeaveLine(text: "Leave now · leave-by was \(isEstimate ? "≈" : "")\(time(departAt))", tone: .now)
+        case .late, .empty:
+            return nil
+        case .normal:
+            if leg.status == .pending || leg.reason == .pending {
+                return LeaveLine(text: "Travel time from \(origin) not worked out yet", tone: .secondary)
+            }
+            let reason = TravelPresentation.shortReason(leg, placeNames: placeNames, calendar: calendar) ?? "Apple Maps didn't answer"
+            return LeaveLine(text: "Travel time unavailable · \(reason)", tone: .secondary)
+        }
+    }
+
+    /// §29: the status item's label.
+    static func statusAccessibilityLabel(_ result: NextUpProvider.Result, now: Date) -> String? {
+        guard let next = result.next else { return nil }
+        switch result.state(now: now) {
+        case .leave(let departAt, let isEstimate):
+            return isEstimate ? "Leave by about \(time(departAt)) for \(next.title), estimate"
+                : "Leave by \(time(departAt)) for \(next.title)"
+        case .leaveNow(let departAt, let isEstimate):
+            return "Leave now for \(next.title), leave-by was \(isEstimate ? "about " : "")\(time(departAt))"
+        default:
+            return nil
+        }
+    }
+
+    /// §29: the popover NEXT element's value — the leave line spoken, then
+    /// the meta line spoken.
+    static func nextAccessibilityValue(_ result: NextUpProvider.Result, now: Date, placeNames: [String: String]) -> String? {
+        guard let next = result.next else { return nil }
+        let model = GridBlockModel(event: next, now: now)
+        let range = result.isLate ? "Started \(elapsed(since: next.start, now: now))"
+            : "\(time(next.start)) to \(time(next.end))"
+        let meta = ([range] + [model.metaLead, model.sourceName].compactMap { $0 }).joined(separator: ", ")
+        var leave: String?
+        if let leg = result.leg {
+            switch result.state(now: now) {
+            case .leave(let departAt, let isEstimate):
+                let origin = TravelPresentation.originName(leg, placeNames: placeNames)
+                leave = "Leave by \(isEstimate ? "about " : "")\(time(departAt)), \(isEstimate ? "about " : "")\(TravelCopy.minutes(leg.duration ?? 0)) minutes from \(origin)"
+            case .leaveNow(let departAt, let isEstimate):
+                leave = "Leave now, leave-by was \(isEstimate ? "about " : "")\(time(departAt))"
+            default:
+                leave = leaveLine(result, now: now, placeNames: placeNames)?.text
+            }
+        }
+        return [leave, meta].compactMap { $0 }.joined(separator: ". ")
+    }
+
+    /// §26.3: the notifications line, after any stale lines. Only with at
+    /// least one rule on.
+    static func notificationsLine(_ permission: NotificationPermission, anyRuleOn: Bool) -> String? {
+        guard anyRuleOn else { return nil }
+        switch permission {
+        case .off: return "Notifications are off, so Kadence can't tell you when to leave."
+        case .notAllowedYet: return "Notifications aren't allowed yet. Settings ▸ Notifications"
+        case .allowed, .notAsked: return nil
+        }
     }
 
     /// components.md §16 — the snooze confirmation's result row: `Moved to
