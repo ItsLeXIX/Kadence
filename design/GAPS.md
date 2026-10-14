@@ -3064,3 +3064,127 @@ scheduled hours", which is that sum; left as is.
 - **G-016**, **G-003** — unchanged.
 - **G-058**, **G-059**, **G-060**, **G-062**, **G-063**, **G-064**,
   **G-065**, **G-067** — deferred, unchanged.
+
+---
+
+## 2026-10-14 — Phase 3 slice 2 (leave-by and notifications): gaps opened, closed, deferred
+
+Design agent, slice 2 spec session. Spec: `components.md` §23–§30 (new) and
+the 2026-10-14 amendments to §4, §11, §12, §15.1, §15.2; `layouts.md` §6,
+§6.1, §9, §11 (amended), §13, §14 (new); `interactions.md` §14, §15 (new);
+`tokens.json` 1.8.0. Plan: `PHASE3-SLICE2-PLAN.md`.
+
+### G-063 — spec CLOSED, build OPEN. `components.md` §23.2 (rules 4–5), §24, §25.
+
+Leave-by for imported locations is specified: a timetable event with a room
+is at the built-in place `campus`; an online event is at no place and needs no
+travel; the event after an online lecture computes its origin from the last
+event that had a place (online events are transparent, §24.2). Closed for the
+build when slice 2's review accepts it.
+
+### G-060 — still DEFERRED. Notifications about sync failures and timetable changes.
+
+Slice 2 adds the notification machinery but deliberately only two kinds
+(leave-by, starts). A paused sync (`unauthorized`/`forbidden`) or "your
+lecture tomorrow moved" would be the next kinds; they need their own copy,
+rate rules and a rule row each. Parsa may pull the paused-sync one into slice 2
+as a small addition; it is listed in the plan's "For Parsa".
+
+### G-016 — still OPEN. Snooze destination.
+
+A notification's `Snooze` calls the same `EventStore.snooze` as the popover:
+the +15 placeholder **with** §16's protected-window refusal (`components.md`
+§27.7). Phase 4's real rule replaces both callers at once.
+
+### G-084 — DEFERRED (later). A place for routine blocks.
+
+Routine blocks have no place in this slice (`components.md` §23.2 rule 2) and
+are transparent to travel, so `Gym` at a gym gets no leave-by. Giving them one
+means a template-level field (§13.7.1's four detaching fields would become
+five, or the place would be template-only) and a Routines-window control.
+Not needed for "each on-campus lecture shows a leave-by time".
+
+### G-085 — DEFERRED (later). Overriding an imported event's place; other imported kinds.
+
+An imported event's place is derived (§23.2 rule 5) and cannot be overridden:
+an off-campus excursion in the CIS timetable would get a campus leave-by. A
+local override would be a second local field beside `status` (§18.1), with a
+pop-up on the imported inspector. Imported events from any source kind other
+than `.universityTimetable` are at no place. Revisit if a real case appears.
+
+### G-086 — DEFERRED (later). A travel leg is never a conflict.
+
+A departure inside `Sleep` (`Early study group`, depart 06:45) and a band that
+overlaps a routine block (a 08:15 departure across `Morning review`
+08:15–08:45) are drawn and told (§25, §27.5) but are not conflicts and do not
+count in Needs attention (§24.8). Making them conflicts would need a third
+conflict kind and options that move something other than a routine block.
+
+### G-087 — OPEN (Parsa). The chain gap.
+
+`AppSettings.travelChainGapMinutes` = 120, not shown in Settings
+(`components.md` §24.2). Too short and a long lunch break sends you home and
+back; too long and an evening event at home after a morning lecture computes
+from campus. Parsa's number; whether it belongs in Settings ▸ Travel is the
+same question.
+
+### G-088 — DEFERRED (Phase 4 / work items). Morning summary and deadline notifications.
+
+BRIEF-PRODUCT's Phase 4 lists a daily morning summary and deadline lead times
+(3 days / 1 day / 3 hours). Deadlines need `WorkItem`, which no slice has
+built; the morning summary is a third kind with its own copy and time. The
+rule model (`NotificationRule.kind` raw) takes new kinds without a migration.
+
+### G-089 — OPEN (Parsa). Time-sensitive leave-by notifications.
+
+Every notification is `.active` (`components.md` §27.4). A leave-by would be
+the textbook `.timeSensitive` case — it breaks through a Focus — but that
+needs the `com.apple.developer.usernotifications.time-sensitive` entitlement,
+and BRIEF-PRODUCT lists entitlements by kind ("user notifications"). Parsa's
+call whether that entitlement is in or out.
+
+### G-090 — OPEN (Parsa). Notifications during lectures.
+
+Ruled for now: lectures are not quiet time (`components.md` §27.5 rule 5); the
+chain clamp (§27.3) moves the next lecture's "starts" to the end of the one
+before. The alternatives are holding every notification until a running
+lecture ends (as protected windows do), or delivering them without sound.
+Parsa's preference decides; each is a planner rule plus one test table.
+
+### G-091 — DEFERRED (later). "I'm on my way" and the sticky late item.
+
+The status item says `Leave now` until the event starts, even if the user has
+left; there is no "I've left" action, because it would be a state with no
+other use in this slice. Separately, Phase 2's NEXT keeps a started,
+unmarked event as NEXT for the rest of the day; slice 2 only lets a due
+departure outrank it (§26.1). If real use shows the sticky late item hiding
+more than departures, NEXT's rule is the thing to revisit.
+
+### G-092 — OPEN (CA judgement, record it). Scheduler mechanics.
+
+Left to CA and recorded in STATUS when built, as G-061 was: how the leg
+recompute and the notification pass are isolated from the main actor while
+calling the async `NotificationCenterClient`; how the 0.5 s / 1 s debounces
+and the hourly tick are driven; how the delegate is installed before the first
+launch response is delivered. Any choice that satisfies `components.md` §24.6
+and §27.6 (one transaction per recompute, one pass at a time, coalescing) is
+acceptable.
+
+### Not touched in this session
+
+- **G-083** (the Day header's secondary line) — still OPEN (design). It needs
+  a Day-only header height token; it is not part of this slice and is left
+  for a session that is not scoped to one slice.
+- **A41, A42** (`PHASE3-REVIEW.md` "Final — 2026-10-14") — to be logged in
+  DEVIATIONS by slice 2's task 1. Not built in this slice.
+
+### Still open after this pass
+
+- **Parsa:** G-087, G-089, G-090; G-067 (removed-lecture ghost, revisit after
+  real use).
+- **Design:** G-083.
+- **CA judgement:** G-092 (G-061 recorded).
+- **Unchanged:** G-016, G-003.
+- **Deferred:** G-058, G-059, G-060, G-062, G-064, G-065, G-084, G-085,
+  G-086, G-088, G-091.
+- **Spec closed, build open:** G-063, G-082 (A42).

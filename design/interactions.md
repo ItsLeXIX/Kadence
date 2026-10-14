@@ -862,3 +862,78 @@ an event a sync deleted are dropped; Edit ▸ Undo never names an action that
 would do nothing. Done/skipped on an imported event are ordinary named undo steps
 (`Undo Mark Done`). The Import is not an undo step either: an Import is undone
 by removing the source (§13.2).
+
+---
+
+# Phase 3 slice 2 — additions
+
+Written 2026-10-14. No new key equivalent. Rules: `components.md` §23–§30.
+
+## 14. Notifications
+
+### 14.1 Acting on a notification
+
+The actions are the popover's (§12), reached from outside the app.
+`components.md` §27.7 is the table; the interaction rules:
+
+- **Same verbs, same undo stack.** `Done` and `Snooze` call the `EventStore`
+  verbs the popover calls and record the same named steps (`Mark Done`,
+  `Snooze`), so `⌘Z` in the main window undoes an action taken from a
+  notification. Nothing is undone from a notification itself: there is no
+  `Undo` action (a background action has no place to show what it undid).
+- **Snooze answers.** A snooze from a notification answers with a result
+  notification (N5 moved / N6 refused, `components.md` §27.4) — the
+  notification-centre form of §16's result row, because "it must show where
+  the block landed". If the main window is open on that day, the block moves
+  there with §7.1's transition when it is next drawn (as A33 already accepts
+  for the popover: no cross-scene animation).
+- **`Open` and clicking** activate Kadence, bring the main window forward
+  (opening it if closed), page to the event's day in the current view (Month
+  pages to its month) and select it, with the inspector showing it. Focus goes
+  to the grid in selection mode (§1). The popover is not opened.
+- **Dismissing** does nothing (`components.md` §27.9).
+- Actions address the event by id at the moment they run (DECISIONS
+  2026-09-09). An imported event never offers `Snooze` (§13.4).
+
+### 14.2 Permission
+
+- No prompt at launch. The first prompt follows the first moment there is
+  something to schedule (`components.md` §27.8) — on a real first run, right
+  after the Import. Kadence never asks twice on its own.
+- `Allow Notifications…` and `Open System Settings…` (Settings ▸
+  Notifications) are the only ways the app re-raises the question; the
+  popover's notifications line only names the place.
+- Kadence re-reads the authorization when it becomes active, so returning from
+  System Settings with notifications on clears the status block and the line
+  without a relaunch.
+
+## 15. Travel
+
+### 15.1 Setting a place on a manual event
+
+- Inspector `Place` pop-up (`layouts.md` §6, amended): mouse or keyboard
+  (`Space` / `↓` opens it when focused, standard pop-up behaviour). Choosing
+  writes `placeID` as one undo step **`Set Place`**; choosing the current
+  value writes nothing.
+- The band appears, moves or disappears after the leg recompute (debounced
+  0.5 s, `components.md` §24.6) without animation of its own — it is derived
+  data arriving, not a block moving.
+- `⌥`-drag duplicate copies the place. Drafts (§3) have no `Place` row until
+  committed.
+- Imported events: `Place` is text; there is nothing to set (§13.4's
+  refusal table is unchanged — no gesture edits it).
+
+### 15.2 Moving an event that has a band
+
+A drag or nudge moves the block; the band is not drawn at the drop preview
+(`components.md` §25.2) and is redrawn at the new position after the
+recompute. `⌘Z` restores both. A snooze from the popover or a notification
+behaves the same.
+
+### 15.3 Settings ▸ Travel and ▸ Notifications
+
+`layouts.md` §13–§14 give the controls and the `⇥` order. Edits commit on `↩`,
+blur or a pop-up choice, are not undo steps (like every Settings edit), and
+take effect through the recompute and the notification pass with no further
+confirmation — except removing a place that manual events use, which asks
+first (`layouts.md` §13).

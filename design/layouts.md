@@ -392,6 +392,37 @@ Empty selection state: the inspector shows the day's summary — date, block cou
 scheduled hours, and the first item — rather than an empty panel. Never a
 "nothing selected" placeholder graphic.
 
+**Amended 2026-10-14 (Phase 3 slice 2) — row 3 becomes `Place` and `Leave
+by`.** For a **manual** event, after the Time rows and before Source:
+
+- **`Place`** — a pop-up button (`.menu` style, `inspectorValue`):
+  `None` · separator · every known place in `sortIndex` order (`Home`, `FH
+  Technikum Wien`, user places) · separator · `Edit Places…` (opens Settings ▸
+  Travel, §13). Choosing a place is one named undo step, **`Set Place`**
+  (`components.md` §28.2). Shown for every manual timed event, `None` by
+  default; **not shown** for routine instances (no place in this slice,
+  G-084) or all-day events. With a place, a second line in `blockMeta` /
+  `color.text.secondary` explains a missing leave-by when the event chains
+  from the same place: `No travel needed after EPC-ILV` (the title of
+  `components.md` §24.2's `P`).
+- **`Leave by`** — only when the event has a leg (`components.md` §24.3):
+  - `ready`: value `08:15` (`inspectorValue`, monospaced digits), and under it
+    in `blockMeta` / `color.text.secondary`: `35 min by public transport from
+    Home · 10 min buffer` (`· N min buffer` omitted at 0).
+  - `needsTravelTime`: value `Not set` (`color.text.secondary`); under it
+    `No travel time from Home to FH Technikum Wien yet.` (`blockMeta`,
+    `color.text.secondary`, `lineLimit` 0) and a borderless link-style button
+    **`Set Travel Time…`** (`inspectorValue`, `color.interactive.link`), which
+    opens Settings ▸ Travel with that route's minutes field focused.
+  - Never coloured `color.semantic.now`, also when the user should have left:
+    `semantic.now` on `surface.inspector` measures 4.25:1 in light and fails
+    (`tokens.json` 1.8.0 `$measured_1_8_0`). The menu bar carries that state
+    (`components.md` §26).
+
+The Phase 1 `Location` row (the stated location text) stays above them when
+present. Phase 1's `Travel` row (`Leave 08:12 · 22 min walking`, from a
+fixture) is replaced by `Leave by`.
+
 Section spacing `spacing.xl`, horizontal padding `spacing.xl`, label column
 width 84.
 
@@ -466,6 +497,12 @@ rows. Top to bottom:
    WEBINAR02`**: the word first, because it is the fact; the code after it,
    because it is what CIS and the lecturer call it. No travel line in this slice
    (`GAPS.md` G-063).
+   *(Amended 2026-10-14, Phase 3 slice 2.)* Directly under `Room`: **`Place`**
+   as text (not a pop-up — an imported event's place is derived,
+   `components.md` §23.2), `FH Technikum Wien`, with the `No travel needed
+   after …` line when it applies; then **`Leave by`** exactly as §6's
+   amendment. An online event has neither row: `Online · WEBINAR02` already
+   says why there is no travel.
 7. **Source** — swatch + `University timetable`, as §6 (amended 2026-10-05), with
    a second line in `blockMeta` / `color.text.secondary`: `Synced 14:02`
    (`components.md` §19.5), or the state title when not `upToDate` (`Access
@@ -684,6 +721,13 @@ it never scrolls, because a scrolling "what's next" is a second calendar.
 Padding `spacing.xl` on all sides. Background `color.surface.popover` with its
 material, falling back under Reduce Transparency per `components.md` §11.
 
+**Amended 2026-10-14 (Phase 3 slice 2).** The next item block gains one
+`popoverNextMeta` line — the leave line — between its title and its meta line
+when NEXT has a travel leg (`components.md` §26.2); the block grows by that
+line. After the stale line(s) (`components.md` §19.4), the notifications line
+(§26.3) may follow, same style, `spacing.lg` above the first of them. The
+popover still never scrolls.
+
 The popover closes on `⎋`, on clicking outside, and on `Open` (which activates
 the main window). **Amended 2026-10-06:** no focus ring around the popover's root
 (`interactions.md` §1); NEXT and the rest rows show focus with
@@ -788,6 +832,18 @@ The app's `Settings` scene (`⌘,`) is a standard macOS settings window:
 
 Phase 3 has **one tab, `Sources`** (symbol `link`). A tab bar with one tab is on
 purpose: later phases add panes (BRIEF-DESIGN item 10) without moving this one.
+
+*(Amended 2026-10-14, Phase 3 slice 2.)* **Three tabs**, in this order:
+`Sources` (`link`), **`Travel`** (`mappin.and.ellipse`, §13), **`Notifications`**
+(`bell`, §14). Neither new symbol is in a glyph vocabulary (`components.md`
+§2.1, §3.2, §5, §10.1) — they are chrome, like `link` — and neither may be
+added to one; `figure.walk`, `map.fill` and the mode glyphs are deliberately
+not used for the tab. Same window size for every tab (640 × 440, not
+resizable); a pane taller than that scrolls inside its own `Form`. The tab
+opened by `⌘,` is the last one shown in this session (`Sources` at launch).
+Ways to reach the new tabs: `⌘,` and the tab bar; the inspector's `Edit
+Places…` and `Set Travel Time…` (Travel); the popover's notifications line
+names Settings ▸ Notifications (it is not a button).
 Content size is `size.settingsWindowWidth` × `size.settingsWindowHeight`
 (640 × 440).
 
@@ -1123,3 +1179,152 @@ can be counted.
 - It applies the already-fetched data **as a sync**, under `components.md`
   §20.8's guards, today onward only, **plus** the deselection deletion of
   §20.1.
+
+---
+
+# Phase 3 slice 2 — additions
+
+Written 2026-10-14. §6, §6.1, §9 and §11 above carry the in-place
+amendments. Rules: `components.md` §23–§30.
+
+## 13. Settings ▸ Travel
+
+A standard grouped form (`Form`, `.formStyle(.grouped)`), three sections. No
+custom chrome; values are the platform's controls.
+
+```
++------------------------------------------------------------------+
+|        [ link ] Sources  [ mappin ] Travel  [ bell ] Notifications|
++------------------------------------------------------------------+
+|  Places                                                          |
+|  ┌────────────────────────────────────────────────────────────┐  |
+|  │ [Home              ]  [Address (optional)              ]   │  |
+|  │ [FH Technikum Wien ]  [Address (optional)              ]   │  |
+|  │ [Gym               ]  [Example Straße 1                ] ⊖ │  |
+|  └────────────────────────────────────────────────────────────┘  |
+|  Timetable rooms are at FH Technikum Wien. Online lectures need  |
+|  no travel.                                       [ Add Place ]  |
+|                                                                  |
+|  Travel times                                                    |
+|  ┌────────────────────────────────────────────────────────────┐  |
+|  │ Home ↔ FH Technikum Wien       [ 35 ] min [Public transport⌄]│ |
+|  │ Home ↔ Gym                     [  5 ] min [Walking         ⌄]│ |
+|  │ FH Technikum Wien ↔ Gym        [  — ] min [Public transport⌄]│ |
+|  └────────────────────────────────────────────────────────────┘  |
+|  The same time is used both ways. Leave a time empty if you      |
+|  never travel between two places.                                |
+|                                                                  |
+|  Leave by                                                        |
+|  ┌────────────────────────────────────────────────────────────┐  |
+|  │ Buffer                               [ 10 minutes        ⌄ ]│  |
+|  └────────────────────────────────────────────────────────────┘  |
+|  Added to every trip, so you arrive early.                       |
++------------------------------------------------------------------+
+```
+
+**Places** — one row per known place, `sortIndex` order:
+
+- Name: a `TextField`, width `size.settingsPlaceNameFieldWidth` (160),
+  `sidebarItem`. It commits on `↩` or blur; an empty or duplicate name
+  (case-insensitive) reverts to the last name — the same rule as a source's
+  `Name` (§11).
+- Address: a `TextField`, flexible width, placeholder `Address (optional)`.
+  Free text; nothing is looked up (`components.md` §23.1).
+- User places only: a trailing borderless `minus.circle` button (hit target ≥
+  24 × 24, hover help `Remove {name}`). If any **manual** event's `placeID`
+  names the place, it asks first with a standard alert: message `Remove
+  “Gym”?`, informative text `{n} events are at Gym. They will have no place,
+  and no leave-by.` (`1 event is …`), buttons `Remove` (destructive) and
+  `Cancel` (default). With no such event it removes at once. Removing deletes
+  the place and its routes and sets those events' `placeID` to nil; it is not
+  an undo step (Settings edits are not, as §11's `Name`).
+- Footer (the section's footer text, `color.text.secondary`): `Timetable rooms
+  are at {campus name}. Online lectures need no travel.` — the rule of
+  `components.md` §23.2 in one line, with the campus place's current name.
+- **`Add Place`** — a `.bordered` small button at the section's trailing
+  bottom. It appends a row named `New Place` (`New Place 2` … if taken) with
+  its name field focused and selected.
+
+**Travel times** — one row per **unordered pair** of known places: pairs with
+`home` first (by the other place's `sortIndex`), then the rest by `sortIndex`.
+
+- Label `{A} ↔ {B}` (`sidebarItem`, tail-truncated; hover help carries the
+  full text).
+- Minutes: a `TextField` with an integer formatter, width
+  `size.settingsMinutesFieldWidth` (48), right-aligned, monospaced digits,
+  placeholder `—`; then the unit `min` (`color.text.secondary`). Accepts
+  1 … 240. Empty clears the time (not set). A value outside the range or not a
+  whole number reverts to the last value on commit, with the system beep — no
+  alert.
+- Mode: a pop-up, `Public transport` · `Walking` · `Driving`.
+- A change commits on `↩` / blur / pop-up choice and triggers a leg recompute
+  (`components.md` §24.6). The canvas and menu bar follow on their own.
+- Footer: `The same time is used both ways. Leave a time empty if you never
+  travel between two places.`
+
+**Leave by** — one row: label `Buffer`, a pop-up `None` · `5 minutes` · `10
+minutes` · `15 minutes` · `20 minutes` · `30 minutes` (default `10
+minutes`). Footer: `Added to every trip, so you arrive early.`
+
+`chainGap` (`components.md` §24.2) is **not** shown in this slice.
+
+**Focus**: `⇥` moves through name, address, remove button, `Add Place`, then
+each route's minutes field and mode pop-up, then the buffer pop-up, in reading
+order. `Set Travel Time…` (inspector) opens this tab with the named route's
+minutes field focused and its text selected.
+
+## 14. Settings ▸ Notifications
+
+A grouped form, one optional status block above one section.
+
+```
++------------------------------------------------------------------+
+|        [ link ] Sources  [ mappin ] Travel  [ bell ] Notifications|
++------------------------------------------------------------------+
+|  Notifications are off                                           |
+|  macOS isn't showing notifications from Kadence, so it can't     |
+|  tell you when to leave or when something starts. Turn them on   |
+|  in System Settings ▸ Notifications ▸ Kadence.                   |
+|                                     [ Open System Settings… ]    |
+|                                                                  |
+|  Notify me                                                       |
+|  ┌────────────────────────────────────────────────────────────┐  |
+|  │ Leave by                          [5 minutes before   ⌄] (●)│  |
+|  │ Events at a place you travel to                             │  |
+|  │ Timetable                         [30 minutes before  ⌄] (●)│  |
+|  │ Lectures and exams with no travel                           │  |
+|  │ Personal events                   [15 minutes before  ⌄] (●)│  |
+|  │ Events you created, with no travel                          │  |
+|  │ Routine                           [5 minutes before   ⌄] (●)│  |
+|  │ Routine blocks                                              │  |
+|  └────────────────────────────────────────────────────────────┘  |
+|  Kadence stays quiet during Sleep and your other protected       |
+|  windows: a notification due then arrives when the window ends,  |
+|  unless the event itself is inside the window.                   |
++------------------------------------------------------------------+
+```
+
+- **Status block** — only in `off` and `notAllowedYet`, and only when at
+  least one rule is on (`components.md` §27.8, whose table is the exact copy).
+  Same anatomy as the Sources status block (§11): title `sourceStatusTitle`,
+  body `inspectorValue` (`lineLimit` 0, never truncated), `spacing.sm`
+  between, the button `.bordered`, trailing, `spacing.lg` above it — **not**
+  the default button. Then `spacing.lg` and the section. No glyph, no colour:
+  the words carry it. Hidden in `allowed` and `notAsked`.
+- **Notify me** — four rows, `components.md` §27.1's order. Each row is a
+  `LabeledContent`: the label is the rule's name (`sidebarItem`) with a second
+  line (`blockMeta`, `color.text.secondary`): `Events at a place you travel
+  to` · `Lectures and exams with no travel` · `Events you created, with no
+  travel` · `Routine blocks`. Trailing: the lead-time pop-up, then a `Toggle`
+  (`.toggleStyle(.switch)`, `.controlSize(.small)`, label hidden — VoiceOver
+  per `components.md` §29).
+  - Pop-up choices: `Leave by` — `At leave time` · `5 minutes before` · `10
+    minutes before` · `15 minutes before` · `30 minutes before`; the others —
+    `At start time` · `5 minutes before` · `10 minutes before` · `15 minutes
+    before` · `30 minutes before` · `1 hour before`.
+  - Switch off: the pop-up is **disabled, not hidden**, and keeps its value.
+  - Switching a rule on while Kadence is `notAsked` asks for permission
+    (`components.md` §27.8).
+- **Footer** of the section, `color.text.secondary`, the quiet rule in one
+  sentence as drawn above.
+- Every change triggers a notification pass (`components.md` §27.6).

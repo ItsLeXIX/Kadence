@@ -506,6 +506,13 @@ Not a block. A leading edge attached to the event it belongs to.
   `"Datenmodellierung, 09:00 to 10:30, leave by 08:12, 22 minutes walking"`.
 - Never drawn for an event with no location, and never drawn for all-day items.
 
+**Amended 2026-10-14 (Phase 3 slice 2) — the band is live.** Everything above
+stands as the visual spec. From slice 2 the band is drawn from the event's
+`TravelLeg` (status `ready`), not a display fixture; "no location" reads "no
+`ready` leg"; `departAt` includes the buffer; `NNmin` is the travel time
+without it; the hover help and the VoiceOver phrase name the origin and the
+mode. The exact list of changes is §25.1.
+
 ---
 
 ## 5. Geometry C — AllDayItem
@@ -912,6 +919,10 @@ not constants.
 **VoiceOver.** Each block is one accessibility element. Label order:
 title, time range, kind, source, status, then conflict if present. Example:
 `"Datenmodellierung, 09:00 to 10:30, lecture, university timetable, conflicts with Training"`.
+*(Amended 2026-10-14, Phase 3 slice 2.)* A block with a travel leg speaks its
+leave-by after the time range, before the kind: §29 has the exact phrases,
+including the one for a travel time that is not set.
+
 Kind and status are spoken because they are carried visually by shape — they must
 not be dropped from the label on the assumption colour conveys them.
 
@@ -966,6 +977,11 @@ so this spec can actually be checked. Minimum fixture for a single day:
 
 Items 1–16 are display fixtures only. They are generated data, not services:
 no TravelLeg computation, no routine engine, no work item model behind them.
+
+*(Amended 2026-10-14, Phase 3 slice 2.)* Items 7 and 8 are no longer
+fixtures: `TravelFixture` is retired, and both bands come from legs computed
+from seeded places and routes (§30.1 "Other datasets"), drawing the same
+`Leave 08:38 · 22min` and `Leave 10:54 · 6min` as before.
 
 ---
 
@@ -1955,6 +1971,12 @@ table (§10.1); it must not be added to either.
 The empty state says what is true and stops. No praise, no "all done", no
 illustration.
 
+**Amended 2026-10-14 (Phase 3 slice 2) — the leave-by.** Two states join the
+table between Normal and Late when NEXT has a travel leg: **Leave** (`Leave
+08:15 · SWQM-ILV`, the `Leave 08:15` unit taking the time's never-truncated
+role) and **Leave now** (glyph + `Leave now · SWQM-ILV`), plus the rule that a
+due departure outranks a late item. §26.1.
+
 **Amended 2026-10-05 — colour in the live menu bar.** The status item is
 **template-rendered**: macOS draws a `MenuBarExtra` label in the menu bar's own
 tint (dark or light per wallpaper and appearance), and it flattens the label to
@@ -2026,6 +2048,13 @@ is the primary action in that state.
   is primary.
 - `Done` / `Snooze` / `Open` keep `.bordered` in the normal state; there is no
   primary there, because none of the three is the default answer to "what now".
+
+**Amended 2026-10-14 (Phase 3 slice 2).** "Location joins the line in Phase 3
+with the leave-by time" is specified in §26.2: NEXT gains a **leave line**
+(`Leave by 08:15 · 35 min from Home`, or `Leave now · leave-by was 08:15` in
+`color.semantic.now`), the meta line becomes **time · location · source**
+(§3.4's order), and the popover's last lines gain the notifications line
+(§26.3).
 
 ---
 
@@ -4058,3 +4087,1115 @@ discovery chain D1–D4 (`discoveryOK`) unless it replaces a step.
 
 The review build selects a case per launch (`PHASE3-PLAN.md` task 10 names the
 arguments). The default is `reportOK`.
+---
+
+# Phase 3 — slice 2: leave-by and notifications
+
+Written 2026-10-14, after slice 1 was accepted (`PHASE3-REVIEW.md` "Final —
+2026-10-14"). Plan and build order: `PHASE3-SLICE2-PLAN.md`. Layouts:
+`layouts.md` §6, §6.1, §9, §11 (amended), §13, §14 (new). Interactions:
+`interactions.md` §14, §15 (new).
+
+**Scope.** Two things, and only these:
+
+1. **Leave by.** Each event that needs travel gets a departure time:
+   `start − travel time − buffer`. Travel time comes from a
+   `TravelTimeProvider`. In this slice the only provider is **manual**: the
+   user types a travel time between a small set of **known places** (at least
+   Home and the FH campus). The travel band (§4), the inspector and the menu
+   bar show the result.
+2. **Notifications**, local, through `UNUserNotificationCenter`: a leave-by
+   notification for an event with travel, a "starts at" notification for an
+   event without, with Done / Snooze / Open.
+
+Not in this slice: routing, MapKit, geocoding, location (slice 3 — §24.9 is
+the seam it plugs into); Moodle, work items, deadline notifications, the
+morning summary (G-088); mail; the planner; notifications about sync failures
+(G-060, still deferred). Every Phase 1–3 slice 1 value stands; in-place
+amendments are marked 2026-10-14 in §4, §11, §15.1 and §15.2.
+
+Three rules govern the slice:
+
+- **Nothing important depends on checking the app** (BRIEF-PRODUCT). A
+  departure the user would miss is told to them; when Kadence cannot tell them
+  (no permission, no travel time), it says so where they look (§26.3, §27.8).
+- **Derived, never upstream.** A leave-by is computed from the event; it is
+  stored beside the event and never written onto it (§24.7). Imported events
+  stay read-only exactly as §18.1 says.
+- **Skipped and missed are re-offered, never counted** (§27.9). No badge, no
+  "missed" notification, no count of ignored ones.
+
+---
+
+## 23. Places and travel times
+
+### 23.1 Known places
+
+A **known place** is somewhere Kadence can travel from or to. It is not the
+same thing as an event's location text: `HS_A3.15` is where in the building;
+`FH Technikum Wien` is where you travel to. The two stay separate models
+(§28.1).
+
+Every store has two **built-in** known places, created at first launch if
+missing, idempotently, with fixed ids — the same pattern as §21.1.1's
+built-in sources:
+
+| id | Default name | Address | Can be removed |
+|---|---|---|---|
+| `home` | `Home` | none | no |
+| `campus` | `FH Technikum Wien` | none | no |
+
+- **Name**: required, trimmed, unique among known places (case-insensitive).
+  Renamable in Settings ▸ Travel (`layouts.md` §13); an empty or duplicate
+  name reverts to the last name, like a source's name (`layouts.md` §11).
+  Renaming changes every place it is shown and nothing else.
+- **Address**: optional free text. **Not looked up in this slice**: no
+  geocoding, no coordinate, no location permission. It is shown in Settings
+  only, and kept so slice 3 can geocode it.
+- **More places**: the user may add places (`Add Place`, `layouts.md` §13),
+  e.g. `Gym`. A user place can be removed; a built-in cannot (it can be
+  renamed — `campus` stays the place timetable rooms are at, whatever it is
+  called).
+
+### 23.2 Which place an event is at
+
+An event's **place** is resolved by these rules, first match wins. Nothing is
+inferred from free text beyond rule 4's one test.
+
+| # | Event | Place |
+|---|---|---|
+| 1 | `isAllDay`, or `isCancelled` | **none** — never travels |
+| 2 | `origin == .routine` (or `.planned`) | **none** in this slice (G-084). A routine block is transparent to travel: it is never a leg's origin or destination |
+| 3 | `origin == .manual` | the known place `Event.placeID` names (§28.2); `nil`, or an id no known place has, is **none** — "manual events with no place need no travel unless the user sets one" |
+| 4 | `origin == .imported`, `isOnline` | **none** (G-063: online events need no travel) |
+| 5 | `origin == .imported`, its `Source` (resolved by §21.1.1) has kind `.universityTimetable`, and its location text is not empty after trimming | **`campus`**. Every CIS room — `HS_A3.15`, `EDV_F4.25`, `LAB_F5.12`, `UEB_B2.01`, `FH B.2.09` — is on the FH campus, so no room pattern is needed or kept |
+| 6 | any other imported event | **none** in this slice (no other connected kind exists; G-085) |
+
+An imported event's place is **never stored on the event** and cannot be set
+by the user in this slice (G-085): it is a function of upstream fields, so a
+sync that changes the room or makes a lecture online changes the place by
+itself.
+
+### 23.3 Travel times
+
+A **route** is an unordered pair of known places with a travel mode and an
+optional manual time (§28.1 `TravelRoute`):
+
+- **Symmetric.** `Home ↔ FH Technikum Wien` is one route; the time is the same
+  both ways. A manual provider has no reason to be told twice (judgement 3 in
+  the plan).
+- **Mode** — `.transit` (`Public transport`), `.walking` (`Walking`),
+  `.driving` (`Driving`). Default `.transit`. The mode sets the band's glyph
+  (§2.1: `tram.fill` / `figure.walk` / `car.fill`) and the words in copy.
+- **Minutes** — a whole number **1 … 240**, or **not set**. Not set is the
+  state of the built-in route on a fresh store: Kadence does not guess a
+  travel time (Parsa's own number is a decision for him; the review dataset
+  uses 35).
+- The built-in route `home ↔ campus` exists at first launch (mode `.transit`,
+  minutes not set). Other routes are stored when the user first gives them a
+  time or a mode; an absent route reads as "not set, `.transit`".
+- Removing a place removes its routes.
+
+### 23.4 Buffer
+
+One **buffer**, added to every trip so the user arrives early: **0, 5, 10, 15,
+20 or 30 minutes**, default **10** (Parsa's decision; §28.1 `AppSettings`).
+The buffer is part of the band's interval (§25) and is named in the inspector
+(`layouts.md` §6), never folded silently into the travel time.
+
+---
+
+## 24. Travel legs
+
+A `TravelLeg` is the computed departure for one event. It is **derived data**:
+stored so every surface reads one answer and so slice 3's asynchronous routing
+can fill it, but never edited, never an undo step and never written onto the
+event.
+
+### 24.1 Which events get a leg
+
+A **leg candidate** is an event that is timed (not all-day), not cancelled,
+not `.skipped`, starts on or after `startOfDay(today)`, and has a place
+(§23.2). `.done` events stay candidates (a lecture marked done ahead of time
+still happened somewhere); they get no notification (§27.2).
+
+An **origin candidate** is the same, except that it may start before today
+(an event at 23:00 yesterday can be where you are coming from at 00:30).
+
+### 24.2 Where you are coming from
+
+For a leg candidate `E`:
+
+1. Among origin candidates with a place and with **`start < E.start`** (`E`
+   itself excluded), take the one with the **latest `end`** (ties: the later
+   `start`, then the smaller `Event.id` string). Call it `P`.
+2. If `P` exists and `E.start − P.end ≤ chainGap`, the **origin is `P`'s
+   place**. The difference may be negative (`P` is still running when `E`
+   starts): that is the same chain.
+3. Otherwise the origin is **`home`**.
+
+**`chainGap` = 120 minutes** (§28.1 `AppSettings`, not shown in Settings in
+this slice; Parsa's decision). Reading: with less than two hours between two
+things, you stay where the first one was; with more, you are assumed to be at
+home. Events with no place — routine blocks, online lectures, manual events
+without a place — are **transparent**: they neither break nor make a chain.
+
+| Case (review dataset `travel`, §30.1) | `P` | Origin |
+|---|---|---|
+| `SWQM-ILV` Mon 09:00, nothing placed before | — | `home` |
+| `SWEN3-ILV` Tue 11:45, after `SWEN3-LAB` 10:00–11:30 | `SWEN3-LAB` (15 min) | `campus` — back-to-back, **no leg** |
+| `REQEN-EXAM` Thu 16:00, after `EPC-ILV` 13:00–14:30 | `EPC-ILV` (90 min) | `campus` — **no leg** |
+| `Dinner with flatmates` Thu 18:30 at Home, after `REQEN-EXAM` –17:30 | `REQEN-EXAM` (60 min) | `campus` → leg to Home |
+| `INNO3-EL` Wed 14:00, online | — | — (no place, no leg) |
+| `Climbing` Sun 18:00 at Gym, after `Late call` (no place) and `Early study group` –09:00 Sat | `Early study group` (33 h) | `home` |
+
+### 24.3 The leg
+
+- **Origin = destination** (same known place): **no leg**. Nothing is stored;
+  the event needs no travel.
+- **Route time set**: a leg with status **`ready`**:
+  - `duration` = the route's minutes (travel only);
+  - `buffer` = the buffer at compute time (§23.4);
+  - `departAt` = `E.start − duration − buffer`;
+  - `mode` = the route's mode; `originPlaceID`, `destinationPlaceID`;
+    `provider` = `manual`.
+- **Route time not set**: a leg with status **`needsTravelTime`**, `departAt`
+  and `duration` nil, `mode` the route's (or `.transit`). It exists so the
+  inspector and the popover can say *why* there is no leave-by (§25.3, §26.2)
+  — a missing travel time is never silent, and never a guessed number.
+
+`departAt` may fall **before `P.end`** (you must leave before the previous
+thing ends) or **inside a protected window** (you must leave during Sleep).
+Both are facts and are drawn and told as they are: §25 draws the band, §27.5
+holds the notification. Neither is a conflict in this slice (G-086).
+
+### 24.4 Worked example (review dataset `travel`, route 35 min, buffer 10)
+
+| Event | Place | Origin | Leg |
+|---|---|---|---|
+| `SWQM-ILV` Mon 09:00–10:30 `HS_A3.15` | campus | home | ready, depart **08:15**, 35 min transit |
+| `SWEN3-LAB` Tue 10:00–11:30 `EDV_F4.25` | campus | home | ready, depart **09:15** |
+| `SWEN3-ILV` Tue 11:45–13:15 `HS_A2.07` | campus | campus | none |
+| `Laundry` Wed 08:00–08:45 | home | home | none |
+| `INNO3-EL` Wed 14:00–15:30 `WEBINAR01` | none | — | none |
+| `EPC-ILV` Thu 13:00–14:30 `LAB_F5.12` | campus | home | ready, depart **12:15** |
+| `REQEN-EXAM` Thu 16:00–17:30 `EDV_A5.09` | campus | campus | none |
+| `Dinner with flatmates` Thu 18:30–20:00 | home | campus | ready, depart **17:45** |
+| `SWRM-ILV` Fri 16:00–17:45 `UEB_B2.01` | campus | home | ready, depart **15:15** |
+| `Early study group` Sat 07:30–09:00 | campus | home | ready, depart **06:45** (inside Sleep) |
+| `Late call` Sat 23:15–23:45 | none | — | none |
+| `Climbing` Sun 18:00–19:30 | Gym | home | ready, depart **17:45**, 5 min walking (route `home ↔ Gym`) |
+
+With the `home ↔ campus` time not set (variant `travelUnset`, §30.1), the five
+campus legs from home are `needsTravelTime`; `Dinner with flatmates` (campus →
+home, the same route) is too; `Climbing` stays ready.
+
+### 24.5 Storage and ownership
+
+- One `TravelLeg` per event at most, keyed by `eventID` (unique).
+- **The recompute owns every leg whose event starts on or after
+  `startOfDay(today)`**, with no upper bound: it creates, updates and deletes
+  them so they equal §24.1–§24.3 exactly. A manual provider costs nothing per
+  leg, so every future lecture of the semester shows its band. (Slice 3 sets
+  its own horizon for routed times, §24.9.)
+- **Legs of events before today are history**: never recomputed, never
+  deleted except with their event. Changing a travel time in Settings does not
+  rewrite yesterday's band — the same reading as "the past is never written"
+  (§20.1).
+- A leg whose values are unchanged is **not rewritten** (`computedAt` keeps
+  the time its values last changed). Two recomputes of the same inputs write
+  nothing.
+- Deleting an event deletes its leg in the same transaction. Undoing the
+  delete brings the event back with the same `id` (DECISIONS 2026-09-09) and
+  the next recompute brings the leg back.
+
+### 24.6 When legs are recomputed
+
+One recompute pass, on the main actor, in **one store transaction**,
+**debounced 0.5 s** so a burst (a drag, a sync writing 80 events) is one pass.
+Triggers:
+
+| Trigger | Why |
+|---|---|
+| Any `Event` insert, update or delete (move, resize, status, place, title …), including undo and redo | start, place, status and order are all inputs |
+| A sync or Import applied (§20.8.3 step 6) — including one that wrote nothing, which costs one cheap pass | a moved or vanished lecture, an online switch |
+| A known place, route or the buffer edited in Settings | inputs |
+| Launch (after the store loads and the built-ins exist), wake (`NSWorkspace.didWakeNotification`), the day changing (`NSCalendarDayChanged`) and the clock or time zone changing (`NSSystemClockDidChange`, `NSSystemTimeZoneDidChange`) | the window starts at `startOfDay(today)` |
+
+Every pass ends by asking the notification scheduler for a pass (§27.6).
+
+- **Not an undo step**, and it never clears or edits the undo stack.
+- **Not held by a conflict preview.** A preview only ever moves routine
+  blocks (§14), which are transparent to travel, so a recompute during a
+  preview cannot change what the preview shows.
+- A sync's held writes (§20.9) trigger their pass when they are applied.
+
+### 24.7 A leg never writes the event
+
+The recompute reads `Event`, `KnownPlace`, `TravelRoute`, `AppSettings` and
+`Source`, and writes **only `TravelLeg` rows**. In particular it never writes
+an imported event's upstream fields (§18.1), never its `status`, and never a
+manual event's `placeID`. Consequences, all tested:
+
+- A recompute leaves every `Event`'s §20.8.4 event hash, and every source's
+  `feedHash`, unchanged.
+- Because a sync keeps `Event.id` on an in-place update (§20.8.4 "Local
+  identity"), a lecturer change keeps its leg untouched; a CIS room or time
+  change (delete + add, §20.10) deletes the old event's leg and computes a new
+  one for the new event.
+- Leg writes are not sync writes: they do not appear in a source's
+  last-change line and never touch `lastChange*`.
+
+### 24.8 What the leg is not
+
+- **Not a block.** It never enters conflict detection (G-086), never counts in
+  Needs attention, is never selected (§4) and never drawn in Month or in the
+  Routines window (§4, §13.1).
+- **Not a promise.** A manual time is the user's estimate; Kadence states it
+  with the mode and the origin so it can be checked (§25.2).
+
+### 24.9 The provider seam (for slice 3)
+
+```swift
+struct TravelEndpoint: Sendable, Equatable {   // a value snapshot of a KnownPlace
+    var id: String; var name: String; var address: String?
+    var latitude: Double?; var longitude: Double?   // nil in this slice
+}
+enum TravelTimeError: Error, Equatable, Sendable {
+    case notSet            // manual: no minutes for this route and mode
+    case unsupportedMode   // slice 3: .transit without an external provider
+    case unavailable       // slice 3: routing failed (offline, no route)
+}
+protocol TravelTimeProvider: Sendable {
+    func duration(from: TravelEndpoint, to: TravelEndpoint,
+                  arrivingBy: Date, mode: TravelMode) async throws(TravelTimeError) -> TimeInterval
+}
+```
+
+BRIEF-PRODUCT's signature, with endpoints as `Sendable` value snapshots (a
+SwiftData model is not `Sendable`) and typed errors.
+
+- **`ManualTravelTimeProvider`** — looks the unordered pair up in
+  `TravelRoute`; returns `minutes × 60` when the route's mode equals `mode`
+  and minutes are set; otherwise throws `.notSet`. `arrivingBy` is ignored.
+- **The planner** (`TravelLegPlanner`) is a pure function of value snapshots
+  plus a provider: it resolves places (§23.2), origins (§24.2), asks the
+  provider once per distinct (origin, destination, mode, arrivingBy), and maps
+  `.notSet` to `needsTravelTime`. Tests inject a mock provider and a clock.
+- **What slice 3 adds, without changing this slice's model:**
+  - a `MapKitTravelTimeProvider` (`.walking`, `.driving`; `.transit` stubbed
+    → `.unsupportedMode`), and a composite that decides whether a manual time
+    overrides a routed one;
+  - geocoding `KnownPlace.address` into `latitude`/`longitude`;
+  - `TravelLeg.provider` values other than `manual`, and a status for
+    `.unavailable`;
+  - a horizon for routed legs and the brief's "recompute on the morning of".
+
+  The trigger list (§24.6), ownership (§24.5) and every consumer (§25–§27)
+  read the leg, never the provider, so none of them changes.
+
+---
+
+## 25. The travel band, live
+
+§4's visual spec is **unchanged**: geometry, the two height cases, z-order,
+fill, hatch, corner rules, `travelLabel`, `color.text.secondary`, the
+footprint rule (`layouts.md` §3.3), not focusable, folded into the parent's
+VoiceOver label, never in Month, never on all-day items. What changes is the
+data and the words.
+
+### 25.1 Exactly what changes from §4
+
+| §4 said | From 2026-10-14 |
+|---|---|
+| Fed by a display fixture (`TravelFixture`, §12 items 7–8) | Fed by the event's **`TravelLeg` with status `ready`**. `TravelFixture` is retired; the review datasets compute real legs (§30.1) |
+| "Never drawn for an event with no location" | Drawn **exactly when the event has a `ready` leg**. No leg (no place, same place, online, skipped, cancelled, all-day, routine) → no band. A `needsTravelTime` leg → **no band**: there is no time to draw, and a band without one would be a guess. The inspector and popover say why (§25.3) |
+| Occupies `departAt → event.start` | Unchanged — and `departAt` now includes the **buffer**, so the band is travel **plus** buffer tall |
+| Label `Leave HH:mm · NNmin` | Unchanged form. **`HH:mm` is `departAt`; `NN` is the travel time without the buffer** (`Leave 08:15 · 35min` on a 09:00 lecture: 35 min trip, 10 min buffer, 45 min band). Below 18pt the duration drops, below 14pt the glyph only — as §4 |
+| Glyph by mode | The leg's `mode` |
+| Hover help `Leave 08:12 · 22 min walking` (as built) | **`Leave 08:15 · 35 min by public transport from Home · 10 min buffer`** (`· N min buffer` omitted at 0) |
+| VoiceOver phrase `leave by 08:12, 22 minutes walking` | §29 |
+
+### 25.2 States
+
+The band takes **its parent's presentation**, nothing of its own:
+
+- **past** (the parent is past): the band's content takes
+  `opacity.blockPastContent` and its fill the same `opacity.blockPastFillBlend`
+  blend as the parent. A past band is history (§24.5).
+- **done**: drawn as past. A **skipped** or **cancelled** parent has no leg.
+- **Should have left** (`departAt ≤ now < start`): **no change on the
+  canvas.** The now line already crosses the band, which says exactly that;
+  the menu bar carries the state (§26). A red band would be a second "now"
+  signal on the canvas and would spend red on a block (§1).
+- **Selected / dragging / conflicted**: as §4 — the band follows its parent and
+  is never independently selected. While a manual event is dragged, its band
+  is **not** drawn at the drop preview; it reappears after the drop when the
+  recompute has run (§24.6). An imported event never drags (§18.2).
+
+### 25.3 A leg that needs a travel time
+
+No band (§25.1). The inspector's `Leave by` row says `Not set` with a way to
+set it (`layouts.md` §6), the popover's leave line says it (§26.2), and the
+event gets a "starts at" notification instead of a leave-by (§27.2). Hover
+help on the block gains `· Travel time from Home not set`.
+
+---
+
+## 26. Leave-by in the menu bar
+
+The Phase 2 brief: the status item shows "the single next thing — its title,
+its start time, and **the leave-by time once Phase 3 exists**". §15's budget,
+truncation and template-rendering rules all stand.
+
+### 26.1 The status item
+
+Two states are added between Normal and Late. They apply when NEXT has a
+`ready` leg:
+
+| State | When | Content | Colour (popover and offscreen only, §15.1 2026-10-05) |
+|---|---|---|---|
+| Normal | no `ready` leg, `now < start` | `17:30 · Training` | `color.text.primary` |
+| **Leave** | `ready` leg, `now < departAt` | **`Leave 08:15 · SWQM-ILV`** | `color.text.primary` |
+| **Leave now** | `ready` leg, `departAt ≤ now < start` | `clock.badge.exclamationmark` + **`Leave now · SWQM-ILV`** | `color.semantic.now` |
+| Late | `start ≤ now` | glyph + `12m ago · SWQM-ILV` | `color.semantic.now` |
+| Empty | — | `Nothing left today` | `color.text.secondary` |
+
+- **The time unit.** In Leave, `Leave 08:15` is one unit that takes §15.1's
+  "time" role: never truncated, never split, always first. The title
+  truncates and drops by §15.1's rules with the unit's measured width in
+  place of the time's (degrade point = width(`Leave 08:15`) + width(` · `) +
+  `size.statusItemTitleMinWidth`, about 117pt; below it, `Leave 08:15` alone).
+  In Leave now, glyph + `Leave now` is the unit, exactly as glyph + `12m ago`
+  is in Late.
+- **"Leave now" is the should-have-left state.** It is an instruction that is
+  true at that moment, it is not a deficit (`late`, `missed`, `overdue` stay
+  banned), and it reads from across the room. The elapsed figure is in the
+  popover (§26.2). This is a reading of `DECISIONS.md` 2026-09-10's "phrased
+  as elapsed" for a state that ruling did not have; it is a proposed
+  DECISIONS entry for Parsa (plan, "DECISIONS.md").
+- The glyph is the Late state's `clock.badge.exclamationmark`: the same fact
+  — the time that mattered has passed. No new symbol.
+- **A leg that needs a travel time** shows the Normal state (start time). The
+  popover says why (§26.2).
+- The item switches state at the minute boundary on its existing timer
+  (§15: "updates on a timer and on any data change"); no animation (§12.1).
+
+**A due departure outranks a late item.** Phase 2's NEXT is the earliest
+not-done, not-skipped timed event of today, so an event that started and was
+never marked stays NEXT (the late state, with `Re-offer`). That must not hide
+a departure. So:
+
+> If NEXT by Phase 2's rule is **late**, and some other candidate today has
+> not started and has a `ready` leg with `departAt ≤ now + 30 min`, the
+> earliest-starting such event **is NEXT** (in Leave or Leave now). The late
+> item is the first row of REST OF TODAY. When that event starts, Phase 2's
+> rule applies again.
+
+30 minutes is a behaviour constant (`leaveDueLookahead`), not a token. Review
+fixture: §30 item 13.
+
+### 26.2 The popover
+
+**NEXT gains a leave line**, between the title and the meta line, when NEXT
+has a leg:
+
+```
++------------------------------------------+
+|  NEXT                                    |
+|                                          |
+|  SWQM-ILV                                |   popoverNextTitle
+|  Leave by 08:15 · 35 min from Home       |   popoverNextMeta, text.primary   ← new
+|  09:00 – 10:30 · HS_A3.15 · University…  |   popoverNextMeta (meta line)
+|                                          |
+|  [ Done ]  [ Open ]                      |
+|------------------------------------------|
+```
+
+| NEXT's state | Leave line | Colour |
+|---|---|---|
+| Leave | `Leave by 08:15 · 35 min from Home` | `color.text.primary` |
+| Leave now | `Leave now · leave-by was 08:15` | **`color.semantic.now`** (4.55 / 5.12 on `surface.popover`, `tokens.json` 1.8.0) |
+| Late (started) | — (omitted; the meta line says `Started 12m ago`) | |
+| `needsTravelTime` | `No travel time from Home yet` | `color.text.secondary` |
+| No leg | — (omitted) | |
+
+- `popoverNextMeta`, `lineLimit` 1, tail truncation. The time comes first and
+  is never truncated; the place name (the user's text) truncates.
+- The origin is the place **name** (`from Home`, `from FH Technikum Wien`).
+  The mode is not on this line (the hover help, inspector and VoiceOver carry
+  it); the line is for arm's length.
+- **The meta line's order follows §3.4's 2026-10-10 amendment from now on:**
+  `09:00 – 10:30 · HS_A3.15 · University timetable` — time, then location,
+  then source, the source truncating first. §3.4 left the popover alone when
+  it had no location; with the leave line above it, a truncated room
+  (`· University timetable · HS_A…`) would hide the one fact the leave line
+  points at. With no location: `17:30 – 18:15 · Daily routine`, as before.
+  Online: `14:00 – 15:30 · Online · University timetable`.
+- **Actions** are unchanged by the leave states: `Done` · `Snooze` · `Open`,
+  or `Done` · `Open` for an imported NEXT (§18.3). **No `Re-offer` in Leave
+  now** — the event has not started, so there is nothing to re-offer.
+  `Snooze` on a manual NEXT with a leg moves the event (§16); the leg follows
+  on the next recompute, so the leave line and the status item show the new
+  departure.
+- REST OF TODAY rows are **unchanged** — no leave times in the list (§15.2:
+  not a second calendar).
+- The NEXT block's height grows by one `popoverNextMeta` line when the leave
+  line is shown; `size.popoverNextBlockMinHeight` stays a minimum.
+
+### 26.3 The popover's last lines
+
+§19.4's stale line is joined by a **notifications line**, same slot (last
+element, `spacing.lg` above), same style (`popoverRefusalRow` metrics,
+`lineLimit` 0, `color.text.secondary`, no glyph, not focusable, not a button).
+Order: stale source lines first, then this one. Shown only when **at least
+one notification rule is enabled** (§27.1) and:
+
+| Authorization (§27.8) | Line |
+|---|---|
+| `off` | `Notifications are off, so Kadence can't tell you when to leave.` |
+| `notAllowedYet` | `Notifications aren't allowed yet. Settings ▸ Notifications` |
+| `allowed`, or Kadence has not asked yet | — |
+
+The remedy is in Settings ▸ Notifications (`layouts.md` §14); `Open` still
+opens the main window, and `⌘,` opens Settings. All rules off is the user
+saying so: no line.
+
+---
+
+## 27. Notifications
+
+Local notifications through `UNUserNotificationCenter`, behind a protocol
+(§27.10) so nothing in tests or review touches the real centre. No badge on
+the app icon, ever (§27.9).
+
+### 27.1 Rules
+
+Four `NotificationRule`s (§28.1), created at first launch with these
+defaults, edited in Settings ▸ Notifications (`layouts.md` §14):
+
+| Kind (`kind` raw) | Settings label | Applies to | Default | Lead choices |
+|---|---|---|---|---|
+| `leaveBy` | `Leave by` | an event with a `ready` leg | **on, 5 min** | `At leave time` · 5 · 10 · 15 · 30 min |
+| `timetableStart` | `Timetable` | an imported event that gets no leave-by | **on, 30 min** | `At start time` · 5 · 10 · 15 · 30 min · 1 hour |
+| `personalStart` | `Personal events` | a manual event that gets no leave-by | **on, 15 min** | as `timetableStart` |
+| `routineStart` | `Routine` | a routine block | **on, 5 min** | as `timetableStart` |
+
+The defaults for `leaveBy` (5) and timetable (30) are BRIEF-PRODUCT's
+Phase 4 numbers; 15 and 5 and "routine on" are proposals. All four are
+Parsa's decisions (plan, "For Parsa"). A disabled rule keeps its lead time.
+
+### 27.2 Which notification an event gets — at most one
+
+| Event | Notification |
+|---|---|
+| all-day, cancelled, `.done`, `.skipped`, or starting before `startOfDay(today)` | **none** |
+| has a `ready` leg **and** `leaveBy` is enabled | **leave-by** |
+| otherwise (no leg, a `needsTravelTime` leg, or `leaveBy` disabled) | **starts**, under its origin's rule (`timetableStart` / `personalStart` / `routineStart`), if that rule is enabled |
+| `.planned` (Phase 6) | none in this slice |
+
+An event with a leave-by gets **no** "starts" notification: one event, one
+nudge, at the moment that matters. Turning `Leave by` off falls back to the
+start rule rather than silencing the event.
+
+### 27.3 When it fires
+
+The **subject time** is what the notification is about: `departAt` for a
+leave-by, `start` for a starts. The **fire time** `F`:
+
+1. Leave-by: `F = departAt − lead`.
+2. Starts: `F = start − lead`. **Chain clamp:** if §24.2 finds a `P` within
+   `chainGap` (whatever its place), `F = min(max(F, P.end), start)` — the
+   notification for the second of two back-to-back lectures comes when the
+   first one ends, not in the middle of it. The leave-by is **not** clamped:
+   if you must leave during the previous event, you are told when you must
+   leave.
+3. Then the quiet rule (§27.5) may move `F` later.
+
+Copy is fixed at planning time, with **absolute times only**: a notification
+outlives its moment in Notification Center, and `in 5 min` read twenty
+minutes later is false. `08:15` stays true.
+
+### 27.4 Copy — exact, tested
+
+`{title}`: the event's title as the block shows it (a CIS event's course
+code). `{where}`: the event's location text if not empty (`HS_A3.15`,
+`Online` for an online event), else its place's name (`Home`); omitted with
+its separator when both are empty. `{origin}`: the origin place's name.
+`{min}`: travel minutes. `{source}`: the source's display name. Times are
+`HH:mm`, 24-hour.
+
+| # | Notification | Title | Body | Category |
+|---|---|---|---|---|
+| N1 | Leave-by | `Leave by {depart} for {title}` | `Starts {start} · {where} · {min} min from {origin}` | by event (§27.7) |
+| N2 | Leave-by, moved past `departAt` by a protected window (§27.5) | `Leave now for {title}` | `Starts {start} · {where} · Leave-by was {depart}, inside {window} (protected)` — unlabelled window: `inside a protected window` | by event |
+| N3 | Leave-by, catch-up after `departAt` (§27.6) | `Leave now for {title}` | `Starts {start} · {where} · Leave-by was {depart}` | by event |
+| N4 | Starts | `{title} starts at {start}` | `{where} · {source}`; no `{where}`: `{source}` | by event |
+| N5 | Snooze result, moved | `{title} moved to {new}` — `moved to tomorrow {new}` across a day, as §16 | `Snoozed from {old} · ⌘Z in Kadence undoes it` | `result` |
+| N6 | Snooze result, refused | `{title} not moved` | `{new} is inside {window} (protected)` / `{new} is inside a protected window` — §16's family | `result` |
+
+Examples (§30.1, buffer 10): N1 `Leave by 12:15 for EPC-ILV` /
+`Starts 13:00 · LAB_F5.12 · 35 min from Home`. N1 for a manual event at Home:
+`Leave by 17:45 for Dinner with flatmates` / `Starts 18:30 · Home · 35 min
+from FH Technikum Wien`. N2 `Leave now for Early study group` / `Starts 07:30
+· FH Technikum Wien · Leave-by was 06:45, inside Sleep (protected)`. N4
+`REQEN-EXAM starts at 16:00` / `EDV_A5.09 · University timetable`; `INNO3-EL
+starts at 14:00` / `Online · University timetable`; `Late call starts at
+23:15` / `Personal`.
+
+- **Never** `late`, `missed`, `overdue`, a count, or an exclamation mark.
+- Titles are the system's to truncate; the body repeats nothing the title
+  says except the time it is about.
+- Sound: the default sound for N1–N4; **none** for N5–N6 (the user just
+  acted). Interruption level `.active` for all (time-sensitive needs an
+  entitlement — G-089, Parsa).
+
+### 27.5 Quiet: protected windows hold notifications
+
+No notification is delivered inside a `.protected` `TimeWindow` (Sleep)
+**unless the event itself is inside it**:
+
+1. Take every `.protected` span from `TimeWindow.spans(on:)` (§13.6.1's spans,
+   so an overnight window counts on both days). If `S.start ≤ F < S.end` and
+   the event **does not strictly overlap** `S` (§13.6.1's test), set
+   `F = S.end`. Repeat while `F` lands in another such span.
+2. If the event strictly overlaps `S` — `Late call` 23:15 inside Sleep — the
+   notification fires at its own time: the user put the event there, and
+   being told about it is what they asked for.
+3. A **held leave-by** whose new `F` is after `departAt` takes copy N2: it
+   arrives when the window ends and says the leave-by was inside it. It is
+   never dropped — the event is outside the window, so the departure still
+   matters (`Early study group`: due 06:40, held to 07:00, N2). A held starts
+   notification keeps N4 (`F ≤ start` always holds, because the event is
+   outside the window).
+4. `.lowEnergy` and `.peakFocus` windows do not affect notifications.
+5. **Lectures are not quiet time** in this slice: a notification due during
+   a lecture fires (G-090, Parsa). The chain clamp (§27.3) already keeps the
+   common case — the next lecture's "starts" — out of the lecture before.
+6. Snooze results (N5, N6) are answers to the user's own act and are
+   delivered at once, inside a window or not.
+
+### 27.6 Scheduling
+
+**The scheduler** = a pure **planner** (`NotificationPlanner`: value snapshots
+of events, legs, rules, protected windows, records, `now`, and whether this is
+a catch-up pass → planned requests with identifier, fire date, title, body,
+category, sound, `userInfo`) and an **applier** that diffs the plan against
+the centre (§27.10).
+
+- **Identifiers**: `leave.{eventID}`, `start.{eventID}`;
+  `result.{eventID}.{epochSeconds}` for N5/N6. Deterministic, so a pass that
+  plans what is already pending changes nothing, a relaunch cannot duplicate,
+  and an event has at most one of `leave.`/`start.` pending (a leg appearing
+  removes `start.` and adds `leave.`).
+- **Window**: requests whose `F` is in `(now, now + 48 h]`, at most the **48**
+  earliest (the system keeps 64 per app; headroom for results). The window
+  rolls forward on every pass.
+- **Trigger**: `UNCalendarNotificationTrigger` with year … second in the
+  current calendar and time zone, not repeating. Catch-up and results: a
+  1-second `UNTimeIntervalNotificationTrigger`.
+- **Diff**: a pending Kadence request whose identifier is not in the plan is
+  removed; one whose fire date or content hash (`userInfo["hash"]`, SHA-256 of
+  title, body, category) differs is replaced; an identical one is left alone.
+  Requests whose identifiers do not start with `leave.`, `start.` or
+  `result.` are never touched.
+- **Records** (`NotificationRecord`, §28.1): for each scheduled identifier the
+  fire date it was given. **A record whose fire date has passed means "sent"**
+  — the system delivers a scheduled request even when Kadence is not running.
+  A sent identifier is never planned again unless its subject moves (a new
+  fire date in the future is a new notification: the event was moved later).
+  Records are deleted with their event, and when their event ended more than a
+  day ago.
+- **Passes** run (debounced 1 s, one at a time — a trigger during a pass is
+  coalesced into one more pass after it):
+  - after every leg recompute (§24.6 — which already covers every event
+    change, sync, place or route edit, launch, wake, day and clock change);
+  - when a rule is edited, a `TimeWindow` is created, edited or deleted, or
+    authorization changes (§27.8);
+  - **hourly** while running, so the 48-hour window rolls forward on a quiet
+    day.
+- **Never scheduled**: anything §27.2 excludes; any request whose subject time
+  has passed; any request whose `F` has passed — **except in a catch-up
+  pass**.
+- **Catch-up pass** (the pass after **launch** and after **wake** only): a
+  request with no record, whose `F` has passed but whose event has not
+  started, is delivered **at once**, with N1 if `now < departAt`, N3 if
+  `departAt ≤ now < start`; a starts (N4) if `now < start`. This is the case
+  where Kadence could not deliver on time (it was not running, or the Mac was
+  asleep when the plan would have been made). An ordinary pass never sends a
+  notification late: a change the user just made in the app is visible in the
+  app.
+- **Removal**: an event deleted, marked done, skipped, cancelled, or no longer
+  matching a rule loses its pending request in the next pass. **Delivered**
+  notifications whose event has ended, been deleted, marked done, skipped or
+  cancelled are removed from Notification Center in the same pass — a list of
+  stale reminders is a backlog the user did not ask for (§27.9).
+- **Authorization not `allowed`**: the planner still runs (Settings and the
+  popover need its state), the applier adds nothing, removes nothing that is
+  pending, and records nothing. When authorization becomes `allowed`, the next
+  pass schedules the plan (as a normal pass, not a catch-up).
+
+### 27.7 Actions
+
+The popover's semantics, through the same `EventStore` verbs and the same
+undo stack (`⌘Z` in the main window undoes them), addressed by `eventID`
+from `userInfo`, resolved at the moment the action runs (DECISIONS
+2026-09-09: no closure holds an `Event`).
+
+| Category | When | Actions |
+|---|---|---|
+| `kadence.event` | a manual or routine event | `Done` · `Snooze` · `Open` |
+| `kadence.readOnly` | an imported event | `Done` · `Open` — **no `Snooze`**: snoozing moves the event, and an imported event cannot move (§18.3) |
+| `kadence.result` | N5, N6 | none (clicking opens, below) |
+
+| Action | Does | Undo step |
+|---|---|---|
+| `Done` (background) | marks the event `.done`; already done → nothing. Its pending and delivered notifications go in the next pass | `Mark Done` |
+| `Snooze` (background) | `EventStore.snooze` — §16's +15 placeholder (G-016) **with §16's protected-window refusal**. Then N5 (moved) or N6 (refused) is delivered at once. A moved event's leg and notification follow on the next recompute | `Snooze` (moved only) |
+| `Open` (`.foreground`) | the popover's `Open`: activate Kadence, open the main window if closed, page to the event's day, select it | — |
+| Clicking the notification (`UNNotificationDefaultActionIdentifier`) | `Open` | — |
+| Dismissing it | **nothing** (§27.9) | — |
+
+- An action whose event no longer exists: `Open` opens the main window on
+  today with nothing selected; `Done` and `Snooze` do nothing.
+- A cancelled imported event has no notification (§27.2), so Done is never
+  offered on one (§20.6 refuses it).
+- Delivery while Kadence is frontmost: shown as a banner with sound
+  (`willPresent` → `.banner`, `.list`, `.sound`; results without `.sound`).
+
+### 27.8 Permission
+
+**When Kadence asks.** Not at launch. The first time a pass has **at least one
+request to schedule** while authorization is `notDetermined` and Kadence has
+never asked (`AppSettings.notificationsRequestedAt == nil`), it calls
+`requestAuthorization(options: [.alert, .sound])` once and records the time.
+On a real first run that is right after the timetable's Import or the first
+manual event — the moment there is something to tell. Turning a rule on in
+Settings, or `Allow Notifications…`, asks the same way. Never `.badge`, never
+`.provisional`.
+
+**What Kadence calls the state** (read on launch, on `didBecomeActive`, when
+Settings ▸ Notifications or the popover opens, and after asking):
+
+| `UNAuthorizationStatus` / settings | Kadence's state |
+|---|---|
+| `authorized`, `provisional`, `ephemeral`, with `alertSetting` enabled | `allowed` |
+| `authorized` with `alertStyle == .none` (the user chose "None"), or `denied` | `off` |
+| `notDetermined`, Kadence has asked | `notAllowedYet` |
+| `notDetermined`, Kadence has not asked | `notAsked` — nothing is shown |
+
+**Never silent when it can't notify.** In `off` and `notAllowedYet` (and at
+least one rule on): Settings ▸ Notifications shows a status block
+(`layouts.md` §14), and the popover shows §26.3's line. There is no alert and
+no nag: Kadence does not ask again on its own.
+
+| State | Title | Body | Button |
+|---|---|---|---|
+| `off` | `Notifications are off` | `macOS isn't showing notifications from Kadence, so it can't tell you when to leave or when something starts. Turn them on in System Settings ▸ Notifications ▸ Kadence.` | `Open System Settings…` — `x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=XIX.Kadence` |
+| `notAllowedYet` | `Notifications aren't allowed yet` | `Kadence needs your permission to tell you when to leave and when something starts.` | `Allow Notifications…` — asks again; if macOS shows no prompt (the question was already answered), opens System Settings as above |
+
+**Recovery** is detected, not assumed: when the state becomes `allowed`, the
+block and the line disappear and the next pass schedules the plan.
+
+### 27.9 Skipped and missed — re-offered, never counted
+
+- An **ignored or dismissed** notification changes **nothing**: no status,
+  no mark, no count, no follow-up "you missed …". The event reaches its start
+  and becomes the popover's late state with `Re-offer` (§15.2), which is where
+  a missed item is re-offered.
+- **No badge** on the app icon and no count anywhere of notifications sent,
+  ignored or acted on.
+- Delivered notifications whose moment has passed are cleared (§27.6), so
+  Notification Center never becomes a list of what didn't happen.
+- `Done` and `Snooze` are the only actions; neither is ever offered as a
+  consequence of not acting.
+
+### 27.10 The centre behind a protocol
+
+```swift
+protocol NotificationCenterClient: Sendable {
+    func authorization() async -> NotificationAuthorization   // allowed / off / notDetermined
+    func requestAuthorization() async -> Bool
+    func setCategories(_ categories: [NotificationCategorySpec]) async
+    func pending() async -> [ScheduledRequest]
+    func add(_ request: ScheduledRequest) async throws
+    func removePending(_ ids: [String]) async
+    func delivered() async -> [DeliveredNotification]
+    func removeDelivered(_ ids: [String]) async
+}
+```
+
+- **`SystemNotificationCenter`** wraps `UNUserNotificationCenter.current()`.
+  It is used **only by a normal launch**.
+- **`RecordingNotificationCenter`** keeps requests in memory, with an
+  injectable authorization (`allowed` / `off` / `notDetermined`) and a
+  scriptable `requestAuthorization` answer. It **never shows a prompt**. Used
+  by every test and by every review launch — the same three-launch rule as
+  §22.1's store and transport (B45): a launch XCTest started, or one with
+  `-KadenceReview`, never calls `UNUserNotificationCenter`.
+- Review mode takes `-KadenceNotifications allowed|off|notDetermined|notAsked`
+  (default `allowed`) and writes the recorded plan to a text file for review
+  (§30 item 14).
+- Responses are simulated in tests by calling the delegate's handler with an
+  action identifier and `userInfo`; no real response object is needed.
+
+---
+
+## 28. Data model additions (slice 2) — PROPOSED
+
+*Proposed by the design agent, 2026-10-14, for Parsa's confirmation (plan,
+"DECISIONS.md"). BRIEF-PRODUCT's draft has `Place(name, address,
+coordinate)`, `TravelLeg(eventID, departAt, duration, mode, computedAt)` and
+`NotificationRule(kind, leadTime, isEnabled)`. Below: what changes and why.*
+SwiftData `@Model`s, enums as raw strings, every new field with a default so
+a slice 1 store opens without a migration step (as §21.3).
+
+### 28.1 New models
+
+**`KnownPlace`** — BRIEF's `Place`, under a new name. The existing `Place`
+model is already something else: the event's stated location, one row per
+event, written by the sync as `Place(name: "HS_A3.15")` (§20.7, §21.3). Making
+it the travel endpoint would mean a migration of every imported event and
+would mix "where in the building" with "where you travel to". So `Place` stays
+as it is, and the travel endpoint is new.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `String` | `home`, `campus` for the built-ins; a UUID string otherwise. A String, as `Source.id` |
+| `name` | `String` | §23.1 |
+| `address` | `String?` | free text, not geocoded in this slice |
+| `latitude`, `longitude` | `Double?` | nil in this slice; slice 3 |
+| `isBuiltIn` | `Bool` | `home`, `campus`: renamable, not removable |
+| `sortIndex` | `Int` | display order: `home` 0, `campus` 1, user places in creation order |
+
+**`TravelRoute`** — new; the manual provider's data and the user's mode
+choice per pair.
+
+| Field | Type | Notes |
+|---|---|---|
+| `id` | `UUID` | |
+| `placeA`, `placeB` | `String` | known place ids, **stored sorted** (`placeA < placeB`); the pair is unique |
+| `mode` | `TravelMode` raw | default `transit` |
+| `manualMinutes` | `Int?` | 1 … 240, or nil (not set) |
+
+**`AppSettings`** — new, one row, id `app`: the settings that are not per
+source, per place or per rule. In the store (not `UserDefaults`), so a review
+or test launch — in-memory stores — can never read or write the real ones.
+
+| Field | Type | Default |
+|---|---|---|
+| `travelBufferMinutes` | `Int` | 10 (§23.4) |
+| `travelChainGapMinutes` | `Int` | 120 (§24.2) |
+| `notificationsRequestedAt` | `Date?` | nil (§27.8) |
+
+**`TravelLeg`** — BRIEF's draft, amended:
+
+| Field | Type | Notes |
+|---|---|---|
+| `eventID` | `UUID` | unique; the event's local `id` (not `externalID`) |
+| `status` | raw `ready` / `needsTravelTime` | added: a missing travel time is a state, not an absence (§24.3) |
+| `departAt` | `Date?` | optional: nil when `needsTravelTime` |
+| `duration` | `TimeInterval?` | travel only, without the buffer |
+| `buffer` | `TimeInterval` | added: the buffer used, so the band and the inspector can say it |
+| `mode` | `TravelMode` raw | |
+| `originPlaceID`, `destinationPlaceID` | `String` | added: the copy names the origin (§27.4) |
+| `provider` | `String` | added: `manual`; slice 3 adds others |
+| `computedAt` | `Date` | when the values last changed (§24.5) |
+
+**`NotificationRule`** — BRIEF's draft: `kind` raw (§27.1's four),
+`leadMinutes: Int` (BRIEF's `leadTime`, in whole minutes because every choice
+is), `isEnabled: Bool`. One row per kind, created at first launch.
+
+**`NotificationRecord`** — new, bookkeeping only, never shown:
+`identifier: String` (unique), `eventID: UUID`, `kind` raw, `fireAt: Date`,
+`contentHash: String` (§27.6).
+
+### 28.2 `Event` addition
+
+| Field | Type | Notes |
+|---|---|---|
+| `placeID` | `String?` = nil | the known place a **manual** event is at (§23.2 rule 3). Set only by the user (`layouts.md` §6, `Set Place`, an undo step). **Never written on an imported event** (its place is derived, §23.2 rule 5) and never on a routine instance (G-084). Copied by duplicate; kept in `EventStore`'s delete snapshot so undo restores it |
+
+`Event.location` (`Place?`) is unchanged and keeps the stated location text.
+
+### 28.3 Not added
+
+No `Source` field (the timetable → campus rule reads `Source.kind`); no
+per-event lead time; no stored "origin event"; no notification history. A
+`TravelLeg` relationship on `Event` is not added: legs are found by
+`eventID`, like sources by `sourceID` (§21.1.1).
+
+---
+
+## 29. Accessibility
+
+VoiceOver strings, exact. Minutes are spoken as minutes (`35 minutes`), like
+conflict copy (DECISIONS 2026-10-05). Mode phrases: `.transit` `by public
+transport`, `.walking` `walking`, `.driving` `driving` (visible copy uses the
+same phrases; Settings' pop-up shows `Public transport`, `Walking`,
+`Driving`).
+
+| Element | Spoken |
+|---|---|
+| A block with a `ready` leg (§11's label, the band folded in after the time) | `SWQM-ILV, 09:00 to 10:30, leave by 08:15, 35 minutes by public transport from Home, lecture, University timetable` — and `, 10 minute buffer` is **not** spoken (the leave-by time already includes it) |
+| A block with a `needsTravelTime` leg | `…, 09:00 to 10:30, travel time from Home not set, lecture, …` |
+| Status item, Leave | label `Leave by 08:15 for SWQM-ILV` |
+| Status item, Leave now | label `Leave now for SWQM-ILV, leave-by was 08:15` |
+| Popover NEXT (one element, as built) | label `SWQM-ILV`; value `Leave by 08:15, 35 minutes from Home. 09:00 to 10:30, HS_A3.15, University timetable` — Leave now: `Leave now, leave-by was 08:15. …` |
+| Popover notifications line | its text, as a static text element |
+| Inspector `Place` row (imported) | `Place, FH Technikum Wien`; with the explanation: `Place, FH Technikum Wien, no travel needed after EPC-ILV` |
+| Inspector `Place` pop-up (manual) | label `Place`, value `Home` / `None` |
+| Inspector `Leave by` row | `Leave by, 08:15, 35 minutes by public transport from Home, plus 10 minutes buffer`; not set: `Leave by, not set, no travel time from Home to FH Technikum Wien yet` and the button `Set travel time` |
+| Settings ▸ Travel, a route's minutes field | label `Travel time, Home to FH Technikum Wien, in minutes`; value `35`, or `not set` when empty |
+| Settings ▸ Travel, a route's mode pop-up | label `Travel mode, Home to FH Technikum Wien` |
+| Settings ▸ Travel, a place's name field | label `Place name`; address field `Address of Home, optional` |
+| Settings ▸ Travel, remove button | `Remove Gym` |
+| Settings ▸ Notifications, a rule's switch | label `Leave by notifications`, value on/off |
+| Settings ▸ Notifications, a rule's pop-up | label `Leave by, notify`, value `5 minutes before` |
+| Settings ▸ Notifications, status block | one element: title then body; the button separately |
+| Notifications themselves | the system reads title and body; nothing custom |
+
+Hover help: the band's (§25.1); the status item has none (a menu bar extra
+label shows no tooltip).
+
+---
+
+## 30. What slice 2 must render for review
+
+Same rules as §17 and §22: display fixtures, mocked services, all six of
+§17.2's evidence rules. **No item needs a network, a location, or a real
+notification permission prompt**: every launch uses the recording centre
+(§27.10). Captures go to `screenshots/3b/`. Datasets and variants: §30.1.
+
+1. **Settings ▸ Travel, first run** (dataset `empty`): the three tabs
+   `Sources` · `Travel` · `Notifications`; `Home`, `FH Technikum Wien`, no
+   addresses; the route `Home ↔ FH Technikum Wien` with an **empty** minutes
+   field (`—`) and `Public transport`; `Buffer` `10 minutes`.
+2. **Settings ▸ Travel, filled** (dataset `travel`): the three places
+   (`Gym` with its remove button, the built-ins without), the three routes
+   (`35` transit, `5` walking, `—` for `FH Technikum Wien ↔ Gym`), and the
+   Places footer naming `FH Technikum Wien`.
+3. **Settings ▸ Notifications, allowed**: four rules at their defaults, no
+   status block, the quiet footer.
+4. **Settings ▸ Notifications, `off`** (`-KadenceNotifications off`) and
+   **`notAllowedYet`** (`notDetermined` after a recorded ask): the status
+   block with `Open System Settings…` / `Allow Notifications…`; one rule
+   switched off with its pop-up disabled (not hidden).
+5. **Week `M`** (dataset `travel`), scrolled to 07:00: bands on Mon `SWQM-ILV`
+   (`Leave 08:15 · 35min`), Tue `SWEN3-LAB` (`Leave 09:15`) and **no** band on
+   Tue `SWEN3-ILV` (back-to-back), **no** band on Wed `INNO3-EL` (Online) or
+   `Laundry` (Home → Home), Thu `EPC-ILV` (`Leave 12:15`) and **no** band on
+   `REQEN-EXAM`, Thu `Dinner with flatmates` (`Leave 17:45`, origin campus),
+   Fri `SWRM-ILV` (`Leave 15:15`). Nothing selected.
+6. **Week `M`, early and late**: a second scroll position showing Sat
+   `Early study group`'s band from 06:45, across the end of `Sleep`; and Sat
+   `Late call` inside `Sleep`, no band.
+7. **Day, Thu `M + 3`**: `EPC-ILV`'s case-1 band at Day height, no band on
+   `REQEN-EXAM`, `Dinner with flatmates`' band.
+8. **A case-2 band** — `Climbing` (Sun, 15 min band, `figure.walk`) in Week
+   and in Day: the strip inside the event's top. Replaces §12 item 8's
+   fixture as evidence.
+9. **Inspector, `SWQM-ILV` (Mon) selected**: `Room` `HS_A3.15`, `Place` `FH
+   Technikum Wien`, `Leave by` `08:15` with `35 min by public transport from
+   Home · 10 min buffer`.
+10. **Inspector, `REQEN-EXAM` selected**: `Place` `FH Technikum Wien` with
+    `No travel needed after EPC-ILV`, no `Leave by` row.
+11. **Inspector, `Dinner with flatmates` selected**: the `Place` pop-up
+    reading `Home`; `Leave by` `17:45`, `35 min by public transport from FH
+    Technikum Wien · 10 min buffer`. A second frame with the pop-up open:
+    `None`, separator, `Home`, `FH Technikum Wien`, `Gym`, separator, `Edit
+    Places…`.
+12. **Inspector, `needsTravelTime`** (variant `travelUnset`), `SWQM-ILV`
+    selected: `Leave by` `Not set`, the sentence and `Set Travel Time…`; Week
+    `M` with **no** campus bands and `Climbing`'s band still drawn.
+13. **Status item renders** (offscreen, §17.2 rule 3; `travel` dataset, clock
+    pinned per row):
+
+    | Capture | `now` | NEXT | Width | Expected |
+    |---|---|---|---|---|
+    | leave, full | Thu 11:50 | `EPC-ILV` | 180 | `Leave 12:15 · EPC-ILV` |
+    | leave, degraded | Thu 11:50 | `EPC-ILV` | 110 | `Leave 12:15` alone |
+    | leave now | Thu 12:20 | `EPC-ILV` | 180 | glyph + `Leave now · EPC-ILV` |
+    | late | Thu 13:05 | `EPC-ILV` | 180 | glyph + `5m ago · EPC-ILV` (Phase 2, unchanged) |
+    | takeover | Thu 17:20, `EPC-ILV` and `REQEN-EXAM` not done | `Dinner with flatmates` | 180 | `Leave 17:45 · Dinner with fl…` |
+    | no takeover | Thu 17:10, the same | `EPC-ILV` (late) | 180 | glyph + `250m ago · EPC-ILV` |
+
+14. **The notification plan** — not a screenshot: the review launch's
+    recorded plan (§27.10) as `screenshots/3b/notification-plan-travel.txt`,
+    one block per request (identifier, fire date, title, body, category,
+    sound), at the two clocks of §30.1's notification table, plus the
+    catch-up and snooze cases. INDEX.md names it. It is the review evidence
+    for §27.3–§27.7; the strings are also asserted by tests.
+15. **Popover renders** (offscreen): Leave (Thu 11:50, imported NEXT: `Done` ·
+    `Open`), Leave now (Thu 12:20, `semantic.now` line — names its
+    appearance), Late (Thu 13:05, no leave line), takeover (Thu 17:20,
+    `EPC-ILV` as the first rest row), a manual NEXT with a leg (Thu 17:30,
+    `EPC-ILV` and `REQEN-EXAM` marked done, `Dinner with flatmates`: `Done` ·
+    `Snooze` · `Open`), `needsTravelTime`
+    (variant `travelUnset`, Thu 11:50), the notifications line in `off` and
+    in `notAllowedYet`, and the meta line `13:00 – 14:30 · LAB_F5.12 ·
+    University timetable`.
+16. **Live**: one live capture of the status item in the Leave state and one
+    of the popover with its leave line (dataset `travel`, the live event
+    `Pick up parcel`, §30.1), cropped from the real menu bar.
+17. **Regression**: the `phase3` dataset's Week `M` and today's
+    `Datenmodellierung` band `Leave 08:38 · 22min` (§12 item 7) drawn from a
+    computed leg (§30.1, "Other datasets").
+
+### 30.1 Fixtures
+
+#### Dataset `travel` (review)
+
+`-KadenceReview travel`. In-memory store (§22.1), built-in sources, the
+recording notification centre. Contents:
+
+- **One connected source**, `University timetable` (`blue`), seeded as
+  already imported (§22.1), served by `MockCalDAVTransport` from
+  **`Fixtures/ICS/cis-travel.ics.template`**: `cis-review.ics.template`
+  (§22.1) **without row 1** (`{{TODAY}}` `Datenmodellierung` — it would chain
+  today's live event to campus by the clock), **plus row T1**:
+
+  | # | Day / time | Course | Room | Group | Lecturer | Serves |
+  |---|---|---|---|---|---|---|
+  | T1 | `{{D+1}}` 11:45–13:15 | `SWEN3-ILV` | `HS_A2.07` | `BIF-5C` | `L03` | back-to-back after `SWEN3-LAB` (items 5, §24.2) |
+
+  So 15 VEVENTs, 14 events after the 7a+7b merge, 2 of them history.
+- **No routine template** and therefore no conflicts and no Needs attention
+  row: travel is reviewed on its own.
+- **One time window**: `Sleep`, `.protected`, every day, 22:00–07:00.
+- **Known places**: `Home`, `FH Technikum Wien`, and `Gym` (user place,
+  address `Example Straße 1`).
+- **Routes**: `home ↔ campus` 35 min `.transit`; `home ↔ Gym` 5 min
+  `.walking`; `campus ↔ Gym` not set.
+- **Buffer** 10 min; chain gap 120 min.
+- **Rules**: the four defaults (§27.1).
+- **Manual events** (`Personal`, `graphite`; `M` as §22.1):
+
+  | # | Day / time | Title | `placeID` |
+  |---|---|---|---|
+  | P1 | `M + 2` 08:00–08:45 | `Laundry` | `home` |
+  | P2 | `M + 3` 18:30–20:00 | `Dinner with flatmates` | `home` |
+  | P3 | `M + 5` 07:30–09:00 | `Early study group` | `campus` |
+  | P4 | `M + 5` 23:15–23:45 | `Late call` | nil |
+  | P5 | `M + 6` 18:00–19:30 | `Climbing` | Gym |
+  | P6 | today, start = launch time rounded **up** to the quarter hour + 60 min, 30 min long | `Pick up parcel` | `campus` |
+
+  P6 is the one clock-relative fixture, and exists only for item 16's live
+  captures: nothing placed precedes it today (row 1 is removed), so its
+  origin is `home` and its leave-by is 15 min after the rounded launch time.
+  Capture item 16 between 07:00 and 20:00.
+- **Variant `travelUnset`** (`-KadenceReviewVariant travelUnset`): the same,
+  with `home ↔ campus` minutes not set (item 12).
+
+Expected legs: §24.4. Expected bands: item 5.
+
+#### Notification table (tests, and item 14)
+
+Clock **Thu 15 Oct 2026** (`M` = Mon 12 Oct), zone Europe/Vienna, the
+`travel` dataset rendered with `M` = 2026-10-12 and today = the clock's day
+(so P6 is absent: tests do not seed it). Legs computed at the clock (so
+Mon–Wed events, being before today, have none).
+
+**At 06:00, ordinary pass** — 4 pending, in fire order:
+
+| Identifier | Fire | Title | Body | Category |
+|---|---|---|---|---|
+| `leave.{EPC-ILV}` | Thu 12:10 | `Leave by 12:15 for EPC-ILV` | `Starts 13:00 · LAB_F5.12 · 35 min from Home` | `kadence.readOnly` |
+| `start.{REQEN-EXAM}` | Thu 15:30 | `REQEN-EXAM starts at 16:00` | `EDV_A5.09 · University timetable` | `kadence.readOnly` |
+| `leave.{Dinner}` | Thu 17:40 | `Leave by 17:45 for Dinner with flatmates` | `Starts 18:30 · Home · 35 min from FH Technikum Wien` | `kadence.event` |
+| `leave.{SWRM-ILV}` | Fri 15:10 | `Leave by 15:15 for SWRM-ILV` | `Starts 16:00 · UEB_B2.01 · 35 min from Home` | `kadence.readOnly` |
+
+(`Early study group`'s held leave-by fires Sat 07:00, outside the 48-hour
+window.) `REQEN-EXAM`'s fire time is `max(15:30, 14:30)`: the chain clamp
+does not move it.
+
+**At Fri 16 Oct 23:00, ordinary pass** — 3 pending:
+
+| Identifier | Fire | Title | Body |
+|---|---|---|---|
+| `leave.{Early study group}` | Sat 07:00 (held from 06:40 by Sleep) | `Leave now for Early study group` | `Starts 07:30 · FH Technikum Wien · Leave-by was 06:45, inside Sleep (protected)` |
+| `start.{Late call}` | Sat 23:00 (inside Sleep; the event is too) | `Late call starts at 23:15` | `Personal` |
+| `leave.{Climbing}` | Sun 17:40 | `Leave by 17:45 for Climbing` | `Starts 18:00 · Gym · 5 min from Home` |
+
+`SWRM-ILV`'s leave-by (Fri 15:10) has passed: not planned, not sent late.
+
+**Catch-up** (a launch pass, no records): at Thu 12:12 → `leave.{EPC-ILV}`
+delivered at once with N1; at Thu 12:20 → delivered at once with N3, `Leave
+now for EPC-ILV` / `Starts 13:00 · LAB_F5.12 · Leave-by was 12:15`; at Thu
+13:05 → nothing. The same clocks in an **ordinary** pass → nothing.
+
+**Actions** (simulated responses):
+
+- `Done` on `start.{REQEN-EXAM}` → `REQEN-EXAM` `.done`, one `Mark Done` undo
+  step; the next pass removes nothing else and does not re-plan it.
+- `Snooze` on `leave.{Dinner}` at Thu 17:41 → `Dinner with flatmates`
+  18:45–20:15, one `Snooze` step; N5 `Dinner with flatmates moved to 18:45` /
+  `Snoozed from 18:30 · ⌘Z in Kadence undoes it` at once; after the
+  recompute, `leave.{Dinner}` is replaced: fire 17:55, `Leave by 18:00 for
+  Dinner with flatmates`.
+- `Snooze` on `start.{Late call}` at Sat 23:01 → refused (23:30–00:00 is
+  inside Sleep): nothing written, no undo step, N6 `Late call not moved` /
+  `23:30 is inside Sleep (protected)`.
+- `Snooze` is not an action of `kadence.readOnly` (asserted on the
+  registered categories).
+- `Open` on any → the open-request records the event id; on an unknown id →
+  today, nothing selected.
+
+**Sync** — `reportChanged` (§22.1) applied to the `travel` dataset at
+**Mon 12 Oct 06:00** (so every changed lecture is ahead of the clock; T1 is
+not touched by it):
+
+| Change upstream | Expected for legs |
+|---|---|
+| `SWQM-ILV` Mon, lecturer `L01` → `L09` (in place) | same `Event.id`; leg row unchanged, `computedAt` unchanged |
+| `SWEN3-LAB` Tue, room → `EDV_F4.26` (delete + add) | the old event's leg deleted with it; the new event's leg: depart 09:15; `SWEN3-ILV` still chained (no leg) |
+| `EPC-ILV` Thu vanishes | its leg deleted; **`REQEN-EXAM` loses its chain**: origin home, new leg depart **15:15**, and its `start.` notification becomes `leave.` |
+| `SWRM-ILV` Fri loses co-teacher `L06` (in place) | leg unchanged |
+| new `KOKU-UE` `M + 9` 10:00 `UEB_B2.02` | new leg, depart 09:15 |
+
+**Legs and `Event`**: after any recompute, every event's §20.8.4 hash and the
+source's `feedHash` are byte-equal to before.
+
+#### Other datasets
+
+`TravelFixture` is retired, so the `phase2` and `phase3` datasets get real
+legs that reproduce §12 items 7–8:
+
+- places `Home`, `FH Technikum Wien`, and a user place `Café Sperl`;
+- routes `home ↔ campus` 22 min `.walking`, `campus ↔ Café Sperl` 6 min
+  `.walking`, `home ↔ Café Sperl` 6 min `.walking`; buffer **0**;
+- `Coffee with Nora` (manual, 11:00) has `placeID` = `Café Sperl`.
+
+`Datenmodellierung` (imported, `FH B.2.09`, 09:00) → campus, origin home →
+`Leave 08:38 · 22min`, as before. `Coffee with Nora` → origin campus (it
+follows `Datenmodellierung`, 30 min earlier; `Statistik übung` has no room and
+is transparent) → 6 min → `Leave 10:54 · 6min`, as before. Both Café routes
+are 6, so the result would not change if a fixture ever gave it another
+predecessor. In `phase3`, week `M`'s lectures gain
+22-minute bands from home where nothing placed precedes them; conflicts and
+the counts 14 / 15 are unchanged (a leg is never a conflict, §24.8).
+
+`empty` and `fresh`: built-in places, the unset built-in route, buffer 10,
+default rules — what a real store holds.
+
+#### The test day for the planners
+
+Unit tests construct the `travel` dataset's events directly (no review
+launch), with `M` = 2026-10-12, zone Europe/Vienna, a mock provider, the
+recording centre and an injected clock. They pin §24.4's table, the
+notification table above and these cases on top:
+
+- **Overlap**: a manual event at Home 12:00–12:30 while `EPC-ILV` runs
+  11:00–13:00 (moved for the test) → origin campus, depart 11:15, before
+  `P.end`; the leave-by is not clamped.
+- **Chain through a placeless event**: `Coffee` (no place) 14:40–15:00 between
+  `EPC-ILV` and `REQEN-EXAM` → still no leg for `REQEN-EXAM`.
+- **Exactly `chainGap`** (120 min) → chained; 121 → home.
+- **Skipped previous**: `EPC-ILV` skipped → `REQEN-EXAM`'s origin is home →
+  leg depart 15:15; `EPC-ILV` gets no leg and no notification.
+- **Two protected spans back to back** (22:00–07:00 and 07:00–07:30) → a
+  notification due 06:50 is held to 07:30.
+- **Leave by off** → `EPC-ILV` gets `start.` at 12:30 under `timetableStart`.
+- **All rules off** → nothing planned, and no authorization request.
+- **First pass with something to plan, `notDetermined`, never asked** →
+  exactly one `requestAuthorization`; a second pass → none.
