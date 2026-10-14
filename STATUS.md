@@ -10174,3 +10174,107 @@ own in-memory store.
 - Verify: xcresult **902 passed / 0 failed**; app warnings: only
   `MonthGridView.swift:153`; tokens `--check` up to date at 1.7.0; the real
   store's `stat` unchanged after every capture.
+
+## 132. Run summary — Phase 3 slice 1 fixes (2026-10-12 … 10-14)
+
+### Queue (PHASE3-REVIEW.md §8)
+
+| Item | Result | Commit |
+|---|---|---|
+| Step 0 — the review's design files + DECISIONS, unedited | done | `fbd1746` |
+| F1 Review mode's own store; no script touches the real one | done (B45: the test host too) | `b14904c` |
+| F2 A source is its record | done (B46) | `611c835` |
+| F3 The redirect rule proven; `redirected` at every step | done; no transport/session change | `78c6e1f` |
+| F4 A tie is not a duplicate; log fields | done | `e1184cd` |
+| F5 Two imported events never conflict | done (tests; one rule extracted) | `6e8168b` |
+| F6 Covered title band; cascade gap | done (A35 built) | `3364c97` |
+| F7 `Location · Source` | done (confirmed by Parsa, DECISIONS 2026-10-10) | `6ce7670` |
+| F8 Copy and tokens | done (G-081 opened; B47 found and fixed) | `c93a534` |
+| F9 Status line; deselection horizon | done | `c0075e5` |
+| F10 Edit ▸ Delete; Settings' Sync Now; focus after a view change | done (A38 built) | `1ca98aa` |
+| HK Review bookkeeping | done | `e1f9876` |
+| F11 Recapture + INDEX.md | done | `b696daa` |
+
+No STOP RULE triggered. No item needed a second attempt at its fix; the
+retries were test-arithmetic and script-navigation corrections.
+
+### Tests
+
+**902 passed / 0 failed** (xcresult) against the 827 baseline (+75). Before
+fix 1 the suite was not run at all: it is hosted by Kadence.app and would
+have opened the real store (B45). The first run after step 0 failed only on
+the tokens version pin (the design commit's 1.7.0), fixed in fix 1.
+
+### UI scripts (last runs, fresh pre-flight each, review launches)
+
+check-routines-window PASS · check-conflict-apply-return PASS (verdict now
+from the AX tree) · check-inspector-inset PASS · check-block-click-selects
+PASS · check-routines-cursor PASS · check-resync-escape PASS (keyboard
+navigation on) · **new** check-view-switch-focus PASS (FAIL before fix 10c:
+`AXButton "Toggle sidebar"` in the toolbar after ⌘3) · **new**
+check-edit-delete PASS. Run three times: after fix 1, after fix 2, after
+fix 10.
+
+### The real store
+
+Recorded by metadata only before anything ran — `stat` of `default.store`,
+`-shm`, `-wal` (mtime, ctime, size, inode; last written Fri 9 Oct
+23:23–23:26) — and compared after every test run, script run and capture:
+**identical every time**, including the final check. A test asserts the
+tests' host process holds no file descriptor on `default.store`. No file was
+opened, copied, read or deleted by me.
+
+### Redirect tests (fix 3)
+
+Cross-host, with `Authorization` on the request: refused at 5 steps × 4
+codes, nothing ever asked of `login.example.invalid`. `https` → `http`: the
+same, no `http:` request. **Control: through a session that follows
+redirects, a request reached `login.example.invalid` carrying the very
+header Kadence built** (and an `http:` one likewise). Mutation check: with
+the delegate made to follow, 14 tests failed.
+
+### Secret grep
+
+As §131: sentinel only in the 8 test files that define it; review password
+only in `ReviewMode.swift`; no header values; only `user01`; no webcal or
+bullets strings; the real username only in `DECISIONS.md:339`.
+
+### GAPS / DEVIATIONS
+
+GAPS opened: **G-081** (two sentences §19.3 has no row for). Appended: build
+status for G-048, G-069/G-074, G-075 … G-080. DEVIATIONS opened: **B45**
+(test host), **B46** (routine instances' `sourceID`), **B47** (an unclosed
+VEVENT dropped silently — fixed); notes (review tooling
+`-KadenceReviewVariant`, the bundled export, tokens regenerated in F1,
+review sidebar order, review resolution order, the all-day pill's VoiceOver
+label, an existing source keeps its slot, tie between series members,
+`objects` vs `vevents`, `Cancelled · Source` fitting, the band's padding
+reading, the gap cut not painted, `emptyCalendar` → `emptyFeed`, technical
+lines, an `⌘N` observation). Resolved/struck: A35, A38, the G-069 and G-074
+placeholders. Ruled and recorded: D6, D7, B40–B43, A38. Deferred and logged:
+A39, A40 (A37, A33, A34 unchanged).
+
+### For Parsa — cleaning your store and reconnecting
+
+Your store still holds the Phase 2 mock dataset with your timetable on top
+(on `graphite`). This build reads it correctly, but the review asks for a
+clean start:
+
+1. Run Kadence normally (Xcode ▸ Run, no arguments). Settings (⌘,) ▸
+   Sources ▸ select your timetable ▸ `Remove Source…` ▸ `Remove` — this
+   deletes its events and the Keychain item.
+2. Quit Kadence (⌘Q).
+3. In Terminal: `rm ~/Library/Containers/XIX.Kadence/Data/Library/Application\ Support/default.store*`
+   (your act; no agent deletes your store).
+4. Launch Kadence: the sidebar shows `Personal`, `Daily routine`,
+   `Connect Timetable…` and nothing else.
+5. File ▸ Connect Timetable… ▸ your username and password ▸ Connect ▸
+   Import. The new source takes `blue`.
+6. Read the log with the subsystem-scoped command:
+   `log show --last 1h --info --predicate 'subsystem == "XIX.Kadence" AND category == "sync"'`
+   The first lines are now `connect …` and `import …`; then, at the first
+   Sync Now (⌘R), a `sync …` line. In each, read `objects`, **`vevents`**,
+   **`duplicates`**, **`merged`**. If the week of Fri 2 Oct is still served
+   and `BPREF-Info` now lists two lecturers, the tie was the cause (G-077).
+   If `vevents` equals `objects` and `merged` is 0, CIS's CalDAV sends only
+   one VEVENT for that lecture and there is nothing more to fix.
