@@ -33,7 +33,7 @@ enum GutterLabelLayout {
     /// the rule compares is the frame the gutter draws — not the font's
     /// nominal line height (12pt), which is what let the old rule miss.
     static let labelHeight: CGFloat = {
-        let host = NSHostingView(rootView: Text("00:00").typeStyle(.hourLabel))
+        let host = NSHostingView(rootView: AnyView(Text("00:00").typeStyle(.hourLabel)))
         return host.fittingSize.height
     }()
 

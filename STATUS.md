@@ -10411,3 +10411,42 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   all-day / routine, online never an origin, done still one, ties); §23.2;
   the key.
 - Verify: **936 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T04 — provider, geocoder and cache: protocols, mocks, MapKit behind them
+
+- `Kadence/Services/Travel/TravelProvider.swift`: `TravelTimeError`,
+  `TravelTimeProvider`, `GeocodedAddress`, `GeocodeError`, `PlaceGeocoder`
+  (§24.9 exactly, typed throws), and `TravelAnswerRules` — the
+  provider-independent rules both MapKit and the mock apply (an answer in
+  another mode is `noRoute`; the 6-result cap; the no-network URL codes, as
+  the error or its underlying error).
+- `MapKitTravelTimeProvider.swift` / `MapKitPlaceGeocoder.swift` — **the only
+  two files that import MapKit**. `MKDirections.Request` (map items from the
+  coordinates, §23.3's transport type, `arrivalDate`, no alternates,
+  `calculateETA()`); `MKLocalSearch` (`.address`, region centred 48.21 /
+  16.37, 0.5°, a bias). Tested only through their pure mappings
+  (`transportType(for:)`, `mode(for:)`, `map(_:)`).
+- `MockTravel.swift`: `MockTravelTimeProvider` (actor; §30.1's table by
+  directed pair and mode, named fix `cafe` matched by coordinate, scripted
+  answers, `answerEverything`, mode-mismatch answers, a **hold** instead of a
+  delay — released by the caller, never a clock — and a call log) and
+  `MockPlaceGeocoder` (`one` / `several` / `many` (6) / `none` / `offline` /
+  `searching` (held); the campus query always answers its one result).
+- `TravelETACacheStore.swift`: upsert (the later answer wins), read by key,
+  delete by place, delete a place's rows at any other coordinate, prune
+  > 28 days.
+- `TravelServices.swift`: `ServiceImplementation.of(LaunchKind)` — the one
+  launch-kind table (normal → real; review, test host → mock) every factory
+  reads; `TravelServices.makeProvider` / `makeGeocoder`;
+  `ServiceLaunchLog` records each constructed type by name.
+- Also: Task 2's `GutterLabelLayout` measures its label through `AnyView`
+  (silences an isolated-conformance warning; no behaviour change).
+- Tests: `KadenceTests/Slice2/TravelProviderTests.swift` (9): error mapping
+  (throttled, noRoute, offline direct and underlying, failed incl. timeout;
+  mode-mismatch → noRoute; the geocoder's); mode mapping; the 6-cap; the
+  factory (test host and every review dataset → mocks only, launch log has
+  no MapKit type); the source scan (`import MapKit` in exactly the two
+  files); the mock (table, fix, mismatch, offline, hold, log); the mock
+  geocoder; cache upsert / invalidation / prune.
+- Verify: **945 passed / 0 failed** (+ the two suites re-run after the
+  `AnyView` change: 14 / 0); real store `stat` unchanged.
