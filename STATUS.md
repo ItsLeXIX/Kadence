@@ -10884,3 +10884,28 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   **1044 passed / 0 failed**.
 - Real store `stat`: identical at step 0, after every task, and at the end.
 - GAPS added: G-097, G-098. DEVIATIONS added: A41, A42 (heading), B48–B52.
+
+## 135. Run resumed after the usage limit (2026-10-15)
+
+§134 recorded the stop after task 14; the run continues with task 15.
+
+### P3S2-T15 — Settings ▸ Notifications and the permission states
+
+- `Kadence/Views/Settings/NotificationsSettings.swift`:
+  `NotificationsSettingsModel` (the five rules in §27.1's order with
+  layouts §14's second lines; lead choices — `At leave time` / `At start
+  time` … `1 hour before`, none for `Sync problems`; a switched-off rule's
+  pop-up disabled, its value kept; switching a rule on while `notAsked`
+  asks once; every change requests a notification pass; §27.8's status
+  block, copy exact, only in `off` / `notAllowedYet` with a rule on; `Open
+  System Settings…` and `Allow Notifications…` — which opens System
+  Settings when no prompt results — through an injected opener; §29's
+  labels) and the pane (re-reads the state when shown and on
+  `didBecomeActive`; becoming `allowed` hides the block and runs a pass).
+  The task-13 placeholder is gone.
+- Tests: `NotificationsSettingsTests.swift` (7): the blocks; the rows and
+  choices; switches and leads; the opener URL; recovery; §29; renders.
+- Captures (offscreen): `settings-notifications-{allowed,off,not-allowed-yet}-p3bt15.png`
+  (`off` and `not-allowed-yet` with `Routine` switched off, its pop-up
+  disabled). Looked at.
+- Verify: **1051 passed / 0 failed**; real store `stat` unchanged.

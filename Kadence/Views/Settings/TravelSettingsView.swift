@@ -366,7 +366,4 @@ struct StatusBlockView: View {
     }
 }
 
-/// Task 15's pane.
-struct NotificationsSettingsPane: View {
-    var body: some View { Form {}.formStyle(.grouped) }
-}
+
