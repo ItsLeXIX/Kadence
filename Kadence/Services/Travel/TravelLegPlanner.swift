@@ -188,7 +188,9 @@ nonisolated enum TravelLegPlanner {
         var mode: TravelMode
         var arrivingBy: Date
         /// §24.9: 3 for legs of today and tomorrow, 4 for the rest (0–2 are
-        /// the user's and the refreshes', not the planner's).
+        /// the user's and the refreshes', not the planner's). Handed to the
+        /// queue even when it remembers a failure for the key — the queue
+        /// decides (§24.9).
         var priority: Int
         /// The earliest start among the events sharing it (the queue's
         /// order inside priority 4).
@@ -332,9 +334,11 @@ nonisolated enum TravelLegPlanner {
 
             legs[event.id] = leg
 
-            // Ask Apple Maps for a key with no fresh answer, unless the
-            // queue remembers a failure for it.
-            if !isFresh, failure == nil {
+            // Every key with no fresh answer goes to the queue, which
+            // remembers its failures (§24.9): it does not re-queue a key that
+            // failed `noRoute` or `failed`, and holds one it is pausing on.
+            // A key no leg needs any more is dropped there.
+            if !isFresh {
                 if var request = requestsByKey[keyString] {
                     request.priority = min(request.priority, priority)
                     if event.start < request.eventStart {

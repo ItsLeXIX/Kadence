@@ -148,12 +148,15 @@ final class SyncCoordinator {
 
     /// The app's coordinator: `URLSessionTransport`, the Keychain,
     /// `NSBackgroundActivityScheduler`, `NWPathMonitor`, wake and sleep.
+    /// `path`: the launch's monitor (`PathMonitors.make(for:)` — slice 2,
+    /// §24.11: the `NWPathMonitor`-backed one in a normal launch only).
     static func live(context: ModelContext, secrets: any SecretStore = KeychainSecretStore(),
+                     path: any PathMonitoring,
                      makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionTransport() })
         -> SyncCoordinator {
         let coordinator = SyncCoordinator(
             context: context, secrets: secrets, scheduling: BackgroundActivityScheduling(),
-            path: NetworkPathMonitoring(), makeTransport: makeTransport) { account in
+            path: path, makeTransport: makeTransport) { account in
                 CalDAVScheduleSource(account: account, secrets: secrets, makeTransport: makeTransport)
             }
         coordinator.observeWorkspace()

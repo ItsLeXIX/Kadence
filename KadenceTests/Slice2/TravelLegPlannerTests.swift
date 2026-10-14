@@ -150,8 +150,9 @@ struct TravelLegPlannerTests {
         #expect(hhmm(out.legs[F.earlyStudy.id]?.departAt) == "06:45")   // nearest slot, any day type
         #expect(out.legs[F.dinner.id]?.status == .unavailable && out.legs[F.dinner.id]?.reason == .offline)
         #expect(out.legs[F.climbing.id]?.status == .unavailable && out.legs[F.climbing.id]?.reason == .offline)
-        // Failed keys are remembered by the queue, not re-queued.
-        #expect(out.requests.isEmpty)
+        // Every key still lacks a fresh answer, so the planner hands it on;
+        // the queue remembers the failures (task 5) and decides.
+        #expect(out.requests.count == 7)
     }
 
     @Test("Fallback order: own last time → exact key → nearest slot same day type → any day type → unavailable")
@@ -244,7 +245,7 @@ struct TravelLegPlannerTests {
         out = plan(F.input(events: only, cache: cache,
                            queue: .init(failures: [first.requests[0].key: .init(reason: .offline)])))
         #expect(out.legs[F.epc.id]?.status == .estimate && out.legs[F.epc.id]?.computedAt == stale)
-        #expect(out.legs[F.epc.id]?.reason == .offline && out.requests.isEmpty)
+        #expect(out.legs[F.epc.id]?.reason == .offline && out.requests.count == 1)
         // Older than 28 days is never used (deleted at launch, §24.9).
         let gone = now.addingTimeInterval(-28 * 86_400 - 1)
         out = plan(F.input(events: only, cache: F.answer(first.requests, at: gone),

@@ -2426,3 +2426,13 @@ check" (2026-10-14).
   destination and mode are the new leg's. After a mode or address change the
   old time is another trip's and would be a guess (§24.8); the fallback moves
   on to the cache (steps 3–4), which is keyed by the trip.
+- **B50 — found and fixed: review and test-host launches constructed an
+  `NWPathMonitor`.** `SyncCoordinator.live` (slice 1) always built
+  `NetworkPathMonitoring()`, and `KadenceApp` calls `live` in every launch
+  kind, so a `-KadenceReview` launch and the test host each started an
+  `NWPathMonitor` — which §24.11 (2026-10-14) forbids ("never constructs a
+  MapKit, CoreLocation or `NWPathMonitor` object"). `live` now takes the
+  launch's monitor from `PathMonitors.make(for:)`: `NetworkPathMonitoring`
+  in a normal launch only, `ScriptedPathMonitoring` otherwise (the same
+  launch-kind table as every slice-2 factory). Tested by the factory and a
+  source scan. No behaviour change in a normal launch.

@@ -50,16 +50,17 @@ struct KadenceApp: App {
             // sheet must still never reach the network.
             let server = ReviewMode.server(case: ReviewMode.mockCase(), now: Date(), dataset: dataset)
             _sync = State(initialValue: SyncCoordinator.live(
-                context: container.mainContext, secrets: ReviewMode.secrets,
+                context: container.mainContext, secrets: ReviewMode.secrets, path: PathMonitors.make(for: kind),
                 makeTransport: { MockCalDAVTransport(server: server) }))
         case .testHost:
             // The unit tests' host: no Keychain, and every request refused
             // before it is sent.
             _sync = State(initialValue: SyncCoordinator.live(
-                context: container.mainContext, secrets: InMemorySecretStore(),
+                context: container.mainContext, secrets: InMemorySecretStore(), path: PathMonitors.make(for: kind),
                 makeTransport: { RefusingTransport() }))
         case .normal:
-            _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext))
+            _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext,
+                                                             path: PathMonitors.make(for: kind)))
         }
     }
 

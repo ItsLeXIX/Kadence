@@ -10450,3 +10450,46 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   geocoder; cache upsert / invalidation / prune.
 - Verify: **945 passed / 0 failed** (+ the two suites re-run after the
   `AnyView` change: 14 / 0); real store `stat` unchanged.
+
+### P3S2-T05 — the routing queue
+
+- `Kadence/Services/Travel/RouteRequestQueue.swift`: priorities 0–4 (the
+  user, the next departure's refresh, other refreshes, today/tomorrow, the
+  rest by start); dedupe by id (`eta:{key}`, `refresh:{eventID}`,
+  `lookup:{place}`); one in flight; 2 s spacing; 20 per rolling 10 min; 150
+  a day (+30 for 0–2), with `budgetResumesAt` = midnight for the waiting
+  3–4; throttle pause 10 → 20 → 40 → 60 → 60 min, reset by a success, every
+  waiting key carrying `paused` + the resume time; offline pause until the
+  path monitor reports satisfied, or 5 min when the path already looked
+  satisfied; 20 s timeout → `failed` (a late answer is ignored); the planner
+  pass replaces the requests it queued (a leg gone → its request dropped);
+  failures remembered per key in memory (`noRoute` / `failed` not re-queued;
+  `failed` forgotten at the day change). Lookups go through it at priority
+  0. The routing log lines of §24.11.
+- `RoutingSupport.swift`: `TravelClock` (`now` + cancellable wakes;
+  `SystemTravelClock` for normal / review launches), `RoutingLog`
+  (category `travel`; lines in memory for tests; forwarded to `os.Logger`
+  as `.public` only in a normal launch — every line is a §24.11 form),
+  `ScriptedPathMonitoring` and `PathMonitors.make(for:)`.
+- **G-092 recorded (CA judgement)**: the queue is a main-actor class, not
+  an actor — its callers (the recompute, Settings) are on the main actor
+  and its answers re-enter the main-actor recompute directly; the provider
+  call is the only off-main work (the provider is `Sendable`; the mock is an
+  actor). Every wait is a wake on the injected `TravelClock`, so tests
+  advance a manual clock and nothing sleeps.
+- The planner (task 3) now hands the queue **every** key without a fresh
+  answer; the queue decides what it remembers. Task 3's tests updated (two
+  `requests` counts) — both are this task's design, not a regression.
+- **B50 (found and fixed)**: `SyncCoordinator.live` built an
+  `NWPathMonitor` in review and test-host launches; it now takes the
+  launch's monitor from `PathMonitors`.
+- Tests: `KadenceTests/Slice2/ManualTravelClock.swift` and
+  `RouteRequestQueueTests.swift` (9): one in flight / 2 s; a 30-key burst
+  (priority order, `0, 2, … 38` then the 21st at 600 s, none twice); dedupe,
+  drop, priority 0 → 4; throttle 10/20/40/60/60 + reset + `retryAt` on legs
+  + `queue paused · until 06:10`; offline until satisfied (and the 5-minute
+  case); noRoute remembered, 20 s timeout; day budget (150 then midnight, a
+  priority-1 refresh still goes); every log line against §24.11's forms
+  (`RoutingLogCheck`: no coordinate pattern, fixture address, place name or
+  title). `PathMonitorFactoryTests` (1).
+- Verify: **954 passed / 0 failed**; real store `stat` unchanged.
