@@ -283,7 +283,7 @@ struct TimeGutterView: View {
                         .foregroundStyle(Tokens.Color.Text.secondary)
                         .padding(.trailing, Tokens.Spacing.md)
                         // Top edge at the hour line + 2, so 00:00 is never clipped.
-                        .offset(y: y + 2)
+                        .offset(y: y + GutterLabelLayout.hourLabelHang)
                 }
             }
             if showsNow {
@@ -291,14 +291,14 @@ struct TimeGutterView: View {
                     .typeStyle(.hourLabel)
                     .foregroundStyle(Tokens.Color.Semantic.now)
                     .padding(.trailing, Tokens.Spacing.md)
-                    .offset(y: geometry.yForTimeOfDay(now) - 5)
+                    .offset(y: geometry.yForTimeOfDay(now) - GutterLabelLayout.markerRise)
             }
             if let cursor {
                 Text(BlockFormatters.time.string(from: cursor))
                     .typeStyle(.hourLabel)
                     .foregroundStyle(Tokens.Color.Interactive.accent)
                     .padding(.trailing, Tokens.Spacing.md)
-                    .offset(y: geometry.yForTimeOfDay(cursor) - 5)
+                    .offset(y: geometry.yForTimeOfDay(cursor) - GutterLabelLayout.markerRise)
             }
         }
         .frame(width: Tokens.Size.timeGutterWidth, alignment: .trailing)
@@ -313,13 +313,19 @@ struct TimeGutterView: View {
         }
     }
 
-    /// An hour label is dropped when the now time or the cursor time would
-    /// overprint it (within 12pt), the same rule for both.
+    /// components.md §8 (amended 2026-10-14, G-082 / A42): an hour label is
+    /// dropped when its drawn text frame and the now time's or the cursor
+    /// time's would overlap or come within 2pt — the same rule for both.
     private func isSuppressed(hour: Int) -> Bool {
-        let hourY = CGFloat(hour) * geometry.hourHeight
-        if showsNow, abs(hourY - geometry.yForTimeOfDay(now)) < 12 { return true }
-        if let cursor, abs(hourY - geometry.yForTimeOfDay(cursor)) < 12 { return true }
-        return false
+        GutterLabelLayout.isSuppressed(hour: hour, hourHeight: geometry.hourHeight, markerYs: markerYs)
+    }
+
+    /// The lines the gutter prints a marker time against.
+    var markerYs: [CGFloat] {
+        var ys: [CGFloat] = []
+        if showsNow { ys.append(geometry.yForTimeOfDay(now)) }
+        if let cursor { ys.append(geometry.yForTimeOfDay(cursor)) }
+        return ys
     }
 }
 

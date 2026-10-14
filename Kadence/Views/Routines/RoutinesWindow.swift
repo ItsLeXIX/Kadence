@@ -896,7 +896,7 @@ struct RoutineGutterStrip: View {
     var now: Date = Date()
     /// interactions.md §1 (amended 2026-10-07, G-050): in cursor mode the
     /// cursor's time is printed here in `hourLabel` / `accent`, dropping an
-    /// hour label it would overprint (§7's 12pt rule, which `TimeGutterView`
+    /// hour label it would overprint (§8 amended 2026-10-14: frames within 2pt, which `TimeGutterView`
     /// already applies to its `cursor`). Minutes from midnight; nil = none.
     var cursorMinute: Int? = nil
 

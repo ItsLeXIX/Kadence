@@ -10349,3 +10349,28 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   override pair; `placeID` through delete/undo and duplicate; tokens; modes;
   DEVIATIONS.
 - Verify: **911 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T02 — A42: the now time and hour labels, measured as drawn
+
+- `Kadence/Layout/GutterLabelLayout.swift` (pure): an hour label's frame is
+  [line + 2, + h], the now / cursor time's [line − 5, + h], with `h` the
+  **hosted** `hourLabel` text height (13pt at 10pt — the font's nominal
+  12pt line height is not what is drawn). A label is dropped when the two
+  frames overlap or come within 2pt (§8 amended 2026-10-14).
+  `TimeGutterView` draws exactly these offsets and asks the model, for the
+  now time and the cursor time alike (Week, Day and the Routines window's
+  gutter strip, which reuses `TimeGutterView`).
+- Boundaries, from the frames (`−8 < y − y₁₀ < 22`): Week drops `10:00`
+  from **09:50 to 10:29**, Day from **09:53 to 10:21** — pinned in the test
+  and recomputed there from the frames alone.
+- No Phase 1 test pinned the old 12pt rule; nothing needed updating.
+- Tests: `KadenceTests/Slice2/GutterLabelLayoutTests.swift` (5): label height
+  as hosted; 10:18 / 10:40 in Week and Day with ≥ 2pt clearance; the
+  boundaries; the cursor time; the three renders.
+- Captures (offscreen, clock pinned, the real `TimeGutterView` +
+  `HourLinesLayer` + `NowLineView` at Week / Day hour height, 08:00–13:00):
+  `screenshots/3b/now-label-week-1018-p3bt2.png`,
+  `now-label-day-1018-p3bt2.png`, `now-label-week-1040-p3bt2.png`. Looked
+  at: `10:00` absent at 10:18, both `10:00` and `10:40` at 10:40.
+- Verify: **916 passed / 0 failed**; tokens `--check` clean; real store
+  `stat` unchanged.
