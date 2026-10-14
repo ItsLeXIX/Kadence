@@ -2905,3 +2905,162 @@ built, where, and what remains before each can be closed with its frames.
 - **G-069 / G-074** placeholders removed, P3-F8. **G-081** opened (above).
 - **G-080** (the deselection horizon) — built, P3-F9.
 - Frames for all of them: P3-F11 (`screenshots/3/INDEX.md`).
+
+---
+
+## 2026-10-14 — Phase 3 slice 1 final check: real use, gaps closed
+
+Design agent, 2026-10-14. Verdict: `PHASE3-REVIEW.md` "Final — 2026-10-14".
+Spec edits: `components.md` §8, §19.3, §20.8.4, §21.1.1, §22.1; `layouts.md`
+§12.2; `caldav-mocks.md` `reportCISCopies`. No token changes (1.7.0 stands).
+
+### G-068 — real-use record, second connection (Parsa, 14 Oct 2026). Stays CLOSED.
+
+Parsa removed the source, deleted the real store, launched and
+connected again on the fix-run build (`1ca98aa` app code). No agent opened,
+copied or read the store or contacted the server.
+
+**What the app showed** — every item the fix list was for:
+
+| Check | Result |
+|---|---|
+| Lectures' hue | `University timetable` blue (G-075) |
+| Sidebar | `Personal`, `Daily routine`, `University timetable` — nothing else (G-075, G-076) |
+| Needs attention | not shown (0) (§20.9) |
+| Week meta line | `HS_A1.04A · Univ…` — room first (G-079); webinars read `Online` |
+| Fri 2 Oct, the two `BPREF-Info` sessions | two blocks, the 19:30 one inset (G-048 / G-078) |
+
+**The log lines** (subsystem-scoped command, §20.8.4):
+
+| Line | Fields |
+|---|---|
+| `connect` | `mode report · requests 5 · 3049 ms · objects 87 · vevents 87 · duplicates 0 · merged 2 · previewed 85 events` |
+| `import` | `85 events · 19 before today` |
+| `sync` (first Sync Now) | `requests 1 · 2424 ms · objects 66 · merged 0 · nothing to write` |
+
+Readings: discovery plus the fetch is 5 requests and about 3 s; a sync is
+still **one** `REPORT`, now 2.4 s (1.8–1.9 s on 9 Oct; same order, no
+default changes). 87 − 2 = 85: exactly two merges, both on Fri 2 Oct
+(below). The sync window (66 objects) holds no merge: from today on, CIS
+serves no copies. `nothing to write` is the first sync after an Import, as
+§20.8.4 expects. The connect sheet's history count fell from 21 (9 Oct) to
+19 (14 Oct): the server's horizon moves with the date, which is what G-080's
+rule is for.
+
+### G-077 — CLOSED. Built (P3-F4) and answered by real data: a server-side limitation, not a Kadence defect.
+
+`BPREF-Info` Fri 2 Oct still lists one lecturer per session. Parsa ran a
+`REPORT` for 2 Oct 18:00–21:00 by hand. CIS returned **four** calendar
+objects:
+
+| Objects | Start | VEVENTs | Lecturer |
+|---|---|---|---|
+| `R1100960`, `R1100958` | 18:35 | byte-identical: same UID, same `DESCRIPTION` | `GuenthMi` in both |
+| `R1100962`, `R1100961` | 19:30 | byte-identical | `PeknaVa` in both |
+
+The second co-teacher (`JaczynAn`), present in the manual `.ics` export, is
+**not served by CalDAV at all**. CalDAV objects are `VERSION:2.0`; the export
+is `VERSION:1.0` — they are two different generators, which is why the
+export and the feed already differed in range (9 Oct).
+
+**What Kadence did, and why it is right.** Each identical pair ties on UID
+and start, goes to the merge (§20.2, amended 2026-10-10), and becomes one
+event with the one lecturer — `merged 2`, `duplicates 0`, 87 → 85. Before
+the fix the tie was settled by "the later one", with the same visible result
+for these copies; the fix was still needed (it cannot lose a lecturer that
+*is* sent), and it is what made the question answerable from one log line.
+No rule could recover a lecturer the server never sends. **Nothing to fix in
+Kadence's data.** The inspector shows what CIS's CalDAV says.
+
+**What the spec changes** (`components.md` §20.8.4, `layouts.md` §12.2,
+amended 2026-10-14): the log could not tell a co-teaching merge from a merge
+of copies, and the connect sheet's step 2 would have told Parsa `2
+co-taught lectures are listed once per lecturer and are shown once.` — false
+for copies. One field, `copies {c}` (merges that added no lecturer), and the
+step-2 sentence counts `merged − copies`. Test case `reportCISCopies`
+(`caldav-mocks.md`). Diagnostics and one sentence; built with the next
+CalDAV task (**A41**, below). Not a blocker: the data is right, and the
+sentence is shown once, at connect.
+
+**Not proposed:** reading lecturers from anywhere else, or warning that a
+lecture "may have more lecturers". The export is a different generator and
+Kadence has no way to know what CalDAV leaves out.
+
+### G-048, G-075, G-076, G-078, G-079, G-080 — CLOSED. Built in the fix run and captured.
+
+| Gap | Built | Evidence |
+|---|---|---|
+| G-076 review mode's own store | P3-F1 (`AppStore`, `LaunchKind`) | `AppStoreTests`; `grep default.store Scripts` empty; every group C frame a review launch; Parsa's real store untouched through the run |
+| G-075 a source is its record | P3-F2 (`SourceDirectory`) | `SourceIdentityTests`; items 22, 23, 25; Parsa's reconnect |
+| G-048 / G-078 covered title band, cascade gap | P3-F6 | `CoveredBlockTests`; items 11, 16, 24 and the `cascade-gap` render |
+| G-079 `Location · Source` | P3-F7 | `MetaLineTests`; items 11, 12, 26 |
+| G-080 the deselection horizon | P3-F9 | `LastSyncedTests`, `SyncPlannerTests` |
+
+### G-081 — CLOSED. `components.md` §19.3 (one row and one paragraph added 2026-10-14).
+
+1. **`DTEND` / `DURATION` present but unreadable:** its own row, `{title} has
+   no readable end time, so it was skipped.`, technical line `… line 9: DTEND`
+   (or `DURATION`). The generic `1 event couldn't be read.` threw away a title
+   the parser had, and the start-time row already sets the pattern.
+   **Build:** one sentence in `ProblemSentence.Skip.unreadable`, its test,
+   and the `// SPEC-GAP G-081` mark removed — with the next CalDAV task (A41).
+2. **`{title}` mid-sentence without a `SUMMARY`:** CA's placeholder is the
+   rule — `an event` inside a sentence, `An event` at the start. **Build:**
+   the `// SPEC-GAP G-081` comment removed; no behaviour change.
+
+Neither is reachable on CIS. Not blocking.
+
+### G-082 — opened; spec CLOSED, build OPEN (deferred). `components.md` §8 (amended 2026-10-14).
+
+Seen in two group C frames (`source-popover-calendar-missing-p3.png` at
+10:18, `source-popover-last-change-p3.png` at 10:16): the now time `10:1x` is
+printed over the `10:00` hour label in Week. Cause: the suppression compares
+the two **times** (12pt), but the build hangs an hour label 2pt below its
+line and centres the now time on the now line (`GridLayers.swift`
+`TimeGutterView`), so the drawn texts overlap for roughly 6 pt above the
+line and 20 pt below. **Ruled:** suppression is decided on the drawn text
+frames, 2pt clearance; the cursor time likewise. A Phase 1 behaviour, not a
+slice 1 regression; deferred to the next build session (A42).
+
+### G-083 — OPEN (design). The Day header's secondary line is clipped.
+
+`layouts.md` §4 (Day) asks the day header for weekday + date + a secondary
+line (`2 blocks · 2.4 h scheduled`). `size.dayHeaderHeight` is 44, and
+`dayHeaderWeekday` (11) + `dayHeaderDate` (15) + `blockMeta` (11) need about
+46pt of line height with no padding, so the hairline under the header runs
+through the secondary line. Visible since Phase 1 (`screenshots/day-full-light.png`)
+and in `fresh-overlap-day-p3.png`. Needs a Day-only header height (a token,
+so a version bump); **for the next design session**, not edited now so that
+`generate-tokens --check` stays green between sessions. Not a slice 1 item.
+
+Also seen in that frame, not a gap: the Day secondary line's `2.4 h` adds
+the two overlapping sessions' durations (1 h 40 + 45 min). §4 says "total
+scheduled hours", which is that sum; left as is.
+
+### DEVIATIONS B45, B46, B47 — ruled
+
+- **B45** (the unit tests' host is a third launch) — **accepted**, written
+  into `components.md` §22.1 ("The unit tests' host is a third launch").
+- **B46** (routine instances keep their template's `sourceID`) —
+  **accepted**, `components.md` §21.1.1 reworded: a `sourceID` that names no
+  record resolves by origin.
+- **B47** (an unclosed VEVENT inside a closed calendar was dropped silently)
+  — **accepted as fixed**. §19.3's table already had the row (`BEGIN:VEVENT
+  never closed` → `1 event couldn't be read.`); the build now reaches it.
+
+### Deferred by this check (DEVIATIONS A-entries, for Parsa to log)
+
+- **A41 (new)** — the `copies` log field and the step-2 count of
+  `merged − copies` (`components.md` §20.8.4, `layouts.md` §12.2,
+  `caldav-mocks.md` `reportCISCopies`); and G-081's end-time sentence.
+  Diagnostics and copy only; with the next CalDAV task.
+- **A42 (new)** — G-082, the now time and hour labels measured as drawn.
+  Next build session.
+- **A37, A39, A40, A33, A34** — unchanged.
+
+### Still open after this pass
+
+- **G-083** (Day header height) — design, next session.
+- **G-016**, **G-003** — unchanged.
+- **G-058**, **G-059**, **G-060**, **G-062**, **G-063**, **G-064**,
+  **G-065**, **G-067** — deferred, unchanged.

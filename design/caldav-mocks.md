@@ -385,6 +385,21 @@ lecturer line. Expected (`components.md` §20.2, amended 2026-10-10): still
 **12 events**, `BPREF-Info` with lecturers `[L05, L06]`, `merged 1`,
 `duplicates 0`, whichever object comes first.
 
+### `reportCISCopies` — tests
+
+*(Added 2026-10-14; the shape CIS's CalDAV really serves, G-077 record.)*
+`reportCISOverlap` with `obj-03.ics` served **twice**, under two hrefs
+(`obj-03.ics`, `obj-03b.ics`) and two ETags, byte for byte the same VEVENT;
+and `obj-14.ics` likewise (`obj-14.ics`, `obj-14b.ics`). Built in code; the
+fixture is not edited. Expected (`components.md` §20.2, §20.8.4 amended
+2026-10-14): 16 VEVENTs → **13 events**, the same events and feed hash as
+`reportCISOverlap`; `merged 2 · copies 1` — the 18:35 group (`obj-03`,
+`obj-03b`, `obj-04`) is co-taught, because `obj-04` adds `L06`, though it
+contains a copy; the 19:30 group (`obj-14`, `obj-14b`) adds nothing and is
+the copy. The 18:35 event `[L05, L06]`, the 19:30 one `[L07]`; step 2's
+sentence reads `1 co-taught lecture …`, never `2`. A sync of the
+same feed in the other object order writes nothing.
+
 ### Redirects that carry the header — tests
 
 For `interactions.md` §13.1's "What the tests must prove". Each replaces one

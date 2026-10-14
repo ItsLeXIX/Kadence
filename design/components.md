@@ -726,6 +726,14 @@ sides plus the fill; low-energy's hatch pitch tightens from 6pt to 4pt.
 - The current time is additionally printed in the time gutter in
   `color.semantic.now`, `hourLabel` type, replacing the hour label it would
   collide with (within 12pt).
+  *(Amended 2026-10-14; G-082.)* "Collide" is measured on the two labels as
+  drawn, not on their times: an hour label is dropped when its text frame and
+  the now time's text frame would overlap or come within 2pt of each other.
+  The build hangs an hour label below its line and centres the now time on
+  the now line, so a 12pt distance between the two *times* still let
+  `10:18` print over `10:00` in Week (`source-popover-calendar-missing-p3.png`,
+  `source-popover-last-change-p3.png`). The cursor time (`interactions.md` §1)
+  follows the same rule.
 - Drawn above every block and every background window; below sheets and popovers.
 - Updates on `motion.nowLineTick.interval`.
 - No block is ever a full-width 2pt line, so the now line cannot be mistaken for
@@ -2684,6 +2692,7 @@ the window edge. Width `size.sourcePopoverWidth` (280), height intrinsic, paddin
   | No `UID` (§20.2) | `{title} has no identifier, so it was skipped.` | `Object obj-07.ics, line 3: no UID` |
   | `DTEND` before `DTSTART`, or a negative `DURATION` (§20.4) | `{title} ends before it starts, so it was skipped.` | `Object obj-07.ics, line 9: DTEND before DTSTART` |
   | `DTSTART` missing or unreadable | `{title} has no readable start time, so it was skipped.` | `Object obj-07.ics, line 8: DTSTART` |
+  | `DTEND` or `DURATION` present but unreadable *(added 2026-10-14; G-081)* | `{title} has no readable end time, so it was skipped.` | `Object obj-07.ics, line 9: DTEND` / `… line 9: DURATION` |
   | `BEGIN:VEVENT` never closed; an object that is not calendar data (§20.8.2); a failed member of a `207` | `1 event couldn't be read.` | `Object obj-11.ics: not calendar data` / `Object obj-11.ics: 404` |
   | An object over 1 MB (§20.8.2) | `1 event was too large to read.` | `Object obj-11.ics: over 1 MB` |
   | `RANGE=THISANDFUTURE` override (§20.5; the event is kept) | `A change to {title} and its later repeats was applied to one occurrence only.` | `Object obj-07.ics, line 12: RECURRENCE-ID;RANGE=THISANDFUTURE` |
@@ -2691,6 +2700,12 @@ the window edge. Width `size.sourcePopoverWidth` (280), height intrinsic, paddin
   | Unknown time zone (§20.3; kept) | as §20.3 | — |
 
   Without an object name (a plain file) the technical line starts at `Line 9:`.
+
+  *(Added 2026-10-14; G-081.)* Without a readable `SUMMARY`, `{title}` is
+  `An event` at the start of a sentence and `an event` inside one: `A change
+  to an event and its later repeats was applied to one occurrence only.` A
+  missing `DTEND` with no `DURATION` is not a problem (§20.4 gives the
+  event's default length); only one that is present and cannot be read is.
 - **`upToDate`** shows the title, then `Synced {last} · {count} events`, the
   last-change line when present, and `Sync Now`.
 - Keyboard: it takes focus on open; `↩` = primary action; `⎋` closes. Focus is
@@ -3314,6 +3329,18 @@ the same (G-068). Change is therefore decided **by content only**
     (no `Source` exists yet, so the logger takes the account string). The
     Import itself makes no request and logs `import {account} · {n} events ·
     {h} before today`.
+  - *(Amended 2026-10-14; G-077 record.)* **Copies are not co-teaching.**
+    CIS's CalDAV serves some lectures as two calendar objects that are byte
+    for byte the same VEVENT (same UID, same lecturer). They tie (§20.2), go
+    to the merge and are one event — correct — but they were counted in
+    `merged`, and the connect sheet called them co-taught. One more field,
+    after `merged`: `copies {c}`, the merges whose members all carry the same
+    lecturer list (order ignored), so the union added nothing. `merged`
+    keeps counting every merge; `merged − copies` is the co-teaching.
+    `layouts.md` §12.2's sentence counts `merged − copies` only; copies are
+    not mentioned in the UI, because there is nothing to tell the user and
+    nothing lost. Parsa's connect line of 14 Oct would read
+    `… vevents 87 · duplicates 0 · merged 2 · copies 2 · previewed 85 events`.
   - **`ctag —` in `report` mode is correct, and stays.** The getctag is a
     property of the collection; a `REPORT` returns objects, not the collection,
     so there is no ctag to record, and asking for one would cost a second
@@ -3462,6 +3489,14 @@ a property of a source; it cannot be its key.
   `.manual` → `personal`, `.routine` → `routine`. `Event.sourceID` is set at
   creation from then on; existing rows without one are resolved by this rule
   at read time (no migration write is required).
+  *(Amended 2026-10-14; DEVIATIONS B46 accepted.)* **Except routine
+  instances:** a materialised routine instance's `sourceID` is its
+  template's id, because it is half of §13.6's `(sourceID, externalID)` pair
+  that materialisation, withdrawal, tombstones and Re-sync key on. A
+  `sourceID` that names no `Source` record resolves by origin exactly as a
+  missing one does, so a routine instance is `Daily routine`. The rule that
+  matters is unchanged: every lookup goes through a record or the origin,
+  never through the slot.
 - **Colour.** A block's hue is its source's `paletteKey`, read from the record.
   `Event.sourceKey` remains as the stored copy written at creation and is not
   consulted when the record exists.
@@ -3801,6 +3836,15 @@ and a Needs-attention count of 16 (14 of them the mock dataset's own).
   sources, and never reads a review argument's data.
 - **No script deletes or writes the real store.** `Scripts/*` lose their `rm`
   of `default.store`; a fresh review launch is fresh by construction.
+- *(Added 2026-10-14; DEVIATIONS B45 accepted.)* **The unit tests' host is a
+  third launch, and it is in-memory too.** `KadenceTests` is hosted by
+  Kadence.app, so every test run launches the app. A launch XCTest started
+  (its environment variables, its injected library, or a loaded
+  `XCTestCase`) uses an in-memory store, the in-memory secret store and a
+  transport that refuses every request before it is sent. It takes
+  precedence over `-KadenceReview`. Only a normal launch opens the real
+  store, the Keychain or the network; a test asserts the test host holds no
+  descriptor on the real store.
 - **Datasets**, selected by the argument's value:
 
   | Value | Contents |

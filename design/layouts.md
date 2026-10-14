@@ -1039,7 +1039,9 @@ typed password are held in the sheet's memory only, and are discarded with it.
     before today. …`.
   - merges: `{m} co-taught lectures are listed once per lecturer and are shown
     once.` / `1 co-taught lecture is listed once per lecturer and is shown
-    once.`
+    once.` *(Amended 2026-10-14.)* `{m}` is `merged − copies`
+    (`components.md` §20.8.4): a merge of identical copies is not co-teaching
+    and is not mentioned.
   - problems: `{k} events couldn't be read and will be skipped.` / `1 event
     couldn't …`, in `color.text.primary`. A borderless `Show Details` expands
     the problem list in place, exactly as `components.md` §19.3 does (8, then

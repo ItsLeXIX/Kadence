@@ -567,3 +567,113 @@ set and the secret grep of STATUS §120 again.
    deleted afterwards.
 10. **Spec edits are dated 2026-10-10** (today); the proposed DECISIONS
     entries use the same date.
+
+---
+
+## Final — 2026-10-14
+
+Design agent, final check after the fix run. Read: STATUS §121–§132,
+DEVIATIONS "fix run", GAPS G-075 onward and G-081, `screenshots/3/INDEX.md`;
+opened every group C and D frame (15 files; the two pairs INDEX calls byte-identical checked with `cmp`); read the Swift and tests behind
+each fix; ran the suite myself (below); took Parsa's second real connection
+of 14 Oct as given. I did not open, copy or read the real store.
+
+PHASE 3 SLICE 1 ACCEPTED
+
+### 1. The fix list, judged
+
+Tests: my own run, `xcodebuild test -only-testing:KadenceTests` on the
+current tree (into a scratch DerivedData), **TEST SUCCEEDED, 1187 test cases
+passed, 0 failed** (xcresult counts each parameterised case; CA's 902 counts
+test functions). The ten new suites all ran green: `AppStoreTests` 12,
+`SourceIdentityTests` 13, `RedirectProofTests` 74, `TieMergeTests` 11,
+`ImportedOverlapTests` 4, `CoveredBlockTests` 11, `MetaLineTests` 6,
+`ProblemSentenceTests` 13, `LastSyncedTests` 24, `SmallFixesTests` 6.
+`generate-tokens --check`: up to date at 1.7.0.
+
+| Fix | Verdict | Evidence I checked |
+|---|---|---|
+| 1 Review mode's own store | **DONE** | `AppStore.configuration(for:)` gives `default.store` only to `.normal`; review and test host in-memory; `grep -rn default.store Scripts` empty; tests assert the container and the host's open descriptors. Parsa's reconnect: only the built-ins and the timetable |
+| 2 A source is its record | **DONE** | No `MockData.sources`, `hiddenSources` or by-slot lookup outside `Mock/`, `Review/`; `paletteKeyForNewSource` filters out `graphite`. Frames 22 (`Personal`, `Daily routine`, `Connect Timetable…`), 23 (one blue timetable row, `tablecells.fill`), 25 (Source row blue). Real use: lectures blue |
+| 3 Redirect rule proven | **DONE** | `RedirectProofTests`: 40 refused authorised cases; the **control** `#require`s a request at `login.example.invalid` with `Authorization` (and an `http:` one) — so the refusals are not vacuous; CA's mutation check (14 failures) is consistent with that. `redirected` at D2–D4 |
+| 4 A tie is not a duplicate; log | **DONE** | `FeedDerivation` step 1 keeps both on `.ties` and the merge unions them; `TieMergeTests` both orders; log fields present — and Parsa's real `connect` line carries `vevents 87 · duplicates 0 · merged 2` |
+| 5 Two imported events never conflict | **DONE** | `ImportedOverlapTests`; frames 22–25 no Needs attention row; real use: 0, row hidden |
+| 6 Covered title band; cascade gap | **DONE** | `CoveredBlockTests`, render; frames 11 (`SWRM-ILV` named above `Training`), 16, 24 Week (18:35 titled, 2pt canvas L round the 19:30), Day (packed), `cascade-gap`. Real use: two blocks, the later inset |
+| 7 `Location · Source` | **DONE** | `MetaLineTests`; frames 11/12/26: `HS_A3.15 · Univer…`, `Online · University…`, `EDV_F4.26 · Unive…`. Real use: `HS_A1.04A · Univ…`, `Online` |
+| 8 Copy and tokens | **DONE** | `ProblemSentenceTests`; the partial-details render shows §19.3's exact sentences; no `SPEC-GAP G-069` / `G-074`; tokens 1.7.0 clean. Two new placeholders went to G-081 (ruled below) |
+| 9 Status line; deselection horizon | **DONE** | `Source.lastSyncedAt = lastSuccessAt ?? importedAt`; frames 10 forbidden and 21 read `Last synced just now · 13 events`; horizon tests |
+| 10 Delete; Sync Now; focus | **DONE** | `SmallFixesTests`; frame 8/27: `Sync Now` plain bordered, not accent; `check-view-switch-focus` and `check-edit-delete` scripts; the ringed Day frame retired |
+| 11 Recapture, INDEX.md | **DONE** | Every listed item recaptured or added (22–27; 8, 10 ×2, 11, 12, 16, 21); INDEX states four groups with time and build, dataset per item; files and index agree (40 frames) |
+
+Small notes, none a defect against the fix list: `sidebar-row-states-p3.png`
+has a 14 Oct mtime though INDEX keeps it in group B (CA says it re-rendered
+byte-identical; the content is the old render, so group B is right). The
+group C live frames are light where group A's were dark; rule 3 does not ask
+for an appearance outside item 19.
+
+### 2. Rulings
+
+| Entry | Ruling | Written in |
+|---|---|---|
+| **G-081** (1) unreadable `DTEND` / `DURATION` | **Closed.** Its own row: `{title} has no readable end time, so it was skipped.` Build with A41 | `components.md` §19.3 |
+| **G-081** (2) `{title}` mid-sentence | **Closed.** CA's placeholder is the rule: `an event` | §19.3 |
+| **B45** test host is a third launch | **Accepted** | §22.1 |
+| **B46** routine instances keep the template's `sourceID` | **Accepted**; the bullet reworded | §21.1.1 |
+| **B47** unclosed VEVENT dropped silently | **Accepted as fixed**; the row already existed | — |
+| **G-048, G-075, G-076, G-078, G-079, G-080** | **Closed**: built and captured | GAPS |
+| **G-077** | **Closed**, answered by real data (§3) | GAPS |
+
+### 3. Real use, 14 Oct — recorded in G-068 / G-077
+
+Everything the fix list aimed at is visible on Parsa's clean store: blue
+lectures, three sidebar rows, no Needs attention, room before source,
+`Online` webinars, two `BPREF-Info` blocks with the later inset.
+
+The open question from §6.3 is answered. CIS's CalDAV serves each
+`BPREF-Info` session on 2 Oct as **two byte-identical objects with one
+lecturer**; the second co-teacher is in the manual export (a `VERSION:1.0`
+generator) and not in CalDAV (`VERSION:2.0`) at all. Kadence merges the
+copies into one event each — `merged 2`, 87 VEVENTs → 85 events — which is
+correct. **A server-side data limitation, not a Kadence defect.**
+
+What changes in the spec: the log and the connect sheet treated a merge of
+copies as co-teaching. Parsa's connect sheet would have said `2 co-taught
+lectures are listed once per lecturer…` — false. Amended: a `copies` field
+(merges that added no lecturer), and step 2 counts `merged − copies`
+(`components.md` §20.8.4, `layouts.md` §12.2, test case `reportCISCopies`).
+Deferred as **A41**: correct data, a one-time sentence, diagnostics.
+
+### 4. Seen in this set, not on the fix list
+
+- **G-082** — the now time printed over the `10:00` hour label in two
+  frames: suppression compares times, the build offsets the drawn labels.
+  §8 amended (measure the drawn frames); a Phase 1 behaviour, deferred as
+  **A42**.
+- **G-083** — the Day header's secondary line is clipped by its hairline
+  (44pt for three lines). There since Phase 1. Needs a token; next design
+  session.
+
+Neither is a slice 1 regression, and neither touches the timetable.
+
+### 5. What slice 1 leaves deferred
+
+A37 (`⌘⌥N`), A39 (Digest across requests), A40 (`↩` on a sidebar source
+row), A41 (`copies`; G-081's end-time sentence), A42 (G-082); A33, A34
+unchanged; G-083 for design; G-067 (removed-lecture ghost) to revisit after
+some weeks of real use.
+
+### 6. Judgement calls
+
+1. **Accepted with A41 and A42 deferred** rather than a third fix round: the
+   data is right on the real server, both are diagnostics or copy shown once,
+   or a Phase 1 label overlap; none blocks using the timetable.
+2. **`copies` as a new field** rather than redefining `merged` or
+   `duplicates`: the existing numbers stay comparable with the 9 and 14 Oct
+   records.
+3. **No lecturer workaround.** Kadence shows what CalDAV serves; the export is
+   another generator and cannot be trusted as a supplement.
+4. **G-083 not fixed by token edit now**, to keep `--check` green between
+   sessions; it waits for the next design session.
+5. **I ran the test suite** (into a scratch DerivedData, test host
+   in-memory per B45) rather than trusting the counts. Nothing written
+   outside `design/` except build products in the scratch directory.
