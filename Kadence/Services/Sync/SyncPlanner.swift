@@ -262,6 +262,9 @@ enum SyncApplier {
             context.delete(event)
             outcome.deletedIDs.insert(id)
         }
+        // Slice 2 (components.md §24.5, §24.7): a deleted event's leg goes in
+        // the same transaction.
+        TravelLegs.delete(for: outcome.deletedIDs, in: context)
         outcome.wrote = plan.writesEvents
 
         // Bookkeeping, written on every poll (§20.8.3).
@@ -336,6 +339,7 @@ enum SyncApplier {
     static func remove(_ source: Source, context: ModelContext) throws -> Set<UUID> {
         let events = events(of: source, in: context)
         let ids = Set(events.map(\.id))
+        TravelLegs.delete(for: Set(events.map(\.id)), in: context)
         for event in events { context.delete(event) }
         context.delete(source)
         do { try context.save() } catch { context.rollback(); throw error }

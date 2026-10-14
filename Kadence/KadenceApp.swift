@@ -29,6 +29,11 @@ struct KadenceApp: App {
     @State private var sync: SyncCoordinator
     /// Phase 3: which source Settings shows and which sheet it presents.
     @State private var router = SourcesRouter()
+    /// Phase 3 slice 2 (components.md §24): the travel recompute, its
+    /// routing queue and the departure refreshes. The provider, geocoder and
+    /// path monitor come from the launch's factories: MapKit and
+    /// `NWPathMonitor` in a normal launch only, mocks otherwise (§24.11).
+    @State private var travel: TravelCoordinator
 
     init() {
         // PHASE3-REVIEW.md fix 1 (components.md §22.1, G-076): the launch
@@ -62,6 +67,20 @@ struct KadenceApp: App {
             _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext,
                                                              path: PathMonitors.make(for: kind)))
         }
+        _travel = State(initialValue: Self.makeTravel(kind: kind, context: container.mainContext))
+    }
+
+    /// The launch's travel coordinator (slice 2), from the per-service
+    /// factories.
+    @MainActor
+    static func makeTravel(kind: LaunchKind, context: ModelContext) -> TravelCoordinator {
+        let log = RoutingLog(forwardsToSystem: kind == .normal)
+        let clock = SystemTravelClock()
+        let queue = RouteRequestQueue(provider: TravelServices.makeProvider(for: kind),
+                                      geocoder: TravelServices.makeGeocoder(for: kind), clock: clock,
+                                      path: PathMonitors.make(for: kind), log: log)
+        return TravelCoordinator(context: context, queue: queue, clock: clock,
+                                 providerSource: TravelServices.providerSource(for: kind), log: log)
     }
 
     var body: some Scene {
@@ -76,6 +95,7 @@ struct KadenceApp: App {
                 .environment(undoStack)
                 .environment(sync)
                 .environment(router)
+                .environment(travel)
                 .preferredColorScheme(Self.reviewColorScheme)
                 .frame(
                     minWidth: Tokens.Size.windowMinWidth,
@@ -114,6 +134,7 @@ struct KadenceApp: App {
             SettingsView()
                 .tracksSources()
                 .environment(sync)
+                .environment(travel)
                 .environment(router)
                 .environment(calendar)
                 .environment(undoStack)
@@ -132,6 +153,7 @@ struct KadenceApp: App {
             MenuBarPopoverView()
                 .tracksSources()
                 .environment(undoStack)
+                .environment(travel)
                 // Task P2-F18: `Open` selects the item in the main window.
                 .environment(calendar)
         } label: {

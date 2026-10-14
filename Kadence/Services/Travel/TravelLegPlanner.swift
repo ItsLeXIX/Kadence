@@ -155,6 +155,11 @@ nonisolated enum TravelLegPlanner {
         /// nil: the refresh answered. Otherwise why it failed.
         var failure: TravelReason?
         var retryAt: Date?
+        /// The cache key the refresh asked for; an outcome for another key
+        /// (the event moved, the mode changed) no longer applies.
+        var key: String?
+        /// When a successful refresh answered (`TravelLeg.refreshedAt`).
+        var answeredAt: Date?
     }
 
     struct Input: Sendable {
@@ -311,7 +316,8 @@ nonisolated enum TravelLegPlanner {
             }
             // A refresh due in this window that failed (§24.3 `ready`: "if a
             // refresh was due, the refresh answered").
-            let refreshFailure = input.refreshes[event.id].flatMap { outcome -> KeyFailure? in
+            let refresh = input.refreshes[event.id].flatMap { $0.key == nil || $0.key == keyString ? $0 : nil }
+            let refreshFailure = refresh.flatMap { outcome -> KeyFailure? in
                 guard let reason = outcome.failure, outcome.slot <= input.now else { return nil }
                 return KeyFailure(reason: reason, retryAt: outcome.retryAt)
             }
@@ -321,7 +327,7 @@ nonisolated enum TravelLegPlanner {
                 // counts while its new request is outstanding.
                 fill(&leg, from: entry, start: event.start, buffer: buffer, source: input.providerSource)
                 leg.status = .ready
-                leg.refreshedAt = sameTrip(existing, leg) ? existing?.refreshedAt : nil
+                leg.refreshedAt = refresh?.answeredAt ?? (sameTrip(existing, leg) ? existing?.refreshedAt : nil)
             } else if let failed = refreshFailure ?? (entry != nil && isFresh ? nil : waiting) {
                 // §24.10: the latest request this leg needed failed.
                 fallback(&leg, reason: failed.reason, retryAt: failed.retryAt, existing: existing, entry: entry,

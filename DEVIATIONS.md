@@ -2436,3 +2436,13 @@ check" (2026-10-14).
   in a normal launch only, `ScriptedPathMonitoring` otherwise (the same
   launch-kind table as every slice-2 factory). Tested by the factory and a
   source scan. No behaviour change in a normal launch.
+- **B51 — a due departure refresh for a leg still waiting for its first
+  answer is that request** (`components.md` §24.6). A leg with no time
+  (`pending`: its key has no answer and the request is queued or in flight)
+  has `T = start − 60 min`; at a launch two or three hours before it, its
+  T−3 h slot counts as missed and would send a second, identical request for
+  the same key — breaking §30.1 "Cache sharing" ("exactly one provider call
+  per distinct key"). The slot is marked run and the queued request serves
+  as the refresh: it is just as current, and its answer updates the same
+  cache entry. A leg that has a time (`ready`, `estimate`, or an
+  `unavailable` with a reason) gets its own refresh as specified.

@@ -61,3 +61,22 @@ enum TravelBuiltIns {
         return row
     }
 }
+
+/// Deleting legs with their events (components.md §24.5: "Deleting an event
+/// deletes its leg in the same transaction"). The caller saves.
+@MainActor
+enum TravelLegs {
+    static func delete<S: Sequence>(for eventIDs: S, in context: ModelContext) where S.Element == UUID {
+        let ids = Set(eventIDs)
+        guard !ids.isEmpty else { return }
+        for leg in (try? context.fetch(FetchDescriptor<TravelLeg>())) ?? [] where ids.contains(leg.eventID) {
+            context.delete(leg)
+        }
+    }
+
+    static func leg(for eventID: UUID, in context: ModelContext) -> TravelLeg? {
+        var descriptor = FetchDescriptor<TravelLeg>(predicate: #Predicate { $0.eventID == eventID })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+}

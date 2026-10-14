@@ -32,3 +32,16 @@ nonisolated enum ReviewCISExport {
         return String(decoding: data, as: UTF8.self)
     }
 }
+
+/// components.md §30.1 — `Fixtures/ICS/cis-travel.ics.template`, dataset
+/// `travel`'s timetable: `cis-review.ics.template` without row 1
+/// (`Datenmodellierung` on `{{TODAY}}`) plus row T1 (`SWEN3-ILV`
+/// `{{D+1}}` 11:45–13:15, `HS_A2.07`). Bundled only so review mode can serve
+/// it.
+nonisolated enum ReviewTravelTemplate {
+    static var text: String {
+        guard let url = Bundle.main.url(forResource: "cis-travel.ics", withExtension: "template"),
+              let data = try? Data(contentsOf: url) else { return "" }
+        return String(decoding: data, as: UTF8.self)
+    }
+}

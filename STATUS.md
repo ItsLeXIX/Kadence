@@ -10493,3 +10493,60 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   (`RoutingLogCheck`: no coordinate pattern, fixture address, place name or
   title). `PathMonitorFactoryTests` (1).
 - Verify: **954 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T06 — leg store, recompute and departure refreshes
+
+- `Kadence/Services/Travel/TravelCoordinator.swift`: one pass = fetch,
+  `TravelLegPlanner.plan`, apply in **one save** (upsert changed legs,
+  delete owned legs no longer planned and legs whose event is gone, never
+  touch a leg of an event before `startOfDay(today)`), hand the requests to
+  the queue, re-plan the refreshes, call `onPassCompleted` (the
+  notification hook, task 9). Writes only `TravelLeg` rows. Debounced 0.5 s
+  on the injected clock. Triggers: `ModelContext.didSave` touching `Event`,
+  `Place`, `KnownPlace`, `TravelModeOverride`, `AppSettings` or `Source`
+  (delivered synchronously on the main thread — a burst is debounced as it
+  happens); routing answers; refresh completions; queue pauses ending;
+  launch (with a cache prune), wake, `NSCalendarDayChanged`, clock and time
+  zone changes.
+- Departure refreshes: T−3 h and T−45 min of every leg of a not-started
+  event today or tomorrow (T = `start − 60 min` while the leg has no time),
+  re-planned every pass; a slot that passed since the last pass is sent
+  (priority 1 for the next departure, 2 otherwise), bypassing the cache; at
+  launch / wake the latest missed slot runs once; never after the start; a
+  refresh answer updates the cache entry and sets `refreshedAt`; a failed
+  one makes the leg an estimate with the reason. **B51**: a due refresh for a
+  `pending` leg is served by its queued request.
+- The campus (§23.6): looked up automatically while its address is
+  Kadence's own and unconfirmed — the first time a pass needs it (legs
+  `pending` until it answers), and after a failed lookup at most once a day,
+  at launch or wake; matched on `Höchstädtplatz 6` + `1200` → `confirmed`
+  (coordinate stored, old-coordinate cache rows deleted); otherwise
+  `unconfirmed` / `notFound` / `lookupFailed`. Never Home or a user place.
+- Every event deletion deletes its leg in the same save: `EventStore`'s
+  remove, `SyncApplier.apply`'s deletes and `SyncApplier.remove` (source
+  removal) — `TravelLegs.delete`.
+- `Kadence/Review/TravelDataset.swift` + `Kadence/Review/Fixtures/
+  cis-travel.ics.template` (built here because the §30.1 "Sync" test needs
+  the dataset in a store; task 12 wires them into review launches):
+  `ReviewFeed.render(…, m:)`, `reportTravel`, `reportTravelChanged`
+  (reportChanged's differences found by content).
+- Wired: `KadenceApp.makeTravel` builds the coordinator from the factories
+  (a normal launch's log forwards to `os.Logger`, category `travel`);
+  `MainWindow` starts it after seeding (not in the test host's own app
+  instance); it is in the environment of the main window, Settings and the
+  menu bar.
+- Tests: `KadenceTests/Slice2/TravelRig.swift` and
+  `TravelCoordinatorTests.swift` (15 incl. 3 parameterised): the dataset
+  (13 events, 2 history); §24.4 through the coordinator, 7 provider calls,
+  a second and third recompute write nothing; a mode change (today and
+  future change, yesterday's leg byte-equal, new keys asked); delete → leg
+  gone, undo → back from the cache with no call; event hashes, `feedHash`,
+  `lastChange*` and the undo stack untouched; §30.1 "Sync" row for row with
+  **no provider call**; 50 saves in 0.2 s → one pass, 10 answers → one
+  pass, leg writes trigger none; the refresh schedule (09:15 / 11:30, moved,
+  missed at wake → once, never after the start); the departure refresh
+  50 / 78 / 30 → 12:00 / 11:32 / 12:20 with `refreshedAt` 11:30; a failed
+  refresh → estimate; the campus confirmed / not matching / offline (once a
+  day, retried at the next launch); `NSCalendarDayChanged` moves the
+  window; no event changes during a recompute.
+- Verify: **969 passed / 0 failed**; real store `stat` unchanged.

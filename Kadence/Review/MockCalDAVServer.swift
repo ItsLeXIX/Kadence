@@ -550,10 +550,16 @@ nonisolated enum ReviewFeed {
 
     /// Renders `{{D+n}}` (`M + n`), `{{T-n}}` and `{{TODAY}}` as `yyyyMMdd`.
     static func render(_ template: String, today: Date, zone: TimeZone) -> String {
+        render(template, today: today, m: firstMonday(after: today, zone: zone), zone: zone)
+    }
+
+    /// The same with `M` given (slice 2's planner tables pin `M` = Mon
+    /// 2026-10-12 with today = the clock's day, §30.1).
+    static func render(_ template: String, today: Date, m: Date, zone: TimeZone) -> String {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = zone
         let start = cal.startOfDay(for: today)
-        let m = firstMonday(after: today, zone: zone)
+        let m = cal.startOfDay(for: m)
         func stamp(_ d: Date) -> String { ICSFormat.dateStamp(d, zone: zone) }
         var out = template.replacingOccurrences(of: "{{TODAY}}", with: stamp(start))
         let pattern = try? NSRegularExpression(pattern: #"\{\{(D\+|T-)(\d+)\}\}"#)
@@ -571,6 +577,50 @@ nonisolated enum ReviewFeed {
     /// `reportReview`: the rendered template, `r01.ics` … `r14.ics`.
     static func reportReview(template: String, today: Date, zone: TimeZone) -> [MockCalDAVServer.Object] {
         MockCalDAVServer.objects(fromICS: render(template, today: today, zone: zone), hrefPrefix: "r", etagPrefix: "rev")
+    }
+
+    /// Slice 2 dataset `travel` (components.md §30.1): the rendered
+    /// `cis-travel.ics.template` — the review template without row 1, plus
+    /// T1 — one VEVENT per object, `t01.ics` … `t14.ics`.
+    static func reportTravel(template: String, today: Date, m: Date, zone: TimeZone) -> [MockCalDAVServer.Object] {
+        MockCalDAVServer.objects(fromICS: render(template, today: today, m: m, zone: zone), hrefPrefix: "t",
+                                 etagPrefix: "trv")
+    }
+
+    /// §30.1 "Sync": `reportChanged`'s differences (§22.1's table) applied
+    /// to the `travel` feed, found by content rather than by row (the travel
+    /// template has no row 1 and gains T1): #2 `SWQM-ILV` `M` lecturer L01 →
+    /// L09; #3 `SWEN3-LAB` `M + 1` room `EDV_F4.26` (a new object); #5
+    /// `EPC-ILV` `M + 3` and #7b (`SWRM-ILV`, `L06`) absent; `KOKU-UE` on
+    /// `M + 9` 10:00–11:30 added. T1 is untouched.
+    static func reportTravelChanged(template: String, today: Date, m: Date, zone: TimeZone) -> [MockCalDAVServer.Object] {
+        var objects = reportTravel(template: template, today: today, m: m, zone: zone)
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = zone
+        func day(_ n: Int) -> String { ICSFormat.dateStamp(cal.date(byAdding: .day, value: n, to: cal.startOfDay(for: m))!, zone: zone) }
+        func index(_ needle: String, _ date: String) -> Int? {
+            objects.firstIndex { $0.data.contains(needle) && $0.data.contains("DTSTART;TZID=Europe/Vienna:" + date) }
+        }
+        if let i = index("SUMMARY:SWQM-ILV", day(0)) {
+            objects[i].data = objects[i].data.replacingOccurrences(of: "HS_A3.15L01", with: "HS_A3.15L09")
+                .replacingOccurrences(of: "\\nL01\\n", with: "\\nL09\\n")
+            objects[i].etag = objects[i].etag.replacingOccurrences(of: "-a\"", with: "-b\"")
+        }
+        if let i = index("SUMMARY:SWEN3-LAB", day(1)) {
+            objects[i].data = objects[i].data.replacingOccurrences(of: "EDV_F4.25", with: "EDV_F4.26")
+            objects[i].href = objects[i].href.replacingOccurrences(of: ".ics", with: "b.ics")
+        }
+        if let i = index("SUMMARY:EPC-ILV", day(3)) { objects.remove(at: i) }
+        if let i = objects.firstIndex(where: { $0.data.contains("SUMMARY:SWRM-ILV") && $0.data.contains("\\nL06\\n") }) {
+            objects.remove(at: i)
+        }
+        if let h2 = objects.first(where: { $0.data.contains("SUMMARY:KOKU-UE") }) {
+            let h2Date = h2.data.components(separatedBy: "DTSTART;TZID=Europe/Vienna:").last?.prefix(8).description ?? ""
+            objects.append(MockCalDAVServer.Object(
+                href: h2.href.replacingOccurrences(of: "t02.ics", with: "t15.ics"), etag: "\"trv-15-a\"",
+                data: h2.data.replacingOccurrences(of: h2Date + "T094000", with: day(9) + "T100000")
+                    .replacingOccurrences(of: h2Date + "T125000", with: day(9) + "T113000")))
+        }
+        return objects
     }
 
     /// `reportCIS` (caldav-mocks.md §2): the real export, one VEVENT per

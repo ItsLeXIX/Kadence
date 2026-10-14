@@ -63,6 +63,9 @@ struct EventStore {
     private func remove(_ id: UUID) {
         guard let event = event(id) else { return }
         context.delete(event)
+        // components.md §24.5: the event's leg goes in the same transaction
+        // (never an undo step; the next recompute brings it back on undo).
+        TravelLegs.delete(for: [id], in: context)
         try? context.save()
     }
 
