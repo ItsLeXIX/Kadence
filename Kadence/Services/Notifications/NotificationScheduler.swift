@@ -40,8 +40,8 @@ final class NotificationScheduler {
     /// Events whose departure refresh may have moved `departAt` earlier
     /// (§27.6's refresh catch-up); read once per pass.
     @ObservationIgnored var consumeRefreshed: () -> Set<UUID> = { [] }
-    /// Extra planned requests (the sync-paused N8, task 11).
-    @ObservationIgnored var extraRequests: (Date) -> [PlannedNotification] = { _ in [] }
+    /// N8s waiting to be delivered, by source id (§27.4; task 11).
+    @ObservationIgnored private(set) var syncAlerts: [String: PlannedNotification] = [:]
 
     /// §27.8's state, for Settings ▸ Notifications and the popover.
     private(set) var permission: NotificationPermission = .notAsked
@@ -221,7 +221,14 @@ final class NotificationScheduler {
             records: Dictionary(records.map { ($0.identifier, $0.fireAt) }, uniquingKeysWith: { a, b in max(a, b) }),
             chainGapMinutes: settings.travelChainGapMinutes,
             refreshedEarlier: consumeRefreshed(), now: now, isCatchUp: catchUp, calendar: calendar)
-        let plan = NotificationPlanner.plan(input) + extraRequests(now)
+        // N8: planned until it is added; a record at or before now with the
+        // same fire date means it was sent.
+        let recordTimes = input.records
+        let alerts = syncAlerts.values.filter { alert in
+            guard let sent = recordTimes[alert.identifier] else { return true }
+            return !(sent <= now && sent == alert.fireAt)
+        }
+        let plan = NotificationPlanner.plan(input) + alerts
         return plan.sorted { ($0.fireAt, $0.identifier) < ($1.fireAt, $1.identifier) }
     }
 
@@ -315,6 +322,54 @@ final class NotificationScheduler {
         let parts = identifier.split(separator: ".")
         guard parts.count >= 2 else { return nil }
         return UUID(uuidString: String(parts[1]))
+    }
+
+    // MARK: The sync-paused notification (N8, §27.4; G-060)
+
+    /// A source's state changed, or it was removed. Entering `unauthorized`
+    /// or `forbidden` in a sync Kadence started on its own while not
+    /// frontmost — with `Sync problems` on — plans one N8, at once or held to
+    /// the end of a protected window. Leaving the paused state, or removal,
+    /// removes it, pending and delivered. Not repeated while paused.
+    func sourceStateChanged(_ event: SyncCoordinator.StateEvent) {
+        let paused: Set<SourceState> = [.unauthorized, .forbidden]
+        switch event {
+        case .removed(let id):
+            clearSyncAlert(id)
+        case .transition(let id, let from, let to, let userStarted, let frontmost):
+            if paused.contains(from), !paused.contains(to) { return clearSyncAlert(id) }
+            guard paused.contains(to), !paused.contains(from), !userStarted, !frontmost else { return }
+            let rules = (try? context.fetch(FetchDescriptor<NotificationRule>())) ?? []
+            guard rules.first(where: { $0.kind == .syncPaused })?.isEnabled ?? true,
+                  let source = ((try? context.fetch(FetchDescriptor<Source>())) ?? []).first(where: { $0.id == id })
+            else { return }
+            let text = NotificationCopy.n8(name: source.displayName, host: source.host ?? "",
+                                           user: source.username ?? "", forbidden: to == .forbidden)
+            let now = clock.now
+            let windows = ((try? context.fetch(FetchDescriptor<TimeWindow>())) ?? [])
+                .filter { $0.kind == .protected }.map(QuietWindow.init)
+            // §27.5: held like any notification; no event to be inside.
+            let nothing = TravelEventSnapshot(title: "", start: .distantPast, end: .distantPast)
+            let (fire, _) = NotificationPlanner.hold(now, event: nothing, windows: windows, calendar: calendar)
+            syncAlerts[id] = PlannedNotification(
+                identifier: "sync.\(id)", subjectID: id, kind: .sync, fireAt: fire, atOnce: fire <= now, text: text,
+                category: .source, playsSound: true, interruption: .active)
+            requestPass()
+        }
+    }
+
+    private func clearSyncAlert(_ id: String) {
+        syncAlerts[id] = nil
+        let identifier = "sync.\(id)"
+        for record in (try? context.fetch(FetchDescriptor<NotificationRecord>())) ?? [] where record.identifier == identifier {
+            context.delete(record)
+        }
+        try? context.save()
+        let centre = centre
+        Task {
+            await centre.removePending([identifier])
+            await centre.removeDelivered([identifier])
+        }
     }
 
     // MARK: Tests

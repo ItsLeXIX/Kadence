@@ -115,6 +115,17 @@ final class SyncCoordinator {
     @ObservationIgnored weak var calendarState: CalendarState?
     @ObservationIgnored weak var undo: UndoStack?
 
+    /// Slice 2 (components.md §27.4 N8, G-060): every source state change,
+    /// with whether the user started the sync and whether Kadence was
+    /// frontmost, and every removal — the notification scheduler's input.
+    enum StateEvent: Sendable, Equatable {
+        case transition(sourceID: String, from: SourceState, to: SourceState, userStarted: Bool, frontmost: Bool)
+        case removed(sourceID: String)
+    }
+    @ObservationIgnored var onStateEvent: ((StateEvent) -> Void)?
+    /// Whether Kadence is the active app (injected in tests).
+    @ObservationIgnored var isFrontmost: () -> Bool = { NSApplication.shared.isActive }
+
     /// Source ids with a sync in flight (the sidebar's spinner, §19.2).
     private(set) var syncing: Set<String> = []
     /// When each running sync started (the 0.5 s spinner rule).
@@ -268,6 +279,14 @@ final class SyncCoordinator {
         tasks[id]?.cancel()
         scheduling.invalidate(id: id)
         scheduledIntervals.removeValue(forKey: id)
+        onStateEvent?(.removed(sourceID: id))
+    }
+
+    /// Reports a state change (slice 2, N8).
+    private func report(_ source: Source, from previous: SourceState, userStarted: Bool) {
+        guard source.state != previous else { return }
+        onStateEvent?(.transition(sourceID: source.id, from: previous, to: source.state, userStarted: userStarted,
+                                  frontmost: isFrontmost()))
     }
 
     /// Decides whether `trigger` starts a sync of `sourceID` now.
@@ -374,12 +393,15 @@ final class SyncCoordinator {
         syncStartedAt.removeValue(forKey: id)
         // Sleep, quit, removal: nothing partial is written (§13.3).
         guard !cancelled, let source = connectedSources.first(where: { $0.id == id }) else { return }
+        let previous = source.state
+        let userStarted = trigger == .syncNow
         switch result {
         case .failure(.cancelled):
             return
         case .failure(let error):
             SyncApplier.recordFailure(error, to: source, context: context, now: now)
             SourceLogger.shared.state(source, state: error.state)
+            report(source, from: previous, userStarted: userStarted)
         case .success(let fetched):
             let write = { [weak self] in
                 guard let self else { return }
@@ -399,6 +421,7 @@ final class SyncCoordinator {
                                          outcome: plan.feedUnchanged ? "feed unchanged"
                                              : (plan.writesEvents ? "wrote" : "nothing to write"))
                 if source.capabilities.fetchMode == .get { self.refreshSchedules() }
+                self.report(source, from: previous, userStarted: userStarted)
             }
             if let state = calendarState { state.applyOrHoldSyncWrite(write) } else { write() }
         }
@@ -410,6 +433,10 @@ final class SyncCoordinator {
     func applyFetched(_ result: ScheduleFetchResult, to source: Source, kind: SyncKind) throws -> SyncPlan {
         let now = clock()
         let zone = zone()
+        let previous = source.state
+        // The connect sheet's Import and edit mode's Save: the user is
+        // looking (N8 is never sent; leaving a paused state still clears it).
+        defer { report(source, from: previous, userStarted: true) }
         let plan = SyncPlanner.plan(
             existing: SyncApplier.snapshot(of: source, in: context, zone: zone),
             source: SourceSnapshot(feedHash: source.feedHash, lastFeedEventCount: source.lastFeedEventCount,

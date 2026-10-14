@@ -60,6 +60,7 @@ struct KadenceApp: App {
         if opened.failedToOpenPersistentStore { StoreHealth.shared.failedToOpenPersistentStore = true }
         // Swift note: `_sync` is the property wrapper's own storage; assigning
         // `State(initialValue:)` there is how an `init` seeds a `@State`.
+        let sync: SyncCoordinator
         switch kind {
         case .review(let dataset):
             // Review mode (task 10): the mocked CIS server, the review
@@ -67,19 +68,20 @@ struct KadenceApp: App {
             // `empty` too: they have no connected source, but their connect
             // sheet must still never reach the network.
             let server = ReviewMode.server(case: ReviewMode.mockCase(), now: Date(), dataset: dataset)
-            _sync = State(initialValue: SyncCoordinator.live(
+            sync = SyncCoordinator.live(
                 context: container.mainContext, secrets: ReviewMode.secrets, path: PathMonitors.make(for: kind),
-                makeTransport: { MockCalDAVTransport(server: server) }))
+                makeTransport: { MockCalDAVTransport(server: server) })
         case .testHost:
             // The unit tests' host: no Keychain, and every request refused
             // before it is sent.
-            _sync = State(initialValue: SyncCoordinator.live(
+            sync = SyncCoordinator.live(
                 context: container.mainContext, secrets: InMemorySecretStore(), path: PathMonitors.make(for: kind),
-                makeTransport: { RefusingTransport() }))
+                makeTransport: { RefusingTransport() })
         case .normal:
-            _sync = State(initialValue: SyncCoordinator.live(context: container.mainContext,
-                                                             path: PathMonitors.make(for: kind)))
+            sync = SyncCoordinator.live(context: container.mainContext,
+                                                             path: PathMonitors.make(for: kind))
         }
+        _sync = State(initialValue: sync)
         let travel = Self.makeTravel(kind: kind, context: container.mainContext)
         let centre = NotificationServices.make(for: kind, review: .current())
         let notifications = NotificationScheduler(
@@ -102,6 +104,8 @@ struct KadenceApp: App {
             notifications?.requestPass(catchUp: passKind != .ordinary)
         }
         notifications.consumeRefreshed = { [weak travel] in travel?.consumeRefreshed() ?? [] }
+        // N8 (G-060): the sync engine reports source state changes.
+        sync.onStateEvent = { [weak notifications] event in notifications?.sourceStateChanged(event) }
         _travel = State(initialValue: travel)
         _notifications = State(initialValue: notifications)
     }

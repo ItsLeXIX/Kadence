@@ -10710,3 +10710,33 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   read-only event; Open / click / unknown id / Done and Snooze on an unknown
   id / dismiss; `sync.` → Settings ▸ Sources with the source; sounds.
 - Verify: **1011 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T11 — the sync-paused notification (G-060)
+
+- `SyncCoordinator` reports every source state change —
+  `StateEvent.transition(sourceID, from, to, userStarted, frontmost)` — after
+  an automatic sync, a Sync Now and the connect sheet's Import / edit mode's
+  Save (`applyFetched`, always `userStarted`), and `.removed` from
+  `sourceRemoved` (Settings' `Remove Source…` already calls it).
+  `isFrontmost` is injectable (`NSApplication.isActive` in the app).
+- `NotificationScheduler.sourceStateChanged`: entering `unauthorized` /
+  `forbidden` from a non-paused state, in a sync Kadence started itself
+  (interval, launch, wake, network) while not frontmost, with `Sync
+  problems` on → one N8 `sync.{sourceID}` (`{name}`, `{host}`, `{user}` from
+  the record; never the password), category `kadence.source`, `.active`,
+  default sound, a 1-second trigger — or held to the end of a protected
+  window (§27.5, no event to be inside). Planned until added; never
+  repeated while paused (a record at its fire date means sent). Leaving the
+  paused state, or removal, removes it pending and delivered and deletes
+  its record. Turning the rule on while paused sends nothing (the
+  transition has passed).
+- Wired in `KadenceApp` (`sync.onStateEvent`); `KadenceApp.init` now builds
+  the sync coordinator as a local before wrapping it in `State`.
+- Tests: `KadenceTests/Slice2/SyncPausedNotificationTests.swift` (7), the
+  sync going through the real CalDAV client to `MockCalDAVTransport`:
+  §30.1's two bodies exact, `kadence.source`, `.active`, at once, no
+  password / sentinel / `Authorization`; 03:00 → 07:00; a second paused sync
+  adds nothing; recovery with `reportOK` via Sync Now removes it pending and
+  delivered; Sync Now, frontmost, and the Import path send nothing; the rule
+  off, then on while paused → nothing; removal; not repeated once delivered.
+- Verify: **1018 passed / 0 failed**; real store `stat` unchanged.
