@@ -13,12 +13,14 @@
 
 import SwiftUI
 import AppKit
+import Testing
 @testable import Kadence
 
 @MainActor
 enum Slice2Render {
     @discardableResult
-    static func render(_ name: String, _ view: some View, size: CGSize, dark: Bool = false) -> NSImage? {
+    static func render(_ name: String, _ view: some View, size: CGSize, dark: Bool = false,
+                       suffix: String = "p3b") -> NSImage? {
         SourceCatalog.install(.testTimetable)
         let host = NSHostingView(rootView: AnyView(view.environment(\.colorScheme, dark ? .dark : .light)))
         host.frame = CGRect(origin: .zero, size: size)
@@ -46,7 +48,11 @@ enum Slice2Render {
            let png = rep.representation(using: .png, properties: [:]) {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("kadence-captures")
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try? png.write(to: directory.appendingPathComponent("\(name)-p3b.png"))
+            try? png.write(to: directory.appendingPathComponent("\(name)-\(suffix).png"))
+            // The same PNG as a test attachment, so a capture script can take
+            // it from the result bundle without reading the sandboxed test
+            // host's container (Scripts/capture-p3b-renders.sh).
+            Attachment.record(png, named: "\(name)-\(suffix).png")
         }
         return image
     }

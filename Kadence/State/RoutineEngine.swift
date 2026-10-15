@@ -115,9 +115,10 @@ enum RoutineEngine {
                         startMinutes: block.startMinutes, duration: block.duration,
                         weekday: weekday, windows: timeWindows)
                     else { continue }
-                    guard let blockStart = calendar.date(
-                        byAdding: .minute, value: block.startMinutes, to: day)
-                    else { continue }
+                    // components.md §31.4: the block's wall-clock time on
+                    // the day (02:30 on 29 Mar → 03:30 CEST); the end is its
+                    // duration later.
+                    let blockStart = WallClock.moment(minuteOfDay: block.startMinutes, on: day, calendar: calendar)
                     let values = EventStore.RoutineValues(
                         title: block.title,
                         start: blockStart,
@@ -401,9 +402,9 @@ enum RoutineInstance {
     ) -> EventStore.RoutineValues? {
         guard let template = template(of: event, in: context),
               let pair = RoutineEngine.parse(externalID: event.externalID, calendar: calendar),
-              let block = template.blocks.first(where: { $0.id == pair.blockID }),
-              let start = calendar.date(byAdding: .minute, value: block.startMinutes, to: pair.day)
+              let block = template.blocks.first(where: { $0.id == pair.blockID })
         else { return nil }
+        let start = WallClock.moment(minuteOfDay: block.startMinutes, on: pair.day, calendar: calendar)
         return EventStore.RoutineValues(
             title: block.title, start: start, end: start.addingTimeInterval(block.duration),
             flexibility: block.flexibility)

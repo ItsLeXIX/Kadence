@@ -11044,3 +11044,142 @@ Supersedes §134's stop note: tasks 15–18 were done after the resume (§135).
 - Xcode keys: `ENABLE_RESOURCE_ACCESS_LOCATION = YES` present; no
   `NSLocation…UsageDescription` and no `CODE_SIGN_ENTITLEMENTS` (so no
   time-sensitive entitlement). Builds and tests pass as is.
+
+## 137. Phase 3 slice 2 fixes run (2026-10-15) — step 0
+
+- Step 0: tree as expected (DECISIONS.md, design/GAPS.md, components.md,
+  layouts.md modified; PHASE3-SLICE2-REVIEW.md untracked). DECISIONS has the
+  three 2026-10-15 entries. Committed `2aa857a` "design: Phase 3 slice 2
+  review + DECISIONS 2026-10-15".
+- `project.pbxproj` (informational): **both** `INFOPLIST_KEY_NSLocationUsageDescription`
+  and `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` are now present
+  (Debug and Release, Parsa's `a0deaaa`), with the review's sentence.
+- Real store `stat`: **not recorded.** This run's shell sandbox denies every
+  access to `~/Library/Containers/XIX.Kadence/` (even `ls` of the directory:
+  "Operation not permitted"), and the one request to run `stat` outside the
+  sandbox was refused by the session's permission classifier. So nothing in
+  this run could open, read or write the store either; no comparison is
+  possible. Recorded again at the end.
+- Baseline: the suite was first run **after** the first F01 edits (an
+  ordering slip). To keep the baseline honest it was also run on an exact
+  export of `HEAD` (`git archive 2aa857a`) in the scratchpad, own
+  DerivedData: **1067 passed / 0 failed**. No time-of-day fixture failed.
+
+## 138. P3S2-F01 — wall-clock times on clock-change days (PHASE3-SLICE2-REVIEW.md §7 F01; components.md §31; layouts.md §3.1; DECISIONS 2026-10-15; G-100)
+
+One pure pair, `WallClock` (`Kadence/Layout/WallClock.swift`, new,
+`nonisolated`): `minuteOfDay(_:on:calendar:)` (clipped 0 / 1440) and
+`moment(minuteOfDay:on:calendar:)` (repeated hour → first occurrence, missing
+hour → the offset before the gap, 1440 → next day's start). It solves
+`x + offset(x) = local` against the zone's offsets ±3 h around the time, so
+it does not depend on Foundation's policy defaults. Plus `localMinutes`
+(unclipped local-clock difference, = elapsed on an ordinary day),
+`nextDayStart` and `rulerDate` (an elapsed drawing-ruler point, not a time of
+day).
+
+Every site changed (file — function — what):
+
+- `Layout/TimeGeometry.swift` — gains `calendar` (default `.current`);
+  `y(for:)` is wall-clock (`localMinutes` from `dayStart`); `date(forY:)` →
+  `WallClock.moment` inside the day, elapsed past either end;
+  `height(from:to:)` → §31.2 via new `drawnMinutes(from:to:)` (back through
+  the repeated hour = top + elapsed); new `minute(of:)`, `elapsedRuler`,
+  `dragged(_:by:snapMinutes:)`; `snap` snaps minute-of-day;
+  `yForTimeOfDay` uses `WallClock` and the geometry's calendar.
+- `Layout/DayLayoutEngine.swift` — `layout` re-expresses each item (and its
+  band's top) as its **drawn** interval on `elapsedRuler` (new
+  `drawn(_:geometry:)`), so overlap is resolved on drawn intervals (§31.2);
+  identity on an ordinary day.
+- `Layout/InitialScroll.swift` — `minute(events:days:calendar:)`:
+  `WallClock.minuteOfDay` (29 Mar 06:00 CEST → 05:00, not 04:00).
+- `Layout/WindowLabelPlacement.swift` — `place`: span start by `minuteOfDay`.
+- `Layout/RoutineWeekLayout.swift` — `layoutItems(…, calendar:)`:
+  `WallClock.moment` on the reference day.
+- `Models/TimeWindow.swift` — `TimeWindow.spans(on:calendar:)`: wall-clock.
+- `Models/DisplayFixtures.swift` — `TimeWindowFixture.spans(on:calendar:)`:
+  wall-clock.
+- `Models/RoutineTemplate.swift` — doc comment of `startMinutes` (it named
+  the banned form).
+- `State/RoutineEngine.swift` — `materialize` and `templateValues`:
+  `WallClock.moment(minuteOfDay: block.startMinutes, on: day)`; end = start +
+  duration. Old 19:00 CET instances are rewritten by the existing row-2
+  update (no undo step when run by the background trigger); detached ones
+  are untouched (persisted `routineLink`).
+- `Services/Notifications/NotificationPlanner.swift` — `QuietWindow.spans`:
+  wall-clock (the quiet rule, `hold`, reads these).
+- `Views/Canvas/GridLayers.swift` — `NowLineView.lineY` (= `y(for: now)`,
+  now wall-clock, level with the gutter's now time); window bands read the
+  wall-clock geometry and spans.
+- `Views/Canvas/DayColumnView.swift` — drag: the dragged edge is
+  `geometry.dragged(edge, by: dy)` (move / resize-top from the start,
+  resize-bottom from the **end**, dropped at the wall-clock time under the
+  snapped y; a move keeps the elapsed duration); resize-bottom commits and
+  previews `session.current` as the new end; create / click / double-click
+  snaps with the geometry's calendar. Band height uses the §31.2 rule.
+- `Views/Canvas/TimedCanvasView.swift` — `bringIntoView`: conflict-scroll
+  minutes by `minuteOfDay` on the occurrence's day.
+- `Views/Canvas/MonthGridView.swift` — the cell filter extracted as
+  `static timedEvents(_:on:calendar:)` (unchanged behaviour; for T5).
+- `Views/MainWindow.swift` — `nextHalfHour`: 09:00 of another day by
+  `WallClock.moment`.
+- `Views/Routines/RoutinesWindow.swift` — gutter cursor, `blockView`,
+  `blockDragPreviewFrame`, `conflictTwin` via new `moment(minutes:)`;
+  `minutes(for:)` via `localMinutes`; window drag/resize snapping in
+  minute-of-day (`snappedDelta`), no elapsed day-start arithmetic.
+- `Views/Routines/TemplateConflictPanelView.swift` — `blockModel`:
+  `WallClock.moment` on the reference day.
+- `Mock/MockData.swift` — `makeEvents.at(_:_:plusDays:)` and the routine
+  busy intervals: wall-clock.
+- `Review/TravelDataset.swift` — `liveEventStart` (P6): wall-clock, next day
+  past midnight.
+
+Search for other "minutes after midnight added to a Date": `rg` over
+`Kadence/` for `addingTimeInterval` / `byAdding: .minute|.hour` on any
+day-start variable — none left outside `WallClock`; `byAdding: .minute/.hour`
+appears nowhere. T12 enforces it (and asserts it read > 100 files and still
+matches the banned form). Durations (snooze, nudge, travel, buffer, leads,
+T−3 h / T−45, the 48-hour window, chain gap) unchanged.
+
+Tests — new `KadenceTests/Slice2/ClockChangeTests.swift` (20 tests, §31.5
+T1–T12, Europe/Vienna injected, every moment built from UTC + explicit
+offset): T1 ×3 (25 Oct, 29 Mar, 22 Oct every quarter hour); T2 ×3 (drawn rows
+of A / B / B1 / B2 / B3 / Climbing + band, B1 left of B2 with no conflict,
+`01:30-03:30` and `Duration 3 h`, routine 20:00 → 20:00 CET, a routine in the
+repeated hour → its first one); T3 ×2 (incl. 02:30 → 03:30 CEST); T4 (Sunday
+rows; Mon–Sat layouts equal to the elapsed ruler's); T5 (Month cells, the
+Saturday 23:30–00:30 event in the 24 Oct cell only); T6 (now line = gutter
+label = minuteOfDay at the eight clocks, Day and Week, A42's marker on the
+same y); T7 ×3; T8 ×3 (all three span builders on 24–26 Oct, 28–30 Mar; hold
+06:40 → 07:00 both days, 21:30 CET not held; 21:30–22:30 refused every day);
+T9 ×2 (routineStart 19:55 CET / CEST; old instance corrected with one update,
+no new instance, no undo step, `externalID` unchanged; detached stays); T10
+(drop at y(20) → 20:00–21:30 CET, y(2.5) → 02:30 CEST / 03:30 CEST, nudge
+elapsed); T11 (sunday slot 17:30, `departAt` 17:45 CET, `leave.` 17:40 CET,
+`Leave by 17:45 for Climbing`); T12. Plus `ClockChangeRenderTests` (item 24
+frames). Test fixture `TravelFixtures.m` made wall-clock (same values on
+ordinary days). **No existing test changed or weakened**; all ordinary-day
+elapsed tests pass untouched.
+
+Frames (offscreen, clock pinned 18:30 local, §30 item 24):
+`dst-day-1025-p3bf01.png`, `dst-week-1025-p3bf01.png`,
+`dst-month-1025-p3bf01.png`, `dst-day-0329-p3bf01.png`,
+`dst-week-0329-p3bf01.png`, `dst-month-0329-p3bf01.png` — the real
+`TimedCanvasView` / `MonthGridView` on an in-memory store, the routine block
+materialised by the engine, Sleep as a window, Climbing's band. Checked by
+eye: Climbing on the 18:00 row with `Leave 17:45 · 5min` from 17:45; routine
+at 20:00; B1 and B2 side by side on the 02:00 row, B3 02:45–03:15; spring's
+02:00 row empty, R2 at 03:30; Sleep ends at 07:00 and starts at 22:00; the
+now line level with `18:30`. Month frames show T5's set (Climbing, the
+routine, the late Saturday event) so Climbing is not behind `+N more`.
+Edge check: all `ok`. The ⚠ marks on A / B / B1… are the existing late
+state of unmarked past manual events at 18:30, not new.
+
+Capture route: `Slice2Render` now also records each PNG as a Swift Testing
+attachment, and new `Scripts/capture-p3b-renders.sh` (`SUFFIX=…`) runs the
+named render tests with a result bundle in a temp dir and copies
+`<name>-$SUFFIX.png` attachments to `screenshots/3b/`. Nothing is read from
+the sandboxed test host's container (this run cannot read it at all). No app
+launch, no UI input.
+
+Verify: **1088 passed / 0 failed** (xcresult summary; 1067 + 21 new);
+tokens `--check` up to date. No DEVIATIONS, no new GAPS.

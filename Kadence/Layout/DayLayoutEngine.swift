@@ -156,6 +156,14 @@ enum DayLayoutEngine {
     ) -> DayLayout {
         guard !items.isEmpty, columnWidth > 0 else { return DayLayout() }
 
+        // components.md §31.2: overlap is resolved on the **drawn** intervals,
+        // so the two 02:00 hours of 25 Oct sit side by side. Each item is
+        // re-expressed on a ruler with no clock change in it, where drawn
+        // minutes and elapsed time are the same thing; the steps below are
+        // unchanged. On a day without a change this is the identity.
+        let items = items.map { drawn($0, geometry: geometry) }
+        let geometry = geometry.elapsedRuler
+
         let clusters = cluster(items, geometry: geometry, minimumDuration: geometry.minimumRenderedDuration)
         var result = DayLayout()
         // z-order is global across the column, not per cluster, so two clusters
@@ -186,6 +194,24 @@ enum DayLayoutEngine {
 
         result.blocks = applyVerticalGaps(result.blocks)
         result.blocks = applyCovering(result.blocks)
+        return result
+    }
+
+    /// components.md §31.2 — an item's drawn interval, and its travel band's
+    /// drawn top, as dates on `geometry.elapsedRuler`. The band stays attached
+    /// to its parent: its bottom is the parent's drawn top, its top the
+    /// wall-clock departure, or the band's elapsed length above the parent
+    /// when that is not above it.
+    static func drawn(_ item: LayoutItem, geometry: TimeGeometry) -> LayoutItem {
+        let bounds = geometry.drawnMinutes(from: item.start, to: item.end)
+        func onRuler(_ minutes: Double) -> Date { WallClock.rulerDate(minutes: minutes, from: geometry.dayStart) }
+        var result = item
+        result.start = onRuler(bounds.top)
+        result.end = onRuler(bounds.bottom)
+        if let departAt = item.departAt {
+            let band = geometry.drawnMinutes(from: departAt, to: item.start)
+            result.departAt = onRuler(bounds.top - (band.bottom - band.top))
+        }
         return result
     }
 

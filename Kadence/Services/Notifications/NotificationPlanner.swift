@@ -42,8 +42,9 @@ nonisolated struct QuietWindow: Sendable, Equatable {
         var result: [(Date, Date)] = []
         func add(_ from: Int, _ to: Int) {
             guard to > from else { return }
-            result.append((startOfDay.addingTimeInterval(TimeInterval(from * 60)),
-                           startOfDay.addingTimeInterval(TimeInterval(to * 60))))
+            // components.md §31.4: wall-clock, as `TimeWindow.spans`.
+            result.append((WallClock.moment(minuteOfDay: from, on: startOfDay, calendar: calendar),
+                           WallClock.moment(minuteOfDay: to, on: startOfDay, calendar: calendar)))
         }
         if endMinutes > startMinutes {
             if weekdays.contains(weekday) { add(startMinutes, endMinutes) }

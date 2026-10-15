@@ -337,6 +337,11 @@ struct NowLineView: View {
     /// Day draws the dot at the gutter edge; Week at the column's leading edge.
     var showsDot: Bool = true
 
+    /// components.md §31.3: the wall-clock time of `now` on the column's day
+    /// — the same y as the gutter's now time (`yForTimeOfDay`), also after a
+    /// clock change.
+    var lineY: CGFloat { geometry.y(for: now) }
+
     var body: some View {
         ZStack(alignment: .leading) {
             Rectangle()
@@ -350,7 +355,7 @@ struct NowLineView: View {
             }
         }
         .frame(height: Tokens.Size.nowDotDiameter)
-        .offset(y: geometry.y(for: now) - Tokens.Size.nowDotDiameter / 2)
+        .offset(y: lineY - Tokens.Size.nowDotDiameter / 2)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

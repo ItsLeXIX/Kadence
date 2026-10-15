@@ -69,8 +69,10 @@ struct TemplateConflictPanelView: View {
 
     /// The routine block, drawn the way the Routines canvas draws it.
     private var blockModel: GridBlockModel {
-        let start = RoutineWeekLayout.referenceDayStart(weekday: conflict.weekdays.first ?? 2, now: Date())
-            .addingTimeInterval(TimeInterval(conflict.blockStartMinutes * 60))
+        let start = WallClock.moment(
+            minuteOfDay: conflict.blockStartMinutes,
+            on: RoutineWeekLayout.referenceDayStart(weekday: conflict.weekdays.first ?? 2, now: Date()),
+            calendar: .current)
         return GridBlockModel(
             id: conflict.blockID, title: conflict.blockTitle,
             start: start, end: start.addingTimeInterval(TimeInterval(conflict.durationMinutes * 60)),

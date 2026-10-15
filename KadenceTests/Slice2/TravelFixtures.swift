@@ -32,7 +32,8 @@ nonisolated enum TravelFixtures {
     static func m(_ n: Int, _ hhmm: String) -> Date {
         let day = calendar.date(byAdding: .day, value: n, to: date("2026-10-12 00:00"))!
         let parts = hhmm.split(separator: ":").compactMap { Int($0) }
-        return day.addingTimeInterval(TimeInterval(parts[0] * 3600 + parts[1] * 60))
+        // components.md §31.4: wall-clock, so `m(13, …)` (Sun 25 Oct) is right.
+        return WallClock.moment(minuteOfDay: parts[0] * 60 + parts[1], on: day, calendar: calendar)
     }
 
     static let gymID = "gym"

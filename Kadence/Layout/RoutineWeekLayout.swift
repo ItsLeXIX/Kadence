@@ -53,8 +53,8 @@ enum RoutineWeekLayout {
 
     /// Midnight of *some* date whose weekday component is `weekday`, anchored
     /// near `now`. The Routines window shows no dates at all (`dayHeaderWeekday`
-    /// only, per components.md §13.1's table) — only the time-of-day this date
-    /// carries once a block's `startMinutes` is added to it is ever read, so
+    /// only, per components.md §13.1's table) — only the wall-clock time of
+    /// day a block's `startMinutes` names on it is ever read, so
     /// which actual date is picked is arbitrary as long as its weekday matches.
     static func referenceDayStart(weekday: Int, now: Date, calendar: Calendar = .current) -> Date {
         let today = calendar.startOfDay(for: now)
@@ -73,11 +73,14 @@ enum RoutineWeekLayout {
         blocks: [RoutineBlockSnapshot],
         activeWeekdays: Set<Int>,
         weekday: Int,
-        referenceDayStart: Date
+        referenceDayStart: Date,
+        calendar: Calendar = .current
     ) -> [LayoutItem] {
         guard activeWeekdays.contains(weekday) else { return [] }
         return blocks.map { block in
-            let start = referenceDayStart.addingTimeInterval(TimeInterval(block.startMinutes * 60))
+            // components.md §31.4: wall-clock on the reference day, which is
+            // a real date near today and so a change day twice a year.
+            let start = WallClock.moment(minuteOfDay: block.startMinutes, on: referenceDayStart, calendar: calendar)
             return LayoutItem(
                 id: block.id, start: start,
                 end: start.addingTimeInterval(block.duration),

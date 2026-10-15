@@ -292,8 +292,8 @@ struct TimedCanvasView: View {
     ) {
         let calendar = Calendar.current
         guard let day = days.first(where: { calendar.isDate($0, inSameDayAs: request.occurrenceStart) }) else { return }
-        let dayStart = calendar.startOfDay(for: day)
-        func minute(_ date: Date) -> Int { Int(date.timeIntervalSince(dayStart) / 60) }
+        // components.md §31.4: wall-clock minutes on the occurrence's day.
+        func minute(_ date: Date) -> Int { Int(WallClock.minuteOfDay(date, on: day, calendar: calendar)) }
         guard let target = ConflictScroll.targetMinute(
             occurrence: minute(request.occurrenceStart)..<max(minute(request.occurrenceEnd), minute(request.occurrenceStart) + 1),
             earliestStart: minute(request.earliestStart),

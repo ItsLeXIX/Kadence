@@ -147,7 +147,11 @@ enum TravelDataset {
         let parts = calendar.dateComponents([.hour, .minute, .second], from: launch)
         let minutes = (parts.hour ?? 0) * 60 + (parts.minute ?? 0) + ((parts.second ?? 0) > 0 ? 1 : 0)
         let rounded = (minutes + 14) / 15 * 15
-        return calendar.startOfDay(for: launch).addingTimeInterval(TimeInterval((rounded + 60) * 60))
+        // components.md §31.4: a wall-clock time, on the next day past midnight.
+        let total = rounded + 60
+        let today = calendar.startOfDay(for: launch)
+        let day = calendar.date(byAdding: .day, value: total / 1440, to: today) ?? today
+        return WallClock.moment(minuteOfDay: total % 1440, on: day, calendar: calendar)
     }
 
     private static func confirm(_ place: KnownPlace, _ seed: SeedPlace, at now: Date) {

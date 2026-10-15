@@ -906,7 +906,7 @@ struct RoutineGutterStrip: View {
             geometry: TimeGeometry(dayStart: day, hourHeight: hourHeight),
             now: now,
             showsNow: false,
-            cursor: cursorMinute.map { day.addingTimeInterval(TimeInterval($0 * 60)) })
+            cursor: cursorMinute.map { WallClock.moment(minuteOfDay: $0, on: day, calendar: .current) })
             // The full 24h height, so the background below has the gutter's
             // real extent (the labels are placed with offsets and don't
             // give the gutter a layout height of their own).
@@ -1390,7 +1390,8 @@ private struct RoutineDayColumnView: View {
             blocks: blocks,
             activeWeekdays: template?.activeWeekdays ?? [],
             weekday: weekday,
-            referenceDayStart: referenceDayStart)
+            referenceDayStart: referenceDayStart,
+            calendar: .current)
         // The draft is laid out only on active weekday columns. This is a
         // second lock, not the main one: the create surface is refused on
         // inactive columns, and a draft whose column is deactivated is
@@ -1619,7 +1620,7 @@ private struct RoutineDayColumnView: View {
 
     @ViewBuilder
     private func blockView(block: RoutineBlockSnapshot, laidOut: LaidOutBlock, geometry: TimeGeometry) -> some View {
-        let start = referenceDayStart.addingTimeInterval(TimeInterval(block.startMinutes * 60))
+        let start = moment(minutes: block.startMinutes)
         let model = GridBlockModel(
             id: block.id,
             title: block.title,
@@ -1760,8 +1761,16 @@ private struct RoutineDayColumnView: View {
             }
     }
 
+    /// components.md §31.4: the date's wall-clock minutes on the reference
+    /// day (a real date, so a change day twice a year), running on past
+    /// midnight as before.
     private func minutes(for date: Date) -> Int {
-        Int(date.timeIntervalSince(referenceDayStart) / 60)
+        Int(WallClock.localMinutes(date, since: referenceDayStart, timeZone: Calendar.current.timeZone))
+    }
+
+    /// The wall-clock time `minutes` after midnight on the reference day.
+    private func moment(minutes: Int) -> Date {
+        WallClock.moment(minuteOfDay: minutes, on: referenceDayStart, calendar: .current)
     }
 
     // MARK: TimeWindow select / move / resize (tasks P2-T21, P2-T22)
@@ -1888,27 +1897,24 @@ private struct RoutineDayColumnView: View {
                 defer { windowDrag = nil }
                 guard let mode = windowDrag?.mode else { return }
                 let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
-                let deltaTime = TimeInterval(value.translation.height / hourHeight) * 3600
+                let dyMinutes = Double(value.translation.height / hourHeight) * 60
                 windowSelection = window.id
+                // components.md §31.4: on the ruler's wall-clock minutes. The
+                // edge moves by the dragged minutes and snaps to the grid of
+                // its time of day; the window stores minutes after midnight.
+                func snappedDelta(from minute: Int) -> Int {
+                    let target = (Double(minute) + dyMinutes) / Double(snap)
+                    return Int(target.rounded()) * snap - minute
+                }
 
                 switch mode {
                 case .move:
-                    // `referenceDayStart` is just a stable anchor here —
-                    // snapping and then differencing against the same anchor
-                    // yields the correct elapsed minute delta regardless of
-                    // which calendar day `TimeGeometry.snap` resolves
-                    // internally, the same reasoning `blockGesture`/
-                    // `minutes(for:)` already rely on.
-                    let snapped = TimeGeometry.snap(referenceDayStart.addingTimeInterval(deltaTime), toMinutes: snap)
-                    let deltaMinutes = Int(snapped.timeIntervalSince(referenceDayStart) / 60)
-                    timeWindowStore.move(window, byDeltaMinutes: deltaMinutes)
+                    timeWindowStore.move(window, byDeltaMinutes: snappedDelta(from: 0))
                 case .resizeTop:
-                    let snapped = TimeGeometry.snap(span.start.addingTimeInterval(deltaTime), toMinutes: snap)
-                    let deltaMinutes = Int(snapped.timeIntervalSince(span.start) / 60)
+                    let deltaMinutes = snappedDelta(from: minutes(for: span.start))
                     timeWindowStore.resize(window, newStartMinutes: window.startMinutes + deltaMinutes)
                 case .resizeBottom:
-                    let snapped = TimeGeometry.snap(span.end.addingTimeInterval(deltaTime), toMinutes: snap)
-                    let deltaMinutes = Int(snapped.timeIntervalSince(span.end) / 60)
+                    let deltaMinutes = snappedDelta(from: minutes(for: span.end))
                     timeWindowStore.resize(window, newEndMinutes: window.endMinutes + deltaMinutes)
                 }
             }
@@ -2124,8 +2130,8 @@ private struct RoutineDayColumnView: View {
         guard let session = blockDrag else { return nil }
         let inset = Tokens.Spacing.xxs
         let range = session.proposedRange
-        let start = referenceDayStart.addingTimeInterval(TimeInterval(range.start * 60))
-        let end = referenceDayStart.addingTimeInterval(TimeInterval(range.end * 60))
+        let start = moment(minutes: range.start)
+        let end = moment(minutes: range.end)
         return CGRect(
             x: inset, y: geometry.y(for: start),
             width: width - 2 * inset,
@@ -2141,7 +2147,7 @@ private struct RoutineDayColumnView: View {
               let block = blocks.first(where: { $0.id == preview.blockID })
         else { return nil }
         let inset = Tokens.Spacing.xxs
-        let start = referenceDayStart.addingTimeInterval(TimeInterval(startMinutes * 60))
+        let start = moment(minutes: startMinutes)
         let end = start.addingTimeInterval(TimeInterval(duration * 60))
         let height = max(geometry.height(from: start, to: end), Tokens.Size.blockMinRenderedHeight)
         let model = GridBlockModel(

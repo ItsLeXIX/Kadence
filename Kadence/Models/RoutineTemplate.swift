@@ -83,12 +83,10 @@ final class RoutineBlock {
 
     /// Time-of-day as minutes since midnight, not `DateComponents(hour:
     /// minute:)`. Both encode the same thing; this was chosen because
-    /// `RoutineEngine.materialize` only ever needs to add it to a day's start
-    /// as a plain calendar offset
-    /// (`calendar.date(byAdding: .minute, value: startMinutes, to: dayStart)`),
-    /// which needs no intermediate `DateComponents` round-trip, and because it
-    /// makes the value directly comparable to `shiftableMinutes` below —
-    /// both are the same unit.
+    /// it makes the value directly comparable to `shiftableMinutes` below —
+    /// both are the same unit. It is a **wall-clock** time: `RoutineEngine`
+    /// turns it into a moment with `WallClock.moment(minuteOfDay:on:)`, never
+    /// by adding elapsed minutes to midnight (components.md §31.4).
     var startMinutes: Int = 0
 
     var duration: TimeInterval = 0

@@ -103,9 +103,11 @@ struct TimeWindowFixture: Identifiable, Equatable, Sendable {
 
         func add(_ fromMinutes: Int, _ toMinutes: Int) {
             guard toMinutes > fromMinutes else { return }
+            // components.md §31.4: wall-clock times on the day, so Sleep
+            // still ends at 07:00 on the day the clocks change.
             result.append((
-                startOfDay.addingTimeInterval(TimeInterval(fromMinutes * 60)),
-                startOfDay.addingTimeInterval(TimeInterval(toMinutes * 60))
+                WallClock.moment(minuteOfDay: fromMinutes, on: startOfDay, calendar: calendar),
+                WallClock.moment(minuteOfDay: toMinutes, on: startOfDay, calendar: calendar)
             ))
         }
 

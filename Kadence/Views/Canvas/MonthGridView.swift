@@ -88,15 +88,22 @@ struct MonthGridView: View {
         }
     }
 
+    /// The timed events a cell lists: those that **start** on its day, in
+    /// start order. Month places by date, so a clock change does not move
+    /// anything here (components.md §31.4).
+    static func timedEvents(_ events: [Event], on day: Date, calendar: Calendar) -> [Event] {
+        events
+            .filter { !$0.isAllDay && calendar.isDate($0.start, inSameDayAs: day) }
+            .sorted { $0.start < $1.start }
+    }
+
     @ViewBuilder
     private func cell(for day: Date) -> some View {
         let calendar = Calendar.current
         let inMonth = calendar.isDate(day, equalTo: anchorMonth, toGranularity: .month)
         let isToday = calendar.isDate(day, inSameDayAs: now)
         let allDay = fixtures.allDayItems(on: day)
-        let timed = events
-            .filter { !$0.isAllDay && calendar.isDate($0.start, inSameDayAs: day) }
-            .sorted { $0.start < $1.start }
+        let timed = Self.timedEvents(events, on: day, calendar: calendar)
         let maxRows = Tokens.Size.monthCellMaxVisibleRows
         let total = allDay.count + timed.count
 

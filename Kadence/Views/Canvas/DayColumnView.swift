@@ -388,17 +388,20 @@ struct DayColumnView: View {
                     : .move
 
                 let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
-                let delta = value.translation.height
-                let deltaTime = TimeInterval(delta / geometry.hourHeight) * 3600
-
+                // components.md §31.4: the dragged edge moves on the column's
+                // wall-clock ruler and drops at the time under the snapped y.
+                // A move keeps the elapsed duration; resizing the bottom moves
+                // the end itself.
                 if drag == nil {
+                    let edge = mode == .resizeBottom ? event.end : event.start
                     drag = DragSession(
                         mode: mode, eventID: event.id,
-                        origin: event.start, current: event.start, snapMinutes: snap)
+                        origin: edge, current: edge, snapMinutes: snap)
                 }
                 drag?.snapMinutes = snap
-                drag?.current = TimeGeometry.snap(
-                    event.start.addingTimeInterval(deltaTime), toMinutes: snap)
+                if let edge = drag?.origin {
+                    drag?.current = geometry.dragged(edge, by: value.translation.height, snapMinutes: snap)
+                }
             }
             .onEnded { _ in
                 defer { drag = nil }
@@ -416,8 +419,7 @@ struct DayColumnView: View {
                 case .resizeTop:
                     store.resize(event, newStart: session.current)
                 case .resizeBottom:
-                    let delta = session.current.timeIntervalSince(session.origin)
-                    store.resize(event, newEnd: event.end.addingTimeInterval(delta))
+                    store.resize(event, newEnd: session.current)
                 case .create:
                     break
                 }
@@ -434,19 +436,19 @@ struct DayColumnView: View {
             .cursor(.crosshair)
             .accessibilityHidden(true)
             .onTapGesture(count: 2) { location in
-                let start = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15)
+                let start = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15, calendar: geometry.calendar)
                 state.beginDraft(at: start)
             }
             .onTapGesture { location in
                 state.selectedEventID = nil
-                state.timeCursor = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15)
+                state.timeCursor = TimeGeometry.snap(geometry.date(forY: location.y), toMinutes: 15, calendar: geometry.calendar)
             }
             .gesture(
                 DragGesture(minimumDistance: 6)
                     .onChanged { value in
                         let snap = NSEvent.modifierFlags.contains(.control) ? 5 : 15
-                        let from = TimeGeometry.snap(geometry.date(forY: value.startLocation.y), toMinutes: snap)
-                        let to = TimeGeometry.snap(geometry.date(forY: value.location.y), toMinutes: snap)
+                        let from = TimeGeometry.snap(geometry.date(forY: value.startLocation.y), toMinutes: snap, calendar: geometry.calendar)
+                        let to = TimeGeometry.snap(geometry.date(forY: value.location.y), toMinutes: snap, calendar: geometry.calendar)
                         drag = DragSession(
                             mode: .create, eventID: nil,
                             origin: from, current: to, snapMinutes: snap)
@@ -489,8 +491,7 @@ struct DayColumnView: View {
                 end = event.end
             case .resizeBottom:
                 start = event.start
-                let delta = session.current.timeIntervalSince(session.origin)
-                end = max(event.end.addingTimeInterval(delta), start.addingTimeInterval(15 * 60))
+                end = max(session.current, start.addingTimeInterval(15 * 60))
             default:
                 start = session.current
                 end = session.current.addingTimeInterval(event.duration)

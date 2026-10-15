@@ -616,7 +616,7 @@ struct MainWindow: View {
         let calendar = Calendar.current
         let base = calendar.isDate(state.anchor, inSameDayAs: state.now)
             ? state.now
-            : calendar.startOfDay(for: state.anchor).addingTimeInterval(9 * 3600)
+            : WallClock.moment(minuteOfDay: 9 * 60, on: state.anchor, calendar: calendar)
         return TimeGeometry.snap(base.addingTimeInterval(30 * 60), toMinutes: 30)
     }
 

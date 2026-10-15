@@ -66,9 +66,9 @@ enum WindowLabelPlacement {
             var startsSeen: [Int] = []
             var candidates: [Int: [(column: Int, y: CGFloat)]] = [:]
             for (index, column) in columns.enumerated() {
-                let dayStart = calendar.startOfDay(for: column.day)
                 for span in window.spans(on: column.day, calendar: calendar) {
-                    let minute = Int((span.start.timeIntervalSince(dayStart) / 60).rounded())
+                    // components.md §31.4: the span's wall-clock start.
+                    let minute = Int(WallClock.minuteOfDay(span.start, on: column.day, calendar: calendar).rounded())
                     if !startsSeen.contains(minute) { startsSeen.append(minute) }
                     // +1: the label sits just inside the window's top edge
                     // line, as `WindowLabelsLayer` always drew it.

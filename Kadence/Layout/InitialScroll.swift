@@ -33,7 +33,9 @@ enum InitialScroll {
                 !event.isAllDay && !event.isCancelled && days.contains { day in calendar.isDate(event.start, inSameDayAs: day) }
             }
             .map { event in
-                Int(event.start.timeIntervalSince(calendar.startOfDay(for: event.start)) / 60)
+                // components.md §31.4: its wall-clock time of day, so a 06:00
+                // event on 29 Mar opens the view at 05:00, not 04:00.
+                Int(WallClock.minuteOfDay(event.start, on: event.start, calendar: calendar))
             }
             .min()
         guard let firstMinute else { return 7 * 60 }

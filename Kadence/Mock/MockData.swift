@@ -92,7 +92,8 @@ enum MockData {
         let day = calendar.startOfDay(for: now)
         func at(_ hour: Int, _ minute: Int = 0, plusDays: Int = 0) -> Date {
             let base = calendar.date(byAdding: .day, value: plusDays, to: day) ?? day
-            return base.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60))
+            // components.md §31.4: wall-clock, also on a change day.
+            return WallClock.moment(minuteOfDay: hour * 60 + minute, on: base, calendar: calendar)
         }
 
         var events: [Event] = []
@@ -356,7 +357,7 @@ enum MockData {
                       template.activeWeekdays.contains(calendar.component(.weekday, from: day))
                 else { continue }
                 for block in template.blocks {
-                    let start = day.addingTimeInterval(TimeInterval(block.startMinutes * 60))
+                    let start = WallClock.moment(minuteOfDay: block.startMinutes, on: day, calendar: calendar)
                     busy.append(DateInterval(start: start, duration: block.duration))
                 }
             }
