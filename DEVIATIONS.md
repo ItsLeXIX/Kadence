@@ -2476,3 +2476,24 @@ check" (2026-10-14).
   back (Sun 25 Oct 2026) `Climbing` landed at 17:00 instead of 18:00. They
   are now seeded at wall-clock times. Tests (pinned at `M` = Mon 12 Oct)
   are unchanged.
+- **B55 — F05's "live" frames are offscreen renders at a pinned clock**
+  (`PHASE3-SLICE2-REVIEW.md` §7 F05; `components.md` §30 items 5, 6, 8, 12,
+  16, 17, 20). The review asked for live `-KadenceReview` launches. In the
+  2026-10-15 fixes run the shell sandbox denies every read of the app's
+  container, so `Scripts/capture-p3b.sh` cannot read a launch's
+  `kadence-review/launch-services.txt` — the mocks-only check every review
+  launch must pass — and there is no injected clock for a live launch (item
+  16 asked for 07:00–20:00 by the injected clock, run rule 9). So each frame
+  is rendered by `F05RenderTests` from the real views (`TimedCanvasView`,
+  `MenuBarPopoverView`, `StatusItemLabel`, `SettingsView`) on an in-memory
+  store built by the review launch's own seeding (`TravelDataset.seed` with
+  `M` = the first Monday after the clock and P6; `ReviewMode.seedIfRequested
+  (.phase3)` with routine materialisation), the real `TravelCoordinator`
+  with the mock provider / geocoder / location / path monitor, and the
+  recording centre, at Thu 15 Oct 2026 12:00 (Europe/Vienna) — so Week `M`
+  is 19–25 Oct, its Sunday the clock change, as in the live frames. No app
+  launch, no UI input, no real service can be built (the test host's launch
+  kind, DECISIONS 2026-10-14). What a live frame shows and these do not: the
+  window chrome, the sidebar and toolbar, and the status item in the real
+  menu bar. The live plan file (`notification-plan-live-p3bf05.txt`) is the
+  same scheduler's plan at that clock, not read back from a launch.

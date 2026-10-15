@@ -204,27 +204,27 @@ category:   kadence.readOnly
 sound:      default
 level:      timeSensitive
 
-== Catch-up at Thu 12:12 (launch pass)
+== Catch-up at Thu 12:12 (launch pass at 12:12)
 
 identifier: leave.{EPC-ILV}
-fire:       Thu 15 Oct 12:14 (at once, 1-second trigger)
+fire:       Thu 15 Oct 12:12 (at once, 1-second trigger)
 title:      Leave by 12:15 for EPC-ILV
 body:       Starts 13:00 · LAB_F5.12 · 35 min from Home
 category:   kadence.readOnly
 sound:      default
 level:      timeSensitive
 
-== Catch-up at Thu 12:20 (launch pass)
+== Catch-up at Thu 12:20 (launch pass at 12:20)
 
 identifier: leave.{EPC-ILV}
-fire:       Thu 15 Oct 12:22 (at once, 1-second trigger)
+fire:       Thu 15 Oct 12:20 (at once, 1-second trigger)
 title:      Leave now for EPC-ILV
 body:       Starts 13:00 · LAB_F5.12 · Leave-by was 12:15
 category:   kadence.readOnly
 sound:      default
 level:      timeSensitive
 
-== Catch-up at Thu 13:05 (launch pass)
+== Catch-up at Thu 13:05 (launch pass at 13:05)
 
 (nothing)
 

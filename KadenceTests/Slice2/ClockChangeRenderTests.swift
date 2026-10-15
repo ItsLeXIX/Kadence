@@ -25,8 +25,9 @@ private func at(_ y: Int, _ mo: Int, _ d: Int, _ h: Int, _ mi: Int, offset: Int)
         .addingTimeInterval(TimeInterval(-offset * 3600))
 }
 
-/// Day view, Week view or Month view of one change day.
-private struct ClockChangeCanvas: View {
+/// Day view, Week view or Month view, as the main window draws them (also
+/// used by `F05RenderTests`).
+struct ClockChangeCanvas: View {
     enum Mode { case day, week, month }
     let mode: Mode
     let days: [Date]

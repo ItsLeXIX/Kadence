@@ -239,12 +239,13 @@ struct TravelSettingsPlacesTests {
 
     // MARK: Renders (offscreen, §17.2 rule 3)
 
-    func render(_ name: String, _ m: TravelSettingsModel, rig: TravelRig, height: CGFloat = 300) {
+    func render(_ name: String, _ m: TravelSettingsModel, rig: TravelRig, height: CGFloat = 300, suffix: String = "p3b") {
         rig.keepAlive()
         let view = TravelSettingsForm(model: m, showsTravelSections: false)
             .environment(SourcesRouter())
             .frame(width: Tokens.Size.settingsWindowWidth, height: height)
-        #expect(Slice2Render.render(name, view, size: CGSize(width: Tokens.Size.settingsWindowWidth, height: height)) != nil)
+        #expect(Slice2Render.render(name, view, size: CGSize(width: Tokens.Size.settingsWindowWidth, height: height),
+                                    suffix: suffix) != nil)
     }
 
     @Test("Task 13 renders: first run, filled, and item 18's lookup frames")
@@ -270,6 +271,8 @@ struct TravelSettingsPlacesTests {
             m.commitAddress("home")
             if lookup != .searching { await rig.run(for: 5) }
             render("settings-travel-lookup-\(lookup.rawValue)", m, rig: rig, height: lookup == .many || lookup == .several ? 440 : 300)
+            // P3S2-F05: item 18's `many`, tall enough for `Add Place`.
+            if lookup == .many { render("settings-travel-lookup-many", m, rig: rig, height: 600, suffix: "p3bf05") }
         }
         let still = try TravelRig(now: now)
         let m = model(still)

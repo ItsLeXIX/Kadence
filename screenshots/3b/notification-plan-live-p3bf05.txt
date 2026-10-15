@@ -1,0 +1,10 @@
+# Notification plan recorded at Thu 15 Oct 2026 12:00 (Europe/Vienna) — dataset travel, M = Mon 19 Oct,
+# live event P6; the launch pass, recording centre, mocks only (F05RenderTests).
+
+identifier: leave.{Pick up parcel}
+fire:       Thu 15 Oct 12:10
+title:      Leave by 12:15 for Pick up parcel
+body:       Starts 13:00 · FH Technikum Wien · 35 min from Home
+category:   kadence.event
+sound:      default
+level:      timeSensitive

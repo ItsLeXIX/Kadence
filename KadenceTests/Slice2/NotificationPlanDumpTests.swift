@@ -123,15 +123,25 @@ struct NotificationPlanDumpTests {
 
         // 7. Catch-up (launch passes, no records).
         for clock in ["12:12", "12:20", "13:05"] {
-            // Legs only (no scheduler wired, so no record exists yet), then
-            // the launch pass's plan from a fresh scheduler.
-            let rig = try TravelRig(now: F.m(3, clock))
+            // P3S2-F05: the ETA cache is filled first (the rig settles at Thu
+            // 06:00, as the ordinary pass above), then the clock is set to the
+            // stated time and the launch pass runs there — no routing request
+            // is drained after it, so the pass is AT the clock, not minutes
+            // later. No scheduler is wired, so no record exists yet; the
+            // launch pass's plan comes from a fresh scheduler.
+            let rig = try TravelRig(now: F.m(3, "06:00"))
             await rig.launchAndSettle()
+            rig.clock.set(F.m(3, clock))
+            rig.coordinator.launched()
+            #expect(rig.clock.now == F.m(3, clock))
             let scheduler = NotificationScheduler(context: rig.context, centre: RecordingNotificationCenter(),
                                                   clock: rig.clock, calendar: F.calendar,
                                                   log: RoutingLog(category: "notifications"))
-            let plan = scheduler.makePlan(now: rig.clock.now, catchUp: true).filter { $0.atOnce }
-            text += "\n" + section("Catch-up at Thu \(clock) (launch pass)", plan, rig)
+            let passClock = rig.clock.now
+            #expect(passClock == F.m(3, clock))
+            let plan = scheduler.makePlan(now: passClock, catchUp: true).filter { $0.atOnce }
+            text += "\n" + section("Catch-up at Thu \(clock) (launch pass at \(RoutingLog.clock(passClock, calendar: F.calendar)))",
+                                   plan, rig)
             switch clock {
             case "12:12": #expect(plan.map(\.text.title) == ["Leave by 12:15 for EPC-ILV"])
             case "12:20": #expect(plan.map(\.text.title) == ["Leave now for EPC-ILV"])
@@ -183,6 +193,8 @@ struct NotificationPlanDumpTests {
             let directory = FileManager.default.temporaryDirectory.appendingPathComponent("kadence-captures")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try Data(text.utf8).write(to: directory.appendingPathComponent("notification-plan-travel-p3b.txt"))
+            // As an attachment too (Scripts/capture-p3b-renders.sh).
+            Attachment.record(Data(text.utf8), named: "notification-plan-travel-p3bf05.txt")
         }
     }
 }

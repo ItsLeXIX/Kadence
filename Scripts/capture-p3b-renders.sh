@@ -8,7 +8,7 @@
 # test process.
 #
 # Usage: SUFFIX=p3bf01 Scripts/capture-p3b-renders.sh Suite[/test] …
-#   Only attachments named `<name>-$SUFFIX.png` are copied.
+#   Only attachments named `<name>-$SUFFIX.png` / `.txt` are copied.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SUFFIX="${SUFFIX:?set SUFFIX, e.g. p3bf01}"
@@ -29,8 +29,8 @@ out, suffix = sys.argv[1], sys.argv[2]
 for test in json.load(open(os.path.join(out, "manifest.json"))):
     for a in test["attachments"]:
         # Xcode appends `_<n>_<UUID>` to the name it was recorded under.
-        name = re.sub(r"_\d+_[0-9A-F-]{36}(\.png)$", r"\1", a["suggestedHumanReadableName"])
-        if name.endswith(f"-{suffix}.png"):
+        name = re.sub(r"_\d+_[0-9A-F-]{36}(\.png|\.txt)$", r"\1", a["suggestedHumanReadableName"])
+        if name.endswith(f"-{suffix}.png") or name.endswith(f"-{suffix}.txt"):
             shutil.copy(os.path.join(out, a["exportedFileName"]), os.path.join("screenshots/3b", name))
             print("  rendered", name)
 EOF

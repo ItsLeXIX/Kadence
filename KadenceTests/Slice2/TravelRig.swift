@@ -30,7 +30,8 @@ final class TravelRig {
     /// `seed`: nil for an empty store with only the built-ins.
     let location: MockLocationSource
 
-    init(now: Date, variant: TravelDataset.Variant? = nil, seed: Bool = true,
+    init(now: Date, variant: TravelDataset.Variant? = nil, seed: Bool = true, m: Date = TravelRig.m,
+         liveEvent: Bool = false,
          geocoder: (any PlaceGeocoder)? = nil, provider: MockTravelTimeProvider? = nil,
          location: MockLocationSource = MockLocationSource(authorization: .notDetermined)) throws {
         self.location = location
@@ -39,8 +40,8 @@ final class TravelRig {
         if seed {
             let template = ReviewTravelTemplate.text
             precondition(!template.isEmpty, "cis-travel.ics.template is not in the app bundle")
-            TravelDataset.seed(context: context, now: now, m: Self.m, zone: TravelFixtures.zone, variant: variant,
-                               template: template)
+            TravelDataset.seed(context: context, now: now, m: m, zone: TravelFixtures.zone, variant: variant,
+                               liveEvent: liveEvent, template: template)
         } else {
             BuiltInSource.ensure(in: context)
             TravelBuiltIns.ensure(in: context)

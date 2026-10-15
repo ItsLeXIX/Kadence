@@ -11301,3 +11301,66 @@ exactly the review's "still confirmed without the switch").
 Frames: none of its own (item 1 is recaptured in F05).
 Verify: **1105 passed / 0 failed**; tokens up to date. No DEVIATIONS, no
 GAPS.
+
+## 142. P3S2-F05 — recapture, missing frames, the plan dump; `INDEX.md` (PHASE3-SLICE2-REVIEW.md §7 F05; components.md §30, §30.1)
+
+**How the frames were made — offscreen, not live (DEVIATIONS B55, new).**
+Every live review launch must pass the mocks-only check on its
+`launch-services.txt`, which lives in the app's container; this run's shell
+sandbox cannot read the container at all, and there is no injected clock
+for a live launch. The pre-flight passed (unlocked, no full screen), but
+no launch was made and no input was sent to any app. Instead
+`F05RenderTests` renders the real views on in-memory stores built by the
+review launch's own seeding, with the real coordinator, the mocks and the
+recording centre, at **Thu 15 Oct 2026 12:00**. So Week `M` is 19–25 Oct as
+in the live frames, and its Sunday is the clock change. What a live frame
+has and these lack: window chrome, sidebar, toolbar (so Settings' three tabs
+are not drawn), and the real menu bar.
+
+Frames (all `-p3bf05`, offscreen, edge check `ok`):
+- item 1 `settings-travel-first-run` — the whole Travel pane (Places, Ways,
+  Buffer, Where you are) at the first run; the campus found by F04's
+  first-launch lookup, no switch; `Use where you are` on (asserted;
+  grey because an offscreen window is never key);
+- items 5, 6, 8 `week-M-travel`, `day-sun-climbing` — `Climbing` on the 18:00
+  row of Sun 25 Oct with its band from 17:45 (asserted: start minute-of-day
+  1080, band 17:45);
+- items 12, 20 `week-M-no-address`, `week-M-estimates`;
+- item 13 `status-item-unavailable` — `18:30 · Dinner with flatmat…`
+  (asserted);
+- item 15 `popover-pending` (Thu 11:50, `Travel time from Home not worked out
+  yet`), `popover-from-here` (Thu 12:00, `Leave by 12:22 · 28 min from where
+  you are`) — both asserted;
+- item 16 `status-item-live` (`Leave 12:15 · Pick up parcel`),
+  `popover-live` — P6 at 12:00, inside 07:00–20:00; the plan that pass
+  records: `notification-plan-live-p3bf05.txt`;
+- item 17 `phase3-week-M` — `phase3` seeded and materialised for the week;
+  Sunday's routine blocks on their wall-clock rows;
+- item 18 `settings-travel-lookup-many` — 600 pt, `Add Place` in frame;
+- item 22 `now-label-cursor-week-1018` — cursor at 10:18, `10:00` dropped
+  (asserted).
+
+Plan dump: `NotificationPlanDumpTests` catch-up sections now fill the ETA
+cache at Thu 06:00, set the clock to 12:12 / 12:20 / 13:05, run the launch
+pass there, assert `rig.clock.now` equals the stated clock, and print the
+pass clock in each header. `screenshots/3b/notification-plan-travel.txt`
+rewritten: only the three catch-up sections changed (fire 12:14 → 12:12,
+12:22 → 12:20; same titles and bodies).
+
+`screenshots/3b/INDEX.md` rewritten: one row per §30 item 1–24 naming its
+current frame; the 15 superseded `-p3b` files removed (listed in its notes);
+G-096's state noted (location keys present).
+
+Test-side changes: new `F05RenderTests` (8); `TravelRig` gained `m:` and
+`liveEvent:`; `ClockChangeCanvas` shared (not private); two existing render
+tests gained one suffixed render each; `capture-p3b-renders.sh` also copies
+`.txt` attachments. No new behaviour tests (as the review said) beyond the
+dump's clock assertions and the frames' own expectations.
+
+A slip during capture, recorded for honesty: a hung run (the `travelPending`
+rig must not be settled; fixed) was stopped by killing its own `xcodebuild`
+and test-host PIDs. One later cleanup used `pkill -f` on the test host's
+path pattern. It matched nothing, but it could in principle have matched a
+Kadence Parsa was running from the same DerivedData. It was not used again.
+
+Verify: **1113 passed / 0 failed**; tokens up to date. DEVIATIONS: B55 (new). GAPS: none.
