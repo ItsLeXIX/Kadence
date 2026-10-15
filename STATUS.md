@@ -11022,3 +11022,25 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   (the narrow label).
 - Verify: **1067 passed / 0 failed**; tokens `--check` up to date; real store
   `stat` unchanged.
+
+## 136. Run summary — Phase 3 slice 2 (2026-10-15) — all 18 tasks done
+
+Supersedes §134's stop note: tasks 15–18 were done after the resume (§135).
+
+- Commits: step 0 `b5d7ab2`; T01 `7e82c8d`, T02 `88a4ade`, T03 `863703a`,
+  T04 `ee4cc89`, T05 `37e292e`, T06 `fc7594a`, T07 `1432f1f`, T08 `b9d29e4`,
+  T09 `bba0c38`, T10 `35769a3`, T11 `923dc69`, T12 `ec38b07`, T13 `e1c317b`,
+  T14 `e0107ba`, T15 `e6db2c8`, T16 `56bcb96`, T17 `04547b7`, T18 `0f2b966`.
+- Tests: baseline 900 passed / 2 failed (token pins at 1.8.x, fixed in task
+  1) → **1067 passed / 0 failed**.
+- DEVIATIONS added: A41, A42 (new heading), B48–B54. GAPS added: G-097,
+  G-098, G-099, G-100.
+- No task skipped or stopped; no STOP rule triggered. No permission prompt,
+  real notification or Location prompt appeared.
+- `screenshots/3b/`: complete — every §30 item mapped in `INDEX.md`; item 16
+  was captured at night (02:13), outside 07:00–20:00, with the same state.
+- Real store `stat` (default.store / -shm / -wal: mtime, ctime, size,
+  inode): identical at step 0, after every task, and at the end.
+- Xcode keys: `ENABLE_RESOURCE_ACCESS_LOCATION = YES` present; no
+  `NSLocation…UsageDescription` and no `CODE_SIGN_ENTITLEMENTS` (so no
+  time-sensitive entitlement). Builds and tests pass as is.
