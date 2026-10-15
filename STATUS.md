@@ -11364,3 +11364,26 @@ path pattern. It matched nothing, but it could in principle have matched a
 Kadence Parsa was running from the same DerivedData. It was not used again.
 
 Verify: **1113 passed / 0 failed**; tokens up to date. DEVIATIONS: B55 (new). GAPS: none.
+
+## 143. Run summary — Phase 3 slice 2 fixes (2026-10-15)
+
+- Commits: step 0 `2aa857a`; F01 `f031452`, F02 `0b2ea6f`, F03 `2e83fe0`,
+  F04 `62969b4`, F05 `bfdaed0`. All five done; no STOP rule triggered.
+- Tests: baseline (HEAD export) **1067 passed** → **1113 passed / 0 failed**
+  (F01 1088, F02 1097, F03 1101, F04 1105, F05 1113). No test deleted or
+  weakened. Changed to the spec: `ReviewTravelTests.emptyAndFresh` and
+  `TravelSettingsPlacesTests.renders` no longer set the removed review switch
+  (F04).
+- DEVIATIONS added: B55 (F05 frames offscreen). GAPS added: G-102 (a
+  time-status leg with no `departAt`, F02). design/ otherwise untouched.
+- Real store `stat`: at step 0 the directory glob was refused by the
+  sandbox and no value was recorded (§137). At the end, `stat` of each file
+  by its full path worked: `default.store` 114688 B, mtime/ctime
+  2026-10-14 10:37:08, inode 144862795; `-shm` 32768 B, mtime 2026-10-14
+  11:05:30, ctime 11:51:18, inode 144862800; `-wal` 436752 B, mtime/ctime
+  2026-10-14 11:35:59, inode 144862799. All are dated the day **before**
+  this run, so nothing in it changed them. Nothing was opened, copied, read
+  or written.
+- No permission prompt, real notification or Location prompt appeared; no
+  app was launched for review and no input was sent to any app.
+- Location usage keys: both present in `project.pbxproj`.
