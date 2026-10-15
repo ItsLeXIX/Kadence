@@ -20,7 +20,9 @@ nonisolated struct TravelBand: Equatable, Sendable {
     var mode: TravelMode
     var isEstimate: Bool
     /// `Home`, `FH Technikum Wien`, or `where you are`.
-    var originName: String
+    /// nil when the leg's origin does not resolve: the clause is left out
+    /// (§24.10), never filled in with `Home`.
+    var originName: String?
     var bufferMinutes: Int
     /// §24.10's short reason of an estimate (`offline`).
     var reasonShort: String?
@@ -41,13 +43,20 @@ enum TravelPresentation {
 
     // MARK: Building
 
-    static func originName(_ leg: LegValues, placeNames: [String: String]) -> String {
+    /// `{origin}`: the origin place's name, or `where you are`. nil when it
+    /// does not resolve — §24.10 "No invented fact in the copy either".
+    nonisolated static func originName(_ leg: LegValues, placeNames: [String: String]) -> String? {
         leg.originKind == .currentLocation ? TravelCopy.whereYouAre
-            : leg.originPlaceID.flatMap { placeNames[$0] } ?? "Home"
+            : leg.originPlaceID.flatMap { placeNames[$0] }
+    }
+
+    /// `Travel time` / `Travel time from Home`.
+    static func travelTime(from origin: String?) -> String {
+        "Travel time" + (origin.map { " from \($0)" } ?? "")
     }
 
     static func shortReason(_ leg: LegValues, placeNames: [String: String], calendar: Calendar) -> String? {
-        leg.reason.map {
+        leg.reason.flatMap {
             TravelCopy.shortReason($0, place: leg.reasonPlaceID.flatMap { placeNames[$0] }, mode: leg.mode,
                                    retryAt: leg.retryAt, calendar: calendar)
         }
@@ -62,13 +71,14 @@ enum TravelPresentation {
                                   bufferMinutes: Int(leg.buffer / 60), reasonShort: leg.isEstimate ? reason : nil)
             return TravelInfo(band: band, helpSuffix: nil, spoken: spoken(band, calendar: calendar))
         }
-        if leg.status == .pending || leg.reason == .pending || leg.reason == nil {
-            return TravelInfo(band: nil, helpSuffix: "· Travel time from \(origin) not worked out yet",
-                              spoken: "travel time from \(origin) not worked out yet")
+        let travel = travelTime(from: origin)
+        let spokenTravel = "travel time" + (origin.map { " from \($0)" } ?? "")
+        if leg.status == .pending || leg.reason == .pending {
+            return TravelInfo(band: nil, helpSuffix: "· \(travel) not worked out yet",
+                              spoken: "\(spokenTravel) not worked out yet")
         }
-        let short = reason ?? "unavailable"
-        return TravelInfo(band: nil, helpSuffix: "· Travel time from \(origin) unavailable: \(short)",
-                          spoken: "travel time from \(origin) unavailable, \(short)")
+        return TravelInfo(band: nil, helpSuffix: "· \(travel) unavailable" + (reason.map { ": \($0)" } ?? ""),
+                          spoken: "\(spokenTravel) unavailable" + (reason.map { ", \($0)" } ?? ""))
     }
 
     // MARK: The band (§25.1)
@@ -95,9 +105,10 @@ enum TravelPresentation {
     static func bandHelp(_ band: TravelBand, calendar: Calendar) -> String {
         let time = TravelCopy.time(band.departAt, calendar: calendar)
         let about = band.isEstimate ? "about " : ""
-        var text = "Leave \(about)\(time) · \(about)\(band.minutes) min \(band.mode.copyPhrase) from \(band.originName)"
+        var text = "Leave \(about)\(time) · \(about)\(band.minutes) min \(band.mode.copyPhrase)"
+        if let origin = band.originName { text += " from \(origin)" }
         if band.bufferMinutes > 0 { text += " · \(band.bufferMinutes) min buffer" }
-        if band.isEstimate { text += " · estimate, \(band.reasonShort ?? "offline")" }
+        if band.isEstimate { text += " · estimate" + (band.reasonShort.map { ", \($0)" } ?? "") }
         return text
     }
 
@@ -105,10 +116,11 @@ enum TravelPresentation {
     /// (the buffer is not spoken: the time includes it).
     static func spoken(_ band: TravelBand, calendar: Calendar) -> String {
         let time = TravelCopy.time(band.departAt, calendar: calendar)
+        let from = band.originName.map { " from \($0)" } ?? ""
         if band.isEstimate {
-            return "leave by about \(time), about \(band.minutes) minutes \(band.mode.copyPhrase) from \(band.originName), estimate"
+            return "leave by about \(time), about \(band.minutes) minutes \(band.mode.copyPhrase)\(from), estimate"
         }
-        return "leave by \(time), \(band.minutes) minutes \(band.mode.copyPhrase) from \(band.originName)"
+        return "leave by \(time), \(band.minutes) minutes \(band.mode.copyPhrase)\(from)"
     }
 
     // MARK: The inspector's Leave by row (layouts.md §6, §24.10)
@@ -135,19 +147,20 @@ enum TravelPresentation {
     static func sentence(_ reason: TravelReason, leg: LegValues, placeNames: [String: String], calendar: Calendar) -> String {
         switch reason {
         case .needsAddress:
-            let place = leg.reasonPlaceID.flatMap { placeNames[$0] } ?? "this place"
-            return "Add the address of \(place) in Settings ▸ Travel so Kadence can work out the trip."
+            let place = leg.reasonPlaceID.flatMap { placeNames[$0] }
+            return "Add the address\(place.map { " of \($0)" } ?? "") in Settings ▸ Travel so Kadence can work out the trip."
         case .offline:
             return "This Mac is offline. Kadence will ask Apple Maps again when it's back online."
         case .noRoute:
             return "Apple Maps has no route \(leg.mode.copyPhrase) for this trip at this time. Choose another way to travel between these places in Settings ▸ Travel."
         case .paused:
-            let retry = leg.retryAt.map { TravelCopy.time($0, calendar: calendar) } ?? "a later time"
-            return "Kadence is waiting before it asks Apple Maps again, and will try at \(retry)."
+            let retry = leg.retryAt.map { ", and will try at \(TravelCopy.time($0, calendar: calendar))" } ?? ""
+            return "Kadence is waiting before it asks Apple Maps again\(retry)."
         case .failed:
             return "Apple Maps didn't answer. Kadence will try again at the next refresh."
         case .pending:
-            return "Kadence is asking Apple Maps for the trip from \(originName(leg, placeNames: placeNames))."
+            let origin = originName(leg, placeNames: placeNames)
+            return "Kadence is asking Apple Maps for the trip\(origin.map { " from \($0)" } ?? "")."
         }
     }
 
@@ -170,36 +183,58 @@ enum TravelPresentation {
             guard action == .tryAgain, let pausedUntil, pausedUntil > now else { return nil }
             return "Kadence will try at \(TravelCopy.time(pausedUntil, calendar: calendar))"
         }
+        // §24.10 "No invented fact in the copy either": each clause is
+        // stated only from what the leg carries, else left out.
+        let from = origin.map { " from \($0)" } ?? ""
         switch leg.status {
         case .ready, .estimate:
-            let time = TravelCopy.time(leg.departAt ?? now, calendar: calendar)
-            let minutes = TravelCopy.minutes(leg.duration ?? 0)
-            let when = leg.computedAt.map { SourceStatusCopy.when($0, now: now, zone: calendar.timeZone) } ?? "earlier"
-            let trip = "\(minutes) min \(leg.mode.copyPhrase) from \(origin)\(buffer)"
-            if leg.status == .ready {
-                let spokenWhen = leg.computedAt.map { calendar.isDate($0, inSameDayAs: now)
-                    ? "at \(TravelCopy.time($0, calendar: calendar))" : when } ?? when
+            // A leg with no departure has no time to show: it reads as
+            // unavailable, with nothing filled in (GAPS G-102).
+            guard let departAt = leg.departAt else {
+                return LeaveByRow(value: "Unavailable", valueIsSecondary: true, word: nil, lines: [], action: nil,
+                                  disabledHelp: nil, spoken: "Leave by, unavailable")
+            }
+            let isEstimate = leg.status == .estimate
+            let time = TravelCopy.time(departAt, calendar: calendar)
+            let minutes = leg.duration.map(TravelCopy.minutes)
+            let when = leg.computedAt.map { SourceStatusCopy.when($0, now: now, zone: calendar.timeZone) }
+            let about = isEstimate ? "about " : ""
+            let tripText = (minutes.map { "\(about)\($0) min " } ?? "") + "\(leg.mode.copyPhrase)\(from)\(buffer)"
+            let trip = tripText.prefix(1).uppercased() + tripText.dropFirst()
+            let spokenTrip = (minutes.map { "\(about)\($0) minutes " } ?? "") + "\(leg.mode.copyPhrase)\(from)\(spokenBuffer)"
+            if !isEstimate {
+                let spokenWhen = leg.computedAt.flatMap { calendar.isDate($0, inSameDayAs: now)
+                    ? "at \(TravelCopy.time($0, calendar: calendar))" : when }
                 return LeaveByRow(
                     value: time, valueIsSecondary: false, word: nil,
-                    lines: [trip, "Worked out \(when) by Apple Maps."], action: nil, disabledHelp: nil,
-                    spoken: "Leave by, \(time), \(minutes) minutes \(leg.mode.copyPhrase) from \(origin)\(spokenBuffer), worked out \(spokenWhen) by Apple Maps")
+                    lines: [trip] + (when.map { ["Worked out \($0) by Apple Maps."] } ?? []), action: nil,
+                    disabledHelp: nil,
+                    spoken: "Leave by, \(time), \(spokenTrip)" + (spokenWhen.map { ", worked out \($0) by Apple Maps" } ?? ""))
             }
-            let reason = leg.reason ?? .offline
-            var sentence = Self.sentence(reason, leg: leg, placeNames: placeNames, calendar: calendar)
-            sentence = sentence.prefix(1).lowercased() + sentence.dropFirst()
-            let short = shortReason(leg, placeNames: placeNames, calendar: calendar) ?? "offline"
-            let action = reason == .failed ? LeaveByRow.Action.tryAgain : nil
+            let sentence = leg.reason.map {
+                let text = Self.sentence($0, leg: leg, placeNames: placeNames, calendar: calendar)
+                return text.prefix(1).lowercased() + text.dropFirst()
+            }
+            let short = shortReason(leg, placeNames: placeNames, calendar: calendar)
+            let action = leg.reason == .failed ? LeaveByRow.Action.tryAgain : nil
+            let last = [when.map { "Last worked out \($0) by Apple Maps." }, sentence.map { "Couldn't update: \($0)" }]
+                .compactMap { $0 }.joined(separator: " ")
+            let spokenLast = [when.map { "last worked out \($0) by Apple Maps" }, short.map { "couldn't update, \($0)" }]
+                .compactMap { $0 }
             return LeaveByRow(
                 value: time, valueIsSecondary: false, word: "estimate",
-                lines: ["About \(trip)", "Last worked out \(when) by Apple Maps. Couldn't update: \(sentence)"],
+                lines: [trip] + (last.isEmpty ? [] : [last]),
                 action: action, disabledHelp: disabled(action),
-                spoken: "Leave by, about \(time), estimate, about \(minutes) minutes \(leg.mode.copyPhrase) from \(origin)\(spokenBuffer), last worked out \(when) by Apple Maps, couldn't update, \(short)")
+                spoken: (["Leave by, about \(time), estimate, \(spokenTrip)"] + spokenLast).joined(separator: ", "))
         case .pending:
             return LeaveByRow(value: "Working out…", valueIsSecondary: true, word: nil,
                               lines: [sentence(.pending, leg: leg, placeNames: placeNames, calendar: calendar)],
                               action: nil, disabledHelp: nil, spoken: "Leave by, working out")
         case .unavailable:
-            let reason = leg.reason ?? .failed
+            guard let reason = leg.reason else {
+                return LeaveByRow(value: "Unavailable", valueIsSecondary: true, word: nil, lines: [], action: nil,
+                                  disabledHelp: nil, spoken: "Leave by, unavailable")
+            }
             let text = sentence(reason, leg: leg, placeNames: placeNames, calendar: calendar)
             let action = action(for: reason)
             return LeaveByRow(value: "Unavailable", valueIsSecondary: true, word: nil, lines: [text], action: action,

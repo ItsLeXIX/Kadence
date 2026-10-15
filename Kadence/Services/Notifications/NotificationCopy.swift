@@ -25,16 +25,29 @@ nonisolated enum TravelCopy {
 
     /// §24.10's short form: the band's hover help, the popover, N1e and N7.
     /// `place`: the name of the place a `needsAddress` names.
+    ///
+    /// §24.10 "No invented fact in the copy either": nothing is filled in.
+    /// A `needsAddress` without a place it can name has no short form (nil:
+    /// the clause is omitted); a `paused` without its retry time says only
+    /// that it is paused.
     static func shortReason(_ reason: TravelReason, place: String?, mode: TravelMode, retryAt: Date?,
-                            calendar: Calendar) -> String {
+                            calendar: Calendar) -> String? {
         switch reason {
-        case .needsAddress: "\(place ?? "This place") has no address"
+        case .needsAddress: place.map { "\($0) has no address" }
         case .offline: "offline"
         case .noRoute: "no route \(mode.copyPhrase)"
-        case .paused: "Apple Maps paused until \(retryAt.map { time($0, calendar: calendar) } ?? "later")"
+        case .paused: "Apple Maps paused" + (retryAt.map { " until \(time($0, calendar: calendar))" } ?? "")
         case .failed: "Apple Maps didn't answer"
         case .pending: "not worked out yet"
         }
+    }
+
+    /// The trip clause, with only what the leg says: `35 min from Home`,
+    /// `35 min` (no origin), `from Home` (no time), nil (neither). `about`
+    /// goes before the minutes of an estimate.
+    static func trip(minutes: Int?, origin: String?, about: Bool = false) -> String? {
+        let parts = [minutes.map { "\(about ? "about " : "")\($0) min" }, origin.map { "from \($0)" }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
     }
 
     /// `{origin}`: the origin place's name, or `where you are` (§24.2.1).
@@ -85,19 +98,21 @@ nonisolated enum NotificationCopy {
     static func joined(_ parts: [String?]) -> String { parts.compactMap { $0 }.joined(separator: " · ") }
 
     /// N1 — `Leave by {depart} for {title}` / `Starts {start} · {where} ·
-    /// {min} min from {origin}`.
-    static func n1(title: String, depart: String, start: String, where place: String?, minutes: Int,
-                   origin: String) -> NotificationText {
+    /// {min} min from {origin}`. A missing minutes or origin is left out
+    /// (§24.10): `Starts 09:00 · HS_A3.15 · 35 min`.
+    static func n1(title: String, depart: String, start: String, where place: String?, minutes: Int?,
+                   origin: String?) -> NotificationText {
         NotificationText(title: "Leave by \(depart) for \(title)",
-                         body: joined(["Starts \(start)", place, "\(minutes) min from \(origin)"]))
+                         body: joined(["Starts \(start)", place, TravelCopy.trip(minutes: minutes, origin: origin)]))
     }
 
-    /// N1e — the same from an estimate.
-    static func n1e(title: String, depart: String, start: String, where place: String?, minutes: Int,
-                    origin: String, reason: String) -> NotificationText {
+    /// N1e — the same from an estimate. No reason: `estimate` alone.
+    static func n1e(title: String, depart: String, start: String, where place: String?, minutes: Int?,
+                    origin: String?, reason: String?) -> NotificationText {
         NotificationText(title: "Leave by about \(depart) for \(title)",
-                         body: joined(["Starts \(start)", place, "about \(minutes) min from \(origin)",
-                                       "estimate, \(reason)"]))
+                         body: joined(["Starts \(start)", place,
+                                       TravelCopy.trip(minutes: minutes, origin: origin, about: true),
+                                       "estimate" + (reason.map { ", \($0)" } ?? "")]))
     }
 
     /// N2 — a leave-by held past `departAt` by a protected window.
@@ -117,15 +132,19 @@ nonisolated enum NotificationCopy {
     }
 
     /// N4 — `{title} starts at {start}` / `{where} · {source}`.
-    static func n4(title: String, start: String, where place: String?, source: String) -> NotificationText {
+    static func n4(title: String, start: String, where place: String?, source: String?) -> NotificationText {
         NotificationText(title: "\(title) starts at \(start)", body: joined([place, source]))
     }
 
-    /// N7 — travel unavailable. `reason` nil: `pending`.
-    static func n7(title: String, start: String, where place: String?, origin: String,
-                   reason: String?) -> NotificationText {
-        let sentence = reason.map { "Travel time from \(origin) unavailable: \($0). Check your route before you leave." }
-            ?? "Travel time from \(origin) isn't worked out yet. Check your route before you leave."
+    /// N7 — travel unavailable, or (`isPending`) not worked out yet. A
+    /// missing origin or reason is left out with its separator (§24.10):
+    /// `Travel time from Home unavailable. Check your route before you leave.`
+    static func n7(title: String, start: String, where place: String?, origin: String?,
+                   reason: String?, isPending: Bool = false) -> NotificationText {
+        let travel = "Travel time" + (origin.map { " from \($0)" } ?? "")
+        let sentence = isPending
+            ? "\(travel) isn't worked out yet. Check your route before you leave."
+            : "\(travel) unavailable\(reason.map { ": \($0)" } ?? ""). Check your route before you leave."
         return NotificationText(title: "\(title) starts at \(start)", body: joined([place, sentence]))
     }
 

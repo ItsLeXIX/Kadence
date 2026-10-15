@@ -253,7 +253,7 @@ struct TravelBandInspectorTests {
         .background(Tokens.Color.Surface.canvas)
         #expect(Slice2Render.render("band-states", bands, size: CGSize(width: 184, height: 150)) != nil)
 
-        func inspector(_ name: String, _ r: TravelRig, _ title: String, day: Int) throws {
+        func inspector(_ name: String, _ r: TravelRig, _ title: String, day: Int, suffix: String = "p3b") throws {
             let event = try require(r.event(title, day: day))
             let view = InspectorView(event: event, dayEvents: [], day: event.start, now: r.clock.now,
                                      store: r.store)
@@ -264,11 +264,14 @@ struct TravelBandInspectorTests {
                 .environment(SyncCoordinator(context: r.context, secrets: InMemorySecretStore(), scheduling: FakeScheduling(),
                                              path: FakePath()) { _ in GatedSource(.failure(.offline)) })
                 .frame(width: Tokens.Size.inspectorWidthDefault, height: 620)
-            #expect(Slice2Render.render(name, view, size: CGSize(width: Tokens.Size.inspectorWidthDefault, height: 620)) != nil)
+            #expect(Slice2Render.render(name, view, size: CGSize(width: Tokens.Size.inspectorWidthDefault, height: 620),
+                                        suffix: suffix) != nil)
         }
         try inspector("inspector-swqm-leave", rig, "SWQM-ILV", day: 0)
         try inspector("inspector-reqen-no-travel", rig, "REQEN-EXAM", day: 3)
         try inspector("inspector-dinner-place", rig, "Dinner with flatmates", day: 3)
+        // P3S2-F02: the same frame with `Origin Manual`.
+        try inspector("inspector-dinner-place", rig, "Dinner with flatmates", day: 3, suffix: "p3bf02")
         let noAddress = try TravelRig(now: mon0600, variant: .travelNoAddress)
         noAddress.coordinator.launched()
         try inspector("inspector-no-address", noAddress, "SWQM-ILV", day: 0)

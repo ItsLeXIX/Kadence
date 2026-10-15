@@ -3456,3 +3456,15 @@ Settings ▸ Travel asks again and recovers. Nothing else depends on it.
 - **Build open (slice 2 review fixes):** G-098 (F04), G-100 (F01).
 - **Deferred:** G-058, G-059, G-060 (timetable changes), G-062, G-064,
   G-065, G-084, G-085, G-086, G-088, G-091, G-094, G-101.
+
+### G-102 — OPEN (design, small). A `ready` / `estimate` leg with no `departAt`.
+
+Found building P3S2-F02 (CA, 2026-10-15). §24.10's "No invented fact in the
+copy either" says what each surface omits when a reason, origin, retry time
+or duration is missing, but not what the inspector's `Leave by` row shows
+when a leg whose status has a time carries no `departAt` (the old code
+showed `now` as the time). The recompute never produces one. Built (the
+reading closest to §24.10 and DECISIONS 2026-10-15): the row reads
+`Unavailable` (secondary) with no sentence and no button, VoiceOver `Leave
+by, unavailable`; the band, popover and notification already treat it as a
+leg with no time. Confirm or specify.

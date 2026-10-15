@@ -180,7 +180,7 @@ nonisolated enum NotificationPlanner {
 
             func leaveText(_ leg: LegValues, _ departAt: Date, catchUpAfterDeparture: Bool) -> NotificationText {
                 let origin = originName(leg, placeNames: input.placeNames)
-                let minutes = TravelCopy.minutes(leg.duration ?? 0)
+                let minutes = leg.duration.map(TravelCopy.minutes)
                 if catchUpAfterDeparture {
                     return NotificationCopy.n3(title: event.title, depart: time(departAt), start: start, where: place,
                                                isEstimate: leg.isEstimate)
@@ -190,10 +190,10 @@ nonisolated enum NotificationPlanner {
                                                window: holdingWindow, isEstimate: leg.isEstimate)
                 }
                 if leg.isEstimate {
-                    let reason = leg.reason.map {
+                    let reason = leg.reason.flatMap {
                         TravelCopy.shortReason($0, place: leg.reasonPlaceID.flatMap { input.placeNames[$0] },
                                                mode: leg.mode, retryAt: leg.retryAt, calendar: calendar)
-                    } ?? "offline"
+                    }
                     return NotificationCopy.n1e(title: event.title, depart: time(departAt), start: start, where: place,
                                                 minutes: minutes, origin: origin, reason: reason)
                 }
@@ -220,17 +220,20 @@ nonisolated enum NotificationPlanner {
             case .unavailable(let leg):
                 guard subject > now else { continue }
                 let origin = originName(leg, placeNames: input.placeNames)
-                let reason = leg.reason == .pending || leg.reason == nil ? nil : TravelCopy.shortReason(
-                    leg.reason ?? .failed, place: leg.reasonPlaceID.flatMap { input.placeNames[$0] }, mode: leg.mode,
-                    retryAt: leg.retryAt, calendar: calendar)
-                text = NotificationCopy.n7(title: event.title, start: start, where: place, origin: origin, reason: reason)
+                let isPending = leg.status == .pending || leg.reason == .pending
+                let reason = isPending ? nil : leg.reason.flatMap {
+                    TravelCopy.shortReason($0, place: leg.reasonPlaceID.flatMap { input.placeNames[$0] }, mode: leg.mode,
+                                           retryAt: leg.retryAt, calendar: calendar)
+                }
+                text = NotificationCopy.n7(title: event.title, start: start, where: place, origin: origin,
+                                           reason: reason, isPending: isPending)
                 if fire <= now {
                     guard input.isCatchUp, record == nil else { continue }
                     atOnce = true
                 }
             case .starts:
                 guard subject > now else { continue }
-                let source = event.sourceID.flatMap { input.sourceNames[$0] } ?? ""
+                let source = event.sourceID.flatMap { input.sourceNames[$0] }
                 text = NotificationCopy.n4(title: event.title, start: start, where: place, source: source)
                 interruption = .active
                 if fire <= now {
@@ -256,10 +259,10 @@ nonisolated enum NotificationPlanner {
         return Array(sorted.prefix(cap))
     }
 
-    /// `{origin}`: the origin place's name, or `where you are`.
-    static func originName(_ leg: LegValues, placeNames: [String: String]) -> String {
-        if leg.originKind == .currentLocation { return TravelCopy.whereYouAre }
-        return leg.originPlaceID.flatMap { placeNames[$0] } ?? "Home"
+    /// `{origin}`: the origin place's name, or `where you are`; nil when
+    /// the leg's origin does not resolve (§24.10: never a default `Home`).
+    static func originName(_ leg: LegValues, placeNames: [String: String]) -> String? {
+        TravelPresentation.originName(leg, placeNames: placeNames)
     }
 
     /// §24.2's `P` for an event: the placed event starting before it with

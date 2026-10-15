@@ -23,6 +23,17 @@ nonisolated enum EventOrigin: String, Codable, CaseIterable, Sendable {
     case routine
     case imported
     case planned
+
+    /// layouts.md §6 row 4 (amended 2026-10-15): `Manual` · `Routine` ·
+    /// `Imported` · `Planned` — a word, never the raw value.
+    var displayName: String {
+        switch self {
+        case .manual: "Manual"
+        case .routine: "Routine"
+        case .imported: "Imported"
+        case .planned: "Planned"
+        }
+    }
 }
 
 /// Lifecycle of an event. Deliberately has no "overdue" or "missed" case —

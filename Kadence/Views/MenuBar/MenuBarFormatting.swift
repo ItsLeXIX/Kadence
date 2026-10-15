@@ -74,22 +74,24 @@ enum MenuBarFormatting {
         let origin = TravelPresentation.originName(leg, placeNames: placeNames)
         switch result.state(now: now) {
         case .leave(let departAt, let isEstimate):
+            // §24.10: a missing reason, minutes or origin is left out.
             if isEstimate {
-                let reason = TravelPresentation.shortReason(leg, placeNames: placeNames, calendar: calendar) ?? "offline"
-                return LeaveLine(text: "Leave by ≈\(time(departAt)) · estimate, \(reason)", tone: .primary)
+                let reason = TravelPresentation.shortReason(leg, placeNames: placeNames, calendar: calendar)
+                return LeaveLine(text: "Leave by ≈\(time(departAt)) · estimate" + (reason.map { ", \($0)" } ?? ""),
+                                 tone: .primary)
             }
-            return LeaveLine(text: "Leave by \(time(departAt)) · \(TravelCopy.minutes(leg.duration ?? 0)) min from \(origin)",
-                             tone: .primary)
+            let trip = TravelCopy.trip(minutes: leg.duration.map(TravelCopy.minutes), origin: origin)
+            return LeaveLine(text: "Leave by \(time(departAt))" + (trip.map { " · \($0)" } ?? ""), tone: .primary)
         case .leaveNow(let departAt, let isEstimate):
             return LeaveLine(text: "Leave now · leave-by was \(isEstimate ? "≈" : "")\(time(departAt))", tone: .now)
         case .late, .empty:
             return nil
         case .normal:
             if leg.status == .pending || leg.reason == .pending {
-                return LeaveLine(text: "Travel time from \(origin) not worked out yet", tone: .secondary)
+                return LeaveLine(text: "\(TravelPresentation.travelTime(from: origin)) not worked out yet", tone: .secondary)
             }
-            let reason = TravelPresentation.shortReason(leg, placeNames: placeNames, calendar: calendar) ?? "Apple Maps didn't answer"
-            return LeaveLine(text: "Travel time unavailable · \(reason)", tone: .secondary)
+            let reason = TravelPresentation.shortReason(leg, placeNames: placeNames, calendar: calendar)
+            return LeaveLine(text: "Travel time unavailable" + (reason.map { " · \($0)" } ?? ""), tone: .secondary)
         }
     }
 
@@ -120,7 +122,10 @@ enum MenuBarFormatting {
             switch result.state(now: now) {
             case .leave(let departAt, let isEstimate):
                 let origin = TravelPresentation.originName(leg, placeNames: placeNames)
-                leave = "Leave by \(isEstimate ? "about " : "")\(time(departAt)), \(isEstimate ? "about " : "")\(TravelCopy.minutes(leg.duration ?? 0)) minutes from \(origin)"
+                let about = isEstimate ? "about " : ""
+                let trip = [leg.duration.map { "\(about)\(TravelCopy.minutes($0)) minutes" }, origin.map { "from \($0)" }]
+                    .compactMap { $0 }.joined(separator: " ")
+                leave = "Leave by \(about)\(time(departAt))" + (trip.isEmpty ? "" : ", \(trip)")
             case .leaveNow(let departAt, let isEstimate):
                 leave = "Leave now, leave-by was \(isEstimate ? "about " : "")\(time(departAt))"
             default:

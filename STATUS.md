@@ -11183,3 +11183,58 @@ launch, no UI input.
 
 Verify: **1088 passed / 0 failed** (xcresult summary; 1067 + 21 new);
 tokens `--check` up to date. No DEVIATIONS, no new GAPS.
+
+## 139. P3S2-F02 — no invented fact in the copy; `Origin` as a word (PHASE3-SLICE2-REVIEW.md §7 F02; components.md §24.10 "No invented fact in the copy either"; layouts.md §6 row 4; DECISIONS 2026-10-15)
+
+Every fallback the review listed is gone; the clause that would state a
+missing value is omitted with its separator.
+
+- `Services/Notifications/NotificationCopy.swift` — `TravelCopy.shortReason`
+  returns `String?`: `needsAddress` without a nameable place → nil (no `This
+  place`); `paused` without a retry → `Apple Maps paused` (no `later`). New
+  `TravelCopy.trip(minutes:origin:about:)`. `n1` / `n1e` take optional
+  minutes, origin and reason (`estimate` alone without one); `n4`'s source is
+  optional (was `?? ""`, which left a trailing ` · `); `n7` takes an optional
+  origin and reason and an explicit `isPending` (before, a nil reason *meant*
+  pending, so an unavailable leg without a reason said "isn't worked out
+  yet").
+- `Services/Notifications/NotificationPlanner.swift` — `originName` →
+  `String?` (no `?? "Home"`), forwards to `TravelPresentation.originName`;
+  minutes from `leg.duration.map` (no `?? 0`); N1e reason without `??
+  "offline"`; N7 pending decided by status / reason, reason without `??
+  .failed`; N4 source optional.
+- `Views/Blocks/TravelPresentation.swift` — `originName` → `String?`
+  (`nonisolated`); `TravelBand.originName` → `String?`; new
+  `travelTime(from:)`; `info` (hover suffix / VoiceOver) no `?? "unavailable"`
+  and no longer calls an unavailable leg with no reason "not worked out yet";
+  `bandHelp` / `spoken` drop `from …` and `, {reason}` when missing;
+  `sentence` drops `of {place}`, `, and will try at {retry}`, `from
+  {origin}` when missing; `leaveBy` builds every line from what the leg
+  carries (no `departAt ?? now`, `?? 0`, `?? "earlier"`, `?? .offline`, `??
+  .failed`); a `ready` / `estimate` leg with no `departAt` reads `Unavailable`
+  with nothing else (G-102, new).
+- `Views/MenuBar/MenuBarFormatting.swift` — `leaveLine` and
+  `nextAccessibilityValue`: no `?? "offline"`, `?? "Apple Maps didn't
+  answer"`, `?? 0`; `Leave by 08:15 · 35 min`, `Leave by ≈08:15 · estimate`,
+  `Travel time unavailable`.
+- `Models/Enums.swift` — `EventOrigin.displayName` (`Manual` · `Routine` ·
+  `Imported` · `Planned`); `Views/Chrome/InspectorView.swift` uses it.
+
+Tests — new `KadenceTests/Slice2/NoInventedFactTests.swift` (9 tests, 13
+cases): for each surface (band hover and VoiceOver, block hover suffix and
+VoiceOver, inspector row and VoiceOver, popover line and VoiceOver, status
+item label and unit, the planned notification — N1, N1e, N7) a leg with (a)
+an unresolvable origin, (b) an estimate with no reason, (c) unavailable with
+no reason, (d) `paused` with no retry, (e) no duration → the exact strings,
+and a scan that none contains `Home`, `offline`, `0 min`, `This place` /
+`this place`, `later`, `earlier` or `didn't answer` (every leg's origin is
+unresolvable, so no `Home` is legitimate); N2 / N3 / N4 pieces; the planner
+invariant (a removed place → every leg's origin and reason place resolve);
+`Origin` words and the inspector source using them. All existing copy tests
+unchanged and green. `TravelBandInspectorTests.renders` gained one extra
+render (same inspector, suffix `p3bf02`).
+
+Frame: `inspector-dinner-place-p3bf02.png` (offscreen) — `Origin Manual`.
+
+GAPS: G-102 (new, open). DEVIATIONS: none.
+Verify: **1097 passed / 0 failed**; tokens up to date.

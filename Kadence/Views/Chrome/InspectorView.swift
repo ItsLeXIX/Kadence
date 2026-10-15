@@ -108,7 +108,7 @@ struct InspectorView: View {
         // swatch + the source's NAME as the sidebar lists it. The palette
         // slot's `displayName` (`Green`) is a colour word, never a source name.
         sourceField(source)
-        field("Origin", event.origin.rawValue)
+        field("Origin", event.origin.displayName)
 
         // §13.4: "one line, `inspectorLabel` / `inspectorValue`, reading
         // `Edited — differs from Gym routine`, with a `Revert to routine`
