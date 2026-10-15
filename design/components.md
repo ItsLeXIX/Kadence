@@ -4283,9 +4283,14 @@ Wien`** (`KnownPlace.addressText` of `campus`). **No coordinate is hard-coded**:
 the coordinate is what MapKit returns for that address, so the campus and
 every trip to it come from one source, Apple Maps.
 
-- The campus is looked up **automatically**, without asking, the first time a
-  recompute needs it (in practice the first launch after the timetable is
-  imported): the address is Kadence's own, not something the user typed. It
+- The campus is looked up **automatically**, without asking, **at the first
+  launch** (after the built-ins exist), and in any case before the first
+  recompute that needs it: the address is Kadence's own, not something the
+  user typed, and one request per install is what it costs. *(Amended
+  2026-10-15, closes G-098: was "the first time a recompute needs it", which
+  left a fresh install's Settings ▸ Travel showing Kadence's own address as
+  `Not confirmed yet` until the first Import; review `empty` / `fresh` and a
+  real first launch now behave the same.)* It
   is accepted without confirmation when the first result's one-line address
   contains both `Höchstädtplatz 6` and `1200`; that is `confirmed`.
 - Any other answer — no result, a first result that does not match, or a
@@ -4400,7 +4405,12 @@ The rule origin is a guess about where you will be. For **one** leg — the
 - **`departAt = E.start − buffer − duration`**, for every mode. Kadence asks
   to arrive by `E.start − buffer` (transit: `arrivalDate`, so the ETA follows
   the timetable at that hour), and takes the answer's travel time; one
-  formula, the same for every mode and every surface.
+  formula, the same for every mode and every surface. *(Amended 2026-10-15,
+  DEVIATIONS B48 accepted:)* `duration` is the answer **rounded up to the
+  whole minute** before `departAt` is computed, so `departAt` sits on a
+  minute and `Leave 08:15 · 35min` adds up exactly to the arrival. Rounding
+  up only ever leaves earlier, by less than a minute; it is the provider's
+  number at the precision every surface shows, not a guess.
 - `computedAt` = when Apple Maps produced the time the leg uses (for an
   estimate: when the last known time was produced). `source` = the provider
   that produced it: `mapKit`, or `mock` in tests and review.
@@ -4505,6 +4515,10 @@ Every pass ends by asking the notification scheduler for a pass (§27.6).
    recompute. A refresh that changes `departAt` re-plans the notification
    (§27.6). A refresh whose slot passed while Kadence was not running or the
    Mac slept runs once at launch or wake, if the event has not started.
+   *(Amended 2026-10-15, DEVIATIONS B51 accepted:)* a due refresh for a leg
+   that is still `pending` — its first request queued or in flight — is
+   served by that request: no second request is sent for the same key (it
+   would be identical, and §30.1 "Cache sharing" allows one call per key).
 3. **The user asks**: `Try Again` (inspector, Settings) — one request now,
    at the top priority, still subject to a pause (§24.9).
 
@@ -4642,7 +4656,11 @@ a time**. The leg falls back in this order, first match wins:
    `needsAddress` (no place to route from) → **`unavailable`** with the
    reason, even if an older time exists.
 2. **This event's own last time** (the leg already had `departAt` from an
-   earlier answer) → **`estimate`**, keeping that time and its `computedAt`.
+   earlier answer) → **`estimate`**, keeping that time and its `computedAt` —
+   **only if that time was for the same trip**: the same origin, destination
+   and mode *(amended 2026-10-15, DEVIATIONS B49 accepted)*. After a mode or
+   address change the old time is another trip's, so the fallback goes on to
+   step 3, which is keyed by the trip.
 3. **The cache's entry for this key**, any age up to 28 days → **`estimate`**.
 4. **The nearest cached slot** for the same origin, destination, mode and
    direction — the same day type first, then any day type; ties to the
@@ -4652,6 +4670,20 @@ a time**. The leg falls back in this order, first match wins:
 
 An estimate becomes `ready` again with the next successful answer; there is
 no "estimate" that outlives a success.
+
+**No invented fact in the copy either** *(added 2026-10-15, review fix
+P3S2-F02)*. A surface never fills in a value it does not have: no default
+origin (`Home`), no default reason (`offline`, `Apple Maps didn't answer`),
+no `0 min`, no `this place`, no `later`. The recompute guarantees that an
+`estimate` or `unavailable` leg carries its reason, a `needsAddress` its
+place, a `paused` its retry time, a leg with a time its duration, and every
+leg an origin that resolves to a name (a removed place's legs are rewritten
+in the same pass). If a reader still finds one missing, **the clause that
+would state it is omitted**, with its separator: `Leave by 08:15 · 35 min`
+(no origin), `Leave by ≈08:15 · estimate` (no reason), `Travel time
+unavailable` (no reason), N7 `{where} · Travel time from Home unavailable.
+Check your route before you leave.` (no reason: `: {reason}` dropped), N1
+`Starts 09:00 · HS_A3.15 · 35 min` (no origin). Tests pin each omission.
 
 **Copy — exact, tested.** `{place}` is the place a `needsAddress` names;
 `{mode}` the copy phrase (§23.3: `by public transport`); `{retry}` the queue's
@@ -4753,9 +4785,9 @@ data and the words.
 | Fed by a display fixture (`TravelFixture`, §12 items 7–8) | Fed by the event's **`TravelLeg` with status `ready`**. `TravelFixture` is retired; the review datasets compute real legs (§30.1) |
 | "Never drawn for an event with no location" | Drawn **exactly when the event has a `ready` or `estimate` leg**. No leg (no place, same place, online, skipped, cancelled, all-day, routine) → no band. A `pending` or `unavailable` leg → **no band**: there is no time to draw, and a band without one would be a guess. The inspector and popover say why (§25.3) |
 | Occupies `departAt → event.start` | Unchanged — and `departAt` now includes the **buffer**, so the band is travel **plus** buffer tall |
-| Label `Leave HH:mm · NNmin` | Unchanged form. **`HH:mm` is `departAt`; `NN` is the travel time without the buffer** (`Leave 08:15 · 35min` on a 09:00 lecture: 35 min trip, 10 min buffer, 45 min band). Below 18pt the duration drops, below 14pt the glyph only — as §4 |
+| Label `Leave HH:mm · NNmin` | Unchanged form. **`HH:mm` is `departAt`; `NN` is the travel time without the buffer** (`Leave 08:15 · 35min` on a 09:00 lecture: 35 min trip, 10 min buffer, 45 min band). Below 18pt the duration drops, below 14pt the glyph only — as §4. *Amended 2026-10-15 (DEVIATIONS B53 accepted):* the duration also drops whenever the full label does not fit the band's **width** (every Week column at today's widths), giving `Leave 08:15`; if that does not fit either, the glyph alone. **The time is never truncated** (`Leave 0… · 35min` is the failure B53 fixed) |
 | Glyph by mode | The leg's `mode` (§23.3: `tram.fill`, `figure.walk`, `car.fill`) |
-| — | **An estimate** (§24.3) is marked by **`≈` before the minutes**: `Leave 08:15 · ≈35min`. Below 18pt, where the minutes drop, `≈` moves before the time: `Leave ≈08:15`. Same font, colour, fill and hatch — the mark is a character, not a colour, so it survives template rendering and greyscale |
+| — | **An estimate** (§24.3) is marked by **`≈` before the minutes**: `Leave 08:15 · ≈35min`. Wherever the minutes drop — below 18pt, or too narrow (B53) — `≈` moves before the time: `Leave ≈08:15`. Same font, colour, fill and hatch — the mark is a character, not a colour, so it survives template rendering and greyscale |
 | Hover help `Leave 08:12 · 22 min walking` (as built) | **`Leave 08:15 · 35 min by public transport from Home · 10 min buffer`** (`· N min buffer` omitted at 0). Estimate: **`Leave about 08:15 · about 35 min by public transport from Home · 10 min buffer · estimate, offline`** (the short reason, §24.10). Current location: `from where you are` |
 | VoiceOver phrase `leave by 08:12, 22 minutes walking` | §29 |
 
@@ -4879,8 +4911,14 @@ has a leg:
 | `unavailable` | `Travel time unavailable · offline` — the short reason: `· Home has no address`, `· no route by public transport`, `· Apple Maps paused until 10:40`, `· Apple Maps didn't answer` | `color.text.secondary` |
 | No leg | — (omitted) | |
 
-- `popoverNextMeta`, `lineLimit` 1, tail truncation. The time comes first and
-  is never truncated; the place name (the user's text) truncates.
+- `popoverNextMeta`, **`lineLimit` 2**, tail truncation after the second
+  line. The time comes first and is never truncated or split from `Leave
+  by`. *(Amended 2026-10-15, review fix P3S2-F03: was `lineLimit` 1. At the
+  popover's width `Travel time unavailable · Home has n…` and `35 min from
+  FH Tec…` cut off exactly the fact the line exists to give — what to fix,
+  where you leave from. The line wraps instead; the NEXT block grows by one
+  more `popoverNextMeta` line when it does.)* The meta line below it keeps
+  `lineLimit` 1.
 - The origin is the place **name** (`from Home`, `from FH Technikum Wien`),
   or `from where you are` (§24.2.1).
   The mode is not on this line (the hover help, inspector and VoiceOver carry
@@ -5413,7 +5451,9 @@ routing amendment.)*
 2. **Settings ▸ Travel, filled** (dataset `travel`): the three places with
    confirmed addresses (`Gym` with its remove button, the built-ins without),
    the Places footer naming `FH Technikum Wien`, the pair rows (`Home ↔ Gym`
-   `Walking`, the other two `Usual (Public transport)`).
+   `Walking`, the other two `Usual` — the closed pop-up shows `Usual` alone,
+   `layouts.md` §13; VoiceOver reads `Usual, public transport`, §29;
+   *wording amended 2026-10-15*).
 3. **Settings ▸ Notifications, allowed**: five rules at their defaults
    (`Sync problems` with a switch and no pop-up), no status block, the quiet
    footer.
@@ -5421,8 +5461,13 @@ routing amendment.)*
    **`notAllowedYet`** (`notDetermined` after a recorded ask): the status
    block with `Open System Settings…` / `Allow Notifications…`; one rule
    switched off with its pop-up disabled (not hidden).
-5. **Week `M`** (dataset `travel`), scrolled to 07:00: bands on Mon `SWQM-ILV`
-   (`Leave 08:15 · 35min`), Tue `SWEN3-LAB` (`Leave 09:15`) and **no** band on
+5. **Week `M`** (dataset `travel`), at its default scroll — **06:00** by
+   `layouts.md` §3.1, because Sat `Early study group` starts 07:30 (*amended
+   2026-10-15*: was "scrolled to 07:00", which contradicted §3.1; at a
+   window tall enough to show 06:00–23:59 one frame serves items 5 and 6).
+   In Week the bands read `Leave HH:mm` (the minutes drop for width, §25.1 /
+   B53); Day shows the full label. Bands on Mon `SWQM-ILV`
+   (`Leave 08:15`), Tue `SWEN3-LAB` (`Leave 09:15`) and **no** band on
    Tue `SWEN3-ILV` (back-to-back), **no** band on Wed `INNO3-EL` (Online) or
    `Laundry` (Home → Home), Thu `EPC-ILV` (`Leave 12:15`) and **no** band on
    `REQEN-EXAM`, Thu `Dinner with flatmates` (`Leave 17:45`, origin campus),
@@ -5458,10 +5503,10 @@ routing amendment.)*
     | leave, degraded | Thu 11:50 | `EPC-ILV` | 110 | `Leave 12:15` alone |
     | leave now | Thu 12:20 | `EPC-ILV` | 180 | glyph + `Leave now · EPC-ILV` |
     | late | Thu 13:05 | `EPC-ILV` | 180 | glyph + `5m ago · EPC-ILV` (Phase 2, unchanged) |
-    | takeover | Thu 17:20, `EPC-ILV` and `REQEN-EXAM` not done | `Dinner with flatmates` | 180 | `Leave 17:45 · Dinner with fl…` |
+    | takeover | Thu 17:20, `EPC-ILV` and `REQEN-EXAM` not done | `Dinner with flatmates` | 180 | `Leave 17:45 · ` + the title truncated by §15.1 (`Dinner with f…` as measured) |
     | no takeover | Thu 17:10, the same | `EPC-ILV` (late) | 180 | glyph + `250m ago · EPC-ILV` |
     | estimate | Thu 11:50, variant `travelOffline` | `EPC-ILV` | 180 | `Leave ≈12:15 · EPC-ILV` |
-    | unavailable | Thu 17:20, variant `travelOffline`, `EPC-ILV` and `REQEN-EXAM` done | `Dinner with flatmates` | 180 | `18:30 · Dinner with flatmates` (Normal: no time to leave by) |
+    | unavailable | Thu 17:20, variant `travelOffline`, `EPC-ILV` and `REQEN-EXAM` done | `Dinner with flatmates` | 180 | `18:30 · ` + the title truncated by §15.1 (`Dinner with flatmat…` as measured) — Normal: no time to leave by, no `Leave`. *Amended 2026-10-15, closes G-099: the whole title does not fit 180pt; §15.1's truncation stands.* A frame, not only a test |
 
 14. **The notification plan** — not a screenshot: the review launch's
     recorded plan (§27.10) as `screenshots/3b/notification-plan-travel.txt`,
@@ -5505,8 +5550,10 @@ routing amendment.)*
     `-KadenceLocation denied`, `servicesOff`, `notDetermined` after a
     recorded ask): the three status blocks of §24.12, exact; and `Use where
     you are` switched off with no block.
-20. **Week `M`, estimates** (variant `travelOffline`, scrolled to 07:00): the
-    campus bands from home marked `≈` (`Leave 08:15 · ≈35min`); **no** band on
+20. **Week `M`, estimates** (variant `travelOffline`, default scroll): the
+    campus bands from home marked `≈` — `Leave ≈08:15` in Week, where the
+    minutes drop for width (§25.1, B53; `Leave 08:15 · ≈35min` in Day);
+    **no** band on
     `Dinner with flatmates`. Plus the inspector of `EPC-ILV` (`12:15`,
     `estimate`, `About 35 min by public transport from Home · 10 min buffer`,
     `Last worked out 27 Sep 18:00 by Apple Maps. Couldn't update: this Mac is
@@ -5524,6 +5571,11 @@ routing amendment.)*
     the `travelOffline` and `travelNoAddress` plans at Thu 06:00 (N1e, N7),
     the departure-refresh catch-up, and N8 for `unauthorized` and
     `forbidden` (§30.1).
+24. **Clock changes** *(added 2026-10-15, §31, G-100)*: Day and Week of Sun
+    25 Oct 2026 and of Sun 29 Mar 2026 (offscreen, Europe/Vienna, clock
+    pinned per §31.5), each with the §31.5 events, a 20:00 routine block, the
+    `Climbing` band and the now line, and Month for both months. Every block
+    on its wall-clock row; the now line level with the gutter's now time.
 
 ### 30.1 Fixtures
 
@@ -5543,7 +5595,9 @@ location source and path monitor** (§24.11). Contents:
   |---|---|---|---|---|---|---|
   | T1 | `{{D+1}}` 11:45–13:15 | `SWEN3-ILV` | `HS_A2.07` | `BIF-5C` | `L03` | back-to-back after `SWEN3-LAB` (items 5, §24.2) |
 
-  So 15 VEVENTs, 14 events after the 7a+7b merge, 2 of them history.
+  So **14 VEVENTs, 13 events** after the 7a+7b merge, 2 of them history
+  *(corrected 2026-10-15, closes G-097: the composition is the definition;
+  the count first written here, 15 / 14, was wrong)*.
 - **No routine template** and therefore no conflicts and no Needs attention
   row: travel is reviewed on its own.
 - **One time window**: `Sleep`, `.protected`, every day, 22:00–07:00.
@@ -5792,11 +5846,12 @@ notification tables above and these cases on top:
 
 *Routing cases (routing amendment):*
 
-- **Cache sharing**: the 14 timetable events of dataset `travel` at Mon
-  06:00 with an empty cache → exactly one provider call per distinct key
-  (`home → campus` transit at each distinct weekday slot, `campus → home`
-  for `Dinner`, `home → Gym` walking) — never one per event; a second
-  recompute → zero calls.
+- **Cache sharing**: the 13 timetable events of dataset `travel` at Mon
+  06:00 with an empty cache → exactly one provider call per distinct key —
+  **7 keys**: `home → campus` transit at the weekday slots 08:30, 09:30,
+  12:30, 15:30 and the Saturday slot 07:00, `campus → home` 18:00 for
+  `Dinner`, `home → Gym` walking Sunday 17:30 — never one per event; a
+  second recompute → zero calls. *(Count corrected 2026-10-15, G-097.)*
 - **Directional**: `campus → home` and `home → campus` are two keys; an
   answer for one never fills the other.
 - **New address**: confirming a new Home coordinate invalidates every key
@@ -5833,3 +5888,211 @@ notification tables above and these cases on top:
 - **Logging**: every routing log line produced by the cases above matches
   §24.11's forms; none contains a digit pattern of a coordinate
   (`\d+\.\d{3,}`), a fixture address, a place name or an event title.
+
+---
+
+## 31. Clock changes — every time is drawn at its wall-clock time
+
+*(Added 2026-10-15, Phase 3 slice 2 review; closes G-100 on the spec side.
+Fix task P3S2-F01. Not deferrable: Parsa's next clock change is Sun 25 Oct
+2026.)*
+
+On the two days a year the clocks change, Kadence placed times by the
+**seconds elapsed since midnight**. In Europe/Vienna, Sun 25 Oct 2026 has 25
+hours (03:00 CEST becomes 02:00 CET, so 02:00–02:59 happens twice) and Sun
+29 Mar 2026 has 23 hours (02:00 CET becomes 03:00 CEST, so 02:00–02:59 does
+not exist). Measured from midnight, everything after the change is one hour
+off. The build found the drawn half of this (`Climbing` 18:00 drawn on the
+19:00 row, `screenshots/3b/day-sun-climbing-p3b.png`); the review found the
+other half: **times built from "minutes after midnight" are an hour off as
+data**, not just as drawing — a routine block at 20:00 materialises at
+19:00 CET on 25 Oct (and 21:00 CEST on 29 Mar), and Sleep 22:00–07:00 ends
+at 06:00 CET on 25 Oct and starts at 21:00 CET that evening. On the grid the
+two errors cancel for routine blocks (an instant at 19:00 CET is 20 h after
+midnight, so it is drawn on the 20:00 row), which is why the routine looked
+right; its inspector, popover row and notification say 19:00.
+
+### 31.1 The rule
+
+The canvas is a **24-hour wall-clock ruler** on every day. A moment is drawn
+at its **local hour and minute** on the day it falls on — never at the time
+elapsed since that day's midnight. A "minutes after midnight" value (a
+routine block, a time window, a drop position) means that **wall-clock
+time** on that day.
+
+Every conversion between a moment and a time of day goes through **one pure
+pair of functions** (`WallClock`, calendar injected, Europe/Vienna in tests):
+
+- `minuteOfDay(_ moment, on day) -> Double` — `hour × 60 + minute +
+  second / 60` of the moment in the calendar's zone, if the moment is on
+  `day`; **0** if it is before `day`'s start; **1440** if it is at or after
+  the next day's start (the same clipping as today's midnight rule).
+- `moment(minuteOfDay m, on day) -> Date` — the local time `m` on `day`,
+  built from date components (RFC 5545's reading, which imported ICS events
+  already follow):
+  - in the **repeated hour** (autumn), the **first** occurrence: `02:30` on
+    25 Oct → 02:30 CEST;
+  - in the **missing hour** (spring), the offset before the gap, i.e. moved
+    forward by the gap: `02:30` on 29 Mar → **03:30 CEST**;
+  - `1440` → the next day's start.
+  (Foundation: `calendar.date(from:)` with those components, or
+  `date(bySettingHour:minute:second:of:matchingPolicy:
+  .nextTimePreservingSmallerComponents, repeatedTimePolicy: .first)`.)
+
+**Banned for a time of day**: `startOfDay.addingTimeInterval(n × 60)` and
+`calendar.date(byAdding: .minute / .hour, value: n, to: startOfDay)` — both
+add elapsed time. A source scan test enforces it (§31.5 T12).
+
+**Durations stay durations.** A 90-minute event is 90 minutes long on every
+day. Snooze +15, nudge ±15 / ±5, a travel time, a buffer, a lead time, T−3 h
+and T−45 min, the 48-hour window, `chainGap` and `unavailableLead` are
+elapsed time and are unchanged. A stored moment (any `Event.start`) keeps its
+instant; only where it is drawn changes.
+
+### 31.2 Drawing an interval
+
+For an interval `[a, b)` drawn in the column of day `d` (a block, a window
+band, a drop preview, a selection):
+
+1. `top = minuteOfDay(a, d)`, `bottom = minuteOfDay(b, d)`.
+2. If `bottom ≤ top` while `b > a` — the interval runs back through the
+   repeated hour, e.g. 02:45 CEST → 02:15 CET, 30 minutes — then `bottom =
+   top + (b − a)` in minutes.
+3. Then §3.3 / layouts.md §3.3's minimum rendered height, as today.
+
+The **travel band** stays attached to its parent: its bottom is the
+parent's drawn top; its top is `minuteOfDay(departAt, d)`, or `bottom −
+(start − departAt)` in minutes if that is not above the bottom.
+
+**Overlap resolution** (layouts.md §3.3) is computed on the **drawn**
+intervals, so two blocks in the two 02:00 hours of 25 Oct sit side by side
+instead of on top of each other. **Conflicts** (§13, §20.9) stay on real
+instants: those two blocks do not overlap in time and are not a conflict.
+
+What that gives, by day:
+
+- **Autumn (25 h).** The 02:00 row holds both 02:00 hours. An event 01:30
+  CEST – 03:30 CET is drawn 01:30–03:30 (two rows); its block reads
+  `01:30–03:30` and the inspector's `Duration` says `3 h`.
+- **Spring (23 h).** The 02:00 row holds no moment; no block ever starts
+  inside it. An event 01:30 CET – 03:30 CEST is drawn 01:30–03:30; the
+  inspector says `Duration 1 h`.
+- **No marker, no extra row, no new label.** The gutter keeps its 24 labels
+  on every day (it is one ruler shared by Week's seven columns), hour and
+  half-hour lines are unchanged. A note about the change is G-101
+  (deferred).
+
+### 31.3 The now line and the cursor
+
+The column's now line and dot, and the gutter's now time, both use
+`minuteOfDay(now)`, so they are always level (today the gutter label is
+wall-clock and the column line elapsed, an hour apart after a change).
+On 25 Oct at 03:00 CEST the line moves back up to 02:00 and crosses the
+02:00 hour a second time; on 29 Mar at 02:00 CET it moves down to 03:00.
+No animation beyond the existing per-minute update. A42's label
+suppression (§8) is computed on the same y. The cursor time likewise.
+
+### 31.4 Everything built from minutes after midnight
+
+Each of these uses `moment(minuteOfDay:on:)` / `minuteOfDay(_:on:)`:
+
+| Where | Today | After F01 |
+|---|---|---|
+| Routine instances (`RoutineEngine.materialize`, `templateValues`, §13.6, §13.7.2) | `date(byAdding: .minute, startMinutes, to: day)` | wall-clock `startMinutes` on the day; end = start + duration. 20:00 → 20:00 CET on 25 Oct, 20:00 CEST on 29 Mar; 02:30 → 02:30 CEST on 25 Oct, 03:30 CEST on 29 Mar |
+| `TimeWindow.spans(on:)`, `NotificationPlanner`'s quiet spans, `TimeWindowFixture.spans(on:)` | `startOfDay + minutes × 60` | wall-clock. Sleep 22:00–07:00: Sun 25 Oct morning 00:00 CEST – 07:00 CET (8 h), evening 22:00 CET – 24:00; Sun 29 Mar morning 00:00 CET – 07:00 CEST (6 h). Conflicts, routine refusals, window bands, window labels and the notification quiet rule all read these |
+| `TimeGeometry.y(for:)`, `height(from:to:)`, `date(forY:)` | elapsed | §31.2 / §31.1 |
+| Now line in the column (`GridLayers`) | `y(for: now)` | `minuteOfDay(now)` — §31.3 |
+| Drag, resize, create, drop preview (interactions §4) | elapsed offsets from the day start | the dropped edge is `moment(minuteOfDay: snapped y, on: column day)`; a move keeps the elapsed duration; snapping (15 / 5 min) is on minute-of-day |
+| Initial scroll (layouts §3.1), conflict scroll | `timeIntervalSince(startOfDay)` | `minuteOfDay(start, its own day)` |
+| `WindowLabelPlacement` | elapsed | `minuteOfDay` |
+| Routines window (`RoutineWeekLayout`, `RoutinesWindow`, `TemplateConflictPanelView`) | `referenceDayStart + minutes × 60` | wall-clock. Its reference days are real dates near today, so one of them is a change day for a week twice a year (opened on Mon 26 Oct, Sunday's reference is 25 Oct) |
+| Review fixtures (`MockData`, `TravelDataset` P6, `DisplayFixtures`) | `+ seconds` | wall-clock, as B54 did for the manual events |
+
+Instances already materialised with the old maths (a 19:00 CET "20:00"
+block on 25 Oct in Parsa's store) are corrected by the next materialisation,
+which already updates an instance whose values differ from its template
+(§13.7.2, row 2): one write, no undo step. A **detached** instance is left
+alone, as always.
+
+Month view places by date and is unaffected; its time text comes from the
+moment and is already right.
+
+### 31.5 Tests — exact (Europe/Vienna, calendar injected)
+
+Hour heights are `size.hourHeightDay` / `size.hourHeightWeek`; `y(h)` below
+means `h × hourHeight`. "CEST" is UTC+2, "CET" UTC+1.
+
+**T1 `WallClock`.** 25 Oct: `minuteOfDay` of 01:30 CEST = 90, 02:30 CEST =
+150, 02:30 CET = 150, 03:30 CET = 210, 18:00 CET = 1080; `moment(150)` =
+02:30 CEST, `moment(1080)` = 18:00 CET, `moment(1440)` = 26 Oct 00:00 CET.
+29 Mar: 01:30 CET = 90, 03:30 CEST = 210, 18:00 CEST = 1080; `moment(150)` =
+03:30 CEST, `moment(1080)` = 18:00 CEST. Thu 22 Oct (no change): both
+functions agree with the old elapsed maths for every quarter hour.
+
+**T2 Day view, Sun 25 Oct 2026** — events and the drawn `[top, bottom)`:
+
+| Event | Real | Drawn |
+|---|---|---|
+| A before | 01:00–01:45 CEST | y(1.0)–y(1.75) |
+| B across | 01:30 CEST – 03:30 CET (3 h) | y(1.5)–y(3.5); inspector `Duration 3 h`, block `01:30–03:30` |
+| B1 first 02:00 hour | 02:15–02:45 CEST | y(2.25)–y(2.75), left of B2 |
+| B2 second 02:00 hour | 02:15–02:45 CET | y(2.25)–y(2.75), right of B1; **no conflict** between B1 and B2 |
+| B3 back through | 02:45 CEST – 02:15 CET (30 min) | y(2.75)–y(3.25) |
+| C after | `Climbing` 18:00–19:30 CET | y(18)–y(19.5); band `Leave 17:45 · 5min` y(17.75)–y(18) |
+| R routine | template block 20:00–21:00, every day | instance start 20:00 CET (today: 19:00 CET); y(20)–y(21) |
+
+**T3 Day view, Sun 29 Mar 2026:**
+
+| Event | Real | Drawn |
+|---|---|---|
+| A before | 01:00–01:45 CET | y(1.0)–y(1.75) |
+| B across | 01:30 CET – 03:30 CEST (1 h) | y(1.5)–y(3.5); `Duration 1 h` |
+| C after | `Climbing` 18:00–19:30 CEST | y(18)–y(19.5); band y(17.75)–y(18) |
+| R routine | 20:00–21:00 | 20:00 CEST (today: 21:00 CEST); y(20)–y(21) |
+| R2 routine in the gap | template block 02:30–03:00 | 03:30–04:00 CEST; y(3.5)–y(4) |
+
+**T4 Week view**: weeks 19–25 Oct 2026 and 23–29 Mar 2026 with T2 / T3's
+events on the Sunday: the Sunday column draws them at T2 / T3's rows (at
+`hourHeightWeek`); Mon–Sat columns lay out exactly as before the fix.
+
+**T5 Month**: Oct 2026 and Mar 2026 — `Climbing` in the 25 Oct / 29 Mar
+cells with time text `18:00`; a Sat 24 Oct 23:30 – Sun 00:30 event in the 24
+Oct cell only (unchanged).
+
+**T6 Now line**: at 25 Oct 01:59 CEST, 02:30 CEST, 02:30 CET, 03:30 CET,
+18:00 CET and 29 Mar 01:59 CET, 03:00 CEST, 18:00 CEST, the column's now
+line y equals the gutter now label's line y equals `minuteOfDay(now) / 60 ×
+hourHeight` (y(1.983), y(2.5), y(2.5), y(3.5), y(18), y(1.983), y(3), y(18)),
+in Day and Week; A42's suppression holds at each.
+
+**T7 Initial scroll**: Day 25 Oct, first event 06:00 CET → opens at
+**05:00**; Day 29 Mar, first event 06:00 CEST → **05:00** (today: 04:00);
+Week 19–25 Oct whose only event before 07:00 is Sun 06:00 CET → 05:00.
+
+**T8 Windows and the quiet rule**: Sleep 22:00–07:00 every day — spans on
+24, 25, 26 Oct and 28, 29, 30 Mar as §31.4; a leave-by notification due Sun
+25 Oct 06:40 CET is held to **07:00 CET**; one due 06:40 CEST on 29 Mar to
+07:00 CEST; one due 21:30 CET on 25 Oct is **not** held (today: held,
+because Sleep started at 21:00). A routine block 21:30–22:30 is refused on
+every day including 25 Oct (unchanged minutes rule).
+
+**T9 Routine data**: R's `routineStart` notification (lead 5) fires 19:55
+CET on 25 Oct and 19:55 CEST on 29 Mar. A store holding R's 25 Oct instance
+at 19:00 CET (the old maths) → after one materialisation it is 20:00 CET:
+one update, no new instance, no undo step, `externalID` unchanged; a
+detached instance at 19:00 CET stays.
+
+**T10 Drag**: Day 25 Oct, drag `Climbing` until its top is at y(20) → 20:00–
+21:30 CET; on 29 Mar drop a block's top at y(2.5) → 03:30 CEST; on 25 Oct at
+y(2.5) → 02:30 CEST. `⌥↓` nudge and snooze move by elapsed 15 minutes, as
+before.
+
+**T11 Travel**: 25 Oct `Climbing` leg `departAt` 17:45 CET, `leave.`
+notification fires 17:40 CET, `Leave by 17:45 for Climbing`; the cache key's
+slot is `sunday` 17:30 (already wall-clock, unchanged).
+
+**T12 Source scan**: outside `WallClock`, no file in `Kadence/` applies
+`addingTimeInterval` with a minutes or hours product, or `byAdding: .minute`
+/ `.hour`, to a `startOfDay` value or a day-start variable (`dayStart`,
+`referenceDayStart`, `startOfDay`, `day`). Durations added to an event's
+`start` or `end` are allowed.

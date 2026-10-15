@@ -171,6 +171,19 @@ Seven day columns. First weekday from `Calendar.current.firstWeekday` (Monday in
   00:30 → 00:00; no timed event → 07:00. Same rule in Week view and in the
   Routines window (§8, over `earliestBlockStart`); with today's fixtures every
   view still opens at 06:00.
+- **Amended 2026-10-15 (Phase 3 slice 2 review) — clock changes.** Every
+  time on the grid, and `firstEventStart` here, is a **wall-clock** time of
+  day (`components.md` §31): on Sun 29 Mar 2026 a first event at 06:00 CEST
+  opens the Day at 05:00, not 04:00. The hour grid keeps 24 rows on every
+  day; §31.2 says how the repeated and the missing hour are drawn.
+- **Reading the rule (2026-10-15, for Parsa's "Week opens around 04:00").**
+  The Week's position is computed over **all seven columns and every timed
+  event, routine blocks included**. It opens at 04:00 exactly when something
+  in the visible week starts between 05:00 and 05:59 (05:30 → 04:30 → floored
+  to 04:00). That is the rule working: the earliest block is kept in view
+  with at least an hour of lead. It is not a fix unless nothing in that week
+  starts before 06:00 (then the hold mis-aimed: report the week and CA adds
+  it as a test case).
 
 ### 3.2 All-day row
 
@@ -384,7 +397,9 @@ Shown for the current selection. Sections, top to bottom:
 2. Time: start, end, duration. `inspectorLabel` / `inspectorValue` pairs.
 3. Location, when present, with the travel line beneath it
    (`Leave 08:12 · 22 min walking`) — read-only in Phase 1.
-4. Source and origin.
+4. Source and origin. *(Amended 2026-10-15: the `Origin` value is a word with
+   a capital, `Manual` · `Routine` · `Imported` · `Planned` — never the raw
+   enum value; the slice 2 frames show `manual` beside `Imported`.)*
 5. Status, with Done / Skip actions.
 6. Notes, editable.
 

@@ -445,3 +445,12 @@ Preferred mode Public transport. Buffer 10 min. Lead times: leave-by 5 min, time
 
 ## 2026-10-14 — Kadence targets macOS 26.5.
 The project's deployment target, 26.5, is the floor; the brief's "macOS 15+" is superseded. Cycling still stays out (G-095): macOS 26 has been seen answering a cycling request with a driving route. Revisit when that is fixed.
+
+## 2026-10-15 — Times are wall-clock times, also on the days the clocks change.
+A time of day in Kadence — an event's place on the grid, a routine block, a time window, a drop position — is the local clock time on that day, never the time elapsed since midnight. On the 25-hour day the repeated hour shares its row; on the 23-hour day the missing hour holds nothing; a routine block in the missing hour moves forward by the gap (02:30 → 03:30), in the repeated hour it is the first one. Durations stay durations. The grid keeps 24 rows and draws no marker. Closes G-100 (components.md §31).
+
+## 2026-10-15 — No invented fact, in copy as in numbers.
+Extends "A failed route is said, never guessed": a surface never fills in an origin, a reason, a place or a number it does not have. What is missing is left out, never defaulted.
+
+## 2026-10-15 — Week view opening hour stays as specified.
+Week opens at the earliest start in the visible week when anything starts before 06:00, routine blocks included, so the first block of the day is always in view.

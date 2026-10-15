@@ -3387,3 +3387,72 @@ only the canvas position is wrong. Not in slice 2's scope (it touches every
 canvas view and the drag maths); a fix should place a time by its
 wall-clock hour and minute and decide how the repeated or missing hour is
 drawn. Design to decide.
+
+---
+
+## 2026-10-15 — Phase 3 slice 2 review (DA): gaps ruled
+
+Design agent, `design/PHASE3-SLICE2-REVIEW.md`. Spec amended as named;
+a gap marked "build open" is closed on the spec side and waits for its fix
+task.
+
+### G-097 — CLOSED (design, 2026-10-15). `components.md` §30.1 "Dataset `travel`", "Cache sharing".
+
+CA's reading is the spec: the composition is the definition. §30.1 now says
+14 VEVENTs, 13 events, 2 history, and "Cache sharing" names the 7 keys. No
+code change; CA's tests already assert these numbers.
+
+### G-098 — CLOSED (design, 2026-10-15), build open (P3S2-F04). `components.md` §23.6.
+
+The campus is looked up at the **first launch** (after the built-ins exist),
+not when a recompute first needs it: one request per install, so a fresh
+install's Settings ▸ Travel shows Kadence's own address confirmed instead of
+`Not confirmed yet`, and review `empty` / `fresh` show what a real first
+launch shows. The review-only `looksUpCampusAtLaunch` switch goes; the
+once-a-day retry rule is unchanged.
+
+### G-099 — CLOSED (design, 2026-10-15). `components.md` §30 item 13.
+
+§15.1's truncation stands; item 13's `unavailable` and `takeover` rows now
+expect the title truncated as measured. The `unavailable` row needs a frame
+(P3S2-F05), not only a test.
+
+### G-100 — CLOSED (design, 2026-10-15), build open (P3S2-F01). `components.md` §31 (new), `layouts.md` §3.1.
+
+Wider than reported: besides the grid's elapsed-time geometry, routine
+instances (`RoutineEngine`) and time-window spans (`TimeWindow.spans`, the
+notification planner's copy, `TimeWindowFixture`) are built as `startOfDay +
+minutes`, so on a clock-change day a 20:00 routine block **is** 19:00 CET
+(inspector, popover, notification) and Sleep ends at 06:00 CET. §31 makes
+every time of day wall-clock through one `WallClock` pair, says how the
+repeated and missing hour are drawn, and pins tests T1–T12 for 25 Oct and
+29 Mar 2026. Must ship before Sun 25 Oct 2026.
+
+### G-101 — DEFERRED (later, design). A note on the clock-change day.
+
+`components.md` §31.2 draws nothing extra on a clock-change day: 24 rows,
+the repeated hour sharing its row, the missing hour empty. A one-line note
+(e.g. in the Day header's secondary line, `Clocks go back 1 h at 03:00`)
+would explain a 3-hour event drawn two rows tall. Not needed for
+correctness; revisit if the day reads wrong in use.
+
+### G-096 — still OPEN (Parsa, Xcode). Location usage keys.
+
+Re-checked 2026-10-15 in `project.pbxproj`: `ENABLE_RESOURCE_ACCESS_LOCATION
+= YES` is now set (item 1 done); **`INFOPLIST_KEY_NSLocationUsageDescription`
+and `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription` are still absent**
+(item 2), and there is still no `CODE_SIGN_ENTITLEMENTS` (item 3,
+time-sensitive). Without item 2, `Use where you are` cannot work in a real
+launch: macOS shows no prompt, Kadence records its one automatic ask and the
+leg stays on the rule origin. Once the keys exist, `Allow Location…` in
+Settings ▸ Travel asks again and recovers. Nothing else depends on it.
+
+### Still open after this pass
+
+- **Parsa:** G-095, G-096; G-067.
+- **Design:** G-083.
+- **Real use:** G-093.
+- **CA judgement:** G-092.
+- **Build open (slice 2 review fixes):** G-098 (F04), G-100 (F01).
+- **Deferred:** G-058, G-059, G-060 (timetable changes), G-062, G-064,
+  G-065, G-084, G-085, G-086, G-088, G-091, G-094, G-101.
