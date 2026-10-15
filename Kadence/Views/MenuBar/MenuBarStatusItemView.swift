@@ -55,6 +55,11 @@ struct MenuBarStatusItemView: View {
                 now = date
                 fetchEvents()
             }
+            // §15 "updates on a timer and on any data change": a leg worked
+            // out after launch shows at once, not at the next tick.
+            .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in
+                fetchEvents()
+            }
             .onAppear { fetchEvents() }
     }
 

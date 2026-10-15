@@ -64,6 +64,8 @@ struct TravelBandInspectorTests {
         #expect(band.isEstimate)
         #expect(TravelPresentation.bandLabel(band, height: 30, calendar: cal) == ("Leave 08:15", "· ≈35min"))
         #expect(TravelPresentation.bandLabel(band, height: 16, calendar: cal) == ("Leave ≈08:15", nil))
+        // A column too narrow for the minutes keeps the `≈` on the time.
+        #expect(TravelPresentation.narrowBandLabel(band, height: 30, calendar: cal) == "Leave ≈08:15")
         #expect(try info(offline, "Dinner with flatmates", day: 3).band == nil)
         let pending = try TravelRig(now: mon0600, variant: .travelPending,
                                     provider: ReviewTravel.provider(dataset: .travel, variant: .travelPending))

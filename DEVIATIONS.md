@@ -2457,3 +2457,22 @@ check" (2026-10-14).
   directory. No assertion changed. Slice 2's offscreen renders
   (`Slice2Render`) also tear their window down after the capture and draw
   without spinning the run loop.
+- **B53 — a band too narrow for its minutes drops them first, never the
+  time** (`components.md` §4, §25). In a Week column `Leave 08:15 · 35min`
+  did not fit and SwiftUI truncated the time (`Leave 0… · 35min`). The band
+  now tries the full label, then the short form §25 gives below 18pt
+  (`Leave 08:15`, `Leave ≈08:15` for an estimate — the `≈` moves to the
+  time, so an estimate is still marked), then the glyph alone. Tested
+  (`TravelPresentation.narrowBandLabel`); seen in every Week frame of
+  `screenshots/3b/`.
+- **B54 — review fixtures: `travelOffline`'s stale cache entry and the
+  dataset's manual events, anchored for a live launch** (`components.md`
+  §30.1). The stale entry was dated `M − 15 days` 18:00; a live review
+  launch runs before `M` (on the Thursday before it), where that is only
+  ~10 days old — fresh by §24.9, so the campus legs came out `ready` with no
+  `≈`. It is now dated 15 days before the earlier of `M` and the launch's
+  day, stale at every clock. The manual events (`Laundry` … `Climbing`) were
+  seeded as seconds after midnight; when `M + 6` is the day the clocks go
+  back (Sun 25 Oct 2026) `Climbing` landed at 17:00 instead of 18:00. They
+  are now seeded at wall-clock times. Tests (pinned at `M` = Mon 12 Oct)
+  are unchanged.

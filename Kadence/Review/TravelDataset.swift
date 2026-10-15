@@ -105,7 +105,9 @@ enum TravelDataset {
 
         // P1–P5 (and P6).
         func at(_ n: Int, _ hour: Int, _ minute: Int) -> Date {
-            cal.date(byAdding: .day, value: n, to: cal.startOfDay(for: m))!.addingTimeInterval(TimeInterval(hour * 3600 + minute * 60))
+            // Wall-clock times: `M + 6` can be the day the clocks change.
+            let day = cal.date(byAdding: .day, value: n, to: cal.startOfDay(for: m))!
+            return cal.date(bySettingHour: hour, minute: minute, second: 0, of: day)!
         }
         func manual(_ title: String, _ start: Date, _ end: Date, _ placeID: String?) {
             let event = Event(title: title, start: start, end: end, origin: .manual,
@@ -133,7 +135,7 @@ enum TravelDataset {
                 place.geocodedAt = nil
             }
         case .travelOffline:
-            seedStaleCache(context: context, m: m, calendar: cal)
+            seedStaleCache(context: context, m: m, now: now, calendar: cal)
         case .travelPending, .travelNoRoute, nil:
             break
         }
@@ -159,11 +161,13 @@ enum TravelDataset {
     /// `travelOffline`'s cache: one entry per weekday slot of the dataset's
     /// campus lectures, `home → campus` transit 35 min, computed `M − 15
     /// days` 18:00 (stale: older than 14 days, so every leg asks and falls
-    /// back to it, §24.10 step 3).
-    static func seedStaleCache(context: ModelContext, m: Date, calendar: Calendar) {
+    /// back to it, §24.10 step 3). A live launch before M dates it 15 days
+    /// before the launch's day instead, so it is stale at launch too.
+    static func seedStaleCache(context: ModelContext, m: Date, now: Date, calendar: Calendar) {
         let homeEnd = TravelEndpoint(id: home.id, latitude: home.latitude, longitude: home.longitude)
         let campusEnd = TravelEndpoint(id: campus.id, latitude: campus.latitude, longitude: campus.longitude)
-        let computedAt = calendar.date(byAdding: .day, value: -15, to: calendar.startOfDay(for: m))!
+        let anchor = min(calendar.startOfDay(for: m), calendar.startOfDay(for: now))
+        let computedAt = calendar.date(byAdding: .day, value: -15, to: anchor)!
             .addingTimeInterval(18 * 3600)
         let store = TravelETACacheStore(context: context)
         var seen = Set<String>()

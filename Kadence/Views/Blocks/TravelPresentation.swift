@@ -85,6 +85,12 @@ enum TravelPresentation {
         return ("Leave \(band.isEstimate ? "≈" : "")\(time)", nil)
     }
 
+    /// The label when the column is too narrow for the minutes: the short
+    /// form, so an estimate keeps its `≈` on the time (§25).
+    static func narrowBandLabel(_ band: TravelBand, height: CGFloat, calendar: Calendar) -> String? {
+        bandLabel(band, height: min(height, 17), calendar: calendar).time
+    }
+
     /// §25.1's hover help.
     static func bandHelp(_ band: TravelBand, calendar: Calendar) -> String {
         let time = TravelCopy.time(band.departAt, calendar: calendar)

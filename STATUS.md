@@ -10983,3 +10983,42 @@ Plan: `design/PHASE3-SLICE2-PLAN.md` (18 tasks). One commit per green task,
   yet,estimate,manual-next,unavailable,no-address}-p3bt17.png`. The live
   status item / popover (item 16) are task 18's.
 - Verify: **1067 passed / 0 failed**; real store `stat` unchanged.
+
+### P3S2-T18 — the §30 review set and `screenshots/3b/INDEX.md`
+
+- `Scripts/capture-p3b.sh` (new): one function per live item (Week `M`,
+  `travelNoAddress`, `travelOffline`, Day Thu, Day Sun, inspector `SWQM-ILV`,
+  the open Place pop-up, Settings ▸ Travel / Notifications, the live status
+  item and popover, `phase3` today and Week `M`, the live recorded plan).
+  Fresh pre-flight before every item; every launch's service list checked
+  (mocks only).
+- Fixes found by the captures:
+  - **B53** — a Week band truncated its time (`Leave 0… · 35min`): the
+    band now drops the minutes first, then falls back to §25's short form
+    (`Leave ≈08:15` keeps the estimate mark), then the glyph.
+  - **B54** — review fixtures for a live launch: `travelOffline`'s stale
+    cache entry was fresh before `M` (no `≈`); the dataset's manual events
+    were seeded as seconds after midnight and moved by an hour on Sun 25 Oct
+    (the clock change). Both anchored; tests unchanged.
+  - Status item: refetches on `ModelContext.didSave` (§15 "on any data
+    change"); before, a leg worked out after launch showed only at the next
+    minute tick, so item 16 caught the Normal state.
+- GAPS **G-100**: the canvas places times by seconds since midnight, so on a
+  clock-change day events after 03:00 are drawn an hour off (Phase 1
+  geometry; not fixed here).
+- `screenshots/3b/`: 61 frames + `notification-plan-travel.txt` +
+  `notification-plan-live-p3b.txt` + `INDEX.md` mapping every §30 item
+  (1–23). The per-task `-p3bt<N>` frames were replaced by final `-p3b` renders
+  of the same names and removed. Edge check: all `ok`.
+- Checks: `UNUserNotificationCenter` only in `SystemNotificationCenter.swift`;
+  `import MapKit` only in the two MapKit files (and `TravelProviderTests`,
+  which maps `MKError` values — no service is built); `import CoreLocation`
+  only in `SystemLocationSource.swift` (and `TravelLocationTests`, for
+  `CLAuthorizationStatus` values); no `late` / `missed` / `overdue` in
+  notification or status strings; routing log lines carry counts, minutes,
+  modes, error words and clock times only; the app builds without location or
+  time-sensitive entitlements (no `CODE_SIGN_ENTITLEMENTS`).
+- Tests: one expectation added to `TravelBandInspectorTests.estimatesAndNoTime`
+  (the narrow label).
+- Verify: **1067 passed / 0 failed**; tokens `--check` up to date; real store
+  `stat` unchanged.

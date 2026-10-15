@@ -39,13 +39,23 @@ struct TravelBandView: View {
     @ViewBuilder
     private var content: some View {
         let label = TravelPresentation.bandLabel(band, height: renderedHeight, calendar: calendar)
-        HStack(spacing: Tokens.Size.blockGlyphGap) {
-            Image(systemName: band.mode.glyph)
-                .font(.system(size: Tokens.Size.blockGlyphSize - 1))
-            if let time = label.time { Text(time) }
-            if let minutes = label.minutes { Text(minutes) }
+        // §25: in a narrow column the minutes drop first; the time is never
+        // truncated mid-number (`Leave 0… · 35min`).
+        ViewThatFits(in: .horizontal) {
+            row(time: label.time, minutes: label.minutes)
+            row(time: TravelPresentation.narrowBandLabel(band, height: renderedHeight, calendar: calendar), minutes: nil)
+            row(time: nil, minutes: nil)
         }
         .typeStyle(.travelLabel)
         .foregroundStyle(Tokens.Color.Text.secondary)
+    }
+
+    private func row(time: String?, minutes: String?) -> some View {
+        HStack(spacing: Tokens.Size.blockGlyphGap) {
+            Image(systemName: band.mode.glyph)
+                .font(.system(size: Tokens.Size.blockGlyphSize - 1))
+            if let time { Text(time).fixedSize() }
+            if let minutes { Text(minutes).fixedSize() }
+        }
     }
 }

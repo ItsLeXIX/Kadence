@@ -1,0 +1,7 @@
+identifier: leave.3844AB54-CD0B-457B-9350-B574537B4C13
+fire:       Thu 15 Oct 02:10
+title:      Leave by 02:15 for Pick up parcel
+body:       Starts 03:00 · FH Technikum Wien · 35 min from Home
+category:   kadence.event
+sound:      default
+level:      timeSensitive

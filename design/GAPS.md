@@ -3374,3 +3374,16 @@ time, the separator and the whole title exceed §15.1's 180pt budget, so
 **Built:** §15.1's rule; the test asserts the Normal state (start time, no
 `Leave`) and the truncated title. The takeover row (`Leave 17:45 · Dinner
 with fl…`) is truncated the same way, as §30 shows it.
+
+### G-100 — OPEN (bug, Phase 1 geometry). The grid misplaces events on a clock-change day.
+
+`TimeGeometry.y(for:)` places a time by the seconds since the day's start,
+and the hour rows assume 24 equal hours. On Sun 25 Oct 2026 (Vienna, 25
+hours) every event after 03:00 is drawn one hour low: `Climbing` 18:00–19:30
+sits on the 19:00 row with its band (`Leave 17:45`) starting at 19:00
+(`screenshots/3b/day-sun-climbing-p3b.png`); on the spring day (23 hours)
+it would be one hour high. Labels, inspector and notifications are right —
+only the canvas position is wrong. Not in slice 2's scope (it touches every
+canvas view and the drag maths); a fix should place a time by its
+wall-clock hour and minute and decide how the repeated or missing hour is
+drawn. Design to decide.
