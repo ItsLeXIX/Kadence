@@ -83,9 +83,6 @@ struct KadenceApp: App {
         }
         _sync = State(initialValue: sync)
         let travel = Self.makeTravel(kind: kind, context: container.mainContext)
-        if case .review(let dataset) = kind, dataset == .empty || dataset == .fresh {
-            travel.looksUpCampusAtLaunch = true   // §30.1, G-098
-        }
         let centre = NotificationServices.make(for: kind, review: .current())
         let notifications = NotificationScheduler(
             context: container.mainContext, centre: centre,

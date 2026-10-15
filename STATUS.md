@@ -11272,3 +11272,32 @@ check `ok`.
 
 Verify: **1101 passed / 0 failed**; tokens up to date. No DEVIATIONS, no
 GAPS.
+
+## 141. P3S2-F04 — the campus is looked up at the first launch (PHASE3-SLICE2-REVIEW.md §7 F04; components.md §23.6 amended 2026-10-15; G-098)
+
+- `Services/Travel/TravelCoordinator.swift` — `recompute`: when the campus
+  lookup is due (`campusLookupIsDue`, unchanged: never attempted; or failed,
+  on a launch / wake pass, attempted before today; never once the address is
+  not Kadence's own), a **launch or wake pass starts it whether or not a leg
+  needs the campus**; an ordinary pass still only when a leg does. Through
+  the queue (`enqueueLookup`) and the injected geocoder, as before.
+  `looksUpCampusAtLaunch` removed.
+- `KadenceApp.swift` — the review-only switch for `empty` / `fresh` removed.
+
+Tests — new `KadenceTests/Slice2/CampusLookupTests.swift` (4): a fresh
+store with no events → one lookup at launch (`MockPlaceGeocoder`), campus
+`confirmed` at the mock's 48.2390 / 16.3770, no ETA request, no second
+lookup at the next launch; offline → `lookupFailed`, not again that day
+(wake, launch, ordinary pass), not on an ordinary pass the next day,
+retried at the next day's launch; an edited address → no lookup; the switch
+is gone from the app. The offline case uses a scripted `OfflineGeocoder`
+double in the test file, because `MockPlaceGeocoder` answers the campus
+address whatever its case (§30.1) — no MapKit, no network either way.
+Changed to the spec, not weakened: `ReviewTravelTests.emptyAndFresh` and
+`TravelSettingsPlacesTests.renders` no longer set the removed switch; both
+still find the campus `confirmed` after `launched()` (`emptyAndFresh` is
+exactly the review's "still confirmed without the switch").
+
+Frames: none of its own (item 1 is recaptured in F05).
+Verify: **1105 passed / 0 failed**; tokens up to date. No DEVIATIONS, no
+GAPS.

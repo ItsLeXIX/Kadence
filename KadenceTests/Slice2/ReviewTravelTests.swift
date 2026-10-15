@@ -136,7 +136,7 @@ struct ReviewTravelTests {
         AppStore.seedLaunch(.review(dataset), context: context, now: now, secrets: InMemorySecretStore()) {}
         let (coordinator, queue, clock) = coordinator(context, provider: ReviewTravel.provider(dataset: dataset, variant: nil),
                                                       now: now)
-        coordinator.looksUpCampusAtLaunch = true   // as `KadenceApp` sets it for these two datasets (G-098)
+        // No switch (P3S2-F04): every first launch looks the campus up (§23.6).
         coordinator.launched()
         await queue.run(on: clock, until: now.addingTimeInterval(120))
         let places = Dictionary(uniqueKeysWithValues: try context.fetch(FetchDescriptor<KnownPlace>()).map { ($0.id, $0) })

@@ -251,8 +251,8 @@ struct TravelSettingsPlacesTests {
     func renders() async throws {
         let (first, _) = try emptyRig()
         let firstModel = model(first)
-        // §30 item 1: the campus as the mock geocoder confirmed it.
-        first.coordinator.looksUpCampusAtLaunch = true
+        // §30 item 1: the campus as the mock geocoder confirmed it at the
+        // first launch (§23.6, P3S2-F04: no review switch).
         first.coordinator.launched()
         await first.run(for: 10)
         render("settings-travel-first-run", firstModel, rig: first)
@@ -262,8 +262,7 @@ struct TravelSettingsPlacesTests {
 
         for lookup in MockPlaceGeocoder.Case.allCases {
             let (rig, _) = try emptyRig(lookup)
-            // Dataset `empty` in review: the campus confirmed at launch.
-            rig.coordinator.looksUpCampusAtLaunch = true
+            // Dataset `empty`: the campus confirmed at the first launch.
             rig.coordinator.launched()
             await rig.run(for: 10)
             let m = model(rig)

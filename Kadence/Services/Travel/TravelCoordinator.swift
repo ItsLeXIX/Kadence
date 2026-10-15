@@ -67,10 +67,6 @@ final class TravelCoordinator {
     /// "No travel needed after …").
     @ObservationIgnored private(set) var lastOutput: TravelLegPlanner.Output?
 
-    /// Review datasets `empty` / `fresh` only (§30.1, GAPS G-098): look the
-    /// campus up at launch even when no leg needs it yet.
-    @ObservationIgnored var looksUpCampusAtLaunch = false
-
     static let debounce: TimeInterval = 0.5
     /// §24.6: T−3 h and T−45 min.
     static let refreshOffsets: [TimeInterval] = [3 * 3600, 45 * 60]
@@ -219,7 +215,8 @@ final class TravelCoordinator {
         let settings = TravelBuiltIns.settings(in: context)
         let legs = (try? context.fetch(FetchDescriptor<TravelLeg>())) ?? []
 
-        // §23.6: the campus's automatic lookup, once when first needed.
+        // §23.6 (amended 2026-10-15, G-098): the campus's automatic lookup,
+        // at the first launch — and before any recompute that needs it.
         let campus = places.first { $0.id == BuiltInPlace.campus.id }
         let lookupDue = campus.map { campusLookupIsDue($0, settings: settings, kind: kind, today: today) } ?? false
 
@@ -238,7 +235,11 @@ final class TravelCoordinator {
         let output = TravelLegPlanner.plan(input)
         lastOutput = output
 
-        if lookupDue, let campus, (kind == .launch && looksUpCampusAtLaunch) || output.legs.values.contains(where: {
+        // A launch or wake pass starts it whether or not a leg needs the
+        // campus yet (the first launch; a failed lookup's once-a-day retry,
+        // which `campusLookupIsDue` limits to those passes); an ordinary pass
+        // only when a leg does.
+        if lookupDue, let campus, kind != .ordinary || output.legs.values.contains(where: {
             $0.originPlaceID == campus.id || $0.destinationPlaceID == campus.id
         }) {
             startCampusLookup(campus, settings: settings, now: now)
