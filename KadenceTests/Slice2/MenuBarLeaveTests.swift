@@ -182,7 +182,8 @@ struct MenuBarLeaveTests {
         status("estimate", offline, "11:50")
 
         func popover(_ name: String, _ r: TravelRig, _ clock: String,
-                     permission: NotificationAuthorization = .allowed, asked: Bool = false, dark: Bool = false) async {
+                     permission: NotificationAuthorization = .allowed, asked: Bool = false, dark: Bool = false,
+                     suffix: String = "p3b") async {
             let now = F.m(3, clock)
             let scheduler = NotificationScheduler(context: r.context, centre: RecordingNotificationCenter(authorization: permission),
                                                   clock: r.clock, calendar: F.calendar, log: RoutingLog())
@@ -198,22 +199,28 @@ struct MenuBarLeaveTests {
                 .environment(r.coordinator)
                 .environment(scheduler)
             #expect(Slice2Render.render("popover-\(name)", view, size: CGSize(width: Tokens.Size.popoverWidth, height: 420),
-                                        dark: dark) != nil)
+                                        dark: dark, suffix: suffix) != nil)
         }
         await popover("leave", morning, "11:50")
+        // P3S2-F03: the leave line at `lineLimit` 2 — the one-line case, and
+        // the three that were cut off.
+        await popover("leave", morning, "11:50", suffix: "p3bf03")
         await popover("leave-now", morning, "12:20")
         await popover("leave-now-dark", morning, "12:20", dark: true)
         await popover("late", morning, "13:05")
         await popover("takeover", morning, "17:20")
+        await popover("takeover", morning, "17:20", suffix: "p3bf03")
         await popover("notifications-off", morning, "11:50", permission: .off)
         await popover("notifications-not-allowed-yet", morning, "11:50", permission: .notDetermined, asked: true)
         await popover("estimate", offline, "11:50")
         for title in ["EPC-ILV", "REQEN-EXAM"] { try require(morning.event(title, day: 3)).status = .done }
         await popover("manual-next", morning, "17:30")
+        await popover("manual-next", morning, "17:30", suffix: "p3bf03")
         for title in ["EPC-ILV", "REQEN-EXAM"] { try require(offline.event(title, day: 3)).status = .done }
         await popover("unavailable", offline, "17:30")
         let noAddress = try TravelRig(now: F.m(3, "11:50"), variant: .travelNoAddress)
         noAddress.coordinator.launched()
         await popover("no-address", noAddress, "11:50")
+        await popover("no-address", noAddress, "11:50", suffix: "p3bf03")
     }
 }

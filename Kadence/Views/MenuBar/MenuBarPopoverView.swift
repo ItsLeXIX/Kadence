@@ -298,10 +298,7 @@ struct MenuBarPopoverView: View {
                         .foregroundStyle(Tokens.Color.Text.primary)
                     // §26.2: the leave line, between the title and the meta line.
                     if let line = MenuBarFormatting.leaveLine(result, now: now, placeNames: travel?.placeNames() ?? [:]) {
-                        Text(line.text)
-                            .typeStyle(.popoverNextMeta)
-                            .foregroundStyle(line.tone == .now ? Tokens.Color.Semantic.now
-                                             : line.tone == .primary ? Tokens.Color.Text.primary : Tokens.Color.Text.secondary)
+                        PopoverLeaveLineText(line: line)
                     }
                     Text(MenuBarFormatting.nextMeta(for: next, now: now, isLate: isLate))
                         .typeStyle(.popoverNextMeta)
@@ -504,5 +501,23 @@ struct MenuBarPopoverView: View {
         Text(text)
             .typeStyle(.popoverSectionLabel)
             .foregroundStyle(Tokens.Color.Text.secondary)
+    }
+}
+
+/// components.md §26.2's leave line (amended 2026-10-15, P3S2-F03): wraps to
+/// a second line instead of cutting off the origin or the reason; tail
+/// truncation only after the second line; `Leave by 08:15` / `Leave now` are
+/// never split (`LeaveLine.display`). The NEXT block grows with it
+/// (`size.popoverNextBlockMinHeight` stays a minimum).
+struct PopoverLeaveLineText: View {
+    let line: MenuBarFormatting.LeaveLine
+
+    var body: some View {
+        Text(line.display)
+            .typeStyle(.popoverLeaveLine)
+            .truncationMode(.tail)
+            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(line.tone == .now ? Tokens.Color.Semantic.now
+                             : line.tone == .primary ? Tokens.Color.Text.primary : Tokens.Color.Text.secondary)
     }
 }

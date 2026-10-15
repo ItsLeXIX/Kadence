@@ -250,6 +250,15 @@ extension TypeStyle {
         lineLimit: Tokens.Typography.PopoverNextMeta.lineLimit,
         monospacedDigit: Tokens.Typography.PopoverNextMeta.monospacedDigit)
 
+    /// components.md §26.2 (amended 2026-10-15, P3S2-F03): the popover's
+    /// leave line is `popoverNextMeta` with **`lineLimit` 2**; the meta line
+    /// below it keeps the token's 1.
+    static let popoverLeaveLine: TypeStyle = {
+        var style = popoverNextMeta
+        style.lineLimit = 2
+        return style
+    }()
+
     static let popoverRow = TypeStyle(
         size: Tokens.Typography.PopoverRow.size,
         weight: Tokens.Typography.PopoverRow.weight,

@@ -11238,3 +11238,37 @@ Frame: `inspector-dinner-place-p3bf02.png` (offscreen) — `Origin Manual`.
 
 GAPS: G-102 (new, open). DEVIATIONS: none.
 Verify: **1097 passed / 0 failed**; tokens up to date.
+
+## 140. P3S2-F03 — the popover's leave line wraps to two lines (PHASE3-SLICE2-REVIEW.md §7 F03; components.md §26.2 amended 2026-10-15)
+
+- `DesignSystem/TypeStyle.swift` — new `TypeStyle.popoverLeaveLine`:
+  `popoverNextMeta` with `lineLimit` 2 (§26.2's value; the token
+  `typography.popoverNextMeta.lineLimit` stays 1 for the meta line, which is
+  unchanged). Not a token edit: tokens.json is design's.
+- `Views/MenuBar/MenuBarFormatting.swift` — `LeaveLine.display`: the lead
+  (`Leave by 08:15`, `Leave by ≈08:15`, `Leave now`) joined by no-break
+  spaces, so wrapping never splits it and the time is never the truncated
+  part. Other lines (`Travel time …`) unchanged.
+- `Views/MenuBar/MenuBarPopoverView.swift` — the leave line is the new
+  `PopoverLeaveLineText` (lineLimit 2, tail truncation,
+  `fixedSize(vertical:)` so the NEXT block grows; its `minHeight` stays
+  `size.popoverNextBlockMinHeight`).
+
+Tests — new `KadenceTests/Slice2/PopoverLeaveLineTests.swift` (4): at the
+leave line's width in the popover (`popoverWidth − 2·lg − rail − sm`),
+measured on the real view and with TextKit in the same font:
+`Travel time unavailable · Home has no address`, `Leave by 17:45 · 35 min
+from FH Technikum Wien`, `Travel time unavailable · Apple Maps paused until
+10:40` whole on ≤ 2 lines; `Leave by 12:15 · 35 min from Home` one line; a
+60-character place → 2 drawn lines with `Leave by 17:45` intact on line 1;
+the lead's no-break spaces; lineLimit 2 vs the meta line's 1.
+`MenuBarLeaveTests.renders` gained four extra renders (suffix `p3bf03`).
+
+Frames (offscreen): `popover-no-address-p3bf03.png` (`Travel time
+unavailable · Home has` / `no address`), `popover-manual-next-p3bf03.png`
+and `popover-takeover-p3bf03.png` (`Leave by 17:45 · 35 min from FH` /
+`Technikum Wien`), `popover-leave-p3bf03.png` (one line, unchanged). Edge
+check `ok`.
+
+Verify: **1101 passed / 0 failed**; tokens up to date. No DEVIATIONS, no
+GAPS.

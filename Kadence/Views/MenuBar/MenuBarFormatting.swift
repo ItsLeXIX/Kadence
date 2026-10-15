@@ -64,6 +64,16 @@ enum MenuBarFormatting {
         enum Tone: Equatable { case primary, now, secondary }
         var text: String
         var tone: Tone
+
+        /// What the popover draws (§26.2, amended 2026-10-15): the same text,
+        /// with `Leave by 08:15` / `Leave now` held together by no-break
+        /// spaces, so wrapping at `lineLimit` 2 never splits them from the
+        /// time and the time is never the part truncated.
+        var display: String {
+            guard text.hasPrefix("Leave") else { return text }
+            let lead = text.components(separatedBy: " · ").first ?? text
+            return lead.replacingOccurrences(of: " ", with: "\u{00A0}") + text.dropFirst(lead.count)
+        }
     }
 
     /// The popover's leave line for NEXT, in its seven forms (nil: omitted —
