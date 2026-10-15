@@ -419,6 +419,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Kadence uses your location only to work out how long the trip to your next event takes. It is sent to Apple Maps for that and is not stored.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Kadence uses your location only to work out how long the trip to your next event takes. It is sent to Apple Maps for that and is not stored.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -462,6 +464,8 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Kadence uses your location only to work out how long the trip to your next event takes. It is sent to Apple Maps for that and is not stored.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Kadence uses your location only to work out how long the trip to your next event takes. It is sent to Apple Maps for that and is not stored.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
