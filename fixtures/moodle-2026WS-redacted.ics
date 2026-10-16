@@ -1,0 +1,462 @@
+BEGIN:VCALENDAR
+METHOD:PUBLISH
+PRODID:-//Moodle Pty Ltd//NONSGML Moodle Version 2024100712.01//EN
+VERSION:2.0
+BEGIN:VEVENT
+UID:900001@moodle.technikum-wien.at
+SUMMARY:Voting: the 3 best "Elevator's Speech" videos closes
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261001T154719Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261011T215900Z
+DTEND:20261011T215900Z
+CATEGORIES:BIF-VZ-5-WS2026-SWQM-EN/174454
+END:VEVENT
+BEGIN:VEVENT
+UID:900002@moodle.technikum-wien.at
+SUMMARY:Mitarbeit Lektion 5 beginnt
+DESCRIPTION:Fixture description 2.\nRedacted course text for the fixt
+CLASS:PUBLIC
+LAST-MODIFIED:20260906T093502Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261012T073000Z
+DTEND:20261012T073000Z
+CATEGORIES:BIF-VZ-5-WS2026-RW-DE
+END:VEVENT
+BEGIN:VEVENT
+UID:900003@moodle.technikum-wien.at
+SUMMARY:Lessons Learned Lektion 5 beginnt
+DESCRIPTION:Fixture description 3.\nPart one\, part two.\nRedacted course t
+	ext for the fix
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260906T093539Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261012T073000Z
+DTEND:20261012T073000Z
+CATEGORIES:BIF-VZ-5-WS2026-RW-DE
+END:VEVENT
+BEGIN:VEVENT
+UID:900004@moodle.technikum-wien.at
+SUMMARY:Retake Submission (till 2026-10-12) is due
+DESCRIPTION:Fixture description 4.\nPart one\, part two.\n	* item one\n	* i
+	tem two\nRedacted course text for the fixture\, kept to the shape of the re
+	al feed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nRedacte
+	d course text for the fixture\, kept to the shape of the real feed. Lorem i
+	psum dolor sit amet\, consectetur adipiscing elit.\nRedacted course text fo
+	r the fixture\, kept to the shape of the real feed. Lorem ipsum dolor sit a
+	met\, consectetur adipiscing elit.\nRedacted course text for the fixture\, 
+	kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectetu
+	r adipiscing elit.\nRedacted course text for the fixture\, kept to the shap
+	e of t
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260902T151657Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261012T215900Z
+DTEND:20261012T215900Z
+CATEGORIES:BIF-VZ-4-SS2026-INNO2-EN
+END:VEVENT
+BEGIN:VEVENT
+UID:900005@moodle.technikum-wien.at
+SUMMARY:Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2) 
+	ist fällig.
+	
+DESCRIPTION:Fixture description 5.\nRedacted course text for the fixture\, 
+	kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectetu
+	r adipiscing elit.\nRedacted course text for the fix
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260904T194118Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261013T215900Z
+DTEND:20261013T215900Z
+CATEGORIES:BIF-VZ-5-WS2026-INNO3-EN
+END:VEVENT
+BEGIN:VEVENT
+UID:900006@moodle.technikum-wien.at
+SUMMARY:Mitarbeit Lektion 4 endet
+DESCRIPTION:Fixture description 6.\nRedacted course text for the fixt
+CLASS:PUBLIC
+LAST-MODIFIED:20260921T052438Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261014T103000Z
+DTEND:20261014T103000Z
+CATEGORIES:BIF-VZ-5-WS2026-RW-DE
+END:VEVENT
+BEGIN:VEVENT
+UID:900007@moodle.technikum-wien.at
+SUMMARY:Lessons Learned Lektion 4 endet
+DESCRIPTION:Fixture description 7.\nPart one\, part two.\nRedacted course t
+	ext for the fix
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260921T052453Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261014T103000Z
+DTEND:20261014T103000Z
+CATEGORIES:BIF-VZ-5-WS2026-RW-DE
+END:VEVENT
+BEGIN:VEVENT
+UID:900008@moodle.technikum-wien.at
+SUMMARY:Submission - Sprint 3: Queuing is due
+DESCRIPTION:Fixture description 8.\nRedacted course text for the fixture\, 
+	kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectetu
+	r adipiscing elit.\nRedacted course text for the fixture\, kept to the shap
+	e of the real feed. Lorem ipsum dolor sit amet\, consectetur adipiscing eli
+	t.\nRedacted course text for the fixture\, kept to the shape of the real fe
+	ed. Lorem ipsum dolor sit
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261013T121323Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261020T100000Z
+DTEND:20261020T100000Z
+CATEGORIES:BIF-VZ-5-WS2026-SWEN3-EN/174462
+END:VEVENT
+BEGIN:VEVENT
+UID:900009@moodle.technikum-wien.at
+SUMMARY:F2 opens
+DESCRIPTION:Fixture description 9.\nDetails: https://moodle.example.invalid
+	/mod/page/view.php?id=1009\nRedacted course text for the fixture\, kept to 
+	the shape of the real feed. Lorem ipsum dolor sit amet\, consectetur adipis
+	cing elit.\nRedacted course text for the fixture\, kept to the shape of the
+	 real feed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nReda
+	cted course text for the fixture\, kept to the shape of the real feed. Lore
+	m ipsum dolor sit amet\, consectetur adipiscing elit.\nRedacted course text
+	 for t
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T151032Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261022T141000Z
+DTEND:20261022T141000Z
+CATEGORIES:BIF-VZ-4-SS2026-REQEN-EN/166166
+END:VEVENT
+BEGIN:VEVENT
+UID:900010@moodle.technikum-wien.at
+SUMMARY:F3 opens
+DESCRIPTION:Fixture description 10.\nDetails: https://moodle.example.invali
+	d/mod/page/view.php?id=1010\nRedacted course text for the fixture\, kept to
+	 the shape of the real feed. Lorem ipsum dolor sit amet\, consectetur adipi
+	scing elit.\nRedacted course text for the fixture\, kept to the shape of th
+	e real feed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nRed
+	acted course text for the fixture\, kept to the shape of the real feed. Lor
+	em ipsum dolor sit amet\, consectetur adipiscing el
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T150920Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261022T141000Z
+DTEND:20261022T141000Z
+CATEGORIES:BIF-VZ-4-SS2026-REQEN-EN/166166
+END:VEVENT
+BEGIN:VEVENT
+UID:900011@moodle.technikum-wien.at
+SUMMARY:F2 closes
+DESCRIPTION:Fixture description 11.\nDetails: https://moodle.example.invali
+	d/mod/page/view.php?id=1011\nRedacted course text for the fixture\, kept to
+	 the shape of the real feed. Lorem ipsum dolor sit amet\, consectetur adipi
+	scing elit.\nRedacted course text for the fixture\, kept to the shape of th
+	e real feed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nRed
+	acted course text for the fixture\, kept to the shape of the real feed. Lor
+	em ipsum dolor sit amet\, consectetur adipiscing elit.\nRedacted course tex
+	t for 
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T151032Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261022T154700Z
+DTEND:20261022T154700Z
+CATEGORIES:BIF-VZ-4-SS2026-REQEN-EN/166166
+END:VEVENT
+BEGIN:VEVENT
+UID:900012@moodle.technikum-wien.at
+SUMMARY:F3 closes
+DESCRIPTION:Fixture description 12.\nDetails: https://moodle.example.invali
+	d/mod/page/view.php?id=1012\nRedacted course text for the fixture\, kept to
+	 the shape of the real feed. Lorem ipsum dolor sit amet\, consectetur adipi
+	scing elit.\nRedacted course text for the fixture\, kept to the shape of th
+	e real feed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nRed
+	acted course text for the fixture\, kept to the shape of the real feed. Lor
+	em ipsum dolor sit amet\, consectetur adipiscing el
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261006T150920Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261022T154800Z
+DTEND:20261022T154800Z
+CATEGORIES:BIF-VZ-4-SS2026-REQEN-EN/166166
+END:VEVENT
+BEGIN:VEVENT
+UID:900013@moodle.technikum-wien.at
+SUMMARY:VERBINDLICHE Anmeldung für die Studienreise nach Manila | BINDING r
+	egistration for study trip to Manila endet
+	
+DESCRIPTION:Fixture description 13.\nPart one\, part two.\nDetails: https:/
+	/moodle.example.invalid/mod/page/view.php?id=1013\nRedacted course text for
+	 the fixture\, kept to the shape of the real feed. Lorem ipsum dolor sit am
+	et\, consectetur adipiscing elit.\nRedacted course text for the fixture\, k
+	ept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectetur
+	 adipiscing elit.\nRedacted course text for the fixture\, kept to the shape
+	 of the real feed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit
+	.\nRedacted course text for the fixture\, kept to the shape of the real fee
+	d. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nRedacted cour
+	se text for the fixture\, kept to the shape of the real feed. Lorem ipsum d
+	olor sit amet\, consectetur adipiscing elit.\nRedacted course text for the 
+	fixture\, kept to the shape of the real feed. Lorem ipsum dolor sit amet\, 
+	consectetur adipiscing elit.\nRedacted course text for the fixture\, kept t
+	o the shape of the real feed. Lorem ipsum dolor sit amet\, consectetur adip
+	iscing elit.\nRedacted course text for the fixture\, kept to the shape of t
+	he real feed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nRe
+	dacted course text for the fixture\, kept to the shape of the real feed. Lo
+	rem ipsum dolor sit amet\, consectetur adipiscing elit.\nRedacted course te
+	xt for the fixture\, kept to the shape of the real feed. Lorem
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261008T121256Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261101T225900Z
+DTEND:20261101T225900Z
+CATEGORIES:FK CS&amp\;AM - Study Trips &amp\; International Initiatives
+END:VEVENT
+BEGIN:VEVENT
+UID:900014@moodle.technikum-wien.at
+SUMMARY:Test Management endet
+DESCRIPTION:Fixture description 14.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fixture\, kept to the sha
+	pe of the real feed. Lorem ips
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260909T092908Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261102T132000Z
+DTEND:20261102T132000Z
+CATEGORIES:BIF-VZ-5-WS2026-UF-DE/174688
+END:VEVENT
+BEGIN:VEVENT
+UID:900015@moodle.technikum-wien.at
+SUMMARY:Mitarbeit Lektion 5 endet
+DESCRIPTION:Fixture description 15.\nRedacted course text for the fix
+CLASS:PUBLIC
+LAST-MODIFIED:20260906T093502Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261103T225000Z
+DTEND:20261103T225000Z
+CATEGORIES:BIF-VZ-5-WS2026-RW-DE
+END:VEVENT
+BEGIN:VEVENT
+UID:900016@moodle.technikum-wien.at
+SUMMARY:Lessons Learned Lektion 5 endet
+DESCRIPTION:Fixture description 16.\nPart one\, part two.\nRedacted course 
+	text for the fi
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260906T093539Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261103T225000Z
+DTEND:20261103T225000Z
+CATEGORIES:BIF-VZ-5-WS2026-RW-DE
+END:VEVENT
+BEGIN:VEVENT
+UID:900017@moodle.technikum-wien.at
+SUMMARY:Sprint Review Protocol for Sprint 2 (till Tuesday 23:59 in T0 + 4) 
+	ist fällig.
+	
+DESCRIPTION:Fixture description 17.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fi
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260904T194118Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261103T225900Z
+DTEND:20261103T225900Z
+CATEGORIES:BIF-VZ-5-WS2026-INNO3-EN
+END:VEVENT
+BEGIN:VEVENT
+UID:900018@moodle.technikum-wien.at
+SUMMARY:Panel Exam (2026-11-08) is due
+DESCRIPTION:Fixture description 18.\nPart one\, part two.\nRedacted course 
+	text for the fixture\, kept to the shape of the real feed. Lorem ipsu
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20261012T093416Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261108T225900Z
+DTEND:20261108T225900Z
+CATEGORIES:BIF-VZ-4-SS2026-SWEN2-EN/166171
+END:VEVENT
+BEGIN:VEVENT
+UID:900019@moodle.technikum-wien.at
+SUMMARY:Test Strategie endet
+DESCRIPTION:Fixture description 19.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fixture\, kept to the sha
+	pe of the real feed. Lorem ipsum 
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260909T093021Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261109T132000Z
+DTEND:20261109T132000Z
+CATEGORIES:BIF-VZ-5-WS2026-UF-DE/174688
+END:VEVENT
+BEGIN:VEVENT
+UID:900020@moodle.technikum-wien.at
+SUMMARY:Test Unternehmenskultur endet
+DESCRIPTION:Fixture description 20.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fixture\, kept to the sha
+	pe of the real feed. Lorem ipsum dolor sit amet\, 
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260909T093157Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261116T132000Z
+DTEND:20261116T132000Z
+CATEGORIES:BIF-VZ-5-WS2026-UF-DE/174688
+END:VEVENT
+BEGIN:VEVENT
+UID:900021@moodle.technikum-wien.at
+SUMMARY:Sprint Review Protocol for Sprint 3 (till Tuesday 23:59 in T0 + 6) 
+	ist fällig.
+	
+DESCRIPTION:Fixture description 21.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fi
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260904T194118Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261117T225900Z
+DTEND:20261117T225900Z
+CATEGORIES:BIF-VZ-5-WS2026-INNO3-EN
+END:VEVENT
+BEGIN:VEVENT
+UID:900022@moodle.technikum-wien.at
+SUMMARY:Test Organisation endet
+DESCRIPTION:Fixture description 22.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fixture\, kept to the sha
+	pe of the real feed. Lorem ipsum dolor
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260909T093318Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261123T132000Z
+DTEND:20261123T132000Z
+CATEGORIES:BIF-VZ-5-WS2026-UF-DE/174688
+END:VEVENT
+BEGIN:VEVENT
+UID:900023@moodle.technikum-wien.at
+SUMMARY:Test Personalmanagement endet
+DESCRIPTION:Fixture description 23.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fixture\, kept to the sha
+	pe of the real feed. Lorem ipsum dolor s
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260909T093434Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261130T132000Z
+DTEND:20261130T132000Z
+CATEGORIES:BIF-VZ-5-WS2026-UF-DE/174688
+END:VEVENT
+BEGIN:VEVENT
+UID:900024@moodle.technikum-wien.at
+SUMMARY:🎮Assignment: Level Design is due
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20261001T150649Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261130T225900Z
+DTEND:20261130T225900Z
+CATEGORIES:BIF-VZ-5-WS2026-GLD-EN
+END:VEVENT
+BEGIN:VEVENT
+UID:900025@moodle.technikum-wien.at
+SUMMARY:Sprint Review Protocol for Sprint 4 (till Tuesday 23:59 in T0 + 8) 
+	ist fällig.
+	
+DESCRIPTION:Fixture description 25.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fi
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260904T194118Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261201T225900Z
+DTEND:20261201T225900Z
+CATEGORIES:BIF-VZ-5-WS2026-INNO3-EN
+END:VEVENT
+BEGIN:VEVENT
+UID:900026@moodle.technikum-wien.at
+SUMMARY:Submission: Proposal draft is due
+DESCRIPTION:
+CLASS:PUBLIC
+LAST-MODIFIED:20260915T112828Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261204T225900Z
+DTEND:20261204T225900Z
+CATEGORIES:BIF-VZ-5-WS2026-SWRM-EN
+END:VEVENT
+BEGIN:VEVENT
+UID:900027@moodle.technikum-wien.at
+SUMMARY:Test Motivation und Führung endet
+DESCRIPTION:Fixture description 27.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fixture\, kept to the sha
+	pe of the real feed. Lorem ipsum dolor sit amet\, 
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260909T093543Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261207T132000Z
+DTEND:20261207T132000Z
+CATEGORIES:BIF-VZ-5-WS2026-UF-DE/174688
+END:VEVENT
+BEGIN:VEVENT
+UID:900028@moodle.technikum-wien.at
+SUMMARY:Anmeldeende: 📚 Literaturrecherche-Schulung (Adventsedition mit Tee 
+	und Keksen!) 🍪🎄✨
+	
+DESCRIPTION:Fixture description 28.\nPart one\, part two.\n	* item one\n	* 
+	item two\nRedacted course text for the fixture\, kept to the shape of the r
+	eal feed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nRedact
+	ed course text for the fixture\, kept to the shape of the real feed. Lorem 
+	ipsum dolor sit amet\, consectetur adipiscing elit.\nRedacted course text f
+	or the fixture\, kept to the shape of the real feed. Lorem ipsum dolor sit 
+	amet\, consectetur adipiscing elit.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fixture\, kept to the sha
+	pe of the real feed. Lorem ipsum dolor sit amet\, consectetur adipiscing el
+	it.\nRedacted course text for the fixture\, kept to the shape of the real f
+	eed. Lorem ipsum dolor sit amet\, consectetur adipiscing elit.\nRedacted co
+	urse text for the fixture\, kept to the shape of th
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20251202T062857Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261208T225500Z
+DTEND:20261208T225500Z
+CATEGORIES:Bibliothek
+END:VEVENT
+BEGIN:VEVENT
+UID:900029@moodle.technikum-wien.at
+SUMMARY:Test Controlling endet
+DESCRIPTION:Fixture description 29.\nRedacted course text for the fixture\,
+	 kept to the shape of the real feed. Lorem ipsum dolor sit amet\, consectet
+	ur adipiscing elit.\nRedacted course text for the fixture\, kept to the sha
+	pe of the real feed. Lorem i
+	
+CLASS:PUBLIC
+LAST-MODIFIED:20260909T093646Z
+DTSTAMP:20261016T110712Z
+DTSTART:20261214T132000Z
+DTEND:20261214T132000Z
+CATEGORIES:BIF-VZ-5-WS2026-UF-DE/174688
+END:VEVENT
+END:VCALENDAR
