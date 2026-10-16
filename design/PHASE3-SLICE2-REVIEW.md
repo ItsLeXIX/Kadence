@@ -462,21 +462,11 @@ origin, a reason, a place or a number it does not have. What is missing is
 left out, never defaulted.
 ```
 
-After F01–F05 are in and reviewed, for Parsa to write:
+After F01–F05 are in and reviewed, for Parsa to write (final, from the re-check at the end of this file):
 
 ```
-## 2026-10-?? — Phase 3 slice 2 accepted.
-Shipped: leave-by from Apple Maps — places confirmed by the user, the campus
-looked up by Kadence, a usual way to travel with per-pair modes, a buffer, an
-ETA cache and a sparing queue with refreshes at T−3 h and T−45 min; failures
-said as estimates or "unavailable" with the reason, never guessed; where you
-are used for the next departure only and never kept; the live band, the
-inspector's Place and Leave by, the menu bar's Leave / Leave now and the
-takeover; notifications (one per event, absolute times, time-sensitive
-leave-by, held by protected windows, Done / Snooze / Open, sync paused told
-once); clock-change days drawn and scheduled at wall-clock time. Deferred:
-A41; G-094, G-095, G-101. Open with Parsa: G-096 (location keys,
-time-sensitive capability).
+## 2026-10-16 — Phase 3 slice 2 accepted.
+Shipped: leave-by from Apple Maps — places confirmed by the user, the campus looked up by Kadence at the first launch, a usual way to travel with per-pair modes, a buffer, an ETA cache and a sparing queue with refreshes at T−3 h and T−45 min; failures said as estimates or "unavailable" with the reason, never guessed, and no surface fills in an origin, reason, place or number it does not have; where you are used for the next departure only and never kept; the live band, the inspector's Place, Leave by and Origin, the menu bar's Leave / Leave now and the takeover, the popover's leave line on up to two lines; notifications (one per event, absolute times, time-sensitive leave-by, held by protected windows, Done / Snooze / Open, sync paused told once); every time of day drawn, materialised, held and scheduled at wall-clock time, so Sun 25 Oct and Sun 29 Mar keep 24 rows and routine blocks, Sleep and leave-bys at their clock times. 1113 tests green. Review frames for slice 2's fixes were rendered offscreen from the real views at a pinned clock (B55). Deferred: A41; G-094, G-095, G-101; G-103 (a review fixture's timestamp, next slice). Open with Parsa: G-096 (time-sensitive capability, optional).
 ```
 
 ## 10. For Parsa
@@ -503,3 +493,189 @@ time-sensitive capability).
    instances on 25 Oct are not corrected by the fix; any you have edited by
    hand will keep their times.
 4. Confirm the two proposed DECISIONS entries in §9.
+
+---
+
+## Re-check — 2026-10-15
+
+Design agent; the re-check was done on Fri 16 Oct 2026. Re-checked: CA's
+fixes run `2aa857a` (step 0), `f031452` (F01), `0b2ea6f` (F02), `2e83fe0`
+(F03), `62969b4` (F04), `bfdaed0` (F05), `0319bfd` (summary); STATUS
+§137–§143; DEVIATIONS B55 (new); GAPS G-098, G-100, G-102 (new);
+`screenshots/3b/INDEX.md`, every `-p3bf01` … `-p3bf05` frame and both plan
+files; the fix diffs (`git show`), above all F01's `WallClock.swift`,
+`TimeGeometry`, `DayLayoutEngine`, `RoutineEngine`, `TimeWindow` /
+`QuietWindow` spans, `NowLineView` and the drag / resize / create paths;
+and `ClockChangeTests.swift`. Read-only git only. Nothing was launched, no
+store was opened, and no test run was made. No prompt, notification, MapKit,
+location or network request was made. The suite count (**1113 passed / 0
+failed**) is CA's, from STATUS §143.
+
+### Verdict
+
+**ACCEPTED.** Phase 3 slice 2 is closed. All five fixes pass. G-098 and
+G-100 are closed (build). G-102 is closed (confirmed as built). One small
+new gap, G-103 (a review fixture only), does not block. F01 is in before
+Sun 25 Oct 2026, as required.
+
+### Per fix
+
+| Fix | Result | Evidence |
+|---|---|---|
+| **F01** wall-clock times | **Pass** | See "F01 in detail" below |
+| **F02** no invented fact; `Origin` as a word | **Pass** | `rg '\?\? *("\|\.offline\|\.failed\|0\b\|now)'` over `TravelPresentation`, `MenuBarFormatting`, `NotificationCopy`, `NotificationPlanner`, `InspectorView` finds only the omit form (`x.map { " from \($0)" } ?? ""`), plus `?? 0` on date components in `TravelCopy.time`. That is not a fact. Every fallback listed in §2 is gone. N7 now decides `pending` from status and reason, not from "reason is nil" (a real fix beyond the list). `NoInventedFactTests` covers surfaces (a)–(e) and the scan words, plus the planner invariant. `EventOrigin.displayName`: `inspector-dinner-place-p3bf02.png` reads `Origin Manual`; the rest of the inspector is unchanged (`Leave by 17:45`, `35 min by public transport from FH Technikum Wien · 10 min buffer`) |
+| **F03** popover leave line, 2 lines | **Pass** | `popover-no-address-p3bf03.png`: `Travel time unavailable · Home has` / `no address`. `popover-takeover-p3bf03.png` (and `-manual-next-`): `Leave by 17:45 · 35 min from FH` / `Technikum Wien`, with `EPC-ILV` as the first rest row. `popover-leave-p3bf03.png`: one line. The meta line stays one line (`Universi…`). The lead is joined with no-break spaces, so `Leave by 17:45` is never split. `PopoverLeaveLineTests` covers the three wrapping strings, the one-line case and the 60-character place |
+| **F04** campus at first launch | **Pass** | `TravelCoordinator.recompute`: `lookupDue && (kind != .ordinary \|\| a leg needs the campus)`. `campusLookupIsDue` is unchanged (once per day, launch / wake only, never after an edit). `looksUpCampusAtLaunch` is gone from the app (asserted by `CampusLookupTests`). Its four tests are the four §7 asked for. `settings-travel-first-run-p3bf05.png` shows the campus found with no switch |
+| **F05** recaptures, frames, dump, INDEX | **Pass** (offscreen, B55 accepted below) | Item 1 is the whole pane. Items 5, 6 and 8 show `Climbing` on the 18:00 row. Item 13: `18:30 · Dinner with flatmat…`. Item 15: `Travel time from Home not worked out` / `yet` and `Leave by 12:22 · 28 min from where` / `you are`. Item 16: `Leave 12:15 · Pick up parcel` and `Leave by 12:15 · 35 min from Home`, `13:00 – 13:30 · Personal` at 12:00, with the live plan firing at 12:10. Item 17: Sunday's `Fixture review` sits at 20:00 like Mon–Sat. Item 18 is tall enough to show `Add Place`. Item 22: cursor `10:18`, `10:00` dropped. Plan dump: the three catch-up headers read `launch pass at 12:12 / 12:20 / 13:05`, and fire times are 12:12 / 12:20; only those lines changed. INDEX has one row per item 1–24; the removed files are listed; G-096 is noted |
+
+### F01 in detail
+
+**`WallClock`.** Checked by hand against Europe/Vienna:
+
+- `moment(150, 25 Oct)` solves `x + offset(x) = local` over the offsets
+  ±3 h. Both 00:30 UTC and 01:30 UTC match, and the earlier one is chosen:
+  **02:30 CEST**.
+- `moment(150, 29 Mar)`: neither candidate matches, so the offset before the
+  gap is used: **03:30 CEST**.
+- `moment(1200, 25 Oct)`: **20:00 CET**.
+- `localMinutes(18:00 CET, since 00:00 CEST)` = 1140 − 60 = **1080**. On a day
+  with no change the offset difference is 0, so the old maths is unchanged
+  (T1 checks every quarter hour on 22 Oct).
+
+**Grep for remaining elapsed time-of-day maths.** Searched for
+`addingTimeInterval` / `timeIntervalSince` / `byAdding: .minute|.hour` /
+`bySettingHour` / `* 3600` across `Kadence/`, 99 sites in all. Outside
+`WallClock` every hit is one of:
+
+- a duration: event length, snooze, nudge ±15, leads, the travel and refresh
+  offsets, `chainGap`, the 48-hour horizon, resize minimums, `nextHalfHour`'s
+  +30;
+- `byAdding: .day` (wall-clock days);
+- `bySettingHour` (Foundation's wall-clock default);
+- **one** day-start + hours: `TravelDataset.seedStaleCache`, `computedAt =
+  date(byAdding: .day, −15, anchor).addingTimeInterval(18 * 3600)`.
+
+That last line is a review fixture's "last worked out" stamp, not a drawn
+time. It is wrong only when `anchor − 15 days` is a change day, for example
+`M` = Mon 9 Nov 2026, where it would read `Last worked out 25 Oct 17:00`.
+T12's regex misses it because the `.addingTimeInterval` is on its own
+continuation line. **Not blocking → G-103** (below). Nothing computes a y
+from seconds since midnight: `TimeGeometry.y`, `height`, `date(forY:)`,
+`yForTimeOfDay`, `snap` and `dragged` all go through `WallClock`.
+`DayLayoutEngine` lays out drawn intervals on `elapsedRuler`, which is an
+honest UTC ruler. `NowLineView.lineY` = `y(for: now)`, which is wall-clock.
+
+**Paths.** All are wall-clock, and a move keeps the elapsed duration:
+
+- *Drag:* the dragged edge is the start, or the **end** for resize-bottom.
+  `geometry.dragged(edge, by: dy)` returns the moment at the snapped y.
+  Commit and preview use `session.current` directly; the old "delta added
+  to `end`" is gone.
+- *Create / click / double-click:* snap with the column's calendar.
+- *Conflict scroll and initial scroll:* `minuteOfDay` on the occurrence's own
+  day.
+- *Routines window, template conflict panel, window labels:* `WallClock` on
+  the reference day.
+- *Routine materialisation and `templateValues`:* `WallClock.moment`; the end
+  is start + duration.
+- *Spans:* `TimeWindow.spans`, `QuietWindow.spans` and `TimeWindowFixture`
+  are all wall-clock.
+
+Snapping inside the repeated hour lands on the first 02:xx. That is §31.1's
+rule, and it only applies while dragging at 02:xx on the change night.
+
+**Test coverage** (`ClockChangeTests`, 20 tests):
+
+| Asked | Covered |
+|---|---|
+| 25 Oct and 29 Mar in **Day** | T2 (A, B, B1 / B2 side by side with no conflict, B3 back through, `Climbing` + band, block rows) and T3 (A, B, `Climbing` + band, R, R2 in the gap) |
+| … in **Week** | T4, both weeks: Sunday rows at `hourHeightWeek`, Mon–Sat layouts identical to the elapsed ruler's |
+| … in **Month** | T5, both: `Climbing` in the change day's cell at `18:00`; the 23:30–00:30 Saturday event only in its start cell |
+| Repeated hour | T1 (both occurrences → 150), T2 B1 / B2 / B3 / B, the routine in the repeated hour → its first one, T6 at 02:30 CEST and 02:30 CET |
+| Missing hour | T1 `moment(150)` → 03:30 CEST, T3 R2 02:30 → 03:30 CEST, T10 drop at y(2.5) on 29 Mar → 03:30 CEST |
+| Routine blocks, both days | T2 / T3 routine 20:00 → 20:00 CET / CEST; T9 `routineStart` 19:55 CET / CEST; an old 19:00 CET instance corrected in one update with no undo step, a detached one kept |
+| Sleep spans | T8: all three span builders on 24–26 Oct and 28–30 Mar; 21:30–22:30 routine refused every day |
+| The band | T2 / T3 drawn band y(17.75)–y(18); T4 Sunday; T11 slot `sunday 17:30`, `departAt` 17:45 CET |
+| Now line vs gutter | T6: eight clocks × Day and Week, gutter on Monday's ruler, A42's marker on the same y |
+| Notifications | T8 hold 06:40 → 07:00 on both days, 21:30 CET not held; T9 routine 19:55; T11 `leave.` 17:40 CET, `Leave by 17:45 for Climbing` |
+| Source scan | T12 (> 100 files, live against both banned forms). Misses a two-line chain (G-103) |
+
+**Frames.**
+
+- `dst-day-1025-p3bf01.png`: A at 01:00; B1 and B2 side by side on the 02:00
+  row with `B across` (01:30–03:30, two rows tall) between them; B3 below B1;
+  Sleep ends at the 07:00 line and starts at 22:00; `Climbing` on the 18:00
+  row with the case-2 strip `Leave 17:45 · 5min` inside its top (§4 short
+  case, §30 item 8); `Evening review` 20:00–21:00; the now line level with
+  the red `18:30`.
+- `dst-day-0329-p3bf01.png`: B across 01:30–03:30; the 02:00 row starts
+  nothing; `R2 in the gap` at 03:30; `Climbing` and `Evening review` as
+  above.
+- Week and Month frames for both changes agree.
+- **`week-M-travel-p3bf05.png` and `day-sun-climbing-p3bf05.png` show
+  `Climbing` on Sun 25 Oct's 18:00 row**, its strip from the 18:00 line, and
+  the block ending at 19:30.
+
+In the Week `dst-week-1025` frame the Sunday column cascades four
+overlapping blocks into ~200 pt, so B1 shows only its ⚠. That is layouts
+§3.3's narrow-column cascade, the same on any day, and not a clock-change
+effect. The Day frame shows them side by side.
+
+**F01: pass.** No existing test was changed. CA ran the baseline on a clean
+`HEAD` export (1067), which is the honest way to recover from the ordering
+slip in §137.
+
+### Rulings
+
+1. **Item 1 without the tab bar: accepted.** §7 allowed "offscreen of the
+   full pane" when a window could not show it. The `SettingsView` tab bar is
+   unchanged chrome that the live T18 frames already show
+   (`settings-travel-live-p3b.png`, `settings-notifications-live-p3b.png`).
+   What item 1 has to prove is the Travel pane at first run, after F04 and
+   with no switch. The frame proves all of it: Home empty with `Address`;
+   the campus `Höchstädtplatz 6, 1200 Wien, Austria`; the footer; `Add
+   Place`; `Usually Public transport`; `Home ↔ FH Technikum Wien Usual`;
+   `Buffer 10 minutes`; `Use where you are` on (knob right, on-label shown;
+   grey only because an offscreen window is never key, which STATUS §142
+   says is asserted); no block.
+2. **DEVIATIONS B55** (items 5, 6, 8, 12, 16, 17 and 20 offscreen, not
+   live): **accepted.**
+   - The renders use the real views, the review launch's own seeding, the
+     real coordinator and scheduler, and mocks plus the recording centre, at
+     a pinned clock (Thu 15 Oct 12:00).
+   - That is stronger evidence for item 16's "between 07:00 and 20:00" than
+     a live launch, which has no injected clock.
+   - What the renders lack (window chrome, the real menu bar) is covered by
+     the T18 live frames, and no slice 2 fix changed it.
+   - Next slice: if the run's sandbox can read the container again, live
+     frames return to their usual role.
+3. **G-102** (a `ready` / `estimate` leg with no `departAt`): **confirmed as
+   built.** The row reads `Unavailable` (secondary), with no sentence and no
+   button; VoiceOver says `Leave by, unavailable`. That is the omission rule
+   applied to the one value the row exists for. `layouts.md` §6 is amended.
+   Closed.
+4. **The capture slip** (STATUS §142, a `pkill -f` on the test host's path
+   pattern): it matched nothing, and the real store's files are dated the
+   day before the run (§143). No action. The run rule stands: kill by PID
+   only.
+
+### Gaps
+
+| Gap | Ruling |
+|---|---|
+| **G-098** | **Closed (build).** F04 as above |
+| **G-100** | **Closed (build).** F01 as above |
+| **G-102** | **Closed.** Confirmed as built; `layouts.md` §6 amended |
+| **G-103** (new) | **Open (CA, small, not blocking).** `TravelDataset.seedStaleCache`'s `computedAt` is day + `18 * 3600`. Make it `WallClock.moment(minuteOfDay: 1080, on:)`. Extend T12 so a day start chained to `.addingTimeInterval(… * 60 / 3600)` on the next line is caught too. Do it with the next slice's first task |
+| G-096 | Location keys **present** (`a0deaaa`); only the optional time-sensitive entitlement (item 3) remains. Stays open with Parsa for that alone |
+| G-101 | Still deferred |
+
+### Final
+
+**ACCEPTED** — Phase 3 slice 2 is closed with 1113 tests green. §9's
+acceptance entry, final:
+
+```
+## 2026-10-16 — Phase 3 slice 2 accepted.
+Shipped: leave-by from Apple Maps — places confirmed by the user, the campus looked up by Kadence at the first launch, a usual way to travel with per-pair modes, a buffer, an ETA cache and a sparing queue with refreshes at T−3 h and T−45 min; failures said as estimates or "unavailable" with the reason, never guessed, and no surface fills in an origin, reason, place or number it does not have; where you are used for the next departure only and never kept; the live band, the inspector's Place, Leave by and Origin, the menu bar's Leave / Leave now and the takeover, the popover's leave line on up to two lines; notifications (one per event, absolute times, time-sensitive leave-by, held by protected windows, Done / Snooze / Open, sync paused told once); every time of day drawn, materialised, held and scheduled at wall-clock time, so Sun 25 Oct and Sun 29 Mar keep 24 rows and routine blocks, Sleep and leave-bys at their clock times. 1113 tests green. Review frames for slice 2's fixes were rendered offscreen from the real views at a pinned clock (B55). Deferred: A41; G-094, G-095, G-101; G-103 (a review fixture's timestamp, next slice). Open with Parsa: G-096 (time-sensitive capability, optional).
+```

@@ -448,6 +448,11 @@ by`.** For a **manual** event, after the Time rows and before Source:
     pair is not shown) or **`Try Again`** (one request at priority 0; while
     the queue is paused, disabled with hover help `Kadence will try at
     {retry}`).
+  - A `ready` or `estimate` leg with **no `departAt`** (the recompute never
+    produces one; *added 2026-10-16, G-102*): value `Unavailable`
+    (`color.text.secondary`), nothing under it, no button; VoiceOver `Leave
+    by, unavailable`. Never `now` or any other time in its place
+    (`components.md` §24.10, "No invented fact in the copy either").
   - Never coloured `color.semantic.now`, also when the user should have left:
     `semantic.now` on `surface.inspector` measures 4.25:1 in light and fails
     (`tokens.json` 1.8.0 `$measured_1_8_0`). The menu bar carries that state

@@ -3468,3 +3468,48 @@ reading closest to §24.10 and DECISIONS 2026-10-15): the row reads
 `Unavailable` (secondary) with no sentence and no button, VoiceOver `Leave
 by, unavailable`; the band, popover and notification already treat it as a
 leg with no time. Confirm or specify.
+
+## Phase 3 slice 2 re-check (design, 2026-10-16)
+
+### G-098 — CLOSED (build, 2026-10-16). P3S2-F04 `62969b4`.
+
+A launch or wake pass starts the due campus lookup whether or not a leg needs
+it. The once-a-day retry and never-after-an-edit rules are unchanged, and
+the review-only switch is gone. `CampusLookupTests` covers it.
+
+### G-100 — CLOSED (build, 2026-10-16). P3S2-F01 `f031452`.
+
+Everything goes through `WallClock`: geometry, drawn-interval overlap, the
+now line, drag / resize / create, initial and conflict scroll, window
+labels, routine materialisation, every span builder (including the
+notification quiet rule) and the Routines window. `ClockChangeTests`
+T1–T12 cover it, and the item 24 frames show it. Shipped before Sun 25 Oct
+2026.
+
+### G-102 — CLOSED (design, 2026-10-16). `layouts.md` §6.
+
+Confirmed as built: a time-status leg with no `departAt` reads `Unavailable`
+with nothing under it.
+
+### G-103 — OPEN (CA, small, not blocking). A review fixture adds hours to a day start.
+
+`TravelDataset.seedStaleCache`: `computedAt = date(byAdding: .day, -15,
+anchor).addingTimeInterval(18 * 3600)`. This is the one remaining
+"day start + elapsed hours" outside `WallClock`. It is a review fixture's
+`Last worked out` stamp, so it is wrong only when `anchor − 15 days` is a
+change day (for example `M` = Mon 9 Nov 2026 → `25 Oct 17:00`). §31.5 T12
+misses it because the `.addingTimeInterval` sits on a continuation line.
+Fix: `WallClock.moment(minuteOfDay: 18 * 60, on: …)`, and widen T12 to
+catch a day start chained across lines. Do it with the next slice's first
+task.
+
+### Still open after the re-check
+
+- **Parsa:** G-095, G-096 (item 3 only: time-sensitive entitlement,
+  optional), G-067.
+- **Design:** G-083.
+- **Real use:** G-093.
+- **CA judgement:** G-092.
+- **CA small:** G-103.
+- **Deferred:** G-058, G-059, G-060, G-062, G-064, G-065, G-084, G-085,
+  G-086, G-088, G-091, G-094, G-101.
