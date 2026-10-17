@@ -3621,3 +3621,20 @@ titles whole; `emptyFeed` proof after 12 h; `notACalendar` and
 - **Spec closed, build open (slice 3):** G-088 (deadline notifications).
 - **Deferred:** G-058, G-059, G-060, G-062, G-064, G-065, G-084, G-085,
   G-086, G-091, G-094, G-101, G-105, G-106, G-107, G-108, G-111, G-112.
+
+---
+
+## 2026-10-17 — Phase 3 slice 3 build (CA): gaps found while building
+
+Coding agent, `PHASE3-SLICE3-PLAN.md` run. Each is built to the reading
+closest to the spec and DECISIONS, and named in STATUS.md §144.
+
+### G-114 — OPEN (design, small). VoiceOver for a paired deadline whose opening is on another day.
+
+`components.md` §37.1 gives the spoken label of a same-day window (`REQEN,
+F2, opens Thursday 22 October at 16:10, closes at 17:47, deadline, Moodle`)
+but not of a deadline whose paired opening is on another date (`900015`,
+opens Mon 12 Oct, closes Tue 3 Nov). Built (P3S3-T04): the closing names its
+own day too — `RW, Mitarbeit Lektion 5, opens Monday 12 October at 09:30,
+closes Tuesday 3 November at 23:50, deadline, Moodle`. Hover help is
+specified (`opens 12 Oct 09:30, closes 23:50`) and built as written.

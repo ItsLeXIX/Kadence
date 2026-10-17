@@ -11520,3 +11520,32 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   asserts that raw title; its displayed title is §35.7's.
 - New: `MoodleProfileTests` (10), `MoodleTestSupport`. Tests: **1139 passed
   / 0 failed**.
+
+### P3S3-T04 — pairing and the presentation model (components.md §36, §37.1–§37.4, §35.5, §39)
+
+- `Kadence/Services/Feed/MoodlePresentation.swift` (pure): `MomentItem` (a
+  Moodle item as every surface reads it, from an `Event` or a `MoodleItem`);
+  `Event.isMoment` (§32.1: imported, a Moodle kind, timed, `start == end`).
+- `MoodlePairing.pairs` (§36): key (category, displayed title); deadlines
+  (`closes`/`due`) by start, each taking the latest unpaired opening at or
+  before it; ties by externalID. Never stored.
+- `MomentPresentation` (§37.1): `time` (`HH:mm`, or `16:10–17:47` for a
+  same-day window), `text` (`{code} · {title}`), glyph (`flag.fill` /
+  `lock.open.fill` / `info.circle.fill`, `checkmark.circle.fill` when done),
+  rail (deadlines only), `hoverHelp`, `accessibilityLabel`, and
+  `layout(available:glyph:time:)` — the time dropped when under 44pt would
+  be left for the text, the glyph alone below that.
+- `MomentSort` (§37.1 among moments): instant, deadline · opening · notice,
+  title, externalID.
+- `MoodleCourseMapping` (§35.5): stems, case-insensitive, distinct, sorted.
+- `MomentInspectorValues` (§37.4): title, read-only line, the moment row by
+  wording, `Opens`, `Course` (+ shortname) or `Category`, `In timetable`,
+  `In Moodle` (only when it differs), notice sentence, status presence, §38's
+  moved line (`Due time changed after you marked it done (was Tue 20 Oct,
+  12:00).`), description.
+- `DueSelection` (§39): today's not-done, not-passed deadlines in §37.1's
+  order; NEXT only when nothing timed is left.
+- GAPS **G-114** (spoken form of a paired deadline whose opening is another
+  day; built as `…, opens Monday 12 October at 09:30, closes Tuesday 3
+  November at 23:50, …`).
+- New: `MoodlePresentationTests` (11). Tests: **1150 passed / 0 failed**.
