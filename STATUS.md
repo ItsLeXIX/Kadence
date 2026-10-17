@@ -11857,3 +11857,34 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   unchanged (below, in the run summary).
 - Full suite: **1229 passed / 0 failed**; `generate-tokens --check` clean at
   1.10.0.
+
+## 145. Run summary — Phase 3 slice 3 (2026-10-17) — all 15 tasks done
+
+- Commits: spec `8fefe89`; T01 `c22236c`, T02 `30b50ae`, T03 `18eff90`, T04
+  `5bf20c2`, T05 `8765cb4`, T06 `07a64dc`, T07 `b86d5ac`, T08 `2f26ec5`, T09
+  `d6878bd`, T10 `00e565f`, T11 `110184b`, T12 `825ddb0`, T13 `a640f78`, T14
+  `47a6b61`, T15 `01a54f4`. No STOP rule triggered.
+- Tests: baseline **1111 passed / 2 failed** (1113; the two token-version
+  pins the spec commit moved, §144) → **1229 passed / 0 failed**. No test
+  deleted or weakened. Changed to the spec (named in their commits): T01's
+  eight (version pins, 20 states, 6 rules, the `Source` allow list, the T12
+  scan) and T06's `SourceIdentityTests.importedEventsAlwaysCarryTheirSource`
+  (two production sites).
+- DEVIATIONS added: **B56** (two raw URL accessors, each with one user),
+  **B57** (`FeedSource` beside `ScheduleSource`; a same-host 303 followed),
+  **B58** (offscreen renders; the open `+` menu not drawable).
+- GAPS added: **G-114** (VoiceOver for a paired deadline whose opening is on
+  another day), **G-115** (§43 item 9's Sun 11 vs a Monday-start week).
+- `screenshots/3c/`: 53 `-p3ct15` frames + `notification-plan-moodle.txt` +
+  `INDEX.md` (and the tasks' own `-p3ct10…14` frames). Item 2's open `+`
+  menu is the one frame not drawn (B58).
+- Real store `stat`, step 0 and end (by full path, never opened): identical —
+  `default.store` 200704 B, mtime/ctime 2026-10-16 12:49:24, inode 144862795;
+  `-shm` 32768 B, mtime 12:49:53, ctime 13:31:53, inode 144862800; `-wal`
+  1437912 B, mtime/ctime 13:20:52, inode 144862799.
+- No permission prompt, real notification or network request; no app was
+  launched and no input was sent to any app (every frame is an offscreen
+  render in the test host; the pre-flight only reads window state).
+- Found and fixed in tests during the run (no app code involved): a released
+  `ModelContainer` behind a live context or a rendered view traps SwiftData
+  — the slice 3 helpers keep their containers.
