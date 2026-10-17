@@ -34,6 +34,9 @@ nonisolated enum StubReply: Sendable {
     /// Fails before the request is "delivered": not recorded (the
     /// `certificate` and `offline` cases — nothing reached the server).
     case failBeforeSend(URLError.Code)
+    /// The same with a whole `URLError` — one that carries the request's URL
+    /// in `failingURL` and `userInfo` (components.md §33.4 obligation 2).
+    case failBeforeSendError(URLError)
     /// Never answers: the transport's request timeout fires.
     case noAnswer
 }
@@ -148,6 +151,10 @@ nonisolated final class StubURLProtocol: URLProtocol, @unchecked Sendable {
             client?.urlProtocol(self, didFailWithError: URLError(code))
             return
         }
+        if case .failBeforeSendError(let error) = reply {
+            client?.urlProtocol(self, didFailWithError: error)
+            return
+        }
         server.begin(record)
         switch reply {
         case .response(let spec):
@@ -166,7 +173,7 @@ nonisolated final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         case .noAnswer:
             // Held until the session's timeout cancels us (`stopLoading`).
             lock.withLock { pendingServer = server }
-        case .failBeforeSend:
+        case .failBeforeSend, .failBeforeSendError:
             break
         }
     }

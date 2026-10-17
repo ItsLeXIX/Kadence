@@ -11549,3 +11549,37 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   day; built as `…, opens Monday 12 October at 09:30, closes Tuesday 3
   November at 23:50, …`).
 - New: `MoodlePresentationTests` (11). Tests: **1150 passed / 0 failed**.
+
+### P3S3-T05 — the feed source and its transport (components.md §34.1–§34.3, §33.4; interactions.md §16.1; moodle-mocks.md M3)
+
+- `Kadence/Services/Feed/MoodleFeedTransport.swift`: `FeedRequest.get` (the
+  one `GET`, `Accept: text/calendar, */*;q=0.1`, no `Authorization`, no
+  cookie — **the only call of `withRequestURLString`**); `MoodleFeedFetcher`
+  (§34.2's answer table: a `200` calendar is parsed, anything else
+  `notACalendar`; same-host `https` redirect followed once, a second one or
+  one to another host / `http:` → `redirected` with the host only; 401 / 403
+  / 404·410 / other → `unauthorized` / `forbidden` / `feedNotFound` /
+  `serverError(code)`; the 20 MB cap; the host, port and `https` checked
+  before every send); `MoodleFeedSource` (§34.8 step 1: the URL read from
+  the Keychain per fetch, `urlMissing` with no request when missing or
+  unreadable; a fresh transport per fetch, invalidated after).
+- `URLSessionTransport(cookies: false)` is the feed's configuration (§33.4
+  obligation 3: ephemeral, `urlCache`, `urlCredentialStorage` and
+  `httpCookieStorage` nil, cookies never set or accepted); the redirect
+  delegate (returns nil) and server-trust default are slice 1's, unchanged.
+  Errors map by code only (`TransportError.from`).
+- `ScheduleSourceError` gains `feedNotFound`, `urlMissing`;
+  `SourceLogger.feedStateLine` (`state moodle.technikum-wien.at/… · {state}`).
+- `FeedTransports.make(for:)`: the feed `URLSessionTransport` per fetch in a
+  normal launch only; review and the test host `MockFeedTransport`
+  (`ServiceLaunchLog` records `URLSessionFeedTransport` / `MockFeedTransport`).
+- `Kadence/Review/MockFeedTransport.swift`: every M1 body (via
+  `MoodleFeedCases`) and M3 answer; records each request that reached it
+  (`feedTLS` / `feedOffline` record none).
+- Test support: `StubReply.failBeforeSendError(URLError)` (a whole error,
+  `failingURL` included); `StubServer.feedTransport`.
+- DEVIATIONS **B57** (`FeedSource` beside `ScheduleSource`; a same-host 303
+  followed like the others).
+- New: `MoodleFeedTransportTests` (9, two parameterised over every M3 case
+  and nine `URLError` codes; the cross-host proof with its following
+  control). Tests: **1159 passed / 0 failed**.

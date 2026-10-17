@@ -2513,3 +2513,16 @@ order they were logged.
   rawAccessorCallSites`) asserts where each is called. Neither is a
   `description`, a mirror or `Codable`; the in-memory store keeps the value
   type itself.
+- **B57 — `MoodleFeedSource` implements `FeedSource`, a sibling of
+  `ScheduleSource` with the same shape** (`components.md` §42.4: "`ScheduleSource`
+  (§21.5) is the protocol the Moodle source implements"). `ScheduleSource`
+  returns `ScheduleFetchResult`, whose `ExternalEvent`s have no place for a
+  Moodle item's `upstreamTitle`, `courseCategory` or `momentWording`, and
+  whose calendar fields (`calendarsReadInFully`, `failedCalendars`,
+  `adoptedCalendars`, capabilities) mean nothing for one URL. `FeedSource`
+  keeps §42.4's contract — `fetch(windowStart:)` ignoring the window,
+  returning the items, problems, VEVENT count (`objectCount`) and diagnostics
+  (requests, ms, bytes) — and throws the same `ScheduleSourceError`, which
+  gains `feedNotFound` and `urlMissing`. Also: a same-host `303` is followed
+  once like §34.2's `301`/`302`/`307`/`308` (Moodle sends none; the table's
+  "any other status" row would have made it a `serverError`).

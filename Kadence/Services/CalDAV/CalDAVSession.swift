@@ -39,6 +39,10 @@ nonisolated enum ScheduleSourceError: Error, Equatable, Sendable {
     case fetchFailed(technical: String)
     case notACalendar
     case cancelled
+    /// components.md §34.2 (slice 3), a feed: `404` / `410`.
+    case feedNotFound
+    /// §34.8 step 1, a feed: no calendar URL in the Keychain. No request.
+    case urlMissing
 
     var state: SourceState {
         switch self {
@@ -55,6 +59,8 @@ nonisolated enum ScheduleSourceError: Error, Equatable, Sendable {
         case .calendarMissing: .calendarMissing
         case .fetchFailed: .fetchFailed
         case .notACalendar: .notACalendar
+        case .feedNotFound: .feedNotFound
+        case .urlMissing: .urlMissing
         }
     }
 

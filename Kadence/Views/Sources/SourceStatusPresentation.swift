@@ -393,6 +393,12 @@ nonisolated struct ConnectFailurePresentation: Sendable, Equatable {
             body = SourceStatusCopy.body(.passwordMissing, f, next: "", last: "") ?? ""; focus = .password(selectAll: false)
         case .calendarMissing:
             body = SourceStatusCopy.body(.calendarMissing, f, next: "", last: "") ?? ""; focus = .connect
+        // Feed sources only (the Moodle sheet has its own failures,
+        // layouts.md §16.1); the state's body.
+        case .feedNotFound:
+            body = SourceStatusCopy.body(.feedNotFound, f, next: "", last: "") ?? ""; focus = .connect
+        case .urlMissing:
+            body = SourceStatusCopy.body(.urlMissing, f, next: "", last: "") ?? ""; focus = .connect
         }
     }
 }

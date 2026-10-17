@@ -182,11 +182,13 @@ nonisolated final class URLSessionTransport: NSObject, HTTPTransport, URLSession
 
     /// `protocolClasses` and `configure` let tests insert their `URLProtocol`
     /// stub into this exact configuration; the app passes neither.
-    init(requestTimeout: TimeInterval = 30, protocolClasses: [AnyClass]? = nil,
+    /// `cookies: false` is the feed's configuration (components.md §33.4
+    /// obligation 3): no cookie storage at all, none sent, none accepted.
+    init(requestTimeout: TimeInterval = 30, cookies: Bool = true, protocolClasses: [AnyClass]? = nil,
          configure: ((URLSessionConfiguration) -> Void)? = nil) {
         self.requestTimeout = requestTimeout
         super.init()
-        let configuration = Self.configuration(requestTimeout: requestTimeout)
+        let configuration = Self.configuration(requestTimeout: requestTimeout, cookies: cookies)
         if let protocolClasses { configuration.protocolClasses = protocolClasses + (configuration.protocolClasses ?? []) }
         configure?(configuration)
         session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
@@ -194,14 +196,21 @@ nonisolated final class URLSessionTransport: NSObject, HTTPTransport, URLSession
 
     /// §21.4: ephemeral, no URL cache, no credential storage; cookies live in
     /// this session's memory only.
-    static func configuration(requestTimeout: TimeInterval) -> URLSessionConfiguration {
+    static func configuration(requestTimeout: TimeInterval, cookies: Bool = true) -> URLSessionConfiguration {
         let c = URLSessionConfiguration.ephemeral
         c.urlCache = nil
         c.urlCredentialStorage = nil
         c.requestCachePolicy = .reloadIgnoringLocalCacheData
         c.timeoutIntervalForRequest = requestTimeout
-        c.httpShouldSetCookies = true
-        c.httpCookieAcceptPolicy = .always
+        if cookies {
+            c.httpShouldSetCookies = true
+            c.httpCookieAcceptPolicy = .always
+        } else {
+            // §33.4 obligation 3: no HTTP state of any kind for a feed.
+            c.httpCookieStorage = nil
+            c.httpShouldSetCookies = false
+            c.httpCookieAcceptPolicy = .never
+        }
         return c
     }
 

@@ -386,6 +386,14 @@ nonisolated final class SourceLogger: Sendable {
                 outcome].joined(separator: " · ")
     }
 
+    /// components.md §34.9 (slice 3): a feed's state line. `display` is the
+    /// URL's `{host}/…` — never the path or the query.
+    static func feedStateLine(display: String, state: SourceState) -> String {
+        "state \(display) · \(state.rawValue)"
+    }
+
+    func feedState(display: String, state: SourceState) { emit(Self.feedStateLine(display: display, state: state)) }
+
     @MainActor
     func sync(_ source: Source, diagnostics: SyncDiagnostics, outcome: String) {
         emit(Self.syncLine(account: source.accountDisplay ?? source.displayName, diagnostics: diagnostics,
