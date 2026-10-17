@@ -1,0 +1,152 @@
+# Notification plan — dataset moodleOnly (M = Mon 12 Oct 2026, Europe/Vienna)
+# Produced by MoodleReviewTests from the real NotificationScheduler and DeadlinePlanner,
+# rules at components.md §42.3's defaults, 900004 done, Sleep 22:00–07:00; clocks pinned.
+
+== Mon 12 Oct 06:00, ordinary pass
+
+identifier: due.{900005}.ahead
+fire:       Mon 12 Oct 18:00
+title:      Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2) is due Tue 13 Oct 23:59
+body:       INNO3 · Moodle
+category:   kadence.deadline
+sound:      default
+level:      active
+
+identifier: due.day.20261014.20261013T1600Z
+fire:       Tue 13 Oct 18:00
+title:      2 deadlines on Wed 14 Oct at 12:30
+body:       12:30 Lessons Learned Lektion 4 (RW) · 12:30 Mitarbeit Lektion 4 (RW)
+category:   kadence.deadlines
+sound:      default
+level:      active
+
+identifier: due.{900005}.close
+fire:       Tue 13 Oct 21:59
+title:      Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2) is due Tue 13 Oct 23:59
+body:       INNO3 · Moodle
+category:   kadence.deadline
+sound:      default
+level:      active
+
+== Mon 2 Nov 06:00, ordinary pass
+
+identifier: due.{900014}.close
+fire:       Mon 2 Nov 12:20
+title:      Test Management closes Mon 2 Nov 14:20
+body:       UF · Moodle
+category:   kadence.deadline
+sound:      default
+level:      active
+
+identifier: due.day.20261103.20261102T1700Z
+fire:       Mon 2 Nov 18:00
+title:      3 deadlines on Tue 3 Nov
+body:       23:50 Lessons Learned Lektion 5 (RW) · 23:50 Mitarbeit Lektion 5 (RW) · 23:59 Sprint Review Protocol for Sprint 2 (till Tuesday 23:59 in T0 + 4) (INNO3)
+category:   kadence.deadlines
+sound:      default
+level:      active
+
+identifier: due.day.20261103.20261103T2050Z
+fire:       Tue 3 Nov 21:50
+title:      2 deadlines on Tue 3 Nov at 23:50
+body:       23:50 Lessons Learned Lektion 5 (RW) · 23:50 Mitarbeit Lektion 5 (RW)
+category:   kadence.deadlines
+sound:      default
+level:      active
+
+identifier: due.{900017}.close
+fire:       Tue 3 Nov 21:59
+title:      Sprint Review Protocol for Sprint 2 (till Tuesday 23:59 in T0 + 4) is due Tue 3 Nov 23:59
+body:       INNO3 · Moodle
+category:   kadence.deadline
+sound:      default
+level:      active
+
+== Sat 31 Oct 06:00, ordinary pass
+
+identifier: due.{900013}.ahead
+fire:       Sat 31 Oct 18:00
+title:      VERBINDLICHE Anmeldung für die Studienreise nach Manila | BINDING registration for study trip to Manila closes Sun 1 Nov 23:59
+body:       FK CS&AM - Study Trips & International Initiatives · Moodle
+category:   kadence.deadline
+sound:      default
+level:      active
+
+identifier: due.{900014}.ahead
+fire:       Sun 1 Nov 18:00
+title:      Test Management closes Mon 2 Nov 14:20
+body:       UF · Moodle
+category:   kadence.deadline
+sound:      default
+level:      active
+
+identifier: due.{900013}.close
+fire:       Sun 1 Nov 21:59
+title:      VERBINDLICHE Anmeldung für die Studienreise nach Manila | BINDING registration for study trip to Manila closes Sun 1 Nov 23:59
+body:       FK CS&AM - Study Trips & International Initiatives · Moodle
+category:   kadence.deadline
+sound:      default
+level:      active
+
+== Catch-up at Tue 13 Oct 21:30 (launch pass, nothing recorded)
+
+identifier: due.day.20261014.20261013T1600Z
+fire:       Tue 13 Oct 21:30 (at once, 1-second trigger)
+title:      2 deadlines on Wed 14 Oct at 12:30
+body:       12:30 Lessons Learned Lektion 4 (RW) · 12:30 Mitarbeit Lektion 4 (RW)
+category:   kadence.deadlines
+sound:      default
+level:      active
+
+identifier: due.{900005}.close
+fire:       Tue 13 Oct 21:59
+title:      Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2) is due Tue 13 Oct 23:59
+body:       INNO3 · Moodle
+category:   kadence.deadline
+sound:      default
+level:      active
+
+identifier: due.day.20261014.20261014T0830Z
+fire:       Wed 14 Oct 10:30
+title:      2 deadlines on Wed 14 Oct at 12:30
+body:       12:30 Lessons Learned Lektion 4 (RW) · 12:30 Mitarbeit Lektion 4 (RW)
+category:   kadence.deadlines
+sound:      default
+level:      active
+
+== Catch-up at Tue 13 Oct 22:30 (launch pass, nothing recorded)
+
+identifier: due.day.20261014.20261013T1600Z
+fire:       Wed 14 Oct 07:00
+title:      2 deadlines on Wed 14 Oct at 12:30
+body:       12:30 Lessons Learned Lektion 4 (RW) · 12:30 Mitarbeit Lektion 4 (RW)
+category:   kadence.deadlines
+sound:      default
+level:      active
+
+identifier: due.day.20261014.20261014T0830Z
+fire:       Wed 14 Oct 10:30
+title:      2 deadlines on Wed 14 Oct at 12:30
+body:       12:30 Lessons Learned Lektion 4 (RW) · 12:30 Mitarbeit Lektion 4 (RW)
+category:   kadence.deadlines
+sound:      default
+level:      active
+
+== Catch-up at Wed 14 Oct 00:30 (launch pass, nothing recorded)
+
+identifier: due.day.20261014.20261013T1600Z
+fire:       Wed 14 Oct 07:00
+title:      2 deadlines on Wed 14 Oct at 12:30
+body:       12:30 Lessons Learned Lektion 4 (RW) · 12:30 Mitarbeit Lektion 4 (RW)
+category:   kadence.deadlines
+sound:      default
+level:      active
+
+identifier: due.day.20261014.20261014T0830Z
+fire:       Wed 14 Oct 10:30
+title:      2 deadlines on Wed 14 Oct at 12:30
+body:       12:30 Lessons Learned Lektion 4 (RW) · 12:30 Mitarbeit Lektion 4 (RW)
+category:   kadence.deadlines
+sound:      default
+level:      active
+

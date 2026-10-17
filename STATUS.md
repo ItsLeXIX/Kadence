@@ -11836,3 +11836,24 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
 - Renders §43 item 19 (`-p3ct14`, 3 frames; offscreen switches draw in the
   inactive-window style, as slice 2's).
 - New: `DeadlineSettingsTests` (4). Tests: **1229 passed / 0 failed**.
+
+### P3S3-T15 — the §43 set and `screenshots/3c/INDEX.md` (components.md §43; §17.2 rules 1–6)
+
+- Every §43 frame recaptured from one build as `-p3ct15` (53 PNGs) plus
+  item 20's `notification-plan-moodle.txt`, by `Scripts/capture-p3c-renders.sh`
+  (`RENDER_SUFFIX` now renames every frame of a run; the plan dump keeps its
+  spec name). Pre-flight passed before the run. Edge check (rule 6) on all
+  53: **ok**. `screenshots/3c/INDEX.md` maps items 1–21 to files with
+  dataset, case, clock and appearance.
+- Checks: `git grep SENTINEL` / `4711` — code hits only in
+  `Kadence/Review/MoodleMock.swift` (the review mock) and `KadenceTests/`;
+  the rest are the spec files and this STATUS naming the markers. No file
+  under `Kadence/` uses `withRequestURLString` outside
+  `MoodleFeedTransport.swift`, nor a `URLError`'s `localizedDescription` /
+  `failingURL` (source scans in `MoodleFeedTransportTests`). No `late`,
+  `missed` or `overdue` in any slice 3 string literal. Review launches build
+  only `MockFeedTransport` and `RecordingNotificationCenter`, in-memory store
+  and secret store (`MoodleReviewTests.reviewServices`). Real store `stat`
+  unchanged (below, in the run summary).
+- Full suite: **1229 passed / 0 failed**; `generate-tokens --check` clean at
+  1.10.0.

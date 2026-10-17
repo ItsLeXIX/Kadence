@@ -48,6 +48,9 @@ enum Slice3Render {
         let image = NSImage(size: host.bounds.size)
         image.addRepresentation(rep)
         if capturing, let png = rep.representation(using: .png, properties: [:]) {
+            // Task 15 recaptures every frame under one suffix
+            // (`KADENCE_RENDER_SUFFIX=p3ct15`).
+            let suffix = ProcessInfo.processInfo.environment["KADENCE_RENDER_SUFFIX"].flatMap { $0.isEmpty ? nil : $0 } ?? suffix
             Attachment.record(png, named: "\(name)-\(suffix).png")
         }
         return image
