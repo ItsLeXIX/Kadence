@@ -56,6 +56,9 @@ struct InspectorView: View {
                         onSelectOption: onSelectConflictOption,
                         footer: conflictFooter,
                         onStep: onStepConflict)
+                } else if let event, event.origin == .imported, event.importKind.isMoodle {
+                    // layouts.md §17 (slice 3): a Moodle item.
+                    MoodleInspectorDetails(event: event, now: now, store: store)
                 } else if let event, event.origin == .imported {
                     ImportedInspectorDetails(event: event, now: now, store: store)
                 } else if let event {

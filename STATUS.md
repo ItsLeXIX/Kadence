@@ -11776,3 +11776,22 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
 - Renders §43 items 9–14 (`-p3ct11`, 10 frames, item 9 light and dark).
   GAPS **G-115** (Sun 11 vs the Monday-start week).
 - New: `MoodleCanvasTests` (8). Tests: **1217 passed / 0 failed**.
+
+### P3S3-T12 — the inspector (layouts.md §17; components.md §37.4, §38)
+
+- `MoodleInspectorDetails` (`Kadence/Views/Sources/MoodleInspector.swift`),
+  chosen by `InspectorView` for an imported Moodle item: rows 1–10 from task
+  4's `MomentInspectorValues` (pairing over the source's own items; `In
+  timetable` from every connected timetable's course codes) — title row with
+  kind glyph and swatch, the read-only line with §13.4's emphasis, the moment
+  (monospaced digits) and a notice's line, `Opens`, `Course` + shortname or
+  `Category`, `In timetable` (plain text), `In Moodle` (selectable), Source +
+  sync line (opens the source popover), Origin, Status (deadlines only:
+  `Not done` / `Done`, `Mark Done` / `Mark Not Done` through the gate and
+  `toggleDone`, §38's moved line in `text.primary`, the note; no Skip), the
+  description (URLs as links opened by `LinkOpener`, collapsed after 6
+  rendered lines measured at the drawn width, `Show more` / `Show less`
+  reset on reselection; VoiceOver one element `Description` with the whole
+  text). No Place / Leave by / Lecturers / Link rows.
+- Renders §43 items 15–17 (`-p3ct12`, 12 frames).
+- New: `MoodleInspectorTests` (3). Tests: **1220 passed / 0 failed**.
