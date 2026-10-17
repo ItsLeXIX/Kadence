@@ -162,7 +162,22 @@ struct MenuBarPopoverView: View {
             to: snoozeConfirmation.map { ($0.eventID, $0.expectedStart) })
     }
 
+    /// components.md §39 (slice 3): today's deadlines — the Due NEXT when
+    /// nothing timed is left, and DUE TODAY.
+    private var due: DueSelection.Result {
+        MenuBarFormatting.dueSelection(events: events, now: now, hasTimedNext: result.next != nil)
+    }
+
+    private func event(_ item: MomentItem) -> Event? { events.first { $0.id == item.id } }
+
+    /// NEXT: the timed item, else the Due state's deadline.
+    private var nextEvent: Event? { result.next ?? due.next.flatMap(event) }
+
+    /// DUE TODAY's listed rows (at most `size.popoverMaxDueRows`).
+    private var dueRows: [Event] { due.dueToday.prefix(Tokens.Size.popoverMaxDueRows).compactMap(event) }
+
     var body: some View {
+        let due = self.due
         VStack(alignment: .leading, spacing: 0) {
             if let next = result.next {
                 nextSection(next: next, isLate: result.isLate)
@@ -171,8 +186,15 @@ struct MenuBarPopoverView: View {
                     Divider()
                     restSection(rest)
                 }
+            } else if let item = due.next, let deadline = event(item) {
+                dueNextSection(deadline, item: item)
             } else {
                 emptySection
+            }
+            // §39.2: DUE TODAY after REST OF TODAY; omitted when empty.
+            if !due.dueToday.isEmpty {
+                Divider()
+                dueSection(due.dueToday)
             }
             // components.md §19.4 (Phase 3 task 14): a stalled source says so.
             StaleSourceLines(now: now)
@@ -238,8 +260,9 @@ struct MenuBarPopoverView: View {
 
     /// NEXT, then the listed rest rows — what `↑`/`↓` move through.
     private var focusableItems: [Event] {
-        guard let next = result.next else { return [] }
-        return [next] + NextUpProvider.restDisplay(result.restOfToday).rows
+        guard let next = nextEvent else { return [] }
+        let rest = result.next == nil ? [] : NextUpProvider.restDisplay(result.restOfToday).rows
+        return [next] + rest + dueRows
     }
 
     private func handleKey(_ press: KeyPress) -> KeyPress.Result {
@@ -250,7 +273,7 @@ struct MenuBarPopoverView: View {
         switch action {
         case .focus(let index): focusIndex = index
         case .open(let index): open(items[index])
-        case .done: if let next = result.next { store.toggleDone(next) }
+        case .done: if let next = nextEvent { store.toggleDone(next) }
         case .snooze: if let next = result.next { performSnooze(next) }
         case .close: dismiss()
         }
@@ -476,6 +499,95 @@ struct MenuBarPopoverView: View {
 
             if rest.moreCount > 0 {
                 Text("+\(rest.moreCount) more")
+                    .typeStyle(.popoverRow)
+                    .foregroundStyle(Tokens.Color.Text.secondary)
+                    .frame(height: Tokens.Size.popoverRestRowHeight, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, Tokens.Spacing.lg)
+    }
+
+    // MARK: Deadlines (components.md §39.2; layouts.md §18)
+
+    /// NEXT in the Due state: the displayed title, `{Wording} {HH:mm} ·
+    /// {code or category} · {source}`, the source's rail; `Done` · `Open` —
+    /// no Snooze (it cannot move), no Re-offer, never a leave line.
+    private func dueNextSection(_ deadline: Event, item: MomentItem) -> some View {
+        let source = SourceCatalog.directory.info(for: deadline)
+        return VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+            sectionLabel("NEXT")
+            HStack(spacing: 0) {
+                RailView(style: .solid, color: source.key.rail)
+                VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
+                    Text(item.title)
+                        .lineLimit(2)
+                        .typeStyle(.popoverNextTitle)
+                        .foregroundStyle(Tokens.Color.Text.primary)
+                    Text(MenuBarFormatting.dueMeta(item, sourceName: source.name))
+                        .typeStyle(.popoverNextMeta)
+                        .foregroundStyle(Tokens.Color.Text.secondary)
+                        .truncationMode(.tail)
+                }
+                .padding(.leading, Tokens.Spacing.sm)
+            }
+            .frame(maxWidth: .infinity, minHeight: Tokens.Size.popoverNextBlockMinHeight, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(item.title)
+            .accessibilityValue(MenuBarFormatting.dueMeta(item, sourceName: source.name))
+            .background {
+                if focusIndex == 0 {
+                    RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
+                        .fill(Tokens.Color.Interactive.hoverOverlay)
+                }
+            }
+            HStack(spacing: Tokens.Spacing.sm) {
+                // `Done` replaces the NEXT block in place with the next item.
+                Button("Done") { store.toggleDone(deadline) }.buttonStyle(.bordered)
+                Button("Open") { open(deadline) }.buttonStyle(.bordered)
+            }
+            .frame(height: Tokens.Size.popoverActionRowHeight)
+        }
+        .padding(.horizontal, Tokens.Spacing.lg)
+    }
+
+    /// DUE TODAY: `{HH:mm}` in the time column, then `{code} · {title}`;
+    /// at most three rows, then `+N more`. Rows focus and open like REST OF
+    /// TODAY's (interactions.md §16.6).
+    private func dueSection(_ items: [MomentItem]) -> some View {
+        let restCount = result.next == nil ? 0 : NextUpProvider.restDisplay(result.restOfToday).rows.count
+        let shown = Array(items.prefix(Tokens.Size.popoverMaxDueRows))
+        return VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
+            sectionLabel("DUE TODAY")
+                .padding(.top, Tokens.Spacing.sm)
+                .accessibilityLabel("Due today")
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(shown.enumerated()), id: \.element.id) { offset, item in
+                    HStack(spacing: Tokens.Spacing.sm) {
+                        Text(MenuBarFormatting.time(item.start))
+                            .typeStyle(.popoverRow)
+                            .foregroundStyle(Tokens.Color.Text.primary)
+                        Text(MenuBarFormatting.dueText(item))
+                            .typeStyle(.popoverRow)
+                            .foregroundStyle(Tokens.Color.Text.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: Tokens.Size.popoverRestRowHeight,
+                           maxHeight: Tokens.Size.popoverRestRowHeight, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { if let e = event(item) { open(e) } }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(MenuBarFormatting.dueRowAccessibilityLabel(item))
+                    .background {
+                        if focusIndex == offset + 1 + restCount {
+                            RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
+                                .fill(Tokens.Color.Interactive.hoverOverlay)
+                        }
+                    }
+                }
+            }
+            if items.count > shown.count {
+                Text("+\(items.count - shown.count) more")
                     .typeStyle(.popoverRow)
                     .foregroundStyle(Tokens.Color.Text.secondary)
                     .frame(height: Tokens.Size.popoverRestRowHeight, alignment: .leading)

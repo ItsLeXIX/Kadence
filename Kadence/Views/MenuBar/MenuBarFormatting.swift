@@ -52,6 +52,41 @@ enum MenuBarFormatting {
         return "\(lead) · \(line)"
     }
 
+    // MARK: Deadlines (components.md §39, slice 3)
+
+    /// The status item's unit in the Due state: `Due 23:59`.
+    static func dueUnit(_ item: MomentItem) -> String { "Due \(time(item.start))" }
+
+    /// `{code} · {title}`, else `{title}` (§37.1's text).
+    static func dueText(_ item: MomentItem) -> String { item.courseCode.map { "\($0) · \(item.title)" } ?? item.title }
+
+    /// §39.1: `Due at 23:59, {title}, {code}`.
+    static func dueAccessibilityLabel(_ item: MomentItem) -> String {
+        (["Due at \(time(item.start))", item.title] + [item.courseCode].compactMap { $0 }).joined(separator: ", ")
+    }
+
+    /// §39.2 Due NEXT's meta: `{Wording} {HH:mm} · {code or category} · {source}`.
+    static func dueMeta(_ item: MomentItem, sourceName: String) -> String {
+        let word: String = switch item.wording {
+        case .closes?: "Closes"
+        case .registrationEnds?: "Registration ends"
+        default: "Due"
+        }
+        return (["\(word) \(time(item.start))", item.courseCode ?? item.courseCategory, sourceName].compactMap { $0 })
+            .joined(separator: " · ")
+    }
+
+    /// §39.2: a DUE TODAY row spoken — `23:59, INNO3, {title}, deadline`.
+    static func dueRowAccessibilityLabel(_ item: MomentItem) -> String {
+        ([time(item.start)] + [item.courseCode].compactMap { $0 } + [item.title, "deadline"]).joined(separator: ", ")
+    }
+
+    /// The deadlines the menu bar reads, from the store's events.
+    static func dueSelection(events: [Event], now: Date, hasTimedNext: Bool,
+                             calendar: Calendar = .current) -> DueSelection.Result {
+        DueSelection.select(events.compactMap(MomentItem.init), now: now, calendar: calendar, hasTimedNext: hasTimedNext)
+    }
+
     // MARK: Leave-by (components.md §26)
 
     /// The status item's unit in Leave: `Leave 08:15`, `Leave ≈08:15`.

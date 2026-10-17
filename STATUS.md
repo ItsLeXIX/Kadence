@@ -11795,3 +11795,26 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   text). No Place / Leave by / Lecturers / Link rows.
 - Renders §43 items 15–17 (`-p3ct12`, 12 frames).
 - New: `MoodleInspectorTests` (3). Tests: **1220 passed / 0 failed**.
+
+### P3S3-T13 — the menu bar: Due, DUE TODAY (components.md §39; layouts.md §18; interactions.md §16.6)
+
+- `MenuBarFormatting`: `dueUnit` (`Due 23:59`), `dueText` (`{code} ·
+  {title}`), `dueMeta` (`Closes 23:50 · RW · Moodle`, `Registration ends
+  23:55 · Bibliothek · Moodle`), `dueAccessibilityLabel`,
+  `dueRowAccessibilityLabel`, `dueSelection` (task 4's `DueSelection` over
+  the store's events).
+- Status item: `StatusItemLabel(…, due:)` — only when Phase 2's NEXT is
+  empty; the unit takes the time's role (first, never cut, the text
+  truncates, below the degrade point the unit alone); template-rendered as
+  every state; no late state for a deadline. `MenuBarStatusItemView` feeds it.
+- Popover: NEXT in the Due state (the title on up to 2 lines, the meta, the
+  source rail, `Done` · `Open`, no Snooze or Re-offer, no leave line);
+  DUE TODAY after REST OF TODAY (time column, `{code} · {title}`, at most 3
+  rows then `+N more`, omitted when empty, click / `↩` open like REST rows,
+  VoiceOver `Due today` and the row labels); focus moves NEXT → rest →
+  due rows; `⌘↩`/Done on the Due NEXT marks it done and the next deadline
+  replaces it.
+- Renders §43 item 18 (`-p3ct13`, 5 frames: the status item at 180, 110 and
+  80pt; the popover at Tue 13 Oct and Tue 3 Nov 20:00 — its stale line is
+  true for a store seeded on 12 Oct).
+- New: `MenuBarDueTests` (5). Tests: **1225 passed / 0 failed**.

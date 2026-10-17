@@ -38,10 +38,13 @@ struct MenuBarStatusItemView: View {
         // menu bar hides an item that doesn't fit rather than narrowing it.
         // So the budget itself is the available width here; the degrade rule
         // still applies whenever the content needs more than it.
+        let result = NextUpProvider.evaluate(events: events, now: now, legs: legs)
         StatusItemLabel(
-            result: NextUpProvider.evaluate(events: events, now: now, legs: legs),
+            result: result,
             now: now,
-            available: Tokens.Size.statusItemMaxWidth)
+            available: Tokens.Size.statusItemMaxWidth,
+            // components.md §39.1: the Due state, only when nothing timed is left.
+            due: MenuBarFormatting.dueSelection(events: events, now: now, hasTimedNext: result.next != nil).next)
             // interactions.md §12.1 — "the status item's text changes
             // without animation — it updates on a timer and any animation in
             // a menu bar reads as a glitch." Everything the label reads
@@ -80,6 +83,9 @@ struct StatusItemLabel: View {
     let result: NextUpProvider.Result
     let now: Date
     let available: CGFloat
+    /// components.md §39.1: the earliest deadline still due today, when
+    /// NEXT is empty.
+    var due: MomentItem? = nil
 
     /// The `statusItem` type as an `NSFont`, for measuring: 13pt medium with
     /// monospaced digits, the same face `.typeStyle(.statusItem)` draws.
@@ -115,8 +121,19 @@ struct StatusItemLabel: View {
     /// `640m ago` with `Breakfast` missing). So the title is truncated here,
     /// by measurement, rather than by `.truncationMode`. The time is never
     /// part of what gets cut.
-    static func text(for result: NextUpProvider.Result, now: Date, available: CGFloat) -> String? {
-        guard let next = result.next else { return nil }
+    static func text(for result: NextUpProvider.Result, now: Date, available: CGFloat, due: MomentItem? = nil) -> String? {
+        guard let next = result.next else {
+            // §39.1: `Due 23:59` takes the time's role — first, never cut;
+            // the text truncates; below the degrade point the unit alone.
+            guard let due else { return nil }
+            let unit = MenuBarFormatting.dueUnit(due)
+            let text = MenuBarFormatting.dueText(due)
+            let separatorWidth = width(of: separator)
+            let layout = StatusItemLayout.resolve(leadingWidth: width(of: unit), separatorWidth: separatorWidth,
+                                                  titleWidth: width(of: text), available: available)
+            guard layout.showsTitle else { return unit }
+            return unit + separator + truncated(text, toFit: layout.titleSlotWidth - separatorWidth)
+        }
         // §26.1: Leave's unit `Leave 08:15` (`Leave ≈08:15`) and Leave now's
         // glyph + `Leave now` take the time's role — never truncated, first.
         let primary: String
@@ -163,7 +180,7 @@ struct StatusItemLabel: View {
     }
 
     var body: some View {
-        if let text = Self.text(for: result, now: now, available: available) {
+        if let text = Self.text(for: result, now: now, available: available, due: due) {
             let glyph = Self.showsGlyph(result, now: now)
             HStack(spacing: Tokens.Spacing.xxs) {
                 if glyph {
@@ -176,7 +193,8 @@ struct StatusItemLabel: View {
             }
             .foregroundStyle(glyph ? Tokens.Color.Semantic.now : Tokens.Color.Text.primary)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(MenuBarFormatting.statusAccessibilityLabel(result, now: now) ?? text)
+            .accessibilityLabel(MenuBarFormatting.statusAccessibilityLabel(result, now: now)
+                ?? (result.next == nil ? due.map(MenuBarFormatting.dueAccessibilityLabel) : nil) ?? text)
         } else {
             Text("Nothing left today")
                 .typeStyle(.statusItem)
