@@ -712,8 +712,9 @@ final class CalendarState {
     /// slot another source holds.
     func isVisible(_ event: Event, sources: SourceDirectory = SourceCatalog.directory) -> Bool {
         if !sources.info(for: event).isVisible { return false }
-        if showAllDayOnly && !event.isAllDay { return false }
-        if showTimedOnly && event.isAllDay { return false }
+        // §32.1: a moment counts as all-day for both filters.
+        if showAllDayOnly && !event.isDrawnAsAllDay { return false }
+        if showTimedOnly && event.isDrawnAsAllDay { return false }
         if hideDone && event.status == .done { return false }
         if hideSkipped && event.status == .skipped { return false }
         return true

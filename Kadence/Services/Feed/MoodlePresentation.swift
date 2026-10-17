@@ -82,6 +82,11 @@ extension Event {
     /// it as a zero-length timed event tests this, never the duration.
     var isMoment: Bool { origin == .imported && importKind.isMoodle && !isAllDay && start == end }
 
+    /// §32.1 / §37.1: drawn in the all-day row — an all-day event or a
+    /// moment. Every "timed event" consumer (grid, conflicts, NEXT, scroll,
+    /// the Day header's count) skips these.
+    var isDrawnAsAllDay: Bool { isAllDay || isMoment }
+
     /// §38: a done deadline whose due time moved after it was marked.
     var dueTimeChangedAfterDone: Bool {
         status == .done && importKind == .deadline && markedDoneDueAt != nil && markedDoneDueAt != start

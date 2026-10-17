@@ -72,7 +72,8 @@ enum NextUpProvider {
     static func evaluate(events: [Event], now: Date, legs: [UUID: LegValues] = [:],
                          calendar: Calendar = .current) -> Result {
         let today = events
-            .filter { !$0.isAllDay && !$0.isCancelled }   // §20.6: never NEXT
+            // §20.6: never NEXT; §32.1: nor a moment (§39 is its surface).
+            .filter { !$0.isDrawnAsAllDay && !$0.isCancelled }
             .filter { $0.status != .done && $0.status != .skipped }
             .filter { calendar.isDate($0.start, inSameDayAs: now) }
             .sorted { $0.start < $1.start }

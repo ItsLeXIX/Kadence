@@ -635,21 +635,58 @@ struct MockFixtures: Equatable, Sendable {
         .sorted(by: Self.allDayOrder)
     }
 
-    /// components.md §5.1: by start day, then `.examAllDay`,
-    /// `.deadlineAllDay`, `.eventAllDay`, then title.
+    /// components.md §5.1, amended by §37.1 (slice 3): by start day, then
+    /// `.examAllDay`, then **moment items by time, then deadline · opening ·
+    /// notice, then title**, then the other deadline pills, then
+    /// `.eventAllDay`, then title.
     static func allDayOrder(_ a: AllDayFixture, _ b: AllDayFixture) -> Bool {
-        func rank(_ k: AllDayKind) -> Int { switch k { case .exam: 0; case .deadline: 1; case .event: 2 } }
+        func rank(_ f: AllDayFixture) -> Int {
+            switch f.kind {
+            case .exam: 0
+            case .deadline: f.moment != nil ? 1 : 2
+            case .event: 3
+            }
+        }
         if a.startDay != b.startDay { return a.startDay < b.startDay }
-        if rank(a.kind) != rank(b.kind) { return rank(a.kind) < rank(b.kind) }
-        return a.title < b.title
+        if rank(a) != rank(b) { return rank(a) < rank(b) }
+        if let m = a.moment, let n = b.moment {
+            if m.instant != n.instant { return m.instant < n.instant }
+            if MomentSort.kindRank(m.kind) != MomentSort.kindRank(n.kind) {
+                return MomentSort.kindRank(m.kind) < MomentSort.kindRank(n.kind)
+            }
+        }
+        if a.title != b.title { return a.title < b.title }
+        return a.id.uuidString < b.id.uuidString
     }
 
     /// The fixtures plus the store's all-day events (G-055: manual and
     /// imported all-day events now draw).
+    /// Slice 3 (components.md §37.2): moments become pills — deadlines,
+    /// unpaired openings and notices; a paired opening is drawn nowhere.
+    /// Pairing (§36) runs over `pairingOver` — every item of each source,
+    /// not only the visible ones, so a filter never unpairs an opening.
     @MainActor
-    func adding(events: [Event], now: Date) -> MockFixtures {
+    func adding(events: [Event], now: Date, pairingOver all: [Event]? = nil) -> MockFixtures {
         var copy = self
         copy.allDay += events.filter(\.isAllDay).map { AllDayFixture(event: $0, now: now) }
+        let moments = events.filter(\.isMoment)
+        guard !moments.isEmpty else { return copy }
+        let pool = (all ?? events).filter { $0.origin == .imported && $0.importKind.isMoodle }
+        let bySource = Dictionary(grouping: pool, by: { $0.sourceID ?? "" })
+        var openingOf: [UUID: Event] = [:]
+        var paired = Set<UUID>()
+        for (_, sourceEvents) in bySource {
+            let byExternal = Dictionary(sourceEvents.compactMap { e in e.externalID.map { ($0, e) } },
+                                        uniquingKeysWith: { a, _ in a })
+            let pairs = MoodlePairing.pairs(sourceEvents.compactMap(MomentItem.init))
+            for (deadline, opening) in pairs.openingOf {
+                if let d = byExternal[deadline], let o = byExternal[opening.externalID] { openingOf[d.id] = o }
+            }
+            for id in pairs.pairedOpenings { if let o = byExternal[id] { paired.insert(o.id) } }
+        }
+        copy.allDay += moments.filter { !paired.contains($0.id) }.map {
+            AllDayFixture(moment: $0, opening: openingOf[$0.id], now: now)
+        }
         return copy
     }
 }

@@ -186,7 +186,7 @@ struct InspectorView: View {
 
     @ViewBuilder
     private var daySummary: some View {
-        let timed = dayEvents.filter { !$0.isAllDay }.sorted { $0.start < $1.start }
+        let timed = dayEvents.filter { !$0.isDrawnAsAllDay }.sorted { $0.start < $1.start }
         let hours = timed.reduce(0) { $0 + $1.duration } / 3600
 
         Text(dayFormatter.string(from: day))

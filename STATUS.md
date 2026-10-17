@@ -11752,3 +11752,27 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   be re-evaluated by SwiftUI after the render returns and trap SwiftData —
   renders keep them in `Slice3Render.keep` (as `Phase3Render.keep`).
 - New: `MoodleConnectTests` (11). Tests: **1209 passed / 0 failed**.
+
+### P3S3-T11 — the canvas: pills, chips, states (components.md §32.1, §37.1–§37.3, §2.1, §5, §6; layouts.md §3.2)
+
+- `Event.isDrawnAsAllDay` (all-day or a moment) at every §32.1 consumer: the
+  grid (`DayColumnView`), Month's timed list, the Day header's block count,
+  the inspector's day summary, the default scroll, conflicts, NEXT / REST OF
+  TODAY, keyboard selection; the filters count a moment as all-day; `Hide
+  done` applies. A Moodle span is an ordinary timed imported event.
+- `MockFixtures.adding(events:now:pairingOver:)`: moments become pills
+  (`AllDayFixture(moment:)` with a `MomentFixture` from
+  `MomentPresentation`); a paired opening is drawn nowhere; pairing runs over
+  every event (`MainWindow` passes them), so a filter never unpairs. §37.1's
+  sort: exam, then moments by instant · kind · title, then other deadline
+  pills, then `.eventAllDay`.
+- `AllDayItemView`: glyph · time (`typography.allDayTime`, `text.secondary`)
+  · `{code} · {title}`; the time dropped by `MomentPresentation.layout`
+  under 44pt of text, glyph alone below that; Month chips without time
+  (`showsMomentTime: false`); `AllDayItemView.style(for:)` adds `.past` to a
+  passed moment and drops the rail of openings and notices; hover help and
+  VoiceOver from §37.1. All-day pills and Month chips with an event are now
+  click-selectable (interactions.md §16.5), drawn selected when selected.
+- Renders §43 items 9–14 (`-p3ct11`, 10 frames, item 9 light and dark).
+  GAPS **G-115** (Sun 11 vs the Monday-start week).
+- New: `MoodleCanvasTests` (8). Tests: **1217 passed / 0 failed**.

@@ -140,7 +140,8 @@ struct DayColumnView: View {
     // MARK: Layout input
 
     private var timedEvents: [Event] {
-        events.filter { !$0.isAllDay }
+        // §32.1: a moment is never laid out on the grid.
+        events.filter { !$0.isDrawnAsAllDay }
     }
 
     private var layoutItems: [LayoutItem] {

@@ -69,8 +69,12 @@ struct AllDayRowView: View {
                         ForEach(entry.items.prefix(cap)) { item in
                             AllDayItemView(
                                 fixture: item,
-                                presentation: item.id == focusedItemID ? [.selected] : [],
+                                presentation: item.id == focusedItemID
+                                    || (item.eventID != nil && item.eventID == state.selectedEventID) ? [.selected] : [],
                                 now: now)
+                                // interactions.md §16.5: a click selects it and
+                                // opens the inspector, as any item.
+                                .onTapGesture { if let id = item.eventID { state.selectedEventID = id } }
                         }
                         if entry.items.count > cap {
                             Text("+\(entry.items.count - cap)")

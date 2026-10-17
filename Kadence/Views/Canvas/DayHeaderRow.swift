@@ -76,7 +76,8 @@ struct DayHeaderRow: View {
     private func summary(for day: Date) -> String {
         let calendar = Calendar.current
         let dayEvents = events.filter {
-            !$0.isAllDay && calendar.isDate($0.start, inSameDayAs: day)
+            // §32.1: a moment is not counted as a block.
+            !$0.isDrawnAsAllDay && calendar.isDate($0.start, inSameDayAs: day)
         }
         guard !dayEvents.isEmpty else { return "Nothing scheduled" }
         let hours = dayEvents.reduce(0) { $0 + $1.duration } / 3600

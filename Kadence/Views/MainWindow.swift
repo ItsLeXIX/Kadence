@@ -464,7 +464,7 @@ struct MainWindow: View {
     /// reason as `conflictedEventIDs`: `KadenceTests` drives it directly.
     /// The fixtures plus the store's all-day events (components.md §5.1, G-055).
     private var canvasFixtures: MockFixtures {
-        var copy = fixtures.adding(events: events.filter { state.isVisible($0) }, now: state.now)
+        var copy = fixtures.adding(events: events.filter { state.isVisible($0) }, now: state.now, pairingOver: events)
         // Slice 2 (§25): the bands and leg phrases from the stored legs.
         copy.travelInfo = travel.travelInfo()
         return copy
@@ -749,7 +749,7 @@ struct MainWindow: View {
     private func moveCursorOrSelection(by direction: Int) -> KeyPress.Result {
         if let selected = selectedEvent {
             let sameDay = eventsOnAnchorDay
-                .filter { !$0.isAllDay }
+                .filter { !$0.isDrawnAsAllDay }
                 .sorted { $0.start < $1.start }
             guard let index = sameDay.firstIndex(where: { $0.id == selected.id }) else { return .ignored }
             let next = index + direction
@@ -765,7 +765,7 @@ struct MainWindow: View {
 
     private func selectEdgeBlock(first: Bool) {
         let sameDay = eventsOnAnchorDay
-            .filter { !$0.isAllDay }
+            .filter { !$0.isDrawnAsAllDay }
             .sorted { $0.start < $1.start }
         state.selectedEventID = (first ? sameDay.first : sameDay.last)?.id
     }

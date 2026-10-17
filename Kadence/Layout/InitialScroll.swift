@@ -30,7 +30,7 @@ enum InitialScroll {
     static func minute(events: [Event], days: [Date], calendar: Calendar = .current) -> Int {
         let firstMinute = events
             .filter { event in
-                !event.isAllDay && !event.isCancelled && days.contains { day in calendar.isDate(event.start, inSameDayAs: day) }
+                !event.isDrawnAsAllDay && !event.isCancelled && days.contains { day in calendar.isDate(event.start, inSameDayAs: day) }
             }
             .map { event in
                 // components.md §31.4: its wall-clock time of day, so a 06:00

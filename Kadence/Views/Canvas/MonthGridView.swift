@@ -93,7 +93,8 @@ struct MonthGridView: View {
     /// anything here (components.md §31.4).
     static func timedEvents(_ events: [Event], on day: Date, calendar: Calendar) -> [Event] {
         events
-            .filter { !$0.isAllDay && calendar.isDate($0.start, inSameDayAs: day) }
+            // §37.3: a moment is a chip in the all-day section, not here.
+            .filter { !$0.isDrawnAsAllDay && calendar.isDate($0.start, inSameDayAs: day) }
             .sorted { $0.start < $1.start }
     }
 
@@ -128,8 +129,11 @@ struct MonthGridView: View {
             // All-day items sort above timed events, always.
             VStack(alignment: .leading, spacing: Tokens.Spacing.xxs) {
                 ForEach(allDay.prefix(maxRows)) { item in
-                    AllDayItemView(fixture: item, presentation: [], now: now)
+                    AllDayItemView(fixture: item,
+                                   presentation: item.eventID != nil && item.eventID == state.selectedEventID ? [.selected] : [],
+                                   now: now, showsMomentTime: false)
                         .frame(height: Tokens.Size.monthCellRowHeight)
+                        .onTapGesture { if let id = item.eventID { state.selectedEventID = id } }
                 }
                 ForEach(Array(timed.prefix(max(0, maxRows - allDay.count))), id: \.id) { event in
                     MonthChipView(

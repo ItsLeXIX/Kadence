@@ -39,6 +39,49 @@ extension AllDayFixture {
     }
 }
 
+/// components.md §37 (slice 3): what a moment pill draws, from
+/// `MomentPresentation` — the time, the text, the glyph, the rail, hover
+/// help and VoiceOver, and what §37.1's sort reads.
+struct MomentFixture: Equatable, Sendable {
+    var time: String
+    var text: String
+    var glyph: String
+    var hasRail: Bool
+    var hoverHelp: String
+    var accessibilityLabel: String
+    var instant: Date
+    var kind: ImportKind
+    var isDone: Bool
+    var isPast: Bool
+}
+
+extension AllDayFixture {
+    /// A moment item (§37.1): one day, the deadline pill's geometry.
+    @MainActor
+    init(moment event: Event, opening: Event?, now: Date, calendar: Calendar = .current,
+         sources: SourceDirectory = SourceCatalog.directory) {
+        let source = sources.info(for: event)
+        let item = MomentItem(event)
+        let presentation = item.map {
+            MomentPresentation($0, opening: opening.flatMap(MomentItem.init), sourceName: source.name,
+                               zone: calendar.timeZone)
+        }
+        self.init(title: event.title, startDay: calendar.startOfDay(for: event.start),
+                  endDay: calendar.startOfDay(for: event.start), kind: .deadline, source: source.key,
+                  sourceName: source.name, status: event.status == .done ? .done : .scheduled)
+        eventID = event.id
+        id = event.id
+        importKind = event.importKind
+        if let presentation {
+            moment = MomentFixture(time: presentation.time, text: presentation.text, glyph: MomentGlyph.of(event.importKind),
+                                   hasRail: presentation.hasRail, hoverHelp: presentation.hoverHelp,
+                                   accessibilityLabel: presentation.accessibilityLabel, instant: event.start,
+                                   kind: event.importKind, isDone: event.status == .done, isPast: event.start <= now)
+            glyph = moment?.glyph
+        }
+    }
+}
+
 struct AllDayFixture: Identifiable, Equatable, Sendable {
     var id = UUID()
     var title: String
@@ -58,6 +101,8 @@ struct AllDayFixture: Identifiable, Equatable, Sendable {
     var eventID: UUID?
     var glyph: String?
     var importKind: ImportKind?
+    /// Slice 3: set for a Moodle moment (§37).
+    var moment: MomentFixture?
 
     var blockKind: BlockKind {
         switch kind {

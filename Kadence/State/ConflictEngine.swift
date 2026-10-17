@@ -189,7 +189,8 @@ enum ConflictEngine {
     static func detect(events allEvents: [Event], routineBlocks: [RoutineBlock], today: Date? = nil) -> [Conflict] {
         let startOfToday = today.map { Calendar.current.startOfDay(for: $0) }
         let events = allEvents.filter { event in
-            !event.isCancelled && !event.isAllDay && (startOfToday.map { event.start >= $0 } ?? true)
+            // §32.1: a moment is never a party to a conflict.
+            !event.isCancelled && !event.isDrawnAsAllDay && (startOfToday.map { event.start >= $0 } ?? true)
         }
         var conflicts: [Conflict] = []
         for i in events.indices {

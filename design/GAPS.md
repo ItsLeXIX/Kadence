@@ -3638,3 +3638,12 @@ opens Mon 12 Oct, closes Tue 3 Nov). Built (P3S3-T04): the closing names its
 own day too — `RW, Mitarbeit Lektion 5, opens Monday 12 October at 09:30,
 closes Tuesday 3 November at 23:50, deadline, Moodle`. Hover help is
 specified (`opens 12 Oct 09:30, closes 23:50`) and built as written.
+
+### G-115 — OPEN (design, small). §43 item 9 puts Sun 11 Oct in "Week 12–18 Oct".
+
+`components.md` §43 item 9 lists `Sun 11 SWQM · Voting…` (past) in the Week
+12–18 Oct frame, but Kadence's weeks start on Monday (Europe/Vienna), so Sun
+11 Oct is in the week before. Built (P3S3-T11): the frame is Mon 12 – Sun 18
+Oct; Sun 11's past pill is asserted by test on its own date
+(`MoodleCanvasTests.weekOne`). Design to say whether item 9 wants the
+previous week's Sunday shown (e.g. a second frame).
