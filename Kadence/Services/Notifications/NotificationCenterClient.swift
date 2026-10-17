@@ -108,6 +108,9 @@ nonisolated struct NotificationCategorySpec: Sendable, Equatable {
         NotificationCategorySpec(identifier: NotificationCategory.readOnly.rawValue, actions: [done, open]),
         NotificationCategorySpec(identifier: NotificationCategory.result.rawValue, actions: []),
         NotificationCategorySpec(identifier: NotificationCategory.source.rawValue, actions: [open]),
+        // components.md §40.6 (slice 3).
+        NotificationCategorySpec(identifier: NotificationCategory.deadline.rawValue, actions: [done, open]),
+        NotificationCategorySpec(identifier: NotificationCategory.deadlines.rawValue, actions: [open]),
     ]
 }
 

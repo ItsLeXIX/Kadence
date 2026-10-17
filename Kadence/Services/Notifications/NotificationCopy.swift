@@ -57,7 +57,8 @@ nonisolated enum TravelCopy {
 /// The identifier prefixes Kadence owns (§27.6). Anything else in the
 /// centre is never touched.
 nonisolated enum NotificationKindPrefix: String, Sendable, CaseIterable {
-    case leave, start, result, sync
+    /// `due.` — the deadline reminders (components.md §40.6, slice 3).
+    case leave, start, result, sync, due
 
     static func of(_ identifier: String) -> NotificationKindPrefix? {
         allCases.first { identifier.hasPrefix($0.rawValue + ".") }
@@ -70,6 +71,10 @@ nonisolated enum NotificationCategory: String, Sendable, CaseIterable {
     case readOnly = "kadence.readOnly"
     case result = "kadence.result"
     case source = "kadence.source"
+    /// components.md §40.5 (slice 3): N9, one deadline — `Done` · `Open`.
+    case deadline = "kadence.deadline"
+    /// N10, a group — `Open` only.
+    case deadlines = "kadence.deadlines"
 }
 
 /// §27.4's levels. The recording centre records the level asked for.
@@ -171,6 +176,25 @@ nonisolated enum NotificationCopy {
             body: forbidden
                 ? "\(host) refused access for \(user). Sync is paused until you check the account in Kadence."
                 : "\(host) didn't accept the password for \(user). Sync is paused until you update it in Kadence.")
+    }
+
+    /// N8 for a Moodle source (components.md §40.7): the four states that
+    /// mean "the URL stopped working". Never the URL, its path or token.
+    static func n8Feed(name: String, host: String, state: SourceState) -> NotificationText? {
+        let body: String
+        switch state {
+        case .unauthorized:
+            body = "\(host) didn't accept the calendar URL. Sync is paused until you paste a new one in Kadence."
+        case .forbidden:
+            body = "\(host) refused access to the calendar. Sync is paused until you paste a new URL in Kadence."
+        case .feedNotFound:
+            body = "\(host) has no calendar at the saved URL. Paste a new one in Kadence."
+        case .notACalendar:
+            body = "\(host) sent a web page instead of the calendar. If you changed your FH password, Moodle made a new calendar URL."
+        default:
+            return nil
+        }
+        return NotificationText(title: "\(name) isn't syncing", body: body)
     }
 
     /// §27.6: `userInfo["hash"]`, SHA-256 of title, body and category.

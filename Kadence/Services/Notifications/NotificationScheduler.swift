@@ -212,7 +212,10 @@ final class NotificationScheduler {
         let records = (try? context.fetch(FetchDescriptor<NotificationRecord>())) ?? []
         let kinds = Dictionary(sources.map { ($0.id, $0.kind) }, uniquingKeysWith: { a, _ in a })
         let placeIDs = Set(places.map(\.id))
-        let snapshots = events.map(TravelEventSnapshot.init)
+        // §27.2 (amended 2026-10-16): no item of a Moodle source — moment or
+        // span — gets §27's notifications; deadlines get §40's.
+        let isMoodle = { (e: Event) in e.origin == .imported && e.importKind.isMoodle }
+        let snapshots = events.filter { !isMoodle($0) }.map(TravelEventSnapshot.init)
         let input = NotificationPlanner.Input(
             events: snapshots,
             legs: Dictionary(legs.map { ($0.eventID, LegValues($0)) }, uniquingKeysWith: { a, _ in a }),
@@ -235,7 +238,17 @@ final class NotificationScheduler {
             guard let sent = recordTimes[alert.identifier] else { return true }
             return !(sent <= now && sent == alert.fireAt)
         }
-        let plan = NotificationPlanner.plan(input) + alerts
+        // §40: the deadline reminders, under the same window and cap.
+        let names = input.sourceNames
+        let deadlineRule = rules.first { $0.kind == .deadline }.map(DeadlineRule.init) ?? DeadlineRule()
+        let deadlines = DeadlinePlanner.plan(DeadlinePlanner.Input(
+            deadlines: events.filter(isMoodle).compactMap { DeadlineSnapshot($0, sourceName: names[$0.sourceID ?? ""] ?? "") },
+            rule: deadlineRule, windows: input.windows, records: input.records, now: now, isCatchUp: catchUp,
+            calendar: calendar))
+            .filter { $0.atOnce || $0.fireAt <= now.addingTimeInterval(NotificationPlanner.window) }
+        let timed = (NotificationPlanner.plan(input) + deadlines)
+            .sorted { ($0.fireAt, $0.identifier) < ($1.fireAt, $1.identifier) }
+        let plan = Array(timed.prefix(NotificationPlanner.cap)) + alerts
         return plan.sorted { ($0.fireAt, $0.identifier) < ($1.fireAt, $1.identifier) }
     }
 
@@ -304,10 +317,35 @@ final class NotificationScheduler {
                                 uniquingKeysWith: { a, _ in a })
         let stale = delivered.map(\.identifier).filter { id in
             guard let prefix = NotificationKindPrefix.of(id), prefix != .sync else { return false }
+            if prefix == .due { return dueIsStale(id, events: events, now: now) }
             guard let eventID = Self.eventID(in: id), let event = events[eventID] else { return true }
             return event.end <= now || event.status != .scheduled || event.isCancelled
         }
         if !stale.isEmpty { await centre.removeDelivered(stale) }
+    }
+
+    /// §40.6: a delivered deadline reminder whose deadline has passed, is
+    /// done, was deleted or is now a notice; a group when every member is
+    /// (the members: the Moodle deadlines due on its date).
+    private func dueIsStale(_ id: String, events: [UUID: Event], now: Date) -> Bool {
+        func gone(_ e: Event?) -> Bool {
+            guard let e else { return true }
+            return e.start <= now || e.status == .done || e.importKind != .deadline
+        }
+        if let day = Self.groupDay(in: id) {
+            let members = events.values.filter {
+                $0.origin == .imported && $0.importKind == .deadline && DeadlineCopy.dayStamp($0.start, calendar) == day
+            }
+            return members.allSatisfy { gone($0) }
+        }
+        return gone(Self.eventID(in: id).flatMap { events[$0] })
+    }
+
+    /// `due.day.{yyyyMMdd}.{F}` → `yyyyMMdd`.
+    nonisolated static func groupDay(in identifier: String) -> String? {
+        let parts = identifier.split(separator: ".")
+        guard parts.count == 4, parts[0] == "due", parts[1] == "day" else { return nil }
+        return String(parts[2])
     }
 
     /// Records go with their event, and a day after it ended.
@@ -316,6 +354,12 @@ final class NotificationScheduler {
                                 uniquingKeysWith: { a, _ in a })
         for record in (try? context.fetch(FetchDescriptor<NotificationRecord>())) ?? [] {
             guard record.kind != NotificationKindPrefix.sync.rawValue else { continue }
+            // A deadline group's record: kept until a day after its date.
+            if let day = Self.groupDay(in: record.identifier) {
+                let parsed = DeadlineCopy.dayStamp(now, calendar)
+                if day < parsed, now.timeIntervalSince(record.fireAt) > Self.recordKeep { context.delete(record) }
+                continue
+            }
             guard let id = UUID(uuidString: record.subjectID), let event = events[id] else {
                 context.delete(record)
                 continue
@@ -344,14 +388,19 @@ final class NotificationScheduler {
         case .removed(let id):
             clearSyncAlert(id)
         case .transition(let id, let from, let to, let userStarted, let frontmost):
-            if paused.contains(from), !paused.contains(to) { return clearSyncAlert(id) }
-            guard paused.contains(to), !paused.contains(from), !userStarted, !frontmost else { return }
+            let source = ((try? context.fetch(FetchDescriptor<Source>())) ?? []).first(where: { $0.id == id })
+            // §40.7: for a Moodle source, `feedNotFound` and `notACalendar`
+            // also mean "the URL stopped working" (only the first two pause).
+            let alerting = source?.connection == .icsFeed
+                ? paused.union([.feedNotFound, .notACalendar]) : paused
+            if alerting.contains(from), !alerting.contains(to) { return clearSyncAlert(id) }
+            guard alerting.contains(to), !alerting.contains(from), !userStarted, !frontmost else { return }
             let rules = (try? context.fetch(FetchDescriptor<NotificationRule>())) ?? []
-            guard rules.first(where: { $0.kind == .syncPaused })?.isEnabled ?? true,
-                  let source = ((try? context.fetch(FetchDescriptor<Source>())) ?? []).first(where: { $0.id == id })
-            else { return }
-            let text = NotificationCopy.n8(name: source.displayName, host: source.host ?? "",
-                                           user: source.username ?? "", forbidden: to == .forbidden)
+            guard rules.first(where: { $0.kind == .syncPaused })?.isEnabled ?? true, let source else { return }
+            let feedText = source.connection == .icsFeed
+                ? NotificationCopy.n8Feed(name: source.displayName, host: source.host ?? "", state: to) : nil
+            let text = feedText ?? NotificationCopy.n8(name: source.displayName, host: source.host ?? "",
+                                                       user: source.username ?? "", forbidden: to == .forbidden)
             let now = clock.now
             let windows = ((try? context.fetch(FetchDescriptor<TimeWindow>())) ?? [])
                 .filter { $0.kind == .protected }.map(QuietWindow.init)

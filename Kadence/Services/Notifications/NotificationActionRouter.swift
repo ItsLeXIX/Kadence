@@ -87,6 +87,16 @@ final class NotificationActionRouter {
         switch response.action {
         case .dismiss:
             return
+        case .open where response.category == .deadlines:
+            // components.md §40.6: a group pages to the due date and selects
+            // nothing (`subject` is the date's `yyyyMMdd`).
+            if let day = response.subjectID.flatMap(dayDate) {
+                calendarState?.anchor = day
+            } else {
+                calendarState?.goToToday()
+            }
+            calendarState?.selectedEventID = nil
+            request(.event(nil))
         case .open:
             let event = event(response.subjectID)
             if let event {
@@ -118,6 +128,13 @@ final class NotificationActionRouter {
                 return
             }
         }
+    }
+
+    /// `yyyyMMdd` → noon of that local date (any time on the day pages to it).
+    private func dayDate(_ stamp: String) -> Date? {
+        guard stamp.count == 8, let y = Int(stamp.prefix(4)), let m = Int(stamp.dropFirst(4).prefix(2)),
+              let d = Int(stamp.suffix(2)) else { return nil }
+        return calendar.date(from: DateComponents(year: y, month: m, day: d, hour: 12))
     }
 
     private func request(_ open: OpenRequest) {

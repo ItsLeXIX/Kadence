@@ -11647,3 +11647,42 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   `markedDoneDueAt` (task 6), so `feedChanged`'s E1 leaves `900008` done
   with the condition true; Mark Not Done then Done clears it.
 - New: `DeadlineDoneTests` (4). Tests: **1179 passed / 0 failed**.
+
+### P3S3-T08 — deadline notifications (components.md §40, §41, §27 amended; §43.2, §43.3 C3/C4)
+
+- `Kadence/Services/Notifications/DeadlinePlanner.swift` (pure):
+  `DeadlineSnapshot` (§40.2: a not-done deadline moment; never an opening,
+  a notice or a span), `DeadlineRule` (§42.3's five fields), the early
+  reminder via `WallClock` on the calendar day `aheadDays` before, the final
+  one as `due − lead`; §40.3's quiet rule (held to a protected span's end,
+  back-to-back spans chained; at or past the due moment → the first span's
+  start − 1 min; no time left → not planned); the < 60 min collapse; §40.4's
+  grouping (same fire time, same local due date); N9 / N10 copy exactly
+  (`DeadlineCopy`); identifiers `due.{id}.ahead|close` and
+  `due.day.{yyyyMMdd}.{F}`; `.active`, default sound; records consulted for
+  the single and the group identifier both; §40.6's catch-up (launch / wake
+  only; one per deadline; not when its other reminder comes within 60 min;
+  "at once" run through the quiet rule, so inside Sleep it waits for the
+  span's end if that is before the due moment, else nothing; a caught-up
+  group keeps its planned identifier, as §43.2's `due.day.20261014.
+  20261013T1600Z`).
+- `NotificationScheduler`: Moodle items are left out of §27's planner
+  (§27.2 amended — no `start.`/`leave.` for a moment or a span); the
+  deadline plan joins the event plan under the same 48-hour window and cap
+  of 48; `due.` is an owned prefix; delivered `due.` reminders are cleared
+  when their deadline has passed, is done, deleted or now a notice — a group
+  when every Moodle deadline due on its date is; group records are kept
+  until a day after their date. N8 (§40.7) for a Moodle source on
+  `unauthorized`, `forbidden`, `feedNotFound`, `notACalendar` from a
+  background sync, with the feed bodies (`NotificationCopy.n8Feed`); leaving
+  the four states removes it.
+- Categories `kadence.deadline` (`Done` · `Open`) and `kadence.deadlines`
+  (`Open`). `NotificationActionRouter`: `Done` on a deadline is the one
+  `Mark Done` step (already done → nothing); `Open` on a group pages to its
+  date and selects nothing; `Open` on a single selects it.
+- New: `DeadlineNotificationTests` (12): §43.2's three tables exactly, the
+  rule variants, catch-up at 21:30 / 22:30 / 00:30, C3, C4, the spring-
+  forward early reminder, §40.3's three examples, the collapse, the
+  forbidden words across 70 days of plans, group shrink / grow / body
+  change, removals, delivered clearing, the actions, N8 for the four feed
+  states (and none from `Sync Now`). Tests: **1191 passed / 0 failed**.
