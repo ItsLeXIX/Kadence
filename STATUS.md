@@ -11717,3 +11717,38 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   crashed and took 771 tests with it in one run). The helpers now keep the
   container; no app code was involved.
 - New: `MoodleReviewTests` (7). Tests: **1198 passed / 0 failed**.
+
+### P3S3-T10 — connecting: the sheet, Settings ▸ Sources, the sidebar (layouts.md §2.1, §11, §15, §16; components.md §33, §34.3; interactions.md §16.1, §16.2, §16.4)
+
+- `MoodleSheetModel` (`Kadence/Views/Sources/MoodleSheetModel.swift`): step 1
+  (name, the URL as a `SecureField`'s text, live §33.2 validation with V9
+  from the other Moodle sources' Keychain items and V10 in Replace, the
+  parsed line, `Connecting to {host}…`, §16.1's failure table with its focus
+  rules), step 2 (`Import {name}`, the display form, the range line, §16.2's
+  seven sentences with their singular forms and colours, the empty form),
+  Replace's Update form (`Update {name}`, `Items before today are not
+  changed.`, no done sentence, `Save`). `importNow` writes Keychain item →
+  `Source` (`Source.moodleFeed`, the next palette slot) → items, then logs
+  the `import` line; a Keychain failure writes nothing (`URL not saved`).
+  `save` updates the item in place, applies the fetch as a sync (same
+  `Event.id`s) and clears the pause; a Keychain failure keeps the old URL.
+  The URL field's VoiceOver value is `filled` / `empty`.
+- `MoodleSheet` (the view), presented by Settings for `.connectMoodle` /
+  `.replaceMoodle`. Settings ▸ Sources: `Nothing connected yet.` with both
+  buttons; `+` a pull-down (`Connect Timetable…` · `Connect Moodle…`); a
+  Moodle source's detail (`URL moodle.technikum-wien.at/…`, not selectable,
+  `Replace URL…`, `Sync` default `Every hour`, no Account / Calendar row);
+  renaming updates the feed item's label; removal deletes items, source and
+  the feed Keychain item with §16.4's alert text and follow-up.
+- Sidebar: `Connect Moodle…` row (each first-run row gone on its own
+  condition); a Moodle row's context menu adds `Replace URL…`, its `Edit
+  Source…` opens Settings with it selected. File ▸ Connect Moodle… (no key
+  equivalent).
+- Renders: `Slice3Render` + `Scripts/capture-p3c-renders.sh`; §43 items 1–8
+  as 23 `-p3ct10` frames in `screenshots/3c/` (pre-flight passed before the
+  capture run). DEVIATIONS **B58** (offscreen renders; the open `+` menu
+  not drawable).
+- Found while testing: a render whose model or container is released can
+  be re-evaluated by SwiftUI after the render returns and trap SwiftData —
+  renders keep them in `Slice3Render.keep` (as `Phase3Render.keep`).
+- New: `MoodleConnectTests` (11). Tests: **1209 passed / 0 failed**.

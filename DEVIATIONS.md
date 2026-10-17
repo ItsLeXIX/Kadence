@@ -2526,3 +2526,20 @@ order they were logged.
   gains `feedNotFound` and `urlMissing`. Also: a same-host `303` is followed
   once like §34.2's `301`/`302`/`307`/`308` (Moodle sends none; the table's
   "any other status" row would have made it a `serverError`).
+- **B58 — slice 3's §43 frames are offscreen renders of the real views, as
+  B55** (`components.md` §43; §17.2 rule 3). Each frame is drawn by a test
+  (`Slice3Render`) from the real view — `MoodleSheetContent` on a real
+  `MoodleSheetModel`, `SourcesSettingsView`, the sidebar rows, and (tasks
+  11–14) the canvas, inspector, menu bar and Settings ▸ Notifications — on
+  an in-memory store seeded by the review datasets' own seeding, the mock
+  feed transport and the in-memory secret store, and copied out of the result
+  bundle by `Scripts/capture-p3c-renders.sh`. No app is launched and no input
+  is sent: a live `-KadenceReview` launch has no injected clock (§43's
+  frames pin Mon 12 Oct 06:00, Tue 13 Oct 20:00 …) and the shell sandbox
+  cannot read a launch's container (B55). Not drawn: **the `+` pull-down
+  open** (§43 item 2) — a menu opens in its own window, which an offscreen
+  render cannot show; the closed `+` and the empty state's two buttons are
+  in `settings-sources-empty`, and the menu's two items are asserted by
+  test. Step 1 `Connecting…` (item 5) is the real model put in its
+  connecting phase (holding a fetch open would need a wall-clock wait, run
+  rule 9).

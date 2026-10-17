@@ -54,6 +54,12 @@ enum SourceActionRouting {
 nonisolated enum SidebarSourcesRule {
     static func showsConnectRow(connectedCount: Int) -> Bool { connectedCount == 0 }
 
+    /// layouts.md §2.1 (amended 2026-10-16): each row disappears on its own
+    /// condition — `Connect Timetable…` once a timetable (CalDAV) source
+    /// exists, `Connect Moodle…` once a Moodle source does.
+    static func showsConnectTimetableRow(_ connections: [SourceConnection]) -> Bool { !connections.contains(.caldav) }
+    static func showsConnectMoodleRow(_ connections: [SourceConnection]) -> Bool { !connections.contains(.icsFeed) }
+
     /// components.md §10.2: the Needs attention row is hidden entirely at
     /// zero — no empty-state counter, no zero badge.
     static func showsNeedsAttentionRow(count: Int) -> Bool { count > 0 }
@@ -143,10 +149,26 @@ struct SidebarSourceRow: View {
                 Button("Sync Now") { sync.trigger(.syncNow, sourceID: source.id) }
                 Button("Show Sync Status") { isPopoverShown = true }
                 Divider()
+                // layouts.md §2.1 (amended 2026-10-16): a Moodle row adds
+                // `Replace URL…`; its `Edit Source…` is Settings with the
+                // source selected (no account sheet to open).
+                if source.connection == .icsFeed {
+                    Button("Replace URL…") {
+                        router.selectedSourceID = source.id
+                        router.sheet = .replaceMoodle(sourceID: source.id)
+                        openSettings()
+                    }
+                    Button("Edit Source…") {
+                        router.selectedSourceID = source.id
+                        router.settingsTab = .sources
+                        openSettings()
+                    }
+                } else {
                 Button("Edit Source…") {
                     router.selectedSourceID = source.id
                     router.sheet = .edit(sourceID: source.id, focus: .name, autoConnect: false)
                     openSettings()
+                }
                 }
                 Divider()
                 Button("Remove Source…") { confirmRemoval() }
@@ -157,13 +179,15 @@ struct SidebarSourceRow: View {
 
 /// layouts.md §2.1: first run, no connected source — a borderless
 /// link-style button, accent, aligned with the source names, no swatch.
+/// Slice 3: the same row for `Connect Moodle…` (`moodle`).
 struct ConnectTimetableRow: View {
     @Environment(SourcesRouter.self) private var router
     @Environment(\.openSettings) private var openSettings
+    var moodle = false
 
     var body: some View {
-        Button("Connect Timetable…") {
-            router.sheet = .connect
+        Button(moodle ? "Connect Moodle…" : "Connect Timetable…") {
+            router.sheet = moodle ? .connectMoodle : .connect
             openSettings()
         }
         .buttonStyle(.borderless)
@@ -181,11 +205,13 @@ extension SidebarSourceRow {
         let count = SyncApplier.events(of: source, in: context).count
         guard SourcesSettingsModel.runRemovalAlert(SourcesSettingsModel.makeRemovalAlert(source, eventCount: count)) else { return }
         let name = source.displayName
+        let isFeed = source.connection == .icsFeed
         guard let outcome = try? SourcesSettingsModel.remove(source, context: context, secrets: sync.secrets, sync: sync,
                                                              state: state, undo: nil) else { return }
         if outcome.keychainFailed {
             let followUp = NSAlert()
-            followUp.messageText = SourcesSettingsModel.keychainFollowUp(name: name)
+            followUp.messageText = isFeed ? MoodleSourceSettings.keychainFollowUp(name: name)
+                                          : SourcesSettingsModel.keychainFollowUp(name: name)
             followUp.addButton(withTitle: "OK")
             followUp.runModal()
         }

@@ -76,6 +76,11 @@ struct KadenceCommands: Commands {
                 router.sheet = .connect
                 openSettings()
             }
+            // interactions.md §16.1: below it, no key equivalent.
+            Button("Connect Moodle…") {
+                router.sheet = .connectMoodle
+                openSettings()
+            }
         }
 
         // These go INTO the system View menu rather than a CommandMenu named

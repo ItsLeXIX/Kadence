@@ -74,6 +74,9 @@ enum SourcesSettingsModel {
         (21_600, "Every 6 hours"), (43_200, "Every 12 hours"), (86_400, "Every day"),
     ]
 
+    /// layouts.md §11's empty state (amended 2026-10-16).
+    static let emptyLine = "Nothing connected yet."
+
     static func intervalLabel(_ seconds: Int) -> String {
         intervals.first { $0.seconds == seconds }?.label ?? "Every 30 minutes"
     }
@@ -95,7 +98,10 @@ enum SourcesSettingsModel {
         guard !name.isEmpty, name != source.displayName else { return source.displayName }
         source.displayName = name
         try? context.save()
-        if let account = secretAccount(source) {
+        // A feed's Keychain label follows (components.md §33.3).
+        if source.connection == .icsFeed {
+            try? secrets.updateFeedLabel(feedItemLabel(displayName: name), sourceID: source.id)
+        } else if let account = secretAccount(source) {
             try? secrets.updateInfo(.forSource(id: source.id, displayName: name), for: account)
         }
         return name
@@ -129,7 +135,10 @@ enum SourcesSettingsModel {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = removalMessage(source)
-        alert.informativeText = removalInformative(eventCount: eventCount)
+        // interactions.md §16.4 (slice 3): a Moodle source's own text.
+        alert.informativeText = source.connection == .icsFeed
+            ? MoodleSourceSettings.removalInformative(itemCount: eventCount)
+            : removalInformative(eventCount: eventCount)
         let cancel = alert.addButton(withTitle: "Cancel")
         cancel.keyEquivalent = "\r"
         let remove = alert.addButton(withTitle: "Remove")
@@ -160,11 +169,16 @@ enum SourcesSettingsModel {
     static func remove(_ source: Source, context: ModelContext, secrets: any SecretStore,
                        sync: SyncCoordinator?, state: CalendarState?, undo: UndoStack?) throws -> RemovalOutcome {
         let account = secretAccount(source)
+        let isFeed = source.connection == .icsFeed
+        let sourceID = source.id
         sync?.sourceRemoved(source.id)
         let ids = try SyncApplier.remove(source, context: context)
         SyncApplier.finish(SyncApplier.Outcome(deletedIDs: ids, wrote: true), state: state, undo: undo)
         var failed = false
-        if let account {
+        if isFeed {
+            // interactions.md §16.4: the calendar URL's item goes too.
+            do { try secrets.deleteFeedURL(sourceID: sourceID) } catch { failed = true }
+        } else if let account {
             do { try secrets.delete(account) } catch { failed = true }
         }
         return RemovalOutcome(removedEventIDs: ids, keychainFailed: failed)
@@ -231,6 +245,8 @@ struct SourcesSettingsView: View {
         .sheet(item: $router.sheet) { sheet in
             if sheet.isCalDAV {
                 ConnectSheet(request: sheet)
+            } else {
+                MoodleSheet(request: sheet)
             }
         }
     }
@@ -254,8 +270,15 @@ struct SourcesSettingsView: View {
             }
             .listStyle(.bordered)
             HStack(spacing: 0) {
-                Button { router.sheet = .connect } label: { Image(systemName: "plus") }
-                    .accessibilityLabel("Connect Timetable…")
+                // layouts.md §11 (amended 2026-10-16): `+` is a pull-down.
+                Menu {
+                    Button("Connect Timetable…") { router.sheet = .connect }
+                    Button("Connect Moodle…") { router.sheet = .connectMoodle }
+                } label: { Image(systemName: "plus") }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .accessibilityLabel("Connect")
                 Button { if let s = selected { confirmRemoval(of: s) } } label: { Image(systemName: "minus") }
                     .disabled(selected == nil)
                     .accessibilityLabel("Remove Source…")
@@ -270,10 +293,14 @@ struct SourcesSettingsView: View {
 
     private var emptyState: some View {
         VStack(spacing: Tokens.Spacing.lg) {
-            Text("No timetable connected.")
+            Text(SourcesSettingsModel.emptyLine)
                 .typeStyle(.inspectorValue)
                 .foregroundStyle(Tokens.Color.Text.secondary)
-            Button("Connect Timetable…") { router.sheet = .connect }
+            HStack(spacing: Tokens.Spacing.sm) {
+                Button("Connect Timetable…") { router.sheet = .connect }
+                Button("Connect Moodle…") { router.sheet = .connectMoodle }
+            }
+            .buttonStyle(.bordered)
         }
     }
 
@@ -284,13 +311,15 @@ struct SourcesSettingsView: View {
         let alert = SourcesSettingsModel.makeRemovalAlert(source, eventCount: count)
         guard SourcesSettingsModel.runRemovalAlert(alert) else { return }
         let name = source.displayName
+        let isFeed = source.connection == .icsFeed
         let secrets = sync.secrets
         guard let outcome = try? SourcesSettingsModel.remove(source, context: context, secrets: secrets, sync: sync,
                                                              state: calendarState, undo: undo) else { return }
         router.selectedSourceID = sources.first?.id
         if outcome.keychainFailed {
             let followUp = NSAlert()
-            followUp.messageText = SourcesSettingsModel.keychainFollowUp(name: name)
+            followUp.messageText = isFeed ? MoodleSourceSettings.keychainFollowUp(name: name)
+                                          : SourcesSettingsModel.keychainFollowUp(name: name)
             followUp.addButton(withTitle: "OK")
             followUp.runModal()
         }
@@ -321,6 +350,20 @@ struct SourceDetailView: View {
                     .focused($nameFocused)
                     .onSubmit(commitName)
                     .onChange(of: nameFocused) { _, focused in if !focused { commitName() } }
+                if source.connection == .icsFeed {
+                    // layouts.md §15: the display form, not selectable; no
+                    // Account, Calendar or password row.
+                    LabeledContent("URL") {
+                        VStack(alignment: .trailing, spacing: Tokens.Spacing.sm) {
+                            Text(MoodleSourceSettings.urlRow(source))
+                                .typeStyle(.inspectorValue)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Button("Replace URL…") { router.sheet = .replaceMoodle(sourceID: source.id) }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                } else {
                 LabeledContent("Account") {
                     VStack(alignment: .trailing, spacing: Tokens.Spacing.sm) {
                         Text(SourcesSettingsModel.accountRow(source))
@@ -337,6 +380,7 @@ struct SourceDetailView: View {
                     Text(calendars.value)
                         .lineLimit(nil)  // before the style: the innermost line limit wins
                         .typeStyle(.inspectorValue)
+                }
                 }
                 Picker("Sync", selection: Binding(get: { source.pollInterval }, set: { setInterval($0) })) {
                     ForEach(SourcesSettingsModel.intervals, id: \.seconds) { option in

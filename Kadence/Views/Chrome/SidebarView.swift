@@ -81,8 +81,12 @@ struct SidebarView: View {
                 ForEach(sortedRecords, id: \.id) { source in
                     SidebarSourceRow(source: source)
                 }
-                if SidebarSourcesRule.showsConnectRow(connectedCount: sortedRecords.filter(\.isConnected).count) {
+                let connections = sortedRecords.map(\.connection)
+                if SidebarSourcesRule.showsConnectTimetableRow(connections) {
                     ConnectTimetableRow()
+                }
+                if SidebarSourcesRule.showsConnectMoodleRow(connections) {
+                    ConnectTimetableRow(moodle: true)
                 }
             } header: {
                 Text("Sources")
