@@ -457,3 +457,30 @@ Week opens at the earliest start in the visible week when anything starts before
 
 ## 2026-10-16 — Phase 3 slice 2 accepted.
 Shipped: leave-by from Apple Maps — places confirmed by the user, the campus looked up by Kadence at the first launch, a usual way to travel with per-pair modes, a buffer, an ETA cache and a sparing queue with refreshes at T−3 h and T−45 min; failures said as estimates or "unavailable" with the reason, never guessed, and no surface fills in an origin, reason, place or number it does not have; where you are used for the next departure only and never kept; the live band, the inspector's Place, Leave by and Origin, the menu bar's Leave / Leave now and the takeover, the popover's leave line on up to two lines; notifications (one per event, absolute times, time-sensitive leave-by, held by protected windows, Done / Snooze / Open, sync paused told once); every time of day drawn, materialised, held and scheduled at wall-clock time, so Sun 25 Oct and Sun 29 Mar keep 24 rows and routine blocks, Sleep and leave-bys at their clock times. 1113 tests green. Review frames for slice 2's fixes were rendered offscreen from the real views at a pinned clock (B55). Verified on Parsa's real store on 16 Oct: Home confirmed, FH Technikum Wien found on its own, Home ↔ FH set to Walking (17 min), leave-bys correct across the week (from Home after an online lecture, no travel between lectures at the campus), notification permission asked once, log lines without places. Deferred: A41; G-094, G-095, G-101; G-103 (a review fixture's timestamp, next slice). Open with Parsa: G-096 (time-sensitive capability, optional).
+
+## 2026-10-16 — Moodle deadlines come from the calendar export URL; the URL is the secret.
+One HTTPS GET of Moodle's "Get calendar URL" (All events, Recent and upcoming). The URL is kept only in a Keychain generic-password item and is shown and logged as moodle.technikum-wien.at/…. It never appears in the store, UserDefaults, a log, an error, a notification, the pasteboard or a screenshot. 401/403 pause automatic sync. Replace URL… swaps the token in place and keeps items and done marks.
+
+## 2026-10-16 — A Moodle item is an imported event, not a work item.
+Deadline, opening or notice, read-only, identified by UID, with no co-teaching merge. A WorkItem will link to it later (G-104). Deadlines are built before work items; work items and time logging are the next slice.
+
+## 2026-10-16 — A moment is drawn in the all-day row, at its instant's local date and time, and nothing is added to it.
+Never on the hour grid, never in conflicts, never NEXT over a timed item. No overdue look. An opening and its closing on the same day read as one window.
+
+## 2026-10-16 — Kinds come from Moodle's own words only; the raw title is always reachable.
+The eight wordings seen in the real feed (is due, ist fällig., ist fällig, closes, endet, Anmeldeende:, opens, beginnt). Anything else is a notice: shown, never reminded, and the app says so. The kind word is removed from the shown title; the raw title is in the inspector.
+
+## 2026-10-16 — Done is Kadence's mark, and a moved deadline keeps it.
+Amends 2026-10-08 for Moodle items: done means handed in, stored locally, never sent anywhere. When a done deadline moves, the inspector says the due time changed and what it was. No Skip.
+
+## 2026-10-16 — A feed deletes only inside the window it covers, and an empty feed only after 12 hours.
+The window ends at the fetch time plus the longest look-ahead seen, minus a day. The past is never rewritten; items that age out are kept as history.
+
+## 2026-10-16 — Deadline reminders: the day before at 18:00 and 2 hours before.
+Absolute times. Protected windows hold them but never past the deadline. Grouped by fire time and due date. None for done items, none for notices.
+
+## 2026-10-16 — The menu bar shows a deadline only when nothing timed is left today.
+Then it reads Due HH:mm · title; the popover lists DUE TODAY.
+
+## 2026-10-16 — Slice 3 defaults, confirmed by Parsa.
+Poll every hour. Reminders the day before at 18:00 and 2 hours before. Openings folded into their deadline; unpaired openings shown on their own. Unrecognised items shown but not reminded. Done kept when a deadline moves. The Due state in the menu bar. The course code first in labels. Bilingual "German | English" titles kept whole. Empty-feed proof after 12 hours. feedNotFound and notACalendar notified once. Closes G-113.

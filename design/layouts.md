@@ -113,6 +113,16 @@ checkbox. Row height stays 24.
   (§12). It disappears once any connected source exists. This is BRIEF-DESIGN
   item 11's "first-run with nothing connected" state for this slice: one quiet
   line, no illustration, no empty-state panel.
+- *(Amended 2026-10-16, Phase 3 slice 3.)* **`Connect Moodle…`** — the same
+  kind of row, directly below `Connect Timetable…` (or alone, once a timetable
+  is connected). It opens Settings ▸ Sources with the Moodle sheet open
+  (§16) and disappears once a Moodle source exists. Each row disappears on
+  its own condition; neither is ever shown twice.
+- *(Amended 2026-10-16.)* **Context menu on a Moodle source's row:** `Sync
+  Now` · `Show Sync Status` · separator · `Replace URL…` · `Edit Source…`
+  (Settings ▸ Sources with the source selected, focus in `Name`) ·
+  separator · `Remove Source…`. `↩` opens its source popover, as for the
+  timetable.
 
 ---
 
@@ -952,6 +962,12 @@ Content size is `size.settingsWindowWidth` × `size.settingsWindowHeight`
     `color.text.secondary`), and a `Connect Timetable…` button beneath it,
     `spacing.lg` apart, both vertically centred.
   - No illustration.
+  - *(Amended 2026-10-16, Phase 3 slice 3.)* The line reads **`Nothing
+    connected yet.`** and two `.bordered` buttons sit beneath it side by
+    side, `spacing.sm` apart: `Connect Timetable…` · `Connect Moodle…`. The
+    **`+`** button becomes a pull-down (`Menu`, `.borderless`, the same
+    small square, `+` glyph, no menu indicator) with `Connect Timetable…`
+    and `Connect Moodle…`. A Moodle source's detail is §15.
 - **Ways to reach Settings:**
   - `⌘,`
   - the sidebar's `Connect Timetable…` row
@@ -1428,3 +1444,311 @@ A grouped form, one optional status block above one section.
 - **Footer** of the section, `color.text.secondary`, the quiet rule in one
   sentence as drawn above.
 - Every change triggers a notification pass (`components.md` §27.6).
+
+---
+
+# Phase 3 slice 3 — additions
+
+Written 2026-10-16. §2.1 and §11 above carry the in-place amendments. Rules:
+`components.md` §32–§43.
+
+## 15. Settings ▸ Sources — a Moodle source selected
+
+```
++------------------------------------------------------------------+
+|        [ link ] Sources  [ mappin ] Travel  [ bell ] Notifications|
++--------------------+---------------------------------------------+
+| ■ University time… | Up to date                                  |
+| ■ Moodle           | Synced 14:02 · 29 items                     |
+|                    | Last change today 14:02: 1 added            |
+|                    |                              [ Sync Now ]   |
+|                    | ------------------------------------------- |
+|                    |      Name  [Moodle                     ]    |
+|                    |       URL  moodle.technikum-wien.at/…       |
+|                    |                          [ Replace URL… ]   |
+|                    |      Sync  [ Every hour            ⌄ ]      |
+|                    |                                             |
+| [+][−]             | [ Remove Source… ]                          |
++--------------------+---------------------------------------------+
+```
+
+- **List row**: swatch (`tray.2.fill`) + name + status slot, as §11.
+- **Status block**: §11's anatomy with `components.md` §34.3's copy
+  (`Calendar URL refused` … `Replace URL…` as the primary action where the
+  table says so). Not the default button.
+- **Form**:
+  - `Name` — as §11 (renaming updates the Keychain label, `components.md`
+    §33.3).
+  - `URL` — **`moodle.technikum-wien.at/…`** (`inspectorValue`, `lineLimit`
+    1), the display form of `components.md` §33.4. **Not selectable**: there
+    is nothing to copy, and a selectable string would invite the belief that
+    it is the URL. Below it, trailing, **`Replace URL…`** (`.bordered`),
+    which opens §16 in Replace mode (§16.3).
+  - `Sync` — §11's seven choices; **default `Every hour`** for a Moodle
+    source (`components.md` §34.6).
+  - No `Account`, `Calendar` or password row.
+- **`Remove Source…`** — `interactions.md` §16.4's alert.
+
+## 16. The Moodle sheet
+
+On the Settings window, width `size.connectSheetWidth` (440), height
+intrinsic, padding `spacing.xxxl`, two steps in one sheet with
+`motion.viewChange` (§12's anatomy). **Nothing is written until step 2's
+`Import` / `Save`**: no Keychain item, no `Source`, no item. Cancelling at
+any point leaves nothing behind; the pasted URL and the fetched items live in
+the sheet's memory only and go with it.
+
+### 16.1 Step 1 — Connect
+
+```
++------------------------------------------------+
+| Connect Moodle                                 |  inspectorTitle
+| Kadence reads your deadlines from Moodle's     |  inspectorValue, text.secondary
+| calendar export. In Moodle, open Calendar ▸    |
+| Import or export calendars ▸ Export calendar,  |
+| choose All events and Recent and upcoming,     |
+| then Get calendar URL, and paste the URL here. |
+|                                                |
+|      Name  [Moodle                          ]  |
+|       URL  [••••••••••••••••••••••••••••••• ]  |
+|            moodle.technikum-wien.at/… · All    |  parsed line / message
+|            events, recent and upcoming         |  blockMeta, text.secondary
+|                                                |
+| The URL works like a password: anyone who has  |  blockMeta, text.secondary
+| it can read your Moodle calendar. Kadence keeps|
+| it in the macOS Keychain and shows only its    |
+| server.                                        |
+|                                                |
+|                       [ Cancel ]  [ Connect ]  |
++------------------------------------------------+
+```
+
+- **Fields** (`Form`, labels trailing-aligned):
+  - `Name` — default `Moodle`.
+  - `URL` — a **`SecureField`**, placeholder
+    `https://moodle.technikum-wien.at/calendar/export_execute.php?…`,
+    autocorrection off. **Focus starts here.** Pasting is the expected input
+    (`⌘V`); typing works. It is never prefilled, never echoed, never in an
+    accessibility value (VoiceOver: label `Calendar URL`, value `filled` /
+    `empty`).
+- **Under the field**: the validation message or the parsed line of
+  `components.md` §33.2, live as the field changes, `lineLimit` 0.
+- **Footnote** — the sentence above, always the same (it names no host).
+- **`Connect`** (default, `↩`) — enabled only on V11. One `GET`
+  (`components.md` §34.1). While it runs: fields disabled, the footnote
+  replaced by a mini `ProgressView` and `Connecting to
+  moodle.technikum-wien.at…` (`blockMeta`, `color.text.secondary`); `Cancel`
+  cancels the request and restores the editable sheet.
+- **Failure** — the footnote's place shows the state's title
+  (`sourceStatusTitle`) and this body (`inspectorValue`, `color.text.primary`,
+  `lineLimit` 0); fields re-enabled; focus back in `URL` with its contents
+  selected (so a paste replaces them) unless the table says otherwise. No
+  "connect anyway":
+
+  | State | Step-1 body |
+  |---|---|
+  | `unauthorized` | `{host} didn't accept this calendar URL. In Moodle, choose Get calendar URL again and paste the new one.` |
+  | `forbidden` | `{host} refused access to the calendar.` |
+  | `feedNotFound` | `{host} has no calendar at this URL. Copy the URL from Moodle again.` |
+  | `notACalendar` | `{host} sent a web page instead of the calendar. Copy the URL from Moodle's Get calendar URL again.` |
+  | `redirected` | as `components.md` §34.3 |
+  | `certificate` | as `components.md` §34.3 — focus stays on `Connect` |
+  | `unreachable` | `Check your connection, then try again.` — focus stays on `Connect` |
+  | `serverError` | `{host} answered with an error ({code}). Try again later.` — focus stays on `Connect` |
+  | `offline` | `This Mac is offline. Connect when it's back online.` — focus stays on `Connect` |
+
+  Problems inside items are not failures: they appear in step 2.
+- **Success** (a calendar body, even an empty one) → step 2.
+
+### 16.2 Step 2 — Import
+
+```
++------------------------------------------------+
+| Import Moodle                                  |  inspectorTitle
+| moodle.technikum-wien.at/…                     |  inspectorValue, text.secondary
+|                                                |
+| 29 items, 11 Oct 2026 – 14 Dec 2026            |  inspectorValue, text.primary
+|                                                |
+| 25 deadlines from 10 courses and 2 other       |  inspectorValue, text.secondary
+| categories.                                    |
+| 4 openings are shown with the deadline they    |
+| belong to.                                     |
+| 1 of them is before today. It's imported once, |
+| as history, and never changed afterwards.      |
+| Moodle doesn't tell Kadence what you've handed |
+| in. Mark a deadline done in Kadence when you   |
+| have, and its reminders stop.                  |
+|                                                |
+|                          [ Back ]  [ Import ]  |
++------------------------------------------------+
+```
+
+- **Title** `Import {name}`; under it the display form `{host}/…`.
+- **Range line** — §12.2's form with **items**: `{n} items, {first} –
+  {last}`; `1 item, 11 Oct 2026`. `{n}` counts every item (paired openings
+  included — they are imported).
+- **Sentences**, each only when its number is non-zero, in this order,
+  `spacing.sm` apart, `inspectorValue`, `color.text.secondary` unless noted.
+  Digits, never words; singular forms as shown:
+  1. **Deadlines**: `{d} deadlines from {c} courses and {g} other
+     categories.` — `{c}`, `{g}`: distinct course codes and categories among
+     the deadlines (`components.md` §35.5). `{g}` = 0: `{d} deadlines from
+     {c} courses.`; `{c}` = 0: `{d} deadlines from {g} categories.`; both 0:
+     `{d} deadlines.` Singular: `1 deadline`, `1 course`, `1 other
+     category`, `1 category`.
+  2. **Paired openings**: `{p} openings are shown with the deadline they
+     belong to.` / `1 opening is shown with the deadline it belongs to.`
+  3. **Unpaired openings**: `{u} openings have no deadline in Moodle's list
+     yet, so they're shown on their own.` / `1 opening has no deadline in
+     Moodle's list yet, so it's shown on its own.`
+  4. **Notices**, in **`color.text.primary`**: `{x} items aren't a deadline
+     or an opening Kadence recognises. They're shown, but Kadence won't
+     remind you of them.` / `1 item isn't a deadline or an opening Kadence
+     recognises. It's shown, but Kadence won't remind you of it.`
+  5. **History** — §12.2's sentence with items: `{h} of them are before
+     today. They're imported once, as history, and never changed
+     afterwards.` / `1 of them is before today. It's imported once, as
+     history, and never changed afterwards.` / `All of them are before
+     today. …`
+  6. **Done** (whenever `{d}` > 0): `Moodle doesn't tell Kadence what you've
+     handed in. Mark a deadline done in Kadence when you have, and its
+     reminders stop.`
+  7. **Problems**, `color.text.primary`: `{k} items couldn't be read and will
+     be skipped.` / `1 item couldn't be read and will be skipped.` and a
+     borderless `Show Details` (`components.md` §19.3's list, `{title}` the
+     raw title).
+- **Empty calendar** — the range line reads `Moodle has no items for this
+  period yet.` and the only sentence `Kadence will add them as they appear.`
+  `Import` stays enabled.
+- **`Import`** (default, `↩`) writes, with **no further request**: (1) the
+  Keychain item (`components.md` §33.3); (2) the `Source`; (3) every item
+  fetched, in one transaction. A Keychain failure stops at (1): title `URL
+  not saved`, body `Kadence couldn't save the calendar URL in the Keychain,
+  so nothing was saved. Try again.` On success the sheet closes, Settings
+  selects the source, its status block reads `Up to date`; the next sync is
+  one interval later.
+- **`Back`** returns to step 1 with the URL still in the field, for this
+  sheet's lifetime only.
+
+### 16.3 Replace mode
+
+**Opened by** `Replace URL…` — Settings (§15), a state's primary action,
+the source popover, the sidebar context menu. Focus in `URL`.
+
+- Title **`Replace the calendar URL`**; the text under it: `Moodle makes a
+  new calendar URL when your FH password changes. In Moodle, choose Get
+  calendar URL again and paste the new one here. Your items and done marks
+  stay.`
+- No `Name` field (renaming is in Settings). `URL` empty, placeholder `Paste
+  the new URL`. Validation V1–V10 (`components.md` §33.2).
+- `Connect` → step 2's **Update form**: title `Update {name}`; the display
+  form; the range line; sentences 1–4 and 7; sentence 5 replaced by `Items
+  before today are not changed.`; no sentence 6. The button is **`Save`**.
+- **`Save`**: the Keychain item's value replaced in place; `isAutoSyncPaused`
+  cleared; the fetched items applied **as a sync** (`components.md` §33.5).
+  A Keychain failure: title `URL not saved`, body `Kadence couldn't save the
+  new calendar URL in the Keychain. The old one is still in use. Try
+  again.`; nothing else is written.
+
+## 17. Inspector — a Moodle item selected
+
+§6.1's geometry, label column (84) and row styles. Top to bottom, rows with
+no value are not drawn:
+
+1. **Title row** — kind glyph (`flag.fill` / `lock.open.fill` /
+   `info.circle.fill`) and the source swatch inline; the displayed title as
+   text (`inspectorTitle`, `lineLimit` 3, selectable).
+2. **Read-only line** — `Read-only — from Moodle`, §6.1 row 2's style and
+   emphasis.
+3. **The moment** — label `Due` / `Closes` / `Registration ends` / `Opens` /
+   `At`, value `Tue 13 Oct 2026, 23:59` (`components.md` §37.4). For a
+   notice, under it in `blockMeta` / `color.text.secondary`: `Kadence
+   couldn't tell whether this is a deadline, so it won't remind you of it.`
+4. **`Opens`** — a paired deadline's opening, same value format.
+5. **`Course`** (value `INNO3`; second line the shortname in `blockMeta` /
+   `color.text.secondary`) or **`Category`** (value `Bibliothek`).
+6. **`In timetable`** — `REQEN-EXAM` (`inspectorValue`, `lineLimit` 0).
+7. **`In Moodle`** — the raw title, selectable, `lineLimit` 0.
+8. **`Source`** — swatch + `Moodle`, second line `Synced 14:02` (clicking
+   opens the source popover, as §6.1); **`Origin`** `Imported`.
+9. **`Status`** — deadlines only. Value `Not done` / `Done`
+   (`inspectorValue`); one `.bordered` button, `Mark Done` / `Mark Not Done`
+   (`⌘↩` does the same). Under it, `blockMeta` / `color.text.secondary`:
+   `Your own mark — Moodle doesn't say what you've handed in.` When a done
+   deadline moved (`components.md` §38), above that line in
+   `color.text.primary`: `Due time changed after you marked it done (was Tue
+   20 Oct, 12:00).` No `Skip` button.
+10. **`Description`** — selectable text, URLs as links
+    (`color.interactive.link`); more than `size.inspectorDescriptionMaxLines`
+    (6) rendered lines are collapsed to six, with a borderless link-style
+    **`Show more`** (`inspectorValue`, `color.interactive.link`) under them;
+    expanded, it reads **`Show less`** at the end. The expansion lasts while
+    the item stays selected. VoiceOver: one element, label `Description`,
+    value the whole text; the button `Show more of the description` / `Show
+    less of the description`.
+
+No `Location`, `Place`, `Leave by`, `Lecturers`, `Group`, `Room` or `Link`
+row; no editable Notes (G-058).
+
+## 18. Menu bar popover — DUE TODAY
+
+§9's regions, one added after `REST OF TODAY` (or after the action row when
+REST is omitted):
+
+| Region | Height |
+|---|---|
+| Divider | `size.hairline`, `color.separator.region` |
+| `DUE TODAY` label | label row (`popoverSectionLabel`) |
+| Due rows | `size.popoverRestRowHeight` × ≤ `size.popoverMaxDueRows` (3), then `+N more` |
+
+- Spacing above the label and between rows as REST OF TODAY.
+- Rows as REST OF TODAY rows: time column (monospaced, fixed width) then
+  `{code} · {title}`, `popoverRow`, `color.text.primary`, tail-truncated.
+  `+N more` in `popoverRow` / `color.text.secondary`, not focusable.
+- The NEXT block in the Due state is §9's next item block with
+  `components.md` §39.2's title and meta; the leave line is never shown for
+  it.
+- Then the stale and notifications lines, as before. The popover still
+  never scrolls.
+
+## 19. Settings ▸ Notifications — the Deadlines rows
+
+§14's section gains one row group, **after `Routine` and before `Sync
+problems`**:
+
+```
+|  │ Routine                           [5 minutes before   ⌄] (●)│  |
+|  │ Routine blocks                                              │  |
+|  │ Deadlines                                               (●)│  |
+|  │ Moodle items with a due time                                │  |
+|  │     Early reminder   [The day before  ⌄]  at  [18:00 ⌄]     │  |
+|  │     Final reminder   [2 hours before  ⌄]                    │  |
+|  │ Sync problems                                           (●)│  |
+|  │ When a calendar stops syncing and needs you                 │  |
+```
+
+- **`Deadlines`** — label `sidebarItem` with the second line `Moodle items
+  with a due time` (`blockMeta`, `color.text.secondary`); trailing, the rule's
+  switch only (no pop-up on this line).
+- **Two sub-rows**, each a `LabeledContent` indented `spacing.xl` from the
+  section's leading inset, label `sidebarItem`:
+  - **`Early reminder`** — a pop-up (`Off` · `The day before` · `2 days
+    before` · `3 days before`), the word `at` (`sidebarItem`,
+    `color.text.secondary`), and a second pop-up (`08:00` · `12:00` · `18:00`
+    · `20:00`). With `Off`, the time pop-up is **disabled, not hidden**, and
+    keeps its value.
+  - **`Final reminder`** — a pop-up (`Off` · `30 minutes before` · `1 hour
+    before` · `2 hours before` · `3 hours before` · `6 hours before`).
+  - Pop-ups `.menu` style, `.controlSize(.small)`, trailing-aligned like
+    §14's.
+- **The rule's switch off** disables all three pop-ups (values kept).
+  Switching it on while `notAsked` asks for permission (`components.md`
+  §27.8).
+- **Footer** — §14's sentence, then a second one: `Moodle doesn't tell
+  Kadence what you've handed in: mark a deadline done and its reminders
+  stop.`
+- VoiceOver: switch `Deadline notifications`, on/off; `Early deadline
+  reminder`, value `The day before`; `Early deadline reminder time`, value
+  `18:00`; `Final deadline reminder`, value `2 hours before`.
+- Every change triggers a notification pass.
+

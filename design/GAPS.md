@@ -3513,3 +3513,111 @@ task.
 - **CA small:** G-103.
 - **Deferred:** G-058, G-059, G-060, G-062, G-064, G-065, G-084, G-085,
   G-086, G-088, G-091, G-094, G-101.
+
+---
+
+## 2026-10-16 — Phase 3 slice 3 (Moodle deadlines): gaps opened, closed, deferred
+
+Design agent. Spec: `components.md` §32–§43, `layouts.md` §15–§19,
+`interactions.md` §16, `moodle-mocks.md`, `tokens.json` 1.10.0. Plan:
+`PHASE3-SLICE3-PLAN.md`.
+
+### G-088 — split. Deadline notifications: spec CLOSED, build OPEN. `components.md` §40 (and §27.1, §27.6, §27.7 amended); `layouts.md` §19.
+
+The deadline half is specified: a sixth rule `deadline`, an early reminder
+(default the day before at 18:00) and a final one (default 2 hours before),
+held by protected windows but never past the deadline, grouped by fire time
+and due date, absolute copy N9/N10, `due.` identifiers, `Done` · `Open`. The
+morning summary is G-108.
+
+### G-103 — still OPEN (CA, small); scheduled as slice 3 task 1.
+
+Unchanged wording. `PHASE3-SLICE3-PLAN.md` task 1 does it first.
+
+### G-104 — OPEN (Parsa). Work items before imports, as BRIEF-PRODUCT orders?
+
+BRIEF-PRODUCT Phase 3 says "manual creation of assignments, projects and
+exams first, before any import", and its definition of done includes "I can
+log time against a piece of coursework". This slice imports Moodle items as
+**events** (`components.md` §32) and builds no `WorkItem`, editor or time
+logging. Recommended: accept the order Parsa chose (deadlines first — they
+are what he would otherwise miss), and make work items + time logging the
+next slice, where a `WorkItem` can link to a Moodle deadline by `(sourceID,
+externalID)` ("Track as work item…") and take its due moment from it. Parsa
+to confirm the order; nothing in slice 3 depends on the answer.
+
+### G-105 — DEFERRED (Parsa). The Moodle REST client and submission status.
+
+BRIEF-PRODUCT names a REST `AssignmentSource` (`/login/token.php`,
+`core_calendar_get_action_events_by_timesort`, `mod_assign_get_assignments`).
+It would tell Kadence what has been **submitted**, which the export cannot —
+but it logs in with the FH password, which the non-negotiables require
+asking about first. The export URL needs no password and covers deadlines.
+Revisit only if the manual done mark proves to be a chore.
+
+### G-106 — DEFERRED (later, design). A moment on the hour grid.
+
+A deadline is drawn in the pinned all-day row only (`components.md` §37.1).
+A tick at its time on the grid (a 14:20 test close beside the lectures) is
+not drawn: it needs new geometry and must not compete with the now line.
+Revisit after real use.
+
+### G-107 — DEFERRED (later). Bilingual titles.
+
+` | ` titles (`VERBINDLICHE Anmeldung … | BINDING registration …`) are shown
+whole (`components.md` §35.3). Showing only the English half would need a
+rule that ` | ` means a translation, which is not always true. Parsa may ask
+for it once he has seen how long they read.
+
+### G-108 — DEFERRED (Phase 4). The morning summary.
+
+The rest of G-088. BRIEF-PRODUCT Phase 4: "the shape of the day and the
+first thing to do". Its own copy, time and rule.
+
+### G-109 — OPEN (real use). Moodle wordings Kadence doesn't recognise.
+
+Eight kind wordings are recognised (`components.md` §35.4) — the ones in
+Parsa's feed. Anything else is a **notice**: shown, never reminded, and the
+connect sheet and the inspector say so. Parsa reports any notice that is
+really a deadline (title as Moodle writes it), and the profile gains the rule
+with a profile bump (`moodle-2`, §34.7).
+
+### G-110 — OPEN (real use). How Moodle answers a superseded URL, and its real window.
+
+Not verifiable without changing the FH password: whether a URL whose token
+no longer matches gets `401`/`403`, a `200` HTML error page ("Invalid
+authentication"), or an empty calendar. Every one is handled
+(`unauthorized`, `forbidden`, `notACalendar`, `emptyFeed`) and the copy
+names the password change; record which it is the first time it happens.
+Also record, from the `lookahead` field of the `sync` log line after a few
+days, the look-ahead Moodle actually serves (about 60 days on 16 Oct).
+
+### G-111 — DEFERRED (work items). A deadlines list, grouped by course.
+
+BRIEF-DESIGN item 8's work item view. Not in this slice: the popover's DUE
+TODAY and the calendar are the surfaces (`components.md` §39).
+
+### G-112 — DEFERRED (later). Reminders for openings and for Moodle spans.
+
+An unpaired opening (registration opens) and a Moodle item with a duration
+get no notification in this slice (`components.md` §40.2). Revisit if an
+opening turns out to matter (first-come registrations).
+
+### G-113 — OPEN (Parsa). Slice 3 defaults.
+
+`PHASE3-SLICE3-PLAN.md` "For Parsa": poll every hour; reminders the day
+before at 18:00 and 2 hours before; openings folded into their deadline;
+unrecognised items shown but not reminded; done kept when a deadline moves;
+the `Due` state in the menu bar; the course code first in labels; bilingual
+titles whole; `emptyFeed` proof after 12 h; `notACalendar` and
+`feedNotFound` notified as N8.
+
+### Still open after this pass
+
+- **Parsa:** G-104, G-113, G-095, G-096 (item 3 only), G-067.
+- **Real use:** G-093, G-109, G-110.
+- **Design:** G-083.
+- **CA judgement:** G-092. **CA small:** G-103 (slice 3 task 1).
+- **Spec closed, build open (slice 3):** G-088 (deadline notifications).
+- **Deferred:** G-058, G-059, G-060, G-062, G-064, G-065, G-084, G-085,
+  G-086, G-091, G-094, G-101, G-105, G-106, G-107, G-108, G-111, G-112.

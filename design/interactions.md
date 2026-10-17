@@ -972,3 +972,105 @@ confirms what Apple Maps found** (§15.4).
   the state shows.
 - `Open System Settings…` opens the URL through the injected opener and does
   nothing else; Kadence re-reads the state on `didBecomeActive`.
+
+---
+
+# Phase 3 slice 3 — additions
+
+Written 2026-10-16. No new key equivalent. Rules: `components.md` §32–§43;
+layouts `layouts.md` §15–§19.
+
+## 16. Moodle
+
+### 16.1 Connecting
+
+| Step | What happens |
+|---|---|
+| Entry | Settings ▸ Sources `+` ▸ `Connect Moodle…`; the empty state's `Connect Moodle…`; the sidebar's `Connect Moodle…` row; **File ▸ Connect Moodle…** (below `Connect Timetable…`, no key equivalent) |
+| Paste | The `URL` field validates on every change (`components.md` §33.2); nothing is sent |
+| `Connect` | One `GET` (`components.md` §34.1), 30 s; the outcome shows as `layouts.md` §16.1 says. Fetched items stay in the sheet's memory |
+| `Import` | Keychain item → `Source` → items. No further request |
+| Cancel / `⎋` / closing Settings | Nothing written; the request in flight is cancelled; the pasted URL and the items are discarded |
+
+Keys: `⇥` / `⇧⇥` through `Name`, `URL`, the buttons; `↩` = `Connect` /
+`Import` / `Save` when enabled; `⎋` = `Cancel` and never half-saves; `Back`
+is a button only. `⌘V` into `URL` is the expected path; the field refuses
+`⌘C` / `⌘X` (a `SecureField` does).
+
+**The URL on the wire.** HTTPS only; to the URL's own host; never in a header,
+a log or an error; a redirect to another host or to `http:` is never
+followed, at any step (`components.md` §34.2). The transport never follows
+a redirect itself — the client decides — so the URL is never handed to a
+server the user didn't choose. Each fetch uses a fresh ephemeral session
+(`components.md` §33.4).
+
+**The user's own act.** The app contacts Moodle only when the user presses
+`Connect`, `Save` or `Sync Now`, or, once connected, on the schedule.
+**No build task, test, script or capture contacts Moodle or holds a real
+URL**; the first real connection is Parsa's.
+
+### 16.2 Replacing the URL
+
+`Replace URL…` opens `layouts.md` §16.3. `Save` writes the new URL into the
+same Keychain item, clears the pause and syncs at once with what `Connect`
+fetched. `Cancel` keeps the old URL and changes nothing. A URL for another
+Moodle account is refused before anything is sent (V10).
+
+### 16.3 When a Moodle source syncs
+
+§13.3's table and rules, unchanged — `Sync Now` (`⌘R`) syncs it with every
+other source — except the default interval, **every hour**
+(`components.md` §34.6). A `401` or `403` pauses automatic sync until
+`Replace URL…`'s `Save` or a `Sync Now` that succeeds.
+
+### 16.4 Removing
+
+`Remove Source…` (Settings button, `−`, the sidebar context menu) shows
+§13.2's alert with this text:
+
+- Message: `Remove “Moodle”?`
+- Informative text: `Its 29 items — including past ones and anything you
+  marked done — will be removed from your calendar, and its calendar URL
+  deleted from the Keychain. You can connect it again at any time; the items
+  Moodle still lists come back, your done marks don't.`
+- Buttons `Remove` (destructive) and `Cancel` (default).
+
+On `Remove`: an in-flight sync is cancelled; items and `Source` deleted in one
+transaction; the Keychain item deleted; pending and delivered `due.` and
+`sync.` notifications of the source removed in the next pass. A Keychain
+deletion failure: the source is still removed, and the follow-up sheet says
+`The calendar URL for {name} couldn't be deleted from the Keychain. You can
+remove the item “Kadence — {name}” in Keychain Access.` (`OK`).
+
+### 16.5 A moment item on the canvas
+
+Pills and month chips are selected and focused like every all-day item
+(§6, §1). On a selected Moodle item:
+
+| Gesture | Result |
+|---|---|
+| Click, `↩` | Selects it / opens the inspector, as any item |
+| `⌘↩` | **Deadline**: toggles Done ↔ Not done (`Mark Done` / `Mark Not Done`, one undo step each; `components.md` §38). **Opening, notice**: refused — §13.4's pair (sound + the read-only line's emphasis) |
+| `⌥⌘↩` (skip) | Refused on every Moodle item, §13.4's pair |
+| Drag, `⌥`-drag, `⌥`-arrows | Refused as §13.4 (read-only) |
+| `⌫`, Edit ▸ Delete | Refused; Edit ▸ Delete disabled while it is selected (§13.4) |
+| Double-click | Selects it; (b) |
+| Hover | Hover help (`components.md` §37.1); no resize handles; cursor `.arrow` |
+
+A paired opening is never drawn, so it is never selected; `↩` on a deadline
+shows its `Opens` row.
+
+### 16.6 The popover and notifications
+
+- In the Due state, NEXT's `Done` marks the deadline done and the next item
+  (the next due deadline, or `Nothing left today`) replaces it in place;
+  `⌘Z` in the main window undoes it. `Open` selects the deadline in the main
+  window.
+- A DUE TODAY row: `↩` / click selects that deadline in the main window and
+  activates it (as a REST OF TODAY row, §12).
+- `Done` on a deadline notification (`kadence.deadline`) runs the same verb.
+  `Open` (and clicking) on a single deadline pages to its due date and selects
+  it; on a group (`kadence.deadlines`) pages to the date and selects
+  nothing. Dismissing does nothing.
+- `Open` on the feed's N8 opens Settings ▸ Sources with the source
+  selected; its status block's `Replace URL…` is one click (§14.1).

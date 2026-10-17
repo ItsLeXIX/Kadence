@@ -81,6 +81,9 @@ function.
 | `WorkItem.kind == .exam`, all-day | `.examAllDay` | `graduationcap.fill` |
 | `Event`, `isAllDay`, `origin == .imported` *(added 2026-10-08, §5.1)* | `.eventAllDay` | `building.columns`; `graduationcap.fill` when `importKind == exam` |
 | `Event`, `isAllDay`, `origin == .manual` *(added 2026-10-08, §5.1)* | `.eventAllDay` | `calendar` |
+| `Event`, `origin == .imported`, `start == end`, `importKind == deadline` *(added 2026-10-16, Phase 3 slice 3, §37)* | `.deadlineAllDay` | `flag.fill` |
+| `Event`, `origin == .imported`, `start == end`, `importKind == opening`, not paired (§36) *(added 2026-10-16)* | `.deadlineAllDay`, no rail | `lock.open.fill` |
+| `Event`, `origin == .imported`, `start == end`, `importKind == notice` *(added 2026-10-16)* | `.deadlineAllDay`, no rail | `info.circle.fill` |
 
 A manual event is a fixed timed block because a user-created event is fixed
 until the user says otherwise. It differs from an imported lecture only by
@@ -532,6 +535,11 @@ full date range across day columns.
 | Glyph | `flag.fill`, `color.source.<s>.text` | `graduationcap.fill`, `color.text.onSolid` |
 | Trailing element | none | countdown chip |
 
+*(Amended 2026-10-16, Phase 3 slice 3.)* The deadline pill is also how an
+imported **moment** is drawn — a Moodle deadline, an unpaired opening or a
+notice, with its due time before its title: §37.1 has the label, the glyphs
+and the sort. The countdown chip stays `.examAllDay`'s alone.
+
 Same fill-weight ladder as the timed blocks: solid = fixed. An exam is a fixed
 date you ramp toward; a deadline is a date whose work is movable. The two are
 therefore distinguishable by fill, by glyph and by the presence of the chip —
@@ -801,7 +809,7 @@ never share a hue.
 | Source kind | Symbol |
 |---|---|
 | University timetable | `tablecells.fill` |
-| Moodle / coursework deadlines | `tray.2.fill` |
+| Moodle / coursework deadlines | `tray.2.fill` — *(2026-10-16)* the Moodle source (§33.6) |
 | Exams | `seal.fill` |
 | Mail-derived appointments | `envelope.fill` |
 | Routine | `rectangle.stack.fill` |
@@ -1978,6 +1986,12 @@ table between Normal and Late when NEXT has a travel leg: **Leave** (`Leave
 role) and **Leave now** (glyph + `Leave now · SWQM-ILV`), plus the rule that a
 due departure outranks a late item. §26.1.
 
+**Amended 2026-10-16 (Phase 3 slice 3) — the Due state.** When nothing timed
+is left today and a deadline is still due today, the status item reads `Due
+23:59 · INNO3 · Sprint Review…` instead of `Nothing left today`, and the
+popover gains a DUE TODAY section. A deadline never takes NEXT from a timed,
+late or departing item. §39.
+
 **Amended 2026-10-05 — colour in the live menu bar.** The status item is
 **template-rendered**: macOS draws a `MenuBarExtra` label in the menu bar's own
 tint (dark or light per wallpaper and appearance), and it flattens the label to
@@ -2484,6 +2498,11 @@ starts `.scheduled` anyway.
 
 Every other mutation is refused, visibly (`interactions.md` §13.4).
 
+*(Amended 2026-10-16, Phase 3 slice 3.)* **A Moodle deadline keeps its done
+mark when its time changes**: done there means handed in, not attended, and an
+extension does not undo a submission. The inspector says the time changed
+after the mark (§38). Moodle items have no Skip (§38).
+
 **History keeps Done and Skip (ruled 2026-10-10).** An imported event that
 started before today offers `Done` / `Skip` exactly like a future one, in the
 inspector and by `⌘↩` / `⌥⌘↩`. "The past is never written" binds the **sync**
@@ -2600,6 +2619,11 @@ Copy is in English, like the rest of the app.
 | `redirected` (to another host, or to `http:`) | **actionable** | `Redirected to another server` | another host: `{host} sent Kadence to {otherHost}. Kadence didn't follow it, so nothing — and no password — was sent there.` · `http:`: `{host} sent Kadence to an address without HTTPS. Kadence didn't follow it.` | `Edit Account…` |
 | `unreachable` (DNS, connection refused or lost, timeout) | transient | `Can't reach {host}` | `Kadence will try again at {next}. Events from the last sync ({last}) are still shown.` | `Sync Now` |
 | `serverError` (5xx) | transient | `Server error` | `{host} answered with an error ({code}). Kadence will try again at {next}.` | `Sync Now` |
+
+*(Amended 2026-10-16, Phase 3 slice 3.)* A **Moodle feed** source has its own
+rows — `Calendar URL refused`, `Calendar not found`, `Calendar URL not
+found`, items instead of events, `Replace URL…` as the remedy — in §34.3.
+This table is the CalDAV account's.
 
 Gone with the subscription: `signInRequired` (an account always has a password),
 `notFound` (now `noCalDAV` for discovery and `calendarMissing` for a calendar),
@@ -4984,6 +5008,11 @@ The defaults are Parsa's, confirmed 2026-10-14: leave-by 5, timetable 30,
 personal 15, routine 5 and on, sync problems on. A disabled rule keeps its
 lead time.
 
+*(Amended 2026-10-16, Phase 3 slice 3.)* A **sixth rule, `deadline`**
+(`Deadlines`): an early reminder (default the day before at 18:00) and a final
+one (default 2 hours before) for each Moodle deadline not marked done — §40.
+`Sync problems` also covers a Moodle URL that stopped working (§40.7).
+
 ### 27.2 Which notification an event gets — at most one
 
 | Event | Notification |
@@ -4993,6 +5022,7 @@ lead time.
 | has a `pending` or `unavailable` leg **and** `leaveBy` is enabled | **travel unavailable** (N7): the leave-by that could not be worked out, never dropped silently. When the leg gets a time, the next pass replaces it with N1 under the same identifier |
 | otherwise (no leg, or `leaveBy` disabled) | **starts**, under its origin's rule (`timetableStart` / `personalStart` / `routineStart`), if that rule is enabled |
 | `.planned` (Phase 6) | none in this slice |
+| *(added 2026-10-16)* any item of a **Moodle** source — moment or span | **none** from this table; a deadline gets §40's reminders |
 
 An event with a leave-by gets **no** "starts" notification: one event, one
 nudge, at the moment that matters. Turning `Leave by` off falls back to the
@@ -5131,7 +5161,8 @@ the centre (§27.10).
   removed; one whose fire date or content hash (`userInfo["hash"]`, SHA-256 of
   title, body, category) differs is replaced; an identical one is left alone.
   Requests whose identifiers do not start with `leave.`, `start.`,
-  `result.` or `sync.` are never touched.
+  `result.` or `sync.` are never touched. *(Amended 2026-10-16: and `due.`,
+  the deadline reminders, §40.6.)*
 - **Records** (`NotificationRecord`, §28.1): for each scheduled identifier the
   fire date it was given. **A record whose fire date has passed means "sent"**
   — the system delivers a scheduled request even when Kadence is not running.
@@ -5187,6 +5218,8 @@ from `userInfo`, resolved at the moment the action runs (DECISIONS
 | `kadence.readOnly` | an imported event | `Done` · `Open` — **no `Snooze`**: snoozing moves the event, and an imported event cannot move (§18.3) |
 | `kadence.result` | N5, N6 | none (clicking opens, below) |
 | `kadence.source` | N8 | `Open` only. `Open` and clicking open Settings ▸ Sources with that source selected (`layouts.md` §11), where its status block's `Update Password…` / `Edit Account…` is one click |
+| `kadence.deadline` *(2026-10-16)* | N9, one deadline (§40.5) | `Done` · `Open` |
+| `kadence.deadlines` *(2026-10-16)* | N10, a group (§40.5) | `Open` only |
 
 | Action | Does | Undo step |
 |---|---|---|
@@ -6096,3 +6129,1347 @@ slot is `sunday` 17:30 (already wall-clock, unchanged).
 / `.hour`, to a `startOfDay` value or a day-start variable (`dayStart`,
 `referenceDayStart`, `startOfDay`, `day`). Durations added to an event's
 `start` or `end` are allowed.
+
+---
+
+# Phase 3 — slice 3: Moodle deadlines
+
+Written 2026-10-16, after slice 2 was accepted (`DECISIONS.md` 2026-10-16
+"Phase 3 slice 2 accepted"). Plan and build order: `PHASE3-SLICE3-PLAN.md`.
+Layouts: `layouts.md` §15–§19 (new) and §2.1 (amended). Interactions:
+`interactions.md` §16 (new). Mocked responses: `moodle-mocks.md` (new). The
+source facts below were verified by MA on Parsa's real feed on 16 Oct 2026;
+the redacted export is `fixtures/moodle-2026WS-redacted.ics` (29 VEVENTs, all
+descriptions synthetic).
+
+**Scope.** One new source kind — a **Moodle calendar export URL** — and what
+its items need to be useful:
+
+1. **Connecting** with the URL Moodle gives under *Calendar ▸ Import or export
+   calendars ▸ Export calendar ▸ All events · Recent and upcoming ▸ Get
+   calendar URL* (§33). One HTTPS `GET`, no login, no header, no VPN. **The URL
+   is the secret** (its query carries `userid` and `authtoken`): it is kept in
+   the Keychain only and shown as `moodle.technikum-wien.at/…`.
+2. **Items** — deadlines, openings and other moments — imported read-only,
+   polled, changed by content and deleted only on proof of absence (§34–§36).
+3. **Drawing a moment** (`DTSTART == DTEND`) in Day, Week, Month, the menu bar
+   and the popover (§37, §39).
+4. **Done** as Kadence's own mark, kept across syncs (§38).
+5. **Deadline notifications** — the deadline half of G-088 (§40).
+
+**Not in this slice:** work items, time logging and the work item view
+(BRIEF-PRODUCT Phase 3's first bullet; G-104); the Moodle REST client and
+submission status (G-105); a deadline marker on the hour grid (G-106); the
+morning summary (G-088's remainder, G-108); a deadlines list (G-111); the
+planner. Every earlier value stands. In-place amendments, all marked
+2026-10-16: §2.1, §5, §10.1, §15, §18.1, §19.1, §27.1, §27.6.
+
+Rules that govern the slice, in addition to slice 1's three and slice 2's
+five:
+
+- **The URL is the only secret, and it is a whole URL.** Every surface,
+  log line, error and fixture says `{host}/…` (§33.4). Nothing of the path's
+  query is ever shown, logged, stored outside the Keychain or copied.
+- **A moment is an instant.** It is drawn on the local date it falls on, at
+  its local clock time, and nothing is added to it: no duration, no "end of
+  day", no invented time (§37, §41).
+- **Moodle says what is due, never what is done.** Done is the user's mark;
+  Kadence never infers it and never sends it anywhere (§38).
+- **No guessed classification.** An item is a deadline or an opening only
+  when its title carries one of the verified kind words (§35.4). Anything
+  else is shown as what it is — an item at a time — and the user is told
+  Kadence will not remind them of it.
+
+---
+
+## 32. Moodle items are imported events
+
+**Decision.** A Moodle item is an **`Event`** with `origin == .imported`,
+`sourceID` = the Moodle `Source`, `externalID` = its `UID`, and a new
+`importKind` (§35.4): `deadline`, `opening` or `notice`. It is **not** a
+`WorkItem`, and this slice creates no `WorkItem`.
+
+Why, against BRIEF-PRODUCT's `WorkItem(kind: .assignment …, dueOrExamDate,
+estimatedEffort, …, sourceID, externalID)`:
+
+- **Ownership.** A Moodle item is an upstream fact: the sync writes it,
+  moves it and deletes it on proof of absence (§34.5), and it ages out of the
+  feed after about five days. A `WorkItem` is the user's: effort, confidence,
+  time logs, notes, and later a plan. A record whose fields belong partly to
+  a sync that may delete it and partly to the user who logged six hours
+  against it would let a sync delete the user's logs. This is the same split
+  slice 2 made between `Event.location` and `KnownPlace`, and between an
+  event and its `TravelLeg`.
+- **What exists today.** Every rule an imported item needs — identity,
+  read-only, local status, Import vs sync windows, deletion guards, the
+  source states, notifications per event — is built for `Event`. A
+  `WorkItem` model, its editor and time logging are the brief's own first
+  Phase 3 bullet and are their own slice (G-104).
+- **Later.** A `WorkItem` will **link** to a Moodle deadline by
+  `(sourceID, externalID)` ("Track as work item…"), taking its due moment
+  from it while the link holds and keeping everything else its own (G-104).
+  Nothing in this slice blocks that: the identity is stable (§35.2) and the
+  done mark is a local field (§38).
+
+`BlockKind`: a moment item is drawn by `.deadlineAllDay`'s geometry (§5,
+§37) — the Phase 1 variant whose data was "`WorkItem.kind ==
+.assignment/.project`". From this slice the same variant is also produced by
+an imported moment `Event` (§2.1, amended).
+
+### 32.1 A moment is not a timed event
+
+A moment item has `isAllDay == false` and `start == end`, so every rule
+written for "timed events" would otherwise pick it up as a zero-length one.
+**It is excluded from all of them**; each consumer tests `isMoment` (`origin
+== .imported && start == end` on a feed source), never the duration:
+
+| Consumer | A moment item |
+|---|---|
+| The hour grid, overlap resolution, the travel band (§3, `layouts.md` §3.3, §4) | not laid out; drawn in the all-day row (§37) |
+| Conflict detection (§13, §14, §20.9) | never a party |
+| Phase 2's NEXT, REST OF TODAY, the late state (§15) | never; the Due state and DUE TODAY are its only menu-bar surfaces (§39) |
+| `firstEventStart` and the default scroll (`layouts.md` §3.1) | ignored, as all-day items are |
+| Travel legs (§23.2, §24) | none (no place) |
+| §27's event notifications (`start.`, `leave.`) | none; §40's reminders only (§27.2, amended) |
+| Sidebar filters (`layouts.md` §2) | `All-day only` shows it, `Timed only` hides it; `Hide done` applies |
+| The Day header's block count and the inspector's day summary (`layouts.md` §6) | not counted as a block |
+
+A Moodle **span** (§35.4) is an ordinary imported timed event and takes part
+in all of these except §27's notifications (§27.2, amended).
+
+---
+
+## 33. The Moodle source
+
+### 33.1 What the user pastes
+
+The URL Moodle 4.5 shows after *Get calendar URL*:
+
+```
+https://moodle.technikum-wien.at/calendar/export_execute.php?userid=4711&authtoken=0123456789abcdef0123456789abcdef01234567&preset_what=all&preset_time=recentupcoming
+```
+
+(`userid` and `authtoken` above are the review mock's, §43.1 — never real.)
+Moodle derives `authtoken` from the account, including its password, so **a
+new FH password gives a new URL** and the old one stops working (how the old
+one fails is recorded at first occurrence, G-110). Replacing it is one
+action (§33.5).
+
+### 33.2 Validation — as the user pastes, before anything is sent
+
+The field is a `SecureField` (`layouts.md` §16.1): the URL is never echoed.
+Leading and trailing whitespace is trimmed silently. `webcal://` is read as
+`https://` (Moodle and other sites offer both spellings of the same address;
+Kadence then connects over HTTPS only). The rows are checked in this order;
+the first that applies decides. Messages sit under the field in `blockMeta`,
+`color.text.secondary`, never red (guidance, as `layouts.md` §12.1):
+
+| # | Input | Message | `Connect` |
+|---|---|---|---|
+| V1 | empty | — | disabled |
+| V2 | not a URL, no host, or a scheme other than `https`, `http`, `webcal` | `Paste the calendar URL from Moodle. It starts with https://.` | disabled |
+| V3 | `http://` | `Kadence only connects over HTTPS.` | disabled |
+| V4 | user info in the URL (`user@`, `user:pass@`) | `Paste the calendar URL from Moodle. It starts with https://.` | disabled |
+| V5 | path is not `/calendar/export_execute.php` (case-sensitive; a trailing `/` is not accepted) | `That isn't the calendar URL. In Moodle, choose Get calendar URL and copy the address it shows.` | disabled |
+| V6 | query lacks a non-empty `userid` or a non-empty `authtoken` | `The URL is missing part of its address. Copy the whole URL from Moodle again.` | disabled |
+| V7 | `preset_time` is absent or not `recentupcoming` | `This URL exports a fixed period. In Moodle, choose Recent and upcoming, then Get calendar URL.` | disabled |
+| V8 | `preset_what` is absent or not `all` / `courses` | `This URL exports only some of your events. In Moodle, choose All events, then Get calendar URL.` | disabled |
+| V9 | an existing Moodle source has the same host and `userid` (read from its Keychain item; this source itself excluded in Replace) | `This Moodle account is already connected as {name}.` | disabled |
+| V10 | Replace only (§33.5): the host or `userid` differs from the saved URL's | `This URL is for a different Moodle account. To add another account, connect it as a new source.` | disabled |
+| V11 | otherwise | the **parsed line** (below) | enabled |
+
+- **The parsed line** says what was understood without showing the secret:
+  `{host}/… · All events, recent and upcoming` (`preset_what=all`) or
+  `{host}/… · Course events, recent and upcoming` (`courses`), in
+  `blockMeta`, `color.text.secondary`. `{host}` is lower-cased.
+- **The host is not checked against a list.** Any Moodle that serves this
+  path is accepted; the host is shown, so a typo is visible.
+- **Order of the query parameters, extra parameters and their case are
+  irrelevant**; the URL is stored exactly as normalised (scheme `https`,
+  host lower-cased, everything else as pasted).
+- V9 and V10 read Kadence's own Keychain items only (§33.3). If an item
+  cannot be read, that source is skipped for the check.
+
+### 33.3 The Keychain item
+
+**One generic-password item per Moodle source.** The CalDAV item (§21.4) is
+an internet password for an account; this is a secret string with no
+account, so it is a generic password:
+
+| Attribute | Value |
+|---|---|
+| `kSecClass` | `kSecClassGenericPassword` |
+| `kSecAttrService` | `XIX.Kadence.feed` |
+| `kSecAttrAccount` | the `Source.id` |
+| `kSecAttrLabel` | `Kadence — {displayName}` (renaming the source updates it, as §21.4) |
+| `kSecAttrDescription` | `Calendar URL` |
+| `kSecAttrAccessible` | `kSecAttrAccessibleAfterFirstUnlock` (background sync while locked) |
+| `kSecAttrSynchronizable` | `false` |
+| `kSecValueData` | the normalised URL, UTF-8. Nothing else |
+
+- Every query carries service and account, so Kadence never reads an item it
+  did not write.
+- The in-memory secret store (review, tests — `DECISIONS.md` 2026-10-10,
+  2026-10-14) gains the same item kind.
+- Written at `Import` (step 1 of `layouts.md` §16.2's write order) and by
+  Replace's `Save` (`SecItemUpdate` of the value, in place). Deleted with the
+  source (`interactions.md` §16.4).
+
+### 33.4 Where the URL may and may not appear
+
+**The URL in full exists in exactly three places**: the Keychain item, the
+`SecureField` while the user pastes, and the one `URLRequest` of a fetch. It
+is read from the Keychain at the start of each fetch and dropped when the
+fetch ends; no property outlives it.
+
+**It never appears** in: the store (any model, any field — `Source` holds
+`serverURL` = `https://{host}` only), `UserDefaults`, a log line, an error's
+description or `userInfo` that is logged or stored, `stateDetail`,
+`problems`, a notification, hover help, an accessibility value, the
+pasteboard (Kadence offers no `Copy URL`, and a `SecureField` does not copy
+out), a screenshot, a fixture, a test assertion message, or the repo.
+
+**The display form** everywhere it is shown (Settings, the sheets, the source
+popover, log lines) is **`{host}/…`** — `moodle.technikum-wien.at/…` — the
+host followed by `/…` (U+2026). Not the path, not the query, not `userid`.
+
+Three build obligations follow, each with a required test (§43.3):
+
+1. **A redacted type.** The URL is held in a `MoodleFeedURL` value whose
+   `description`, `debugDescription`, `CustomReflectable` mirror and
+   `Codable` form (if any) are the display form only, so interpolating it
+   into a string, a log or `dump` cannot leak it. The raw string is reachable
+   only through one accessor used by the transport.
+2. **Foundation errors carry the URL.** A `URLError` holds the failing URL
+   in `failingURL` and `userInfo[NSURLErrorFailingURLStringKey]`, and its
+   `localizedDescription` may include it. Errors are mapped to §34.3's states
+   **by code only**; no Foundation error's description or `userInfo` is
+   logged, stored or shown, ever.
+3. **No on-disk HTTP state**: an ephemeral `URLSession` per fetch,
+   `urlCache = nil`, `urlCredentialStorage = nil`, no cookie storage
+   (`httpCookieStorage = nil`, `httpShouldSetCookies = false`), no redirect
+   followed by Foundation (the delegate returns `nil`; §34.2 decides).
+
+### 33.5 Replacing the URL
+
+When Moodle makes a new URL (a password change), the user pastes it with
+**`Replace URL…`** (Settings, the source popover, the state's primary action;
+`layouts.md` §16.3). Replace:
+
+- validates as §33.2 (V10 included: same host and `userid` — it is the same
+  account with a new token);
+- fetches once with the new URL and shows step 2 in its Update form;
+- on `Save`: updates the Keychain item **in place**, clears
+  `isAutoSyncPaused`, applies the fetched items **as a sync** (§34.4 — today
+  onward, the past untouched), and keeps every `Event.id`, done mark and
+  notification record: the items' UIDs did not change, only the token.
+
+A different account is a new source (V10's message says so), never a
+silent swap of everything under one source.
+
+### 33.6 The `Source` record for Moodle
+
+The slice-1 `Source` (§21.1) with these values and additions
+(§42 lists the fields):
+
+| Field | Moodle |
+|---|---|
+| `kind` | `.coursework` → symbol `tray.2.fill` (§10.1's "Moodle / coursework deadlines", unchanged) |
+| `connection` | **`icsFeed`** (new raw value) |
+| `feedProfile` | **`moodle`** (new field; the parser profile, §35) |
+| `displayName` | default **`Moodle`** |
+| `paletteKey` | the next free slot by §21.1's rule (`teal` when the timetable holds `blue`) |
+| `serverURL` | `https://{host}` — **no path, no query** |
+| `username`, `principalHref`, `calendarHomeHref`, `calendars` | nil / nil / nil / `[]` |
+| `pollInterval` | default **3600** (§34.6) |
+| `observedLookahead`, `emptySince` | new, §34.5 |
+
+---
+
+## 34. Fetching and syncing a feed
+
+### 34.1 One fetch
+
+`GET` the URL with `Accept: text/calendar, */*;q=0.1` and no
+`Authorization`, no cookie. Timeout **30 s**; a response over **20 MB** is not
+read (`notACalendar`, as §20.8.2). One request per sync, plus at most one
+same-host redirect (§34.2). Requests for one source are never concurrent.
+
+### 34.2 Answers
+
+| Answer | Result |
+|---|---|
+| `200` whose body (after an optional BOM and whitespace) starts `BEGIN:VCALENDAR` and contains `END:VCALENDAR` | parse (§35) |
+| `200` with anything else (HTML, a sign-in page, an error page, JSON) | `notACalendar` |
+| `301` / `302` / `307` / `308` to **`https` on the same host and port** | follow **once** (one more `GET` of the `Location`, which carries the original query only if the server put it there); a second redirect → `redirected` |
+| `3xx` to another host, or to `http:` | `redirected` — not followed; the `Location` is reduced to its host before it is shown or logged |
+| `401` | `unauthorized` — **pauses** automatic sync |
+| `403` | `forbidden` — **pauses** automatic sync |
+| `404`, `410` | `feedNotFound` |
+| `5xx`, `429`, any other status | `serverError` (`{code}` shown) |
+| TLS failure | `certificate` — nothing sent |
+| DNS, refused, lost, timeout | `unreachable` |
+| no network path | `offline` (no request) |
+
+`Content-Type` is not trusted either way (§20.8.2's rule).
+
+**Why 401/403 pause**, though no password can be locked: slice 1's rule is
+"Kadence never makes a second failing attempt on its own after being
+refused" (`DECISIONS.md` 2026-10-08), and Parsa asked for the same
+behaviour here. A refused URL will not start working by itself; the remedy
+is a new URL. The pause is cleared by Replace's `Save` or by a `Sync Now`
+that succeeds (`interactions.md` §13.3, unchanged).
+
+### 34.3 States and their copy — normative
+
+The feed source uses §19.1's machinery — one state at a time, `kind` sets
+the colour, exact strings tested — with **its own copy**, because a feed has
+no username, no calendars and **items**, not events. `{host}`: the URL's
+host. `{name}`: the source's display name. `{n}`, `{k}`, `{next}`, `{last}`,
+`{code}`, `{otherHost}` as §19.1. The noun is **`items`** (`1 item`).
+
+| State | Kind | Title | Body | Primary action |
+|---|---|---|---|---|
+| `upToDate` | ok | `Up to date` | — | `Sync Now` |
+| `syncing` | ok | `Syncing…` | — | — |
+| `neverSynced` | ok | `Waiting for first sync` | `Kadence will sync as soon as {host} can be reached.` | `Sync Now` |
+| `offline` | ok | `Offline` | `Kadence will sync when this Mac is back online. Items from the last sync ({last}) are still shown.` | — |
+| `unauthorized` | **actionable** | `Calendar URL refused` | `{host} didn't accept the calendar URL. Moodle makes a new URL when your password changes. Automatic sync is paused.` | `Replace URL…` |
+| `forbidden` | **actionable** | `Access refused` | `{host} refused access to the calendar. Automatic sync is paused.` | `Replace URL…` |
+| `feedNotFound` | **actionable** | `Calendar not found` | `{host} has no calendar at the saved URL. Items from the last sync are kept.` | `Replace URL…` |
+| `notACalendar` | **actionable** | `Not a calendar` | `{host} sent a web page instead of the calendar — usually a sign-in or error page. If you changed your FH password, Moodle made a new calendar URL. Items from the last sync are kept.` | `Replace URL…` |
+| `urlMissing` | **actionable** | `Calendar URL not found` | `Kadence couldn't read the calendar URL for {name} from the Keychain. Paste it again.` | `Replace URL…` |
+| `redirected` | **actionable** | `Redirected to another server` | another host: `{host} sent Kadence to {otherHost}. Kadence didn't follow it, so nothing was sent there.` · `http:`: `{host} sent Kadence to an address without HTTPS. Kadence didn't follow it.` | `Replace URL…` |
+| `certificate` | **actionable** | `Secure connection failed` | `The certificate for {host} couldn't be verified, so Kadence sent nothing to it. Nothing was changed.` | `Sync Now` |
+| `partialImport` | **actionable** | `Imported with problems` | `{k} of {n} items couldn't be read and were skipped. Nothing was removed.` | `Show Details` |
+| `emptyFeed` | transient | `Moodle sent no items` | `{host} sent an empty calendar, though it had {n} items at the last sync. They are kept; if it still sends none after {until}, Kadence removes the ones from today on.` | `Sync Now` |
+| `unreachable` | transient | `Can't reach {host}` | `Kadence will try again at {next}. Items from the last sync ({last}) are still shown.` | `Sync Now` |
+| `serverError` | transient | `Server error` | `{host} answered with an error ({code}). Kadence will try again at {next}.` | `Sync Now` |
+
+- `{until}` is `emptySince + 12 h` in §19.5's in-sentence forms read
+  forward (`today 23:07`, `tomorrow 01:07`, `Mon 01:07`).
+- **Order when two apply** (one fetch can only end in one, so this matters
+  only for `partialImport` beside `emptyFeed`, which cannot co-occur): the
+  table's order.
+- `Show Details` and the problem sentences are §19.3's, with `{title}` the
+  item's **raw** title (§35.3) — the one the user would recognise from
+  Moodle.
+- The status line reads `Last synced {last} · {count} items`; the
+  last-change line `Last change {when}: {a} added · {u} updated · {r}
+  removed` as §19.3 (it counts items).
+- The sidebar slot, hover help (`Moodle — Synced 14:02`), the source popover
+  and VoiceOver follow §19.2–§19.3 unchanged.
+
+### 34.4 Import and sync — slice 1's windows, unchanged
+
+§20.1 applies as written, with *events* read as *items*:
+
+- **The Import** writes **every item fetched**, including the ones before
+  `startOfDay(today)` (the feed reaches about five days back) as history,
+  and deletes nothing.
+- **A sync** creates, updates and deletes only items whose start is **on or
+  after `startOfDay(today)`**, and never touches one before. So an item that
+  ages out of the feed's back edge is **kept as history**, with its done
+  mark (§38): the past is a record from the first sync on.
+- **Unchanged content writes nothing** (§34.7's hashes).
+- Removing the source deletes its items, history included (the alert says
+  so, `interactions.md` §16.4).
+
+### 34.5 Deletion only on proof of absence — inside the window the feed covers
+
+The feed covers about five days back to about 60 days ahead **of the fetch**,
+and the 60 is Moodle's per-user look-ahead, which can change. An item
+missing from a fetch is proof that Moodle removed it only where that fetch
+would have listed it.
+
+- **`observedLookahead`** (stored on the `Source`, seconds, starts at 0):
+  after every fetch read in full, `max(observedLookahead, latestStart −
+  fetchedAt)` over that fetch's items. It never decreases (Replace keeps it;
+  removing the source deletes it).
+- **The proof window** of a fetch at `fetchedAt` is
+  **`[startOfDay(today), fetchedAt + observedLookahead − 24 h]`**, with
+  `observedLookahead` updated by this fetch first. The 24 h margin absorbs
+  the feed's day-granular edge.
+- **Delete** a stored item of this source when it is absent from a fetch read
+  in full, its start is in the proof window, and the guards below hold.
+  **Keep** an absent item whose start is after the window's end; a later
+  fetch whose window reaches it decides.
+- **Guards** — §20.8's, unchanged: no deletions from a failed fetch, a fetch
+  with `partialImport` problems, or an `emptyFeed`.
+- **`emptyFeed`**: a fetch read in full with **zero VEVENTs** while the last
+  full read had items (`lastFeedEventCount > 0`). The first such fetch sets
+  `emptySince` and deletes nothing. A later empty fetch **at least 12 h
+  after `emptySince`** is proof: the state becomes `upToDate` and absent
+  items in the proof window are deleted (counted in the last-change line).
+  Any fetch with items clears `emptySince`. An empty feed at the Import is
+  just empty (`layouts.md` §16.2's empty form). Why 12 h, not "never": a
+  semester break really empties a Moodle calendar, and items Moodle removed
+  must not keep reminding the user for weeks; why not at once: one bad
+  response must never wipe the list.
+
+Worked example (the fixture as fetched on Fri 16 Oct 11:07Z, latest item
+Mon 14 Dec 13:20Z): `observedLookahead` = 59 d 2 h 13 min. A fetch an hour
+later, at 12:07Z, has its proof window end at **Sun 13 Dec 14:20Z**: if it
+lacks `900029` (Mon 14 Dec 14:20 CET), that item is **kept**; if it lacks
+`900026` (Fri 4 Dec 23:59 CET), that one is deleted (`moodle-mocks.md` §M4,
+case `feedChanged`).
+
+Accepted cost: if the user shortens Moodle's look-ahead, items between the
+new and the old horizon are deleted once and come back when the window
+reaches them (new `Event.id`, done marks on them lost — they are weeks away).
+The other error — keeping a deadline Moodle removed — would remind the user
+of something that no longer exists, so the asymmetry is chosen this way.
+
+### 34.6 When a feed syncs
+
+`interactions.md` §13.3 applies unchanged — interval through
+`NSBackgroundActivityScheduler` with 10 % tolerance, launch, wake, network
+regained, `Sync Now` (`⌘R` syncs every connected source), one sync per
+source at a time, no faster retry after a transient failure, offline is a
+state, hidden sources still sync — with one difference:
+
+- **Default interval: every hour** (`pollInterval` 3600), the same seven
+  choices (`layouts.md` §11). Deadlines move on a scale of days; a deadline
+  added during the day arrives within the hour, long before any reminder
+  could be due (§40's earliest default fires 2 h before). One `GET` an hour
+  is nothing to a Moodle server. (Parsa to confirm; the CIS default stays 30
+  minutes.)
+- The `get`-mode floor of §20.8.2 does not apply (a feed is always one
+  request).
+
+### 34.7 Change by content
+
+- **Item hash** — SHA-256 hex over these fields joined by U+001F, in this
+  order: (1) the profile tag `moodle-1`; (2) externalID (the `UID`); (3)
+  `upstreamTitle` (§35.3); (4) start; (5) end — both `yyyyMMdd'T'HHmmss'Z'`
+  in UTC, `yyyyMMdd` when all-day; (6) isAllDay `1`/`0`; (7)
+  `courseCategory` (§35.5, as decoded, `/id` included); (8)
+  `importedDescription` (empty when nil); (9) location (empty; Moodle sends
+  none). **`DTSTAMP`, `LAST-MODIFIED`, `CLASS`, `SEQUENCE` are not in it**, so
+  a fetch that differs only in `DTSTAMP` — every fetch — writes nothing, and a
+  `LAST-MODIFIED` that moved with no content change writes nothing.
+- **Derived fields are not hashed** (`title`, `importKind`, `momentWording`,
+  `courseCode`): they are functions of (3) and (7). The **profile tag** is
+  what re-derives them: a build that changes §35's rules bumps it
+  (`moodle-2`), so every item hash changes once and the next sync rewrites
+  the derived fields of every item from today on, with no other effect.
+- **Feed hash** — §20.8.4's, over the items in the write window.
+- Stored items' hashes are computed from their stored fields when compared;
+  none is stored (§20.8.4).
+- The CIS hash (§20.8.4) is unchanged; the two never meet (one source, one
+  profile).
+
+### 34.8 One sync, step by step
+
+1. Read the URL from the Keychain. Missing or denied → `urlMissing`, no
+   request.
+2. Fetch (§34.1–§34.2).
+3. Parse (§35); derive identities (§35.2).
+4. Update `observedLookahead`; compute the feed hash over the write window.
+   Equal to `feedHash` → **stop** (nothing written; bookkeeping only).
+5. Diff the source's stored items on or after `startOfDay(today)` by
+   externalID: create the new; update an item whose hash differs (only the
+   fields that differ); delete the absent inside the proof window under the
+   guards (§34.5).
+6. Apply in one transaction; record `feedHash`, `lastFeedEventCount`,
+   counts, problems, last change, state; one log line (§34.9).
+
+Selection, undo and previews: §20.9 unchanged (a sync never lands during a
+conflict preview; a deleted selected item is deselected; undo steps that
+address a deleted item are dropped; sync writes are not undo steps).
+
+### 34.9 The log line
+
+One line per sync, subsystem `XIX.Kadence`, category `sync`, through the
+source logger (§21.4):
+
+`sync moodle.technikum-wien.at/… · feed · requests 1 · 412 ms · 151 KB · vevents 29 · duplicates 0 · deadlines 25 · openings 4 · paired 4 · notices 0 · lookahead 59d · feed unchanged`
+
+The connect sheet's fetch logs the same shape starting `connect` and ending
+`previewed {n} items`; the Import logs `import moodle.technikum-wien.at/… ·
+{n} items · {h} before today`. **No line ever contains a title, a category, a
+description, the path or the query** — the item counts and the host are
+enough to diagnose every §34.3 state.
+
+---
+
+## 35. Reading a Moodle feed — the `moodle` profile
+
+The profile is chosen by the source (`feedProfile`), never detected from
+`PRODID` or the host. It reuses §20's reader (`ScheduleSource`, §21.5) with
+these rules; where a rule below differs from §20, this one applies to the
+Moodle source only.
+
+### 35.1 Lines
+
+- **Unfold on bytes, then decode.** A line break (`CRLF`, or a bare `LF`)
+  followed by **one** space or **one** TAB is removed together with that
+  one character, on the raw bytes, before UTF-8 decoding. Moodle folds with a
+  TAB and cuts at 75 characters (not octets), so a fold never splits a
+  character, but unfolding first makes that irrelevant.
+- **The lone-TAB line.** Moodle follows every folded property with a line
+  that holds only a TAB. By the rule above it unfolds to nothing. It is not a
+  problem and must not become an empty property or a stray character.
+- A UTF-8 BOM is skipped; `CRLF` and `LF` give identical items
+  (`moodle-mocks.md` `feedLF`).
+- Invalid UTF-8 is decoded with U+FFFD replacements; each affected VEVENT is
+  kept and reported once: `{title} contains characters Kadence couldn't
+  read.` (technical line `Line {l}: invalid UTF-8`). Never seen in the real
+  feed.
+- `VERSION`, `METHOD`, `PRODID`, `CLASS`, `DTSTAMP` and the absence of
+  `VTIMEZONE` are not checked.
+
+### 35.2 Identity
+
+- `externalID` = `UID` (`900005@moodle.technikum-wien.at`) — §20.2's **uid
+  mode**: the UID does not contain its own `DTSTART`, and Moodle keeps it per
+  Moodle event, so a time change **updates in place** and keeps `Event.id`.
+- **No co-teaching merge.** §20.2's content-key merge is a CIS rule: two
+  Moodle items with the same title and time in two courses (`Assignment 1 is
+  due`, 23:59, twice) are two items. Moodle's `CATEGORIES` is not in the
+  content key, so merging would join them.
+- **The same UID twice**: the later `LAST-MODIFIED` wins (`duplicates` +1);
+  if they tie and their item hashes are equal, one is kept (`duplicates` +1);
+  if they tie and differ, the one whose item hash sorts lower is kept and
+  one problem is reported: `{title} is listed twice with different details;
+  one copy was used.` (this makes the fetch `partialImport`, so nothing is
+  deleted until it clears).
+- No `UID`: skipped, problem (§19.3's sentence).
+
+### 35.3 Text
+
+- `SUMMARY`, `CATEGORIES`, `DESCRIPTION`: iCalendar unescaping first (`\n`
+  and `\N` → line break, `\,` → `,`, `\;` → `;`, `\\` → `\`; any other `\x`
+  kept as written), **then HTML entities** decoded: `&amp;` `&lt;` `&gt;`
+  `&quot;` `&#39;` `&apos;` and numeric `&#NNN;` / `&#xHH;`; nothing else.
+  The order matters: the real feed's `FK CS&amp\;AM - Study Trips &amp\;
+  International Initiatives` unescapes to `FK CS&amp;AM - Study Trips &amp;
+  International Initiatives` and decodes to `FK CS&AM - Study Trips &
+  International Initiatives`.
+- **`upstreamTitle`** = `SUMMARY` after unescaping and decoding, every run of
+  whitespace collapsed to one space, trimmed. Emoji, quotes and ` | ` are
+  kept exactly (`🎮Assignment: Level Design is due`). Empty → `(No title)`.
+  It is stored and is what the inspector's `In Moodle` row shows (§37.4).
+- **`title`** (displayed) = `upstreamTitle` with the kind affix removed
+  (§35.4). Nothing is added, translated or reordered. **Bilingual titles are
+  kept whole**: `VERBINDLICHE Anmeldung für die Studienreise nach Manila |
+  BINDING registration for study trip to Manila` — no rule picks a half,
+  because ` | ` also appears in titles that are not translations (G-107).
+- **`importedDescription`** = `DESCRIPTION` unescaped and decoded, line
+  breaks kept, trailing whitespace of each line trimmed; nil when empty.
+  Never written to `notes`.
+
+### 35.4 Kinds — from the title's verified kind words only
+
+Checked on `upstreamTitle`, case-sensitive, **prefix first, then suffix**;
+the first match decides:
+
+| Pattern | `importKind` | `momentWording` | Displayed `title` |
+|---|---|---|---|
+| starts with `Anmeldeende: ` | `deadline` | `registrationEnds` | the rest |
+| ends with ` is due` | `deadline` | `due` | the part before it |
+| ends with ` ist fällig.` or ` ist fällig` | `deadline` | `due` | before it |
+| ends with ` closes` | `deadline` | `closes` | before it |
+| ends with ` endet` | `deadline` | `closes` | before it |
+| ends with ` opens` | `opening` | `opens` | before it |
+| ends with ` beginnt` | `opening` | `opens` | before it |
+| anything else | `notice` | nil | `upstreamTitle` unchanged |
+
+- The space before a suffix is part of it (`Fooopens` is a notice). A match
+  that would leave an empty title (`SUMMARY:is due`) is a notice with
+  `title` = `upstreamTitle`.
+- These eight are the forms seen in Parsa's feed (Moodle 4.5's English and
+  German strings for assignments, quizzes, lessons and choices, and the
+  registration plugin). **No other wording is guessed.** A real deadline in
+  another wording arrives as a `notice`, is shown, and the connect sheet and
+  inspector say Kadence won't remind of it (`layouts.md` §16.2, §17); Parsa
+  reports any he sees (G-109) and a rule is added by profile bump (§34.7).
+- From the fixture: 25 deadlines (`due` 9, `closes` 15, `registrationEnds`
+  1), 4 openings, 0 notices.
+- **Moments and spans.** Every Moodle item in the real feed has `DTSTART ==
+  DTEND`. That is a **moment** (§37). A VEVENT with `DTEND > DTSTART` (never
+  seen; Moodle can export course events with a duration) is a timed
+  imported event: `.fixedTimed` on the grid, glyph by its kind, `notice`
+  unless its title matches; it takes part in conflicts like any imported
+  timed event (§20.9) and gets no notification in this slice. A
+  `VALUE=DATE` item is all-day (§20.4), `.eventAllDay`, glyph by kind.
+  `DTEND` absent → a moment.
+
+### 35.5 Course and category
+
+`CATEGORIES` is the course. After §35.3, take the first comma-separated
+value (Moodle sends one) as **`courseCategory`** and store it **as decoded**
+(`BIF-VZ-5-WS2026-SWEN3-EN/174462`).
+
+- **Shortname** = `courseCategory` without a trailing `/` + digits
+  (`BIF-VZ-5-WS2026-SWEN3-EN`).
+- **Course code** (`courseCode`, stored): split the shortname on `-`. When
+  there are at least three parts, the third from the end matches
+  `^(WS|SS)[0-9]{4}$` and the last matches `^[A-Z]{2}$`, the code is the
+  **second from the end** (`SWEN3`) and the **term** the third (`WS2026`).
+  Otherwise there is no code: the item has a **category**, not a course
+  (`Bibliothek`, `FK CS&AM - Study Trips & International Initiatives`).
+- No `CATEGORIES`: no course, no category.
+- From the fixture: 10 course codes (`SWQM`, `RW`, `INNO2`, `INNO3`,
+  `SWEN3`, `REQEN`, `UF`, `SWEN2`, `GLD`, `SWRM` — `INNO2`, `REQEN`, `SWEN2`
+  from `SS2026`) and 2 categories.
+
+**Mapping to the timetable** — text only, derived when shown, never
+stored:
+
+- A timetable course code's **stem** is the part before its last `-`
+  (`SWQM-ILV` → `SWQM`, `REQEN-EXAM` → `REQEN`).
+- A Moodle item's course **matches** every distinct timetable `courseCode`
+  (from any connected timetable source's events, any date) whose stem equals
+  the item's `courseCode`, case-insensitive. Not every Moodle course has
+  lectures and not every lecture has a Moodle course; no match is normal and
+  shows nothing.
+- **Hue is not shared.** A Moodle item is drawn in the Moodle source's hue
+  and never in the timetable's: §1 gives hue to source and nothing else, and
+  a deadline painted in the lecture's blue would read as "from the
+  timetable". The course is carried by text — the label (§37.1), the
+  inspector's `Course` row (§37.4), hover help and VoiceOver.
+
+### 35.7 The fixture, read — expected values
+
+Every VEVENT of `fixtures/moodle-2026WS-redacted.ics` as this section reads
+it, on a Mac in Europe/Vienna (the `UID`'s number only;
+`@moodle.technikum-wien.at` omitted). Tests assert this table row for row.
+` \| ` in a title is the table's escape for the title's own ` | `.
+
+| UID | Local (Vienna) | `importKind` | `momentWording` | Course / category | Displayed `title` |
+|---|---|---|---|---|---|
+| `900001` | Sun 11 Oct 23:59 CEST | `deadline` | `closes` | `SWQM` | `Voting: the 3 best "Elevator's Speech" videos` |
+| `900002` | Mon 12 Oct 09:30 CEST | `opening` | `opens` | `RW` | `Mitarbeit Lektion 5` |
+| `900003` | Mon 12 Oct 09:30 CEST | `opening` | `opens` | `RW` | `Lessons Learned Lektion 5` |
+| `900004` | Mon 12 Oct 23:59 CEST | `deadline` | `due` | `INNO2` | `Retake Submission (till 2026-10-12)` |
+| `900005` | Tue 13 Oct 23:59 CEST | `deadline` | `due` | `INNO3` | `Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2)` |
+| `900006` | Wed 14 Oct 12:30 CEST | `deadline` | `closes` | `RW` | `Mitarbeit Lektion 4` |
+| `900007` | Wed 14 Oct 12:30 CEST | `deadline` | `closes` | `RW` | `Lessons Learned Lektion 4` |
+| `900008` | Tue 20 Oct 12:00 CEST | `deadline` | `due` | `SWEN3` | `Submission - Sprint 3: Queuing` |
+| `900009` | Thu 22 Oct 16:10 CEST | `opening` | `opens` | `REQEN` | `F2` |
+| `900010` | Thu 22 Oct 16:10 CEST | `opening` | `opens` | `REQEN` | `F3` |
+| `900011` | Thu 22 Oct 17:47 CEST | `deadline` | `closes` | `REQEN` | `F2` |
+| `900012` | Thu 22 Oct 17:48 CEST | `deadline` | `closes` | `REQEN` | `F3` |
+| `900013` | Sun 1 Nov 23:59 CET | `deadline` | `closes` | category `FK CS&AM - Study Trips & International Initiatives` | `VERBINDLICHE Anmeldung für die Studienreise nach Manila \| BINDING registration for study trip to Manila` |
+| `900014` | Mon 2 Nov 14:20 CET | `deadline` | `closes` | `UF` | `Test Management` |
+| `900015` | Tue 3 Nov 23:50 CET | `deadline` | `closes` | `RW` | `Mitarbeit Lektion 5` |
+| `900016` | Tue 3 Nov 23:50 CET | `deadline` | `closes` | `RW` | `Lessons Learned Lektion 5` |
+| `900017` | Tue 3 Nov 23:59 CET | `deadline` | `due` | `INNO3` | `Sprint Review Protocol for Sprint 2 (till Tuesday 23:59 in T0 + 4)` |
+| `900018` | Sun 8 Nov 23:59 CET | `deadline` | `due` | `SWEN2` | `Panel Exam (2026-11-08)` |
+| `900019` | Mon 9 Nov 14:20 CET | `deadline` | `closes` | `UF` | `Test Strategie` |
+| `900020` | Mon 16 Nov 14:20 CET | `deadline` | `closes` | `UF` | `Test Unternehmenskultur` |
+| `900021` | Tue 17 Nov 23:59 CET | `deadline` | `due` | `INNO3` | `Sprint Review Protocol for Sprint 3 (till Tuesday 23:59 in T0 + 6)` |
+| `900022` | Mon 23 Nov 14:20 CET | `deadline` | `closes` | `UF` | `Test Organisation` |
+| `900023` | Mon 30 Nov 14:20 CET | `deadline` | `closes` | `UF` | `Test Personalmanagement` |
+| `900024` | Mon 30 Nov 23:59 CET | `deadline` | `due` | `GLD` | `🎮Assignment: Level Design` |
+| `900025` | Tue 1 Dec 23:59 CET | `deadline` | `due` | `INNO3` | `Sprint Review Protocol for Sprint 4 (till Tuesday 23:59 in T0 + 8)` |
+| `900026` | Fri 4 Dec 23:59 CET | `deadline` | `due` | `SWRM` | `Submission: Proposal draft` |
+| `900027` | Mon 7 Dec 14:20 CET | `deadline` | `closes` | `UF` | `Test Motivation und Führung` |
+| `900028` | Tue 8 Dec 23:55 CET | `deadline` | `registrationEnds` | category `Bibliothek` | `📚 Literaturrecherche-Schulung (Adventsedition mit Tee und Keksen!) 🍪🎄✨` |
+| `900029` | Mon 14 Dec 14:20 CET | `deadline` | `closes` | `UF` | `Test Controlling` |
+
+---
+
+## 36. Pairing an opening with its deadline
+
+An opening and the deadline that closes the same activity are **one window**
+on screen. Pairing is a **pure function over the source's stored items**,
+computed when shown (never stored), so a sync that changes either side
+re-pairs without bookkeeping:
+
+1. Candidates: openings, and deadlines with `momentWording` `closes` or
+   `due`, of one source.
+2. **Key**: (`courseCategory`, displayed `title`). `Mitarbeit Lektion 5
+   beginnt` and `Mitarbeit Lektion 5 endet` in `BIF-VZ-5-WS2026-RW-DE` share
+   the key (`RW`, `Mitarbeit Lektion 5`).
+3. Within a key, sort deadlines by start; for each, pair the **latest
+   unpaired opening whose start ≤ the deadline's start**. Ties in start sort
+   by externalID.
+4. An opening left unpaired is shown on its own (§37.2). A deadline left
+   unpaired has no `Opens`.
+
+From the fixture: `900002` ↔ `900015` (12 Oct 09:30 → 3 Nov 23:50),
+`900003` ↔ `900016`, `900009` ↔ `900011` (Thu 22 Oct 16:10 → 17:47),
+`900010` ↔ `900012` (16:10 → 17:48); `900006` and `900007` (closing 14 Oct)
+have no opening — it aged out of the feed's back edge — and stand alone.
+
+A **paired opening is not drawn, not listed, not notified and not
+selectable**: everything it says is on its deadline (§37). It is still an
+`Event` row, so identity, deletion and history work unchanged.
+
+---
+
+## 37. Drawing a moment
+
+### 37.1 The pill — Week and Day
+
+A moment is drawn in the **all-day row** (`layouts.md` §3.2), on the **local
+date** of its instant in the Mac's current time zone, using §5's deadline
+pill geometry (`size.allDayRowHeight`, `radius.allDayPill`, one day wide).
+**Not on the hour grid**: a 23:59 deadline would sit at the bottom of a
+scrolled-away grid, and the all-day row is pinned — it is what is on screen
+whatever the scroll (a grid marker is G-106).
+
+| | **Deadline** | **Opening** (unpaired) | **Notice** |
+|---|---|---|---|
+| Fill | `color.source.<s>.tint` | same | same |
+| Border | `color.source.<s>.rail`, `size.borderRegular` | same | same |
+| Rail | `.solid`, leading | **none** | **none** |
+| Glyph | **`flag.fill`**, `color.source.<s>.text` | **`lock.open.fill`**, same colour | **`info.circle.fill`**, same colour |
+| Time | `typography.allDayTime`, `color.text.secondary` | same | same |
+| Title | `allDayLabel`, `color.text.primary` | same | same |
+
+Kind is carried by glyph and rail, never hue (§1). `lock.open.fill` and
+`info.circle.fill` are **new kind glyphs**; neither is in §10.1's source
+table, the chrome symbols (`link`, `mappin.and.ellipse`, `bell`,
+`exclamationmark.arrow.triangle.2.circlepath`, `clock.badge.exclamationmark`)
+or any other kind row, and none may be added to those (DECISIONS 2026-09-09).
+
+**Label** — one line, leading to trailing: glyph · `spacing.xs` · **time** ·
+`spacing.xs` · **text**:
+
+- **time** `HH:mm` of the instant (`23:59`, `14:20`). A **paired deadline
+  whose opening is on the same local date** shows the window: `16:10–17:47`
+  (en dash, no spaces). A paired deadline whose opening is on another day
+  shows only its own time; the opening is in hover help and the inspector.
+- **text** `{code} · {title}` when the item has a course code (`INNO3 ·
+  Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2)`,
+  `REQEN · F2`), else `{title}` (`📚 Literaturrecherche-Schulung …`). The
+  code comes first because titles like `F2` mean nothing without it, and
+  because a timetable block's title is its course code: the two read alike.
+  A category is never in the label (it can be fifty characters).
+- **Truncation**: the text tail-truncates; the time is never truncated or
+  split. When the space left for the text after the time would be under
+  `size.blockCascadeMinReadableWidth` (44pt, ~7 characters), **the time is
+  dropped** and the text gets the room: in a narrow column the title is what
+  tells two deadlines apart; the time is in hover help and the inspector.
+  Below the glyph alone, the glyph alone.
+
+**Sort in the all-day row** (amends §5.1's rule): by date, then
+`.examAllDay`, then **moment items by time, then deadline · opening · notice,
+then title**, then `.eventAllDay`, then title. So a day reads in the order
+things fall due.
+
+**States** (§6), composing as §6 says:
+
+- **done** — fill blended at `opacity.blockDoneFillBlend`, glyph replaced by
+  `checkmark.circle.fill` in `color.text.secondary`, title `color.text.secondary`
+  (the tinted kinds' done rule; measured 5.88 / 6.67, `tokens.json`
+  `$measured_1_10_0`). Openings and notices are never done (§38).
+- **past** — once the instant has passed: `opacity.blockPastContent` and the
+  canvas blend, as every past item. A past, not-done deadline looks exactly
+  like any other past item: **no overdue state, no red, no count, no
+  "missed"** (BRIEF-DESIGN; §27.9).
+- **hover**, **selected** — as §6 for an all-day pill.
+- Never `conflicted`, `inProgress`, `skipped` or `cancelled` (§38;
+  §35.4: Moodle sends no `STATUS`).
+- **No resize handles, cursor `.arrow`**, no drag (read-only, §18.2).
+
+**Hover help** (§3.4's universal carrier): `{label text} · {wording} {when}
+· {source} · {Kind}` —
+
+- `INNO3 · Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2)
+  · due 23:59 · Moodle · Deadline`
+- `REQEN · F2 · opens 16:10, closes 17:47 · Moodle · Deadline`
+- `RW · Mitarbeit Lektion 5 · opens 12 Oct 09:30, closes 23:50 · Moodle ·
+  Deadline`
+- `📚 Literaturrecherche-Schulung (Adventsedition mit Tee und Keksen!) 🍪🎄✨ ·
+  registration ends 23:55 · Moodle · Deadline`
+- an unpaired opening `… · opens 09:30 · Moodle · Opening`; a notice `… · at
+  10:00 · Moodle · Item`
+- `· Done` is appended when done.
+
+`{wording}`: `due` / `closes` / `registration ends` / `opens` / `at`.
+Another day's time in hover help is `d MMM HH:mm`.
+
+**VoiceOver** — one element, label in §11's order (title, time, kind,
+source, status):
+
+`INNO3, Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2),
+due Tuesday 13 October at 23:59, deadline, Moodle` — then `, done` when
+done. A paired window: `REQEN, F2, opens Thursday 22 October at 16:10,
+closes at 17:47, deadline, Moodle`. Opening: `…, opens Monday 12 October at
+09:30, opening, Moodle`. Notice: `…, at Monday 12 October 10:00, item,
+Moodle`. Emoji are left to VoiceOver to speak.
+
+### 37.2 Which moment items are drawn
+
+| Item | Drawn |
+|---|---|
+| deadline | yes, on its date |
+| opening paired with a deadline (§36) | **no** — its time is on the deadline |
+| opening not paired | yes, on its date, as an Opening |
+| notice | yes, on its date, as a Notice |
+
+### 37.3 Month
+
+A moment item is a **month chip** (§9, `.titleOnly` content set) in the
+all-day section of its date's cell, sorted as §37.1: glyph + **text**
+(`{code} · {title}`), **no time** — §9's rule that chips carry no time
+stands. Fill, border, rail and glyph as the pill. Done and past as §37.1.
+Hover help as §37.1. `+N more` as §9.
+
+### 37.4 The inspector
+
+`layouts.md` §17 is the layout. What the rows say:
+
+- **Title** — the displayed `title` (text, selectable, `lineLimit` 3), with
+  the kind glyph and the source swatch inline. The course code is **not**
+  repeated in the title: it has its row.
+- **Read-only line** — `Read-only — from Moodle` (§18.2's line; the source's
+  display name).
+- **The moment** — label by wording: `Due` / `Closes` / `Registration ends`
+  / `Opens` (an unpaired opening) / `At` (a notice); value `Tue 13 Oct 2026,
+  23:59` (`EEE d MMM yyyy, HH:mm`, the Mac's current zone, monospaced
+  digits).
+- **`Opens`** — a paired deadline's opening, same format.
+- **`Course`** — `{code}` (`INNO3`), with a second line in `blockMeta` /
+  `color.text.secondary`: the shortname (`BIF-VZ-5-WS2026-INNO3-EN`). An item
+  with a category and no course: label **`Category`**, value the category
+  (`Bibliothek`), no second line. Neither: no row.
+- **`In timetable`** — when the course matches timetable codes (§35.5): the
+  codes, comma-separated, sorted (`REQEN-EXAM`; `SWQM-ILV`). Plain text, not
+  a link. No match: no row.
+- **`In Moodle`** — `upstreamTitle`, selectable, `lineLimit` 0, **only when
+  it differs from the displayed title** (`F2 closes`, `Anmeldeende: 📚 …`).
+  This is where the raw title is always reachable.
+- **Source** — swatch + `Moodle` + `Synced 14:02` (§6.1 row 7). **Origin**
+  `Imported`.
+- **Status** — deadlines only (§38).
+- **Description** — `importedDescription`, selectable, `http://` and
+  `https://` URLs drawn as links (`color.interactive.link`, opening in the
+  browser), collapsed after `size.inspectorDescriptionMaxLines` (6) lines
+  with a `Show more` / `Show less` link-style button (`layouts.md` §17).
+- A **notice** adds, under the moment row: `Kadence couldn't tell whether this
+  is a deadline, so it won't remind you of it.` (`blockMeta`,
+  `color.text.secondary`).
+
+No `Location`, `Place` or `Leave by` row: a Moodle item has no place (§23.2:
+an imported event from a source of another kind than the timetable has none).
+
+---
+
+## 38. Done — Kadence's own mark
+
+- **Deadlines** carry `status` `.scheduled` (shown as **Not done**) or
+  `.done`. Nothing else: **no Skip** — skipping is "re-offer this later",
+  and an upstream deadline cannot be re-offered. `⌥⌘↩` on a deadline is
+  refused with the system sound and the read-only line's emphasis
+  (`interactions.md` §13.4's pair), as are Done on an opening or a notice.
+- **Openings and notices** have no status row and are never done.
+- **Local, never sent.** The mark is in the store, written only by the user
+  (inspector, `⌘↩`, the popover, a notification's `Done`); it is never sent to
+  Moodle or anywhere else. A sync never writes `status` (§18.1).
+- **Kept across syncs**, history included (§34.4), and on past deadlines
+  (DECISIONS 2026-10-10: history keeps Done).
+- **A changed deadline keeps its done mark** — the one difference from §18.1,
+  whose "an upstream move resets status" is about attendance at a lecture
+  that moved to another slot. A done deadline means *handed in*, and a
+  submission is not undone by an extension. So when a sync moves the start of
+  a done deadline:
+  - `status` stays `.done`;
+  - the inspector's Status row adds the line `Due time changed after you
+    marked it done (was Tue 20 Oct, 12:00).` in `color.text.primary`
+    (`blockMeta`) — never silent;
+  - no notification is planned for it (§40.2: done).
+  This needs one local field, **`markedDoneDueAt`**: the item's start at the
+  moment it was marked done; set by Mark Done, cleared by Mark Not Done; the
+  line shows while `status == .done` and `markedDoneDueAt != start`. Marking
+  it Not done and Done again clears the line.
+- A content change without a time change (title, description,
+  `LAST-MODIFIED`) changes nothing about the mark and shows nothing.
+- **An item Moodle removes** is deleted with its mark (proof of absence,
+  §34.5), as a removed lecture is; history is never deleted.
+- Undo: `Mark Done` / `Mark Not Done`, ordinary named steps
+  (`interactions.md` §13.5).
+
+---
+
+## 39. The menu bar and the popover
+
+### 39.1 The status item — the `Due` state
+
+The status item stays "the next thing to go to" (§15). A deadline does not
+take NEXT from a timed item, a late item or a departure. It fills the
+otherwise empty evening:
+
+| State | When | Content | Colour (popover / offscreen, §15.1) |
+|---|---|---|---|
+| **Due** | Phase 2's NEXT is **empty** (nothing timed left today) **and** a not-done **deadline** is due later today (`now < due`, same local date) | **`Due 23:59 · INNO3 · Sprint Review…`** | `color.text.primary` |
+
+- The earliest such deadline (then by §37.1's sort) is NEXT. Openings and
+  notices are never NEXT.
+- **The time unit** is `Due 23:59` and takes §15.1's time role: first, never
+  truncated or split; the text `{code} · {title}` truncates; below the
+  degrade point (width of `Due 23:59` + ` · ` +
+  `size.statusItemTitleMinWidth`) the unit alone.
+- When it passes (`due ≤ now`) or is marked done, the next due deadline today
+  takes it, else `Nothing left today`. **No late state for a deadline** — a
+  passed deadline is not `12m ago`.
+- Template-rendered as every state (§15.1, 2026-10-05).
+- Accessibility label: `Due at 23:59, Sprint Review Protocol for Sprint 1
+  (till Tuesday 23:59 in T0 + 2), INNO3`.
+
+### 39.2 The popover
+
+**NEXT, a deadline** (the Due state):
+
+```
++------------------------------------------+
+|  NEXT                                    |
+|                                          |
+|  Sprint Review Protocol for Sprint 1     |   popoverNextTitle (lineLimit 2)
+|  (till Tuesday 23:59 in T0 + 2)          |
+|  Due 23:59 · INNO3 · Moodle              |   popoverNextMeta
+|                                          |
+|  [ Done ]  [ Open ]                      |
+|------------------------------------------|
+```
+
+- Title: the displayed title. Meta: `{Wording} {HH:mm} · {code or category}
+  · {source}` — `Due 23:59 · INNO3 · Moodle`, `Closes 23:50 · RW · Moodle`,
+  `Registration ends 23:55 · Bibliothek · Moodle`; no code or category: `Due
+  23:59 · Moodle`. The time is never truncated; the meta truncates from its
+  tail (§26.2's `lineLimit` 2 applies to the leave line only).
+- Rail: the source hue (§15.2). Actions `Done` · `Open` — no `Snooze` (it
+  cannot move), no `Re-offer`. `Done` replaces the NEXT block in place with
+  the next item (§15.2, unchanged behaviour).
+
+**DUE TODAY** — a section after REST OF TODAY, same anatomy:
+
+```
+|  REST OF TODAY                           |
+|  18:30  Code review                      |
+|------------------------------------------|   (the existing divider style)
+|  DUE TODAY                               |   popoverSectionLabel
+|  23:50  RW · Mitarbeit Lektion 5         |   popoverRow
+|  23:59  INNO3 · Sprint Review Protoc…    |
+```
+
+- Rows: every not-done **deadline** with `now < due` on today's date,
+  **except the one in NEXT**, in §37.1's order; `{HH:mm}` in the fixed time
+  column, then `{code} · {title}` (or `{title}`), tail-truncated. At most
+  `size.popoverMaxDueRows` (3), then `+N more` (as §15.2).
+- Omitted when empty — including whenever the Due NEXT is the only one.
+- Rows focus and open like REST OF TODAY rows (`interactions.md` §12): `↩`
+  selects the item in the main window. No per-row actions.
+- **It is not a second calendar**: today only, deadlines only, three rows.
+  Tomorrow's 00:00 deadline is not "due today"; the day-before reminder
+  covers it (§40).
+- VoiceOver: section `Due today`; a row `23:59, INNO3, Sprint Review Protocol
+  for Sprint 1 (till Tuesday 23:59 in T0 + 2), deadline`.
+- The stale and notifications lines (§19.4, §26.3) stay last. A stalled
+  Moodle source gets its own stale line (`Moodle not synced since Mon
+  14:02`), which is what keeps a dead URL from going unnoticed.
+
+---
+
+## 40. Deadline notifications
+
+The deadline half of G-088. §27's machinery — planner and applier, the
+rolling 48-hour window and its cap of 48, records, catch-up, permission,
+categories, `willPresent` — applies unchanged except as stated.
+
+### 40.1 The rule
+
+A **sixth `NotificationRule`**, kind **`deadline`**, Settings label
+`Deadlines` (`layouts.md` §18). Two reminders per deadline:
+
+| Reminder | Setting | Choices | **Default** | Fires at |
+|---|---|---|---|---|
+| **Early** (`ahead`) | `aheadDays`, `aheadMinuteOfDay` | `Off` · `The day before` · `2 days before` · `3 days before`; at `08:00` · `12:00` · `18:00` · `20:00` | **The day before, 18:00** | the chosen clock time on the local date `aheadDays` before the due date — `WallClock.moment(minuteOfDay:on:)` (§31), the day found by calendar arithmetic (`.day`, never 86 400 s) |
+| **Final** (`close`) | `leadMinutes`, `leadEnabled` | `Off` · `30 minutes` · `1 hour` · `2 hours` · `3 hours` · `6 hours before` | **2 hours before** | `due − lead` (a duration, §31.1) |
+
+The rule's own switch turns both off. Defaults are proposed for Parsa
+(plan, "For Parsa"). BRIEF-PRODUCT's "3 days / 1 day / 3 hours" are all
+reachable; the defaults follow Parsa's 2026-10-16 suggestion of two.
+
+### 40.2 Which deadlines
+
+Deadlines (§35.4) with `status != .done` and `due > now`, from any visible
+or hidden Moodle source. **Never**: openings (paired or not), notices,
+spans, done deadlines, items before `startOfDay(today)`, a reminder whose
+`F` has passed (outside a catch-up pass, §27.6).
+
+### 40.3 Fire times, the quiet rule, and collapsing
+
+For each deadline, compute `F_ahead` and `F_close`, then:
+
+1. **Protected windows hold, and never past the deadline.** If `F` lies in a
+   `.protected` span `S` (`S.start ≤ F < S.end`, spans from
+   `TimeWindow.spans(on:)` at wall-clock, §31.4), move it to `S.end`
+   (repeat for back-to-back spans). If that is **at or after the due
+   moment**, the reminder instead fires at **`S.start − 1 min`** — the last
+   minute before the window. Unlike §27.5 rule 2, it makes no difference
+   that the deadline itself is inside the window (`23:59` is inside Sleep):
+   the user did not put it there, and a reminder after a deadline is useless
+   while one before Sleep is not. If `S.start − 1 min ≤ now`, the reminder is
+   not planned (a catch-up may still deliver, §40.6).
+2. **Collapse**: if both remain and `F_close − F_ahead < 60 min`, only the
+   final reminder is planned.
+
+Examples (Sleep 22:00–07:00): due Tue 13 Oct 23:59 → ahead Mon 12 Oct 18:00,
+close Tue 21:59 (outside Sleep). Close at `1 hour` → 22:59, inside Sleep,
+`S.end` 07:00 Wed is after the due moment → **21:59**. Due Thu 08:30, close
+`2 hours` → 06:30 inside Sleep, `S.end` 07:00 < 08:30 → **07:00**.
+
+### 40.4 Grouping
+
+Reminders with the **same fire time** for deadlines due on the **same local
+date** are **one notification** (two RW items closing 12:30 the same day are
+one "2 deadlines" message, not two banners). A group of one is a single.
+
+### 40.5 Copy — exact, tested
+
+`{title}`: the displayed title. `{course}`: the course code, else the
+category, else omitted with its separator. `{source}`: the source's name.
+`{date}`: `EEE d MMM` (`Tue 13 Oct`). `{time}`: `HH:mm`. **Absolute only**:
+never `today`, `tomorrow`, `in 2 hours` — a delivered notification read the
+next morning must still be true (§27.3).
+
+| # | Notification | Title | Body | Category |
+|---|---|---|---|---|
+| **N9** | One deadline, `due` | `{title} is due {date} {time}` | `{course} · {source}` | `kadence.deadline` |
+| N9 | `closes` | `{title} closes {date} {time}` | same | same |
+| N9 | `registrationEnds` | `Registration for {title} ends {date} {time}` | same | same |
+| **N10** | A group (§40.4), one shared time | `{n} deadlines on {date} at {time}` | entries joined by ` · ` | `kadence.deadlines` |
+| N10 | A group, several times | `{n} deadlines on {date}` | same | same |
+
+- An N10 entry is `{time} {title} ({course})`, or `{time} {title}` without a
+  course; entries in §37.1's order. The system truncates the body.
+- A paired deadline's copy is the same as an unpaired one (the opening is in
+  the app).
+- **Never** `late`, `missed`, `overdue`, a count of anything not done, or an
+  exclamation mark **in Kadence's own words**. (An upstream title may
+  contain `!` — `… mit Tee und Keksen!` — and is shown as written; the
+  §27.4 test exempts `{title}`.)
+- Interruption level **`.active`**, default sound. Not time-sensitive: a
+  deadline reminder is not a departure.
+
+### 40.6 Identifiers, actions, passes
+
+- **Identifiers**: single `due.{eventID}.ahead` / `due.{eventID}.close`;
+  group `due.day.{yyyyMMdd}.{F}` with the due date's local `yyyyMMdd` and
+  `F` as `yyyyMMdd'T'HHmm'Z'` in UTC. `due.` joins the owned prefixes (§27.6,
+  amended). A group that shrinks to one is replaced by that single; a single
+  that gains a partner is replaced by the group.
+- **Actions** (§27.7, amended): `kadence.deadline` — `Done` · `Open`. `Done`
+  marks it done (one `Mark Done` step, §38) and its other reminder goes in
+  the next pass. `kadence.deadlines` — `Open` only (Done on a group would
+  have to guess which). `Open`, and clicking: activate Kadence, page to the
+  due date (Day view keeps Day; Week and Month page), select the single
+  deadline; for a group, select nothing.
+- **Passes**: §27.6's triggers plus every sync of a Moodle source (through the
+  existing recompute → pass chain) and every change to the deadline rule.
+- **Catch-up** (after launch and wake only, §27.6): a reminder with no
+  record whose `F` has passed, of a deadline whose due moment has not, is
+  delivered **at once** — unless the same deadline's other reminder is still
+  to come within 60 min (§40.3's collapse, so the user is not told twice in
+  an hour). Delivered "at once" means `F = now` run through §40.3 step 1: inside
+  a protected span it waits for `S.end` if that is before the due moment,
+  and otherwise is not delivered (`S.start − 1 min` has passed). Reminders
+  missed for the same deadline collapse to one; a missed group stays a
+  group. Never two catch-up notifications for one deadline.
+- **Removal**: done, deleted, or now a notice → pending removed; **delivered**
+  deadline notifications whose deadline has passed, is done or was deleted
+  are cleared (§27.6's rule; for a group, when every member is).
+
+### 40.7 The sync-paused notification for a feed (N8, extended)
+
+N8 (§27.4) is sent once when a **Moodle** source enters `unauthorized`,
+`forbidden`, **`feedNotFound` or `notACalendar`** in a sync Kadence started on
+its own: for a URL source, each of these means "the URL stopped working" and
+nothing will arrive until it is replaced. Only the first two pause. Same
+identifier (`sync.{sourceID}`), category `kadence.source` (`Open` →
+Settings ▸ Sources), removal and quiet rules as N8.
+
+| State | Title | Body |
+|---|---|---|
+| `unauthorized` | `{name} isn't syncing` | `{host} didn't accept the calendar URL. Sync is paused until you paste a new one in Kadence.` |
+| `forbidden` | `{name} isn't syncing` | `{host} refused access to the calendar. Sync is paused until you paste a new URL in Kadence.` |
+| `feedNotFound` | `{name} isn't syncing` | `{host} has no calendar at the saved URL. Paste a new one in Kadence.` |
+| `notACalendar` | `{name} isn't syncing` | `{host} sent a web page instead of the calendar. If you changed your FH password, Moodle made a new calendar URL.` |
+
+The body never contains the URL, the path or the token. The `Sync problems`
+rule (§27.1) governs it.
+
+### 40.8 Morning summary — deferred
+
+BRIEF-PRODUCT puts the daily morning summary in Phase 4; nothing in Phase 3
+asks for it. It stays deferred (G-108). With the early reminder at 18:00 the
+day before, a deadline is announced the evening before by default.
+
+---
+
+## 41. Clock changes
+
+§31 holds; for moments:
+
+- **A moment is its instant** (`DTSTART…Z`). It is never stored or moved as
+  a time of day. Its **date** is the local date of the instant, its **time**
+  the local clock time of the instant, both in the Mac's current zone. So
+  `20261013T215900Z` is Tue 13 Oct **23:59 CEST** and `20261103T225900Z` is
+  Tue 3 Nov **23:59 CET**: Moodle already wrote each in UTC for its own
+  offset; Kadence adds nothing.
+- **A moment in the repeated hour** (Sun 25 Oct 02:00–02:59) shows its clock
+  time (`02:30`) and sorts by instant, so the CEST one comes first. **A
+  moment cannot be in the missing hour.**
+- **The early reminder** is a wall-clock time on a calendar day (§40.1): due
+  Mon 26 Oct 23:59 CET → ahead **Sun 25 Oct 18:00 CET**; due Mon 30 Mar 2026
+  23:59 CEST → ahead **Sun 29 Mar 18:00 CEST**. The **final reminder** is a
+  duration: due Sun 25 Oct 01:30 CEST, close `2 hours` → **Sat 24 Oct 23:30
+  CEST** (inside Sleep → held to S.end 07:00 CET Sun, after the due moment →
+  `S.start − 1 min` = **Sat 21:59 CEST**).
+- **The proof window** (§34.5) is instants plus durations: no wall-clock
+  conversion.
+- **A Mac changing zone** redraws moments on their local dates in the new
+  zone; nothing is written (the instant did not change).
+- Tests: §43.3 C1–C5.
+
+---
+
+## 42. Data model additions (slice 3) — PROPOSED
+
+SwiftData, enums as raw strings, every new field defaulted so a slice-2
+store opens unchanged.
+
+### 42.1 `Event`
+
+| Field | Type | Owner | Notes |
+|---|---|---|---|
+| `importKind` | raw (existing) | sync | gains **`deadline`**, **`opening`**, **`notice`** (§35.4). CIS values unchanged |
+| `momentWording` | `String?` raw | sync | `due` / `closes` / `registrationEnds` / `opens`; nil for notices and CIS |
+| `upstreamTitle` | `String?` | sync | §35.3; nil for CIS |
+| `courseCategory` | `String?` | sync | §35.5, as decoded |
+| `courseCode` | `String?` (existing) | sync | Moodle: the code token (`SWEN3`); CIS unchanged (`SWEN3-LAB`) |
+| `markedDoneDueAt` | `Date?` | **local** | §38. Kept by `EventStore`'s delete snapshot, as `placeID` |
+
+`importedDescription` (existing) carries the description. A moment is
+`start == end` (no field). `EventStore`'s duplicate refuses imported events
+as today.
+
+### 42.2 `Source`
+
+| Field | Type | Notes |
+|---|---|---|
+| `connection` | raw (existing) | gains **`icsFeed`** |
+| `feedProfile` | `String?` raw | `moodle`; nil for CalDAV |
+| `observedLookahead` | `Double` = 0 | seconds, §34.5 |
+| `emptySince` | `Date?` | §34.5 |
+
+`state` gains the raw values `feedNotFound` and `urlMissing`. `serverURL` is
+`https://{host}` for a feed. **No field holds the URL, its path or its
+query.**
+
+### 42.3 `NotificationRule`
+
+| Field | Type | Notes |
+|---|---|---|
+| `aheadDays` | `Int` = 0 | the early reminder; 0 = off. `deadline`: **1** |
+| `aheadMinuteOfDay` | `Int` = 1080 | `deadline`: **1080** (18:00) |
+| `leadEnabled` | `Bool` = true | the final reminder's own switch; `deadline`: **true** |
+
+The sixth rule, kind `deadline`: `isEnabled` true, `leadMinutes` **120**,
+`aheadDays` 1, `aheadMinuteOfDay` 1080, `leadEnabled` true. A store with
+five rules gains it on the next launch, idempotently. The other five rules
+ignore the three new fields.
+
+### 42.4 Not added
+
+No `WorkItem`, `ExternalAssignment` or `AssignmentSource` (G-104, G-105); no
+stored pairing (§36); no stored course mapping (§35.5); no per-course
+colour; no submission state; no `LAST-MODIFIED` or `DTSTAMP`; no stored URL.
+
+`ScheduleSource` (§21.5) is the protocol the Moodle source implements
+(`MoodleFeedSource`): `fetch(windowStart:)` ignores the window (one `GET`
+returns what Moodle lists) and returns the items, problems, `objectCount`
+(VEVENTs before dedupe) and diagnostics. BRIEF's `AssignmentSource`
+(`fetchAssignments`) belongs to the REST client and the `WorkItem` model,
+both deferred.
+
+---
+
+## 43. What slice 3 must render for review
+
+Same rules as §17, §22 and §30: display fixtures, mocked services, all six of
+§17.2's evidence rules. **No item needs a real Moodle, a real URL or network
+access**; the only URL any frame or test holds is the mock's (§43.1), and a
+frame never shows more of it than `moodle.technikum-wien.at/…`.
+
+1. Sidebar, first run: `Connect Timetable…` and `Connect Moodle…`; then with
+   the timetable connected, `Connect Moodle…` alone (`layouts.md` §2.1)
+2. Settings ▸ Sources, empty state with both buttons; the `+` menu open
+3. Moodle sheet, step 1: empty; filled (bullets) with the parsed line
+4. Step 1 validation, one frame each: V3 (`http://`), V5 (a Moodle page
+   URL), V6 (no `authtoken`), V7 (`preset_time=weeknow`), V9 (already
+   connected)
+5. Step 1 connecting; step 1 failures: `unauthorized`, `notACalendar`
+   (HTML), `feedNotFound`, `offline`
+6. Step 2, case `feedOK` at Mon 12 Oct 06:00: `29 items, 11 Oct 2026 – 14
+   Dec 2026`, the kinds sentence, the openings sentence, the history
+   sentence with `1`, the done sentence; and case `feedNotice` (the notices
+   sentence)
+7. Settings ▸ Sources, the Moodle source selected: `Up to date` with
+   `moodle.technikum-wien.at/…`, `Replace URL…`, `Every hour`; and the same in
+   `unauthorized` (paused) and `emptyFeed`
+8. Replace URL: the sheet in Replace mode, empty; V10; step 2 `Update Moodle`
+9. **Week 12–18 Oct** (dataset `moodle`, clock Mon 12 Oct 06:00): the
+   timetable lectures and, in the all-day row, Sun 11 `SWQM · Voting…` (past),
+   Mon 12 `INNO2 · Retake Submission…` (done), Tue 13 `INNO3 · Sprint
+   Review…`, Wed 14 the two `RW · … Lektion 4` closing 12:30 — and **no**
+   pill for Mon 12's two openings (paired with 3 Nov). Light and dark
+10. **Week 19–25 Oct**: Tue 20 `12:00 SWEN3 · Submission - Sprint 3:
+    Queuing`; Thu 22 `16:10–17:47 REQEN · F2` and `16:10–17:48 REQEN · F3`
+    (the windows; their openings drawn nowhere else)
+11. **Week 2–8 Nov**: Mon 2 `14:20 UF · Test Management`; Tue 3 three pills
+    (`23:50 RW · Lessons Learned Lektion 5`, `23:50 RW · Mitarbeit Lektion 5`,
+    `23:59 INNO3 · Sprint Review…`) — the all-day row at three rows; Sun 8
+    `SWEN2 · Panel Exam (2026-11-08)`
+12. A narrow Week column (window 1100pt wide): the time dropped by §37.1's
+    rule on Tue 3 Nov
+13. Day Thu 22 Oct, and Day Sun 1 Nov (the bilingual Manila title, no code)
+14. Month Oct 2026 and Nov 2026; Dec 2026 (the emoji titles, `Bibliothek`)
+15. Inspector (dataset `moodle`, whose timetable holds `SWQM-ILV`,
+    `SWEN3-LAB`, `SWEN3-ILV`, `INNO3-EL`, `EPC-ILV`, `REQEN-EXAM`,
+    `SWRM-ILV`): `900008` (Due Tue 20 Oct 2026, 12:00; Course `SWEN3`; `In
+    timetable SWEN3-ILV, SWEN3-LAB`; `In Moodle Submission - Sprint 3:
+    Queuing is due`), `900011` (Closes 17:47, Opens 16:10, `In timetable
+    REQEN-EXAM`, `In Moodle F2 closes`), `900013` (Category, `In Moodle … endet`,
+    no `In timetable`), `900028` (Registration ends, emoji), a notice
+    (`feedNotice`), `900004`'s long description collapsed and expanded
+16. Done: `900005` done in the inspector and on the pill; `900008` done then
+    moved by `feedChanged` (the `Due time changed…` line)
+17. An unpaired opening (`feedChanged`'s `900031`) on its pill and in the
+    inspector
+18. Menu bar, dataset `moodleOnly`, offscreen at Tue 13 Oct 20:00: status
+    item `Due 23:59 · INNO3 · Sprint Review…` at 180pt and degraded; the
+    popover's Due NEXT; at Tue 3 Nov 20:00 the popover with NEXT `RW ·
+    Lessons Learned Lektion 5` and DUE TODAY's two rows
+19. Settings ▸ Notifications with the `Deadlines` rows; the rule off; the
+    early reminder `Off` (its time pop-up disabled)
+20. **The notification plan dump** (`notification-plan-moodle.txt`) at
+    §43.2's clocks, from the real planner
+21. `moodle-mocks.md` §M4's sync table as a test (no frame)
+
+### 43.1 Fixtures
+
+**Mock URL** (the only one any test, frame or fixture holds):
+`https://moodle.technikum-wien.at/calendar/export_execute.php?userid=4711&authtoken=SENTINELb0c7a1e2d3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8&preset_what=all&preset_time=recentupcoming`
+— `SENTINEL…` is searched for by §43.3's leak tests. It is invented, as the
+review account `user01` is.
+
+**`Fixtures/ICS/moodle-review.ics.template`** — built from
+`fixtures/moodle-2026WS-redacted.ics` byte for byte (CRLF, TAB folding, the
+lone-TAB lines, entities, emoji), with each `DTSTART`/`DTEND` replaced by
+`{{M+d HH:mm}}` (the fixture's local Vienna date and time, `d` days from Mon
+12 Oct 2026; rendered to UTC `Z` at serve time through `WallClock`) and every
+`DTSTAMP` by `{{NOW}}`. With `M` = 2026-10-12 it reproduces the fixture
+exactly (a test asserts it, `DTSTAMP` aside). `M` is §22.1's.
+
+**Datasets** (`-KadenceReview <name>`):
+
+- **`moodle`** — dataset `travel` (§30.1), plus one connected source
+  `Moodle` (`teal`, `connection icsFeed`, `feedProfile moodle`), seeded as
+  already imported from case `feedOK` at the clock's today, served by
+  `MockFeedTransport`; `900004` marked done (`markedDoneDueAt` = its start);
+  the six rules with §42.3's defaults.
+- **`moodleOnly`** — the same Moodle source, built-in sources, `Sleep`
+  22:00–07:00, nothing else (no timetable, no manual events): the menu bar
+  and the notification tables depend on nothing but deadlines.
+- Argument **`-KadenceFeed <case>`** selects the mock case for the next
+  fetch (`moodle-mocks.md`), default `feedOK`.
+
+### 43.2 Notification tables (tests, and item 20)
+
+Dataset `moodleOnly`, rules at §42.3's defaults, `900004` done. Only `due.`
+identifiers.
+
+**At Mon 12 Oct 2026 06:00** (window to Wed 14 Oct 06:00) — 3 requests:
+
+| Identifier | Fires | Title | Body | Category |
+|---|---|---|---|---|
+| `due.{900005}.ahead` | Mon 12 Oct 18:00 | `Sprint Review Protocol for Sprint 1 (till Tuesday 23:59 in T0 + 2) is due Tue 13 Oct 23:59` | `INNO3 · Moodle` | `kadence.deadline` |
+| `due.day.20261014.20261013T1600Z` | Tue 13 Oct 18:00 | `2 deadlines on Wed 14 Oct at 12:30` | `12:30 Lessons Learned Lektion 4 (RW) · 12:30 Mitarbeit Lektion 4 (RW)` | `kadence.deadlines` |
+| `due.{900005}.close` | Tue 13 Oct 21:59 | as `.ahead` | `INNO3 · Moodle` | `kadence.deadline` |
+
+(`900004`, done, has none; with it not done, `due.{900004}.close` Mon 12 Oct
+21:59 `Retake Submission (till 2026-10-12) is due Mon 12 Oct 23:59` /
+`INNO2 · Moodle` is added. The two `… Lektion 4` finals, Wed 10:30, are
+outside the window.)
+
+**At Mon 2 Nov 2026 06:00** (window to Wed 4 Nov 06:00) — 4 requests:
+
+| Identifier | Fires | Title | Body | Category |
+|---|---|---|---|---|
+| `due.{900014}.close` | Mon 2 Nov 12:20 | `Test Management closes Mon 2 Nov 14:20` | `UF · Moodle` | `kadence.deadline` |
+| `due.day.20261103.20261102T1700Z` | Mon 2 Nov 18:00 | `3 deadlines on Tue 3 Nov` | `23:50 Lessons Learned Lektion 5 (RW) · 23:50 Mitarbeit Lektion 5 (RW) · 23:59 Sprint Review Protocol for Sprint 2 (till Tuesday 23:59 in T0 + 4) (INNO3)` | `kadence.deadlines` |
+| `due.day.20261103.20261103T2050Z` | Tue 3 Nov 21:50 | `2 deadlines on Tue 3 Nov at 23:50` | `23:50 Lessons Learned Lektion 5 (RW) · 23:50 Mitarbeit Lektion 5 (RW)` | `kadence.deadlines` |
+| `due.{900017}.close` | Tue 3 Nov 21:59 | `Sprint Review Protocol for Sprint 2 (till Tuesday 23:59 in T0 + 4) is due Tue 3 Nov 23:59` | `INNO3 · Moodle` | `kadence.deadline` |
+
+(`900013`, Sun 1 Nov, is past; `900014`'s ahead, Sun 1 Nov 18:00, is past.)
+
+**At Sat 31 Oct 2026 06:00** (window to Mon 2 Nov 06:00; CET) — 3 requests:
+
+| Identifier | Fires | Title | Body | Category |
+|---|---|---|---|---|
+| `due.{900013}.ahead` | Sat 31 Oct 18:00 | `VERBINDLICHE Anmeldung für die Studienreise nach Manila \| BINDING registration for study trip to Manila closes Sun 1 Nov 23:59` | `FK CS&AM - Study Trips & International Initiatives · Moodle` | `kadence.deadline` |
+| `due.{900014}.ahead` | Sun 1 Nov 18:00 | `Test Management closes Mon 2 Nov 14:20` | `UF · Moodle` | `kadence.deadline` |
+| `due.{900013}.close` | Sun 1 Nov 21:59 | as `due.{900013}.ahead` | as `due.{900013}.ahead` | `kadence.deadline` |
+
+(`900013` is `closes` — `… endet` — not `registrationEnds`; the ` | ` in its
+title is upstream text, escaped here only for the table.)
+
+**Rule variants** (tests): final `1 hour` → `due.{900005}.close` at Tue 13
+Oct **21:59** (22:59 is inside Sleep and its end is after the due moment);
+early `Off` → no `.ahead` and no group at 18:00; `3 days before` at
+`08:00` → `due.{900008}.ahead` Sat 17 Oct 08:00 for Tue 20 Oct 12:00; the
+rule off → none. `900028` (Tue 8 Dec 23:55) → `Registration for 📚
+Literaturrecherche-Schulung (Adventsedition mit Tee und Keksen!) 🍪🎄✨ ends
+Tue 8 Dec 23:55` / `Bibliothek · Moodle`.
+
+**Catch-up** (`moodleOnly`, nothing recorded): a launch at **Tue 13 Oct
+21:30** delivers `due.day.20261014.20261013T1600Z` at once (missed at 18:00;
+the two items' final reminder, Wed 10:30, is more than 60 min away) and
+plans `due.{900005}.close` at 21:59 as usual — `900005`'s missed `.ahead` is
+not delivered, because its `.close` comes within 60 min. A launch at **Tue
+13 Oct 22:30** delivers nothing for `900005`: its `.close` was missed, the
+clock is inside Sleep, Sleep ends after 23:59, and 21:59 has passed — the
+status item's Due state carries it (§39.1). A launch at Wed 14 Oct 00:30:
+nothing for `900005` (passed).
+
+**Actions**: `Done` on `due.{900005}.ahead` → `900005` done, one `Mark Done`
+step, `markedDoneDueAt` = its start, and `due.{900005}.close` removed in the
+next pass; `kadence.deadlines` offers only `Open`; `Open` on the 14 Oct
+group pages to Wed 14 Oct with nothing selected.
+
+### 43.3 Tests that are required by this section
+
+- **Leaks** (the sentinel): after a connect, an Import, a sync of every
+  `moodle-mocks.md` case and a Replace, `SENTINEL` and `4711` appear in no
+  log line captured, no field of any model in the in-memory store (a scan of
+  every string property), no `UserDefaults` key or value, no `stateDetail`,
+  `problems`, notification title or body, accessibility label or value, help
+  text or error description produced by Kadence. The mock secret store holds
+  it; the mock transport's recorded request holds it; nothing else does.
+  `MoodleFeedURL`'s `description`, `debugDescription` and `dump` are
+  `moodle.technikum-wien.at/…`.
+- **Errors**: a `URLError` carrying the URL in `failingURL` and
+  `NSErrorFailingURLStringKey`, for each mapped code, produces its state and
+  a log line with neither.
+- **Redirects**: `feedRedirectCrossHost` → `redirected`, and the stub
+  records **no request** to the other host; `feedRedirectSameHost` → one
+  follow, then items; a second redirect → `redirected`. A control session
+  that allows the redirect records the cross-host request (§13.1's "test of
+  the test").
+- **Idempotency**: `feedOK` twice → nothing written; `feedStampOnly` (every
+  `DTSTAMP` new, `LAST-MODIFIED` of `900020` moved) → nothing written;
+  `feedLF` → identical items to `feedOK`.
+- **Clock changes**: C1 the fixture's `900005` and `900017` read Tue 13 Oct
+  23:59 and Tue 3 Nov 23:59 on a Mac in Europe/Vienna; C2 a moment at
+  `20261025T003000Z` (02:30 CEST) and one at `20261025T013000Z` (02:30 CET)
+  both read `02:30` on Sun 25 Oct, CEST first; C3 early reminder for Mon 26
+  Oct 23:59 CET is Sun 25 Oct 18:00 CET (`20261025T170000Z`); C4 final `2
+  hours` for Sun 25 Oct 01:30 CEST is pulled to Sat 24 Oct 21:59 CEST; C5 the
+  same items on a Mac in America/New_York draw Tue 13 Oct 17:59 and Tue 3
+  Nov 17:59, nothing written.
