@@ -2502,3 +2502,14 @@ check" (2026-10-14).
 
 Coding agent, slice 3 build run (`PHASE3-SLICE3-PLAN.md`). Entries in the
 order they were logged.
+
+- **B56 — `MoodleFeedURL` has two raw accessors, each with one user**
+  (`components.md` §33.4 obligation 1: "The raw string is reachable only
+  through one accessor used by the transport"). The Keychain item must hold
+  the URL too (§33.3 `kSecValueData`), so besides `withRequestURLString`
+  (the transport's, the only way to the `String`) there is `keychainValue`
+  (UTF-8 `Data`), used only inside `KeychainSecretStore`; the reverse is
+  `init?(keychainValue:)`. A source scan (`MoodleFeedURLTests.
+  rawAccessorCallSites`) asserts where each is called. Neither is a
+  `description`, a mirror or `Codable`; the in-memory store keeps the value
+  type itself.

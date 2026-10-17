@@ -45,6 +45,22 @@ nonisolated final class OrderedSecretStore: SecretStore, @unchecked Sendable {
     func updateInfo(_ info: SecretItemInfo, for account: SecretAccount) throws(SecretStoreError) {
         try inner.updateInfo(info, for: account)
     }
+    func saveFeedURL(_ url: MoodleFeedURL, sourceID: String, label: String) throws(SecretStoreError) {
+        log.withLock { $0.append("saveFeed \(sourceID)") }
+        try inner.saveFeedURL(url, sourceID: sourceID, label: label)
+    }
+    func readFeedURL(sourceID: String) throws(SecretStoreError) -> MoodleFeedURL? { try inner.readFeedURL(sourceID: sourceID) }
+    func updateFeedURL(_ url: MoodleFeedURL, sourceID: String) throws(SecretStoreError) {
+        log.withLock { $0.append("updateFeed \(sourceID)") }
+        try inner.updateFeedURL(url, sourceID: sourceID)
+    }
+    func deleteFeedURL(sourceID: String) throws(SecretStoreError) {
+        log.withLock { $0.append("deleteFeed \(sourceID)") }
+        try inner.deleteFeedURL(sourceID: sourceID)
+    }
+    func updateFeedLabel(_ label: String, sourceID: String) throws(SecretStoreError) {
+        try inner.updateFeedLabel(label, sourceID: sourceID)
+    }
 }
 
 @MainActor

@@ -6,8 +6,12 @@
 //  internet-password item per source; `KeychainSecretStore` in the app,
 //  `InMemorySecretStore` in tests and review mode (PHASE3-PLAN.md task 2).
 //
-//  Nothing in this file logs, prints or formats a password. Errors carry an
-//  `OSStatus` and nothing else.
+//  Phase 3 slice 3 (components.md §33.3) adds a second item kind: one
+//  generic-password item per Moodle source, holding its calendar URL — the
+//  feed's only secret.
+//
+//  Nothing in this file logs, prints or formats a password or a feed URL.
+//  Errors carry an `OSStatus` and nothing else.
 //
 
 import Foundation
@@ -88,7 +92,25 @@ nonisolated protocol SecretStore: Sendable {
     func delete(_ account: SecretAccount) throws(SecretStoreError)
     /// Renaming changes the item's label (layouts.md §11) and nothing else.
     func updateInfo(_ info: SecretItemInfo, for account: SecretAccount) throws(SecretStoreError)
+
+    // MARK: Feed URLs (components.md §33.3) — keyed by `Source.id`
+
+    /// The Import's write (layouts.md §16.2 step 1). An item that already
+    /// exists for the source is overwritten in place.
+    func saveFeedURL(_ url: MoodleFeedURL, sourceID: String, label: String) throws(SecretStoreError)
+    /// nil when there is no item, or its value is no valid URL (§34.8 step 1:
+    /// `urlMissing`).
+    func readFeedURL(sourceID: String) throws(SecretStoreError) -> MoodleFeedURL?
+    /// Replace's `Save` (§33.5): the value updated **in place**; the item
+    /// keeps its label. Throws if there is no item to update.
+    func updateFeedURL(_ url: MoodleFeedURL, sourceID: String) throws(SecretStoreError)
+    func deleteFeedURL(sourceID: String) throws(SecretStoreError)
+    /// Renaming the source updates the label (§33.3, as §21.4).
+    func updateFeedLabel(_ label: String, sourceID: String) throws(SecretStoreError)
 }
+
+/// §33.3: `kSecAttrLabel` of a feed item.
+nonisolated func feedItemLabel(displayName: String) -> String { "Kadence — \(displayName)" }
 
 extension SecretStore {
     /// layouts.md §12.3 `Save`: "the new one is written first, then the old
@@ -146,6 +168,44 @@ nonisolated final class InMemorySecretStore: SecretStore {
 
     func info(for account: SecretAccount) -> SecretItemInfo? { items.withLock { $0[account]?.info } }
     var accounts: [SecretAccount] { items.withLock { Array($0.keys) } }
+
+    // MARK: Feed URLs — the same item kind as the Keychain's (§33.3)
+
+    private struct FeedItem { var url: MoodleFeedURL; var label: String }
+    private let feeds = Mutex<[String: FeedItem]>([:])
+
+    func saveFeedURL(_ url: MoodleFeedURL, sourceID: String, label: String) throws(SecretStoreError) {
+        try check("saveFeed")
+        feeds.withLock { $0[sourceID] = FeedItem(url: url, label: label) }
+    }
+
+    func readFeedURL(sourceID: String) throws(SecretStoreError) -> MoodleFeedURL? {
+        try check("readFeed")
+        return feeds.withLock { $0[sourceID]?.url }
+    }
+
+    func updateFeedURL(_ url: MoodleFeedURL, sourceID: String) throws(SecretStoreError) {
+        try check("updateFeed")
+        let found = feeds.withLock { items -> Bool in
+            guard items[sourceID] != nil else { return false }
+            items[sourceID]?.url = url
+            return true
+        }
+        if !found { throw .keychain(errSecItemNotFound) }
+    }
+
+    func deleteFeedURL(sourceID: String) throws(SecretStoreError) {
+        try check("deleteFeed")
+        _ = feeds.withLock { $0.removeValue(forKey: sourceID) }
+    }
+
+    func updateFeedLabel(_ label: String, sourceID: String) throws(SecretStoreError) {
+        try check("updateFeedLabel")
+        feeds.withLock { $0[sourceID]?.label = label }
+    }
+
+    func feedLabel(sourceID: String) -> String? { feeds.withLock { $0[sourceID]?.label } }
+    var feedSourceIDs: [String] { feeds.withLock { Array($0.keys) } }
 }
 
 // MARK: - Keychain
@@ -232,6 +292,86 @@ nonisolated struct KeychainSecretStore: SecretStore {
         let changes: [String: Any] = [kSecAttrLabel as String: info.label,
                                       kSecAttrComment as String: info.comment]
         let status = SecItemUpdate(Self.identity(account) as CFDictionary, changes as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw .keychain(status) }
+    }
+}
+
+// MARK: - Keychain: feed URLs (components.md §33.3)
+
+extension KeychainSecretStore {
+    /// §33.3 `kSecAttrService`.
+    static let feedService = "XIX.Kadence.feed"
+    /// §33.3 `kSecAttrDescription`.
+    static let feedItemDescription = "Calendar URL"
+
+    /// The attributes that identify a source's feed item. Every query carries
+    /// service and account, so Kadence never reads an item it did not write.
+    static func feedIdentity(sourceID: String) -> [String: Any] {
+        [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: feedService,
+            kSecAttrAccount as String: sourceID,
+            kSecAttrSynchronizable as String: kCFBooleanFalse as Any,
+        ]
+    }
+
+    static func feedSaveQuery(_ url: MoodleFeedURL, sourceID: String, label: String) -> [String: Any] {
+        var query = feedIdentity(sourceID: sourceID)
+        query[kSecAttrLabel as String] = label
+        query[kSecAttrDescription as String] = feedItemDescription
+        // Background sync while the Mac is locked (§33.3).
+        query[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        // §33.3: the normalised URL, UTF-8. Nothing else.
+        query[kSecValueData as String] = url.keychainValue
+        return query
+    }
+
+    static func feedReadQuery(sourceID: String) -> [String: Any] {
+        var query = feedIdentity(sourceID: sourceID)
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        return query
+    }
+
+    static func feedUpdateChanges(_ url: MoodleFeedURL) -> [String: Any] {
+        [kSecValueData as String: url.keychainValue]
+    }
+
+    func saveFeedURL(_ url: MoodleFeedURL, sourceID: String, label: String) throws(SecretStoreError) {
+        let add = Self.feedSaveQuery(url, sourceID: sourceID, label: label)
+        var status = SecItemAdd(add as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            var changes = Self.feedUpdateChanges(url)
+            changes[kSecAttrLabel as String] = label
+            status = SecItemUpdate(Self.feedIdentity(sourceID: sourceID) as CFDictionary, changes as CFDictionary)
+        }
+        guard status == errSecSuccess else { throw .keychain(status) }
+    }
+
+    func readFeedURL(sourceID: String) throws(SecretStoreError) -> MoodleFeedURL? {
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(Self.feedReadQuery(sourceID: sourceID) as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw .keychain(status) }
+        guard let data = result as? Data else { return nil }
+        return MoodleFeedURL(keychainValue: data)
+    }
+
+    func updateFeedURL(_ url: MoodleFeedURL, sourceID: String) throws(SecretStoreError) {
+        // §33.5: `SecItemUpdate` of the value, in place.
+        let status = SecItemUpdate(Self.feedIdentity(sourceID: sourceID) as CFDictionary,
+                                   Self.feedUpdateChanges(url) as CFDictionary)
+        guard status == errSecSuccess else { throw .keychain(status) }
+    }
+
+    func deleteFeedURL(sourceID: String) throws(SecretStoreError) {
+        let status = SecItemDelete(Self.feedIdentity(sourceID: sourceID) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw .keychain(status) }
+    }
+
+    func updateFeedLabel(_ label: String, sourceID: String) throws(SecretStoreError) {
+        let status = SecItemUpdate(Self.feedIdentity(sourceID: sourceID) as CFDictionary,
+                                   [kSecAttrLabel as String: label] as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw .keychain(status) }
     }
 }

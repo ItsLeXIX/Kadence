@@ -11458,3 +11458,31 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   `ClockChangeTests.sourceScan` (now through the widened scanner).
 - New: `Slice3ModelTests` (7) and `ClockChangeTests.sourceScanChained`.
 - Tests: **1121 passed / 0 failed**.
+
+### P3S3-T02 — the URL: validation, the redacted type, the Keychain item (components.md §33.1–§33.5)
+
+- `MoodleFeedURL` (`Kadence/Services/Feed/MoodleFeedURL.swift`): §33.2's
+  V1–V11 as one pure `validate(_:others:replacing:)` returning `.empty`, the
+  exact message, or the parsed URL (`parsedLine` = `{host}/… · All events,
+  recent and upcoming` / `Course events, …`). Whitespace trimmed;
+  `webcal://` read as `https://`; parameter names and preset values matched
+  case-insensitively, in any order, extras ignored; stored normalised
+  (`https`, authority lower-cased, the rest as pasted). `description`,
+  `debugDescription`, the mirror (no children) and `dump` all give
+  `moodle.technikum-wien.at/…`; no `Codable`.
+- V9's input from `MoodleFeedURL.connected(_:secrets:excluding:)`: the other
+  Moodle sources' URLs read from their Keychain items, unreadable ones
+  skipped; Replace excludes its own source.
+- `SecretStore` gains the feed item kind keyed by `Source.id`:
+  `saveFeedURL` (add, or overwrite in place), `readFeedURL`,
+  `updateFeedURL` (in place, label kept), `deleteFeedURL`,
+  `updateFeedLabel`. `KeychainSecretStore`'s generic-password dictionaries
+  carry §33.3's attributes (service `XIX.Kadence.feed`, account the source
+  id, label `Kadence — {name}`, description `Calendar URL`,
+  `AfterFirstUnlock`, not synchronizable, the URL's UTF-8 only);
+  `InMemorySecretStore` holds the same kind with failure hooks. The two test
+  doubles (`OrderedSecretStore`, `SpySecretStore`) implement it.
+- `Kadence/Review/MoodleMock.swift`: §43.1's mock URL (the only one in the
+  code) and the leak markers `SENTINEL`, `4711`, `authtoken`.
+- DEVIATIONS **B56** (two raw accessors, each with one user).
+- New: `MoodleFeedURLTests` (8). Tests: **1129 passed / 0 failed**.

@@ -23,6 +23,17 @@ final class SpySecretStore: SecretStore, @unchecked Sendable {
     func updateInfo(_ info: SecretItemInfo, for account: SecretAccount) throws(SecretStoreError) {
         calls.withLock { $0 += 1 }; throw .injected
     }
+    func saveFeedURL(_ url: MoodleFeedURL, sourceID: String, label: String) throws(SecretStoreError) {
+        calls.withLock { $0 += 1 }; throw .injected
+    }
+    func readFeedURL(sourceID: String) throws(SecretStoreError) -> MoodleFeedURL? { calls.withLock { $0 += 1 }; throw .injected }
+    func updateFeedURL(_ url: MoodleFeedURL, sourceID: String) throws(SecretStoreError) {
+        calls.withLock { $0 += 1 }; throw .injected
+    }
+    func deleteFeedURL(sourceID: String) throws(SecretStoreError) { calls.withLock { $0 += 1 }; throw .injected }
+    func updateFeedLabel(_ label: String, sourceID: String) throws(SecretStoreError) {
+        calls.withLock { $0 += 1 }; throw .injected
+    }
 }
 
 @MainActor
