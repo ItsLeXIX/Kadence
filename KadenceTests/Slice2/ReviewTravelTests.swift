@@ -127,7 +127,7 @@ struct ReviewTravelTests {
                                            now: now).count == (dataset == .phase3 ? 14 : 13))
     }
 
-    @Test("empty / fresh: Home none; the campus confirmed by the mock geocoder; transit; buffer 10; five rules",
+    @Test("empty / fresh: Home none; the campus confirmed by the mock geocoder; transit; buffer 10; six rules",
           arguments: [ReviewMode.Dataset.empty, .fresh])
     func emptyAndFresh(_ dataset: ReviewMode.Dataset) async throws {
         let container = try slice2MemoryContainer()
@@ -146,7 +146,8 @@ struct ReviewTravelTests {
         #expect(places["campus"]?.confirmedAddress == "Höchstädtplatz 6, 1200 Wien, Austria")
         let settings = TravelBuiltIns.settings(in: context)
         #expect(settings.preferredTravelMode == .transit && settings.travelBufferMinutes == 10)
-        #expect(try context.fetchCount(FetchDescriptor<NotificationRule>()) == 5)
+        // P3S3-T01: six since slice 3 adds `deadline` (components.md §42.3).
+        #expect(try context.fetchCount(FetchDescriptor<NotificationRule>()) == 6)
     }
 
     @Test("A review launch of every dataset and variant constructs no MapKit, CoreLocation, NWPathMonitor or system-centre object")

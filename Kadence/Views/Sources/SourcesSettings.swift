@@ -24,11 +24,25 @@ final class SourcesRouter {
         case connect
         /// Edit mode (layouts.md §12.3). `autoConnect`: `Choose Calendar…`.
         case edit(sourceID: String, focus: EditFocus, autoConnect: Bool)
+        /// layouts.md §16 (slice 3): the Moodle sheet, and its Replace mode
+        /// (§16.3).
+        case connectMoodle
+        case replaceMoodle(sourceID: String)
 
         var id: String {
             switch self {
             case .connect: "connect"
             case .edit(let id, _, _): "edit-\(id)"
+            case .connectMoodle: "connect-moodle"
+            case .replaceMoodle(let id): "replace-\(id)"
+            }
+        }
+
+        /// The CalDAV connect sheet's requests (layouts.md §12).
+        var isCalDAV: Bool {
+            switch self {
+            case .connect, .edit: true
+            case .connectMoodle, .replaceMoodle: false
             }
         }
     }
@@ -215,7 +229,9 @@ struct SourcesSettingsView: View {
         }
         .onAppear { if router.selectedSourceID == nil { router.selectedSourceID = sources.first?.id } }
         .sheet(item: $router.sheet) { sheet in
-            ConnectSheet(request: sheet)
+            if sheet.isCalDAV {
+                ConnectSheet(request: sheet)
+            }
         }
     }
 

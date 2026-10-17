@@ -569,6 +569,15 @@ struct EventSnapshot: Sendable {
     var locationAddress: String?
     /// components.md §28.2: kept so undoing a delete restores it.
     var placeID: String?
+    /// components.md §42.1 (slice 3): the local done mark's due time, and
+    /// the Moodle fields, so an undone delete brings the item back whole.
+    var markedDoneDueAt: Date?
+    var importKind: ImportKind
+    var momentWording: MomentWording?
+    var upstreamTitle: String?
+    var courseCategory: String?
+    var courseCode: String?
+    var importedDescription: String?
 
     @MainActor
     init(_ event: Event) {
@@ -589,6 +598,13 @@ struct EventSnapshot: Sendable {
         locationName = event.location?.name
         locationAddress = event.location?.address
         placeID = event.placeID
+        markedDoneDueAt = event.markedDoneDueAt
+        importKind = event.importKind
+        momentWording = event.momentWording
+        upstreamTitle = event.upstreamTitle
+        courseCategory = event.courseCategory
+        courseCode = event.courseCode
+        importedDescription = event.importedDescription
     }
 
     @MainActor
@@ -610,6 +626,13 @@ struct EventSnapshot: Sendable {
         event.id = id
         event.routineLink = routineLink
         event.placeID = placeID
+        event.markedDoneDueAt = markedDoneDueAt
+        event.importKind = importKind
+        event.momentWording = momentWording
+        event.upstreamTitle = upstreamTitle
+        event.courseCategory = courseCategory
+        event.courseCode = courseCode
+        event.importedDescription = importedDescription
         return event
     }
 }

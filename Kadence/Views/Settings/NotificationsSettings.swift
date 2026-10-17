@@ -33,7 +33,9 @@ final class NotificationsSettingsModel {
     var rules: [NotificationRule] {
         _ = revision
         let all = (try? context.fetch(FetchDescriptor<NotificationRule>())) ?? []
-        return NotificationRuleKind.allCases.compactMap { kind in all.first { $0.kind == kind } }
+        // The sixth rule, `deadline`, is its own row group (layouts.md §19).
+        return NotificationRuleKind.allCases.filter { $0 != .deadline }
+            .compactMap { kind in all.first { $0.kind == kind } }
     }
 
     /// layouts.md §14's second lines.
@@ -44,6 +46,8 @@ final class NotificationsSettingsModel {
         case .personalStart: "Events you created, with no travel"
         case .routineStart: "Routine blocks"
         case .syncPaused: "When a calendar stops syncing and needs you"
+        // layouts.md §19.
+        case .deadline: "Moodle items with a due time"
         }
     }
 

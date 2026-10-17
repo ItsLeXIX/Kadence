@@ -202,6 +202,8 @@ struct SourceModelTests {
         "lastAttemptAt", "lastSuccessAt", "feedHash", "lastFeedEventCount", "stateRaw",
         "stateDetail", "problemsData", "lastEventCount", "lastChangeAt", "lastChangeAdded",
         "lastChangeUpdated", "lastChangeRemoved",
+        // P3S3-T01: components.md §42.2 — none holds the feed URL.
+        "feedProfileRaw", "observedLookahead", "emptySince",
     ]
 
     @Test("Source's stored properties are exactly §21.1's table — no password, href-per-object, ETag or ctag column")

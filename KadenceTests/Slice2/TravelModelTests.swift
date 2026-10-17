@@ -118,7 +118,7 @@ struct TravelModelTests {
         #expect(try context.fetchCount(FetchDescriptor<TravelLeg>()) == 0)
     }
 
-    @Test("Built-ins: two launches leave 2 places, 1 settings row, 5 rules — §28.1 / §27.1 defaults; campus has no coordinate")
+    @Test("Built-ins: two launches leave 2 places, 1 settings row, 6 rules — §28.1 / §27.1 defaults; campus has no coordinate")
     func builtIns() throws {
         let container = try slice2MemoryContainer()
         let context = container.mainContext
@@ -144,7 +144,8 @@ struct TravelModelTests {
         #expect(s.locationRequestedAt == nil && s.campusLookupAttemptedAt == nil && s.notificationsRequestedAt == nil)
 
         let rules = try context.fetch(FetchDescriptor<NotificationRule>())
-        #expect(rules.count == 5)
+        // P3S3-T01: six since slice 3 adds `deadline` (components.md §42.3).
+        #expect(rules.count == 6)
         let byKind = Dictionary(uniqueKeysWithValues: rules.map { ($0.kind, $0) })
         #expect(byKind[.leaveBy]?.leadMinutes == 5)
         #expect(byKind[.timetableStart]?.leadMinutes == 30)
@@ -161,7 +162,7 @@ struct TravelModelTests {
             AppStore.seedLaunch(kind, context: container.mainContext, now: TestClock.now,
                                 secrets: InMemorySecretStore()) {}
             #expect(try container.mainContext.fetchCount(FetchDescriptor<KnownPlace>()) >= 2)
-            #expect(try container.mainContext.fetchCount(FetchDescriptor<NotificationRule>()) == 5)
+            #expect(try container.mainContext.fetchCount(FetchDescriptor<NotificationRule>()) == 6)
         }
 
         let container = try slice2MemoryContainer()
@@ -172,8 +173,10 @@ struct TravelModelTests {
         try context.save()
         TravelBuiltIns.ensure(in: context)
         let rules = try context.fetch(FetchDescriptor<NotificationRule>())
-        #expect(rules.count == 5)
-        #expect(rules.filter { $0.kind != .syncPaused }.allSatisfy { $0.leadMinutes == 10 && !$0.isEnabled })
+        // P3S3-T01: and `deadline` (components.md §42.3), also untouching.
+        #expect(rules.count == 6)
+        #expect(rules.filter { $0.kind != .syncPaused && $0.kind != .deadline }
+            .allSatisfy { $0.leadMinutes == 10 && !$0.isEnabled })
         #expect(rules.first { $0.kind == .syncPaused }?.isEnabled == true)
     }
 

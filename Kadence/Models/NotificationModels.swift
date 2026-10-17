@@ -18,6 +18,9 @@ nonisolated enum NotificationRuleKind: String, Codable, CaseIterable, Sendable {
     case personalStart
     case routineStart
     case syncPaused
+    /// components.md §40.1 (slice 3): Moodle deadlines — an early reminder
+    /// (`aheadDays` at `aheadMinuteOfDay`) and a final one (`leadMinutes`).
+    case deadline
 
     /// §27.1's defaults, confirmed by Parsa 2026-10-14: leave-by 5,
     /// timetable 30, personal 15, routine 5, every rule on. `syncPaused` has
@@ -29,6 +32,8 @@ nonisolated enum NotificationRuleKind: String, Codable, CaseIterable, Sendable {
         case .personalStart: 15
         case .routineStart: 5
         case .syncPaused: 0
+        // §42.3: the final reminder 2 hours before.
+        case .deadline: 120
         }
     }
 
@@ -40,6 +45,7 @@ nonisolated enum NotificationRuleKind: String, Codable, CaseIterable, Sendable {
         case .personalStart: "Personal events"
         case .routineStart: "Routine"
         case .syncPaused: "Sync problems"
+        case .deadline: "Deadlines"
         }
     }
 }
@@ -57,10 +63,27 @@ final class NotificationRule {
     var leadMinutes: Int = 0
     var isEnabled: Bool = true
 
+    // MARK: Phase 3 slice 3 (components.md §42.3). Used by `deadline` only;
+    // the other five rules ignore them. Defaulted, so a slice 2 store opens
+    // unchanged.
+
+    /// The early reminder's day offset; 0 = off. `deadline`: 1.
+    var aheadDays: Int = 0
+    /// The early reminder's wall-clock time. `deadline`: 1080 (18:00).
+    var aheadMinuteOfDay: Int = 1080
+    /// The final reminder's own switch. `deadline`: true.
+    var leadEnabled: Bool = true
+
     init(kind: NotificationRuleKind, leadMinutes: Int, isEnabled: Bool = true) {
         self.kindRaw = kind.rawValue
         self.leadMinutes = leadMinutes
         self.isEnabled = isEnabled
+        // §42.3: the sixth rule's defaults — the day before at 18:00.
+        if kind == .deadline {
+            self.aheadDays = 1
+            self.aheadMinuteOfDay = 1080
+            self.leadEnabled = true
+        }
     }
 }
 

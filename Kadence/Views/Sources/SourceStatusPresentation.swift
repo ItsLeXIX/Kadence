@@ -43,6 +43,8 @@ nonisolated enum PrimaryAction: String, Sendable, Equatable {
     case editAccount = "Edit Account…"
     case chooseCalendar = "Choose Calendar…"
     case showDetails = "Show Details"
+    /// components.md §34.3, §33.5 (slice 3): a feed source's remedy.
+    case replaceURL = "Replace URL…"
 }
 
 /// §19.2's status slot.
@@ -94,6 +96,9 @@ nonisolated enum SourceStatusCopy {
         case .redirected: "Redirected to another server"
         case .unreachable: "Can't reach \(host)"
         case .serverError: "Server error"
+        // §34.3: feed sources only.
+        case .feedNotFound: "Calendar not found"
+        case .urlMissing: "Calendar URL not found"
         }
     }
 
@@ -136,6 +141,11 @@ nonisolated enum SourceStatusCopy {
             return "Kadence will try again at \(next). Events from the last sync (\(last)) are still shown."
         case .serverError:
             return "\(f.host) answered with an error (\(f.code.map(String.init) ?? "?")). Kadence will try again at \(next)."
+        // §34.3: feed sources only.
+        case .feedNotFound:
+            return "\(f.host) has no calendar at the saved URL. Items from the last sync are kept."
+        case .urlMissing:
+            return "Kadence couldn't read the calendar URL for \(f.name) from the Keychain. Paste it again."
         }
     }
 
@@ -149,6 +159,7 @@ nonisolated enum SourceStatusCopy {
         case .forbidden, .noCalDAV, .redirected: .editAccount
         case .calendarMissing: .chooseCalendar
         case .partialImport: .showDetails
+        case .feedNotFound, .urlMissing: .replaceURL
         }
     }
 

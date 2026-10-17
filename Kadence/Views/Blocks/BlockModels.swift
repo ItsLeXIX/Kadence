@@ -88,6 +88,11 @@ struct GridBlockModel: Identifiable, Equatable, Sendable {
         switch importKind {
         case .exam?: "Exam"
         case .lecture?: "Lecture"
+        // components.md §37.1's Kind words; a Moodle span (§35.4) is drawn on
+        // the grid and carries them too.
+        case .deadline?: "Deadline"
+        case .opening?: "Opening"
+        case .notice?: "Item"
         case nil: accessibilityKindLabel
         }
     }

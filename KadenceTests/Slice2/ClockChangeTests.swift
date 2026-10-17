@@ -472,12 +472,6 @@ struct ClockChangeTests {
     func sourceScan() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Kadence")
-        let dayStarts = "(dayStart|referenceDayStart|startOfDay|day)"
-        let patterns = [
-            // `day.addingTimeInterval(… * 60)` / `* 3600`, or `startOfDay(for: x).addingTimeInterval(…)`.
-            try Regex("\\b\(dayStarts)(\\(for: [^)]*\\))?\\s*\\.addingTimeInterval\\([^)]*\\*\\s*(60|3600)\\b"),
-            try Regex("byAdding: \\.(minute|hour)\\b"),
-        ]
         var offenders: [String] = []
         var scanned = 0
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
@@ -485,17 +479,58 @@ struct ClockChangeTests {
             guard url.pathExtension == "swift", url.lastPathComponent != "WallClock.swift" else { continue }
             let text = try String(contentsOf: url, encoding: .utf8)
             scanned += 1
-            for (number, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
-                let code = line.split(separator: "//", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
-                if patterns.contains(where: { code.contains($0) }) {
-                    offenders.append("\(url.lastPathComponent):\(number + 1)")
-                }
-            }
+            offenders += try Self.dayStartArithmetic(in: text).map { "\(url.lastPathComponent):\($0)" }
         }
         #expect(scanned > 100, "the scan read \(scanned) files")
         #expect(offenders.isEmpty, "\(offenders)")
-        // The scan is live: it finds the banned form.
-        #expect("dayStart.addingTimeInterval(TimeInterval(minutes * 60))".contains(patterns[0]))
-        #expect("calendar.date(byAdding: .minute, value: m, to: day)".contains(patterns[1]))
+        // The scan is live: it finds the banned forms.
+        #expect(try Self.dayStartArithmetic(in: "let x = dayStart.addingTimeInterval(TimeInterval(minutes * 60))") == [1])
+        #expect(try Self.dayStartArithmetic(in: "let x = calendar.date(byAdding: .minute, value: m, to: day)") == [1])
+    }
+
+    /// G-103 (slice 3 task 1): T12 widened — a day start chained across
+    /// lines is caught too. The scan joins every continuation line (one
+    /// that starts with `.`) to the line before it, then matches.
+    @Test("T12 · A day start chained across lines is caught (G-103)")
+    func sourceScanChained() throws {
+        let chained = """
+            let a = 1
+            let computedAt = calendar.date(byAdding: .day, value: -15, to: anchor)!
+                .addingTimeInterval(18 * 3600)
+            let b = calendar.startOfDay(for: now)
+                .addingTimeInterval(18 * 3600)
+            """
+        #expect(try Self.dayStartArithmetic(in: chained) == [2, 4])
+        // A comment on the line is not code; a duration is not a day start.
+        #expect(try Self.dayStartArithmetic(in: "let x = start.addingTimeInterval(18 * 3600) // dayStart.addingTimeInterval(60 * 60)").isEmpty)
+    }
+
+    /// The 1-based numbers of the lines (the first line of a chain) where a
+    /// day start gets elapsed minutes or hours added outside `WallClock`.
+    static func dayStartArithmetic(in text: String) throws -> [Int] {
+        let dayStarts = "(dayStart|referenceDayStart|startOfDay|day)"
+        let patterns = [
+            // `day.addingTimeInterval(… * 60)` / `* 3600`, or `startOfDay(for: x).addingTimeInterval(…)`.
+            try Regex("\\b\(dayStarts)(\\(for: [^)]*\\))?\\s*\\.addingTimeInterval\\([^)]*\\*\\s*(60|3600)\\b"),
+            try Regex("byAdding: \\.(minute|hour)\\b"),
+            // `date(byAdding: .day, …)!.addingTimeInterval(… * 3600)` — a day start too.
+            try Regex("byAdding: \\.day\\b.*\\)!?\\s*\\.addingTimeInterval\\([^)]*\\*\\s*(60|3600)\\b"),
+        ]
+        // Swift note: `Regex`'s default `\b` follows Unicode word rules, under
+        // which `calendar.startOfDay` is one word, so `\bstartOfDay` never
+        // matched after a dot. The simple kind breaks at every non-word
+        // character, as `\b` does in most regex engines.
+        let simple = patterns.map { $0.wordBoundaryKind(.simple) }
+        var logical: [(line: Int, code: String)] = []
+        for (number, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            let code = String(line.split(separator: "//", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
+            let trimmed = code.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("."), let last = logical.popLast() {
+                logical.append((last.line, last.code + trimmed))
+            } else {
+                logical.append((number + 1, code))
+            }
+        }
+        return logical.filter { entry in simple.contains { entry.code.contains($0) } }.map(\.line)
     }
 }

@@ -167,12 +167,20 @@ enum TravelDataset {
     /// days` 18:00 (stale: older than 14 days, so every leg asks and falls
     /// back to it, §24.10 step 3). A live launch before M dates it 15 days
     /// before the launch's day instead, so it is stale at launch too.
+    /// The stale entry's `computedAt`: 18:00 on the day 15 days before the
+    /// earlier of `M` and the launch's day. G-103: 18:00 by the wall clock on
+    /// that day (components.md §31.4), never the day start + 18 h — the two
+    /// differ when that day is a change day.
+    static func staleCacheComputedAt(m: Date, now: Date, calendar: Calendar) -> Date {
+        let anchor = min(calendar.startOfDay(for: m), calendar.startOfDay(for: now))
+        let day = calendar.date(byAdding: .day, value: -15, to: anchor) ?? anchor
+        return WallClock.moment(minuteOfDay: 18 * 60, on: day, calendar: calendar)
+    }
+
     static func seedStaleCache(context: ModelContext, m: Date, now: Date, calendar: Calendar) {
         let homeEnd = TravelEndpoint(id: home.id, latitude: home.latitude, longitude: home.longitude)
         let campusEnd = TravelEndpoint(id: campus.id, latitude: campus.latitude, longitude: campus.longitude)
-        let anchor = min(calendar.startOfDay(for: m), calendar.startOfDay(for: now))
-        let computedAt = calendar.date(byAdding: .day, value: -15, to: anchor)!
-            .addingTimeInterval(18 * 3600)
+        let computedAt = staleCacheComputedAt(m: m, now: now, calendar: calendar)
         let store = TravelETACacheStore(context: context)
         var seen = Set<String>()
         let lectures = ((try? context.fetch(FetchDescriptor<Event>())) ?? [])

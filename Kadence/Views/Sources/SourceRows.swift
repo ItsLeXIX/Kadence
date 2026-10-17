@@ -40,6 +40,8 @@ enum SourceActionRouting {
                           opensSettings: fromPopover)
         case .chooseCalendar:
             return Effect(sheet: .edit(sourceID: sourceID, focus: .none, autoConnect: true), opensSettings: fromPopover)
+        case .replaceURL:
+            return Effect(sheet: .replaceMoodle(sourceID: sourceID), opensSettings: fromPopover)
         }
     }
 

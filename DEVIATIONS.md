@@ -2497,3 +2497,8 @@ check" (2026-10-14).
   window chrome, the sidebar and toolbar, and the status item in the real
   menu bar. The live plan file (`notification-plan-live-p3bf05.txt`) is the
   same scheduler's plan at that clock, not read back from a launch.
+
+## Phase 3 slice 3 — Moodle deadlines (2026-10-16)
+
+Coding agent, slice 3 build run (`PHASE3-SLICE3-PLAN.md`). Entries in the
+order they were logged.

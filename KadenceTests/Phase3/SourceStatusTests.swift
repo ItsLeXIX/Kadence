@@ -115,9 +115,9 @@ struct SourceStatusTests {
         #expect(body(.serverError) == "cis.technikum-wien.at answered with an error (503). Kadence will try again at 14:32.")
     }
 
-    @Test("Every state has a title and the right kind; there are 18")
+    @Test("Every state has a title and the right kind; there are 20 (slice 3 adds feedNotFound, urlMissing)")
     func allStates() {
-        #expect(SourceState.allCases.count == 18)
+        #expect(SourceState.allCases.count == 20)
         #expect(SourceState.allCases.filter { $0.kind == .ok } == [.upToDate, .syncing, .neverSynced, .offline])
         #expect(SourceState.allCases.filter { $0.kind == .transient } == [.unreachable, .serverError])
     }
@@ -132,6 +132,8 @@ struct SourceStatusTests {
             .calendarMissing: .chooseCalendar, .fetchFailed: .syncNow, .notACalendar: .syncNow, .emptyFeed: .syncNow,
             .partialImport: .showDetails, .certificate: .syncNow, .passwordMissing: .updatePassword,
             .redirected: .editAccount, .unreachable: .syncNow, .serverError: .syncNow,
+            // Slice 3 (components.md §34.3): the two feed-only states.
+            .feedNotFound: .replaceURL, .urlMissing: .replaceURL,
         ]
         for state in SourceState.allCases { #expect(SourceStatusCopy.primaryAction(state) == expected[state]!, "\(state)") }
         #expect(PrimaryAction.updatePassword.rawValue == "Update Password…")

@@ -29,6 +29,16 @@ import SwiftData
 nonisolated enum SourceConnection: String, Codable, CaseIterable, Sendable {
     case local
     case caldav
+    /// components.md §33.6 (slice 3): one HTTPS `GET` of a calendar export
+    /// URL (Moodle). The URL is the secret and lives in the Keychain only.
+    case icsFeed
+}
+
+/// components.md §42.2 `feedProfile`: which parser profile reads a feed
+/// source (§35). Chosen by the source, never detected from `PRODID` or the
+/// host. Nil on a CalDAV source.
+nonisolated enum FeedProfile: String, Codable, CaseIterable, Sendable {
+    case moodle
 }
 
 /// §20.8.2: which step of the fallback chain last worked. Remembered so a
@@ -39,10 +49,28 @@ nonisolated enum FetchMode: String, Codable, CaseIterable, Sendable {
     case get
 }
 
-/// §20.7.1 / §21.3 `importKind`: decides the glyph only (§2.1).
+/// §20.7.1 / §21.3 `importKind`: decides the glyph only (§2.1). Slice 3
+/// (components.md §35.4, §42.1) adds Moodle's three: a `deadline`, an
+/// `opening` and a `notice` (anything whose title carries no verified kind
+/// word).
 nonisolated enum ImportKind: String, Codable, CaseIterable, Sendable {
     case lecture
     case exam
+    case deadline
+    case opening
+    case notice
+
+    /// The three Moodle kinds (§35.4).
+    var isMoodle: Bool { self == .deadline || self == .opening || self == .notice }
+}
+
+/// components.md §35.4 / §42.1 `momentWording`: which of Moodle's verified
+/// kind words a title carried. Nil for notices and CIS events.
+nonisolated enum MomentWording: String, Codable, CaseIterable, Sendable {
+    case due
+    case closes
+    case registrationEnds
+    case opens
 }
 
 /// components.md §19.1 — the 18 states a connected source can be in. Raw
@@ -66,6 +94,10 @@ nonisolated enum SourceState: String, Codable, CaseIterable, Sendable {
     case redirected
     case unreachable
     case serverError
+    /// components.md §34.3 / §42.2 (slice 3), feed sources only: `404` / `410`.
+    case feedNotFound
+    /// §34.3: the Keychain has no calendar URL for the source (§34.8 step 1).
+    case urlMissing
 
     /// §19.1's "Kind" column. Only the kind sets the colour (§19.2).
     enum Kind: String, Sendable { case ok, actionable, transient }
@@ -191,6 +223,23 @@ final class Source {
     var lastChangeAdded: Int = 0
     var lastChangeUpdated: Int = 0
     var lastChangeRemoved: Int = 0
+
+    // MARK: Phase 3 slice 3 (components.md §42.2). Defaulted, so a slice 2
+    // store opens unchanged. No field holds the feed URL, its path or its
+    // query (§33.4): `serverURL` is `https://{host}` for a feed.
+
+    /// §42.2: the parser profile of an `icsFeed` source; nil for CalDAV.
+    private var feedProfileRaw: String?
+    var feedProfile: FeedProfile? {
+        get { feedProfileRaw.flatMap(FeedProfile.init(rawValue:)) }
+        set { feedProfileRaw = newValue?.rawValue }
+    }
+    /// §34.5: the longest look-ahead any fully read fetch has shown, in
+    /// seconds. Never decreases; Replace keeps it.
+    var observedLookahead: Double = 0
+    /// §34.5: the fetch time of the first empty feed in a row; cleared by
+    /// any fetch with items.
+    var emptySince: Date?
 
     init(
         id: String = UUID().uuidString,

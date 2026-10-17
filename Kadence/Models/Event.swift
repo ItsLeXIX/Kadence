@@ -110,6 +110,25 @@ final class Event {
     /// (G-084). Defaulted, so a slice 1 store opens without a migration.
     var placeID: String?
 
+    // MARK: Phase 3 slice 3 (components.md §42.1). Defaulted, so a slice 2
+    // store opens unchanged.
+
+    /// §35.4: which verified kind word the Moodle title carried; nil for
+    /// notices and CIS events. Sync-owned, derived from `upstreamTitle`.
+    private var momentWordingRaw: String?
+    var momentWording: MomentWording? {
+        get { momentWordingRaw.flatMap(MomentWording.init(rawValue:)) }
+        set { momentWordingRaw = newValue?.rawValue }
+    }
+    /// §35.3: the Moodle `SUMMARY` as decoded — the raw title, always
+    /// reachable in the inspector. Nil for CIS. Sync-owned.
+    var upstreamTitle: String?
+    /// §35.5: Moodle's `CATEGORIES`, as decoded (`/id` included). Sync-owned.
+    var courseCategory: String?
+    /// §38: the item's start when the user marked it done. **Local**: set by
+    /// Mark Done, cleared by Mark Not Done, never written by a sync.
+    var markedDoneDueAt: Date?
+
     init(
         title: String,
         start: Date,

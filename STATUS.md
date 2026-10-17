@@ -11387,3 +11387,74 @@ Verify: **1113 passed / 0 failed**; tokens up to date. DEVIATIONS: B55 (new). GA
 - No permission prompt, real notification or Location prompt appeared; no
   app was launched for review and no input was sent to any app.
 - Location usage keys: both present in `project.pbxproj`.
+
+## 144. Phase 3 slice 3 run — Moodle deadlines (2026-10-17)
+
+Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
+`CA P3S3-T<NN>`.
+
+### Step 0
+
+- `git status --short`: only `DECISIONS.md` and the five design files
+  modified, `design/PHASE3-SLICE3-PLAN.md` and `design/moodle-mocks.md`
+  untracked. DECISIONS.md holds the nine 2026-10-16 Moodle entries ("Moodle
+  deadlines come from the calendar export URL…" through "Slice 3 defaults,
+  confirmed by Parsa."). Committed as `8fefe89` "design: Phase 3 slice 3
+  spec (Moodle deadlines) + DECISIONS 2026-10-16".
+- **Real store `stat`** (by full path, metadata only, never opened):
+  `default.store` 200704 B, mtime/ctime 2026-10-16 12:49:24, inode
+  144862795; `-shm` 32768 B, mtime 12:49:53, ctime 13:31:53, inode
+  144862800; `-wal` 1437912 B, mtime/ctime 13:20:52, inode 144862799. All
+  dated the day before this run.
+- **Baseline suite**: **1111 passed / 2 failed** (1113). The two failures
+  are the token-version pins — `WeekdayToggleFocusTests/tokens()` and
+  `ProblemSentenceTests/tokensAtOneSevenZero()` read `design/tokens.json`
+  and expect 1.9.0 — and fail only because the step-0 design commit moves it
+  to 1.10.0, exactly as slice 1's and slice 2's step 0 did (§132, §133). Not
+  a code regression and not a time-of-day fixture; read as the spec moving
+  ahead, so the run continued, and task 1 moves both pins with the spec.
+
+### P3S3-T01 — G-103; data model; tokens 1.10.0; built-ins (components.md §42, §27.1, §33.6; G-103)
+
+- **G-103**: `TravelDataset.staleCacheComputedAt` (new, used by
+  `seedStaleCache`) is `WallClock.moment(minuteOfDay: 18 * 60, on: day)` on
+  the day 15 days before the earlier of `M` and the launch's day. `M` = Mon
+  9 Nov 2026 → Sun 25 Oct 18:00 CET (`17:00Z`).
+- **T12 widened** (`ClockChangeTests.dayStartArithmetic`): continuation
+  lines that start with `.` are joined to the line before, and a third
+  pattern catches `date(byAdding: .day, …)!.addingTimeInterval(… * 3600)`.
+  **Found by this work**: T12's first pattern never matched a day start
+  reached through a dot (`calendar.startOfDay(for: x).addingTimeInterval(…)`)
+  — Swift `Regex`'s default `\b` uses Unicode word rules, under which
+  `calendar.startOfDay` is one word. The scan now uses
+  `wordBoundaryKind(.simple)`; the widened scan finds no offender in
+  `Kadence/`. A new test proves both chained forms are caught.
+- `Event`: `momentWording` (raw, `MomentWording`), `upstreamTitle`,
+  `courseCategory`, `markedDoneDueAt`; `ImportKind` gains `deadline`,
+  `opening`, `notice`. `EventSnapshot` (delete / undo) carries
+  `markedDoneDueAt` and the Moodle fields (`importKind`, `momentWording`,
+  `upstreamTitle`, `courseCategory`, `courseCode`, `importedDescription`) so
+  an undone delete brings the item back whole.
+- `Source`: `connection` `icsFeed`, `feedProfile` (`FeedProfile.moodle`),
+  `observedLookahead` (0), `emptySince`; `SourceState` gains `feedNotFound`,
+  `urlMissing` (actionable, not pausing), with §34.3's titles and bodies and
+  a new `PrimaryAction.replaceURL` (`Replace URL…`) routed to a new
+  `SourcesRouter.Sheet.replaceMoodle` (the sheet is task 10; until then the
+  Settings sheet presents only the CalDAV requests).
+- `NotificationRule`: `aheadDays` (0), `aheadMinuteOfDay` (1080),
+  `leadEnabled` (true); the sixth kind `deadline` (`Deadlines`, on, 120, 1,
+  1080, true), added idempotently by `TravelBuiltIns.ensure`. The existing
+  five-row Settings list excludes it (its own group is task 14).
+- Tokens regenerated at **1.10.0**; `TypeStyle.allDayTime` added.
+  `generate-tokens --check` clean.
+- DEVIATIONS.md: heading `## Phase 3 slice 3 — Moodle deadlines (2026-10-16)`.
+- **Tests changed to the spec** (slice 3 adds a rule, two states, three
+  `Source` columns and token 1.10.0): `WeekdayToggleFocusTests.tokens`,
+  `ProblemSentenceTests.tokensAtOneSevenZero` (1.9.0 → 1.10.0);
+  `SourceStatusTests.allStates` (18 → 20) and `.primaryActions` (two rows);
+  `TravelModelTests.builtIns`, `.builtInsEveryKindAndFifthRule`,
+  `ReviewTravelTests.emptyAndFresh` (5 → 6 rules);
+  `SourceModelTests.storedPropertiesAllowList` (+3 columns);
+  `ClockChangeTests.sourceScan` (now through the widened scanner).
+- New: `Slice3ModelTests` (7) and `ClockChangeTests.sourceScanChained`.
+- Tests: **1121 passed / 0 failed**.

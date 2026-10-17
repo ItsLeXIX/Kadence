@@ -168,6 +168,14 @@ extension TypeStyle {
         textStyle: Tokens.Typography.AllDayLabel.textStyle,
         lineLimit: Tokens.Typography.AllDayLabel.lineLimit)
 
+    /// components.md §37.1 (slice 3, tokens 1.10.0): a moment pill's due time.
+    static let allDayTime = TypeStyle(
+        size: Tokens.Typography.AllDayTime.size,
+        weight: Tokens.Typography.AllDayTime.weight,
+        textStyle: Tokens.Typography.AllDayTime.textStyle,
+        lineLimit: Tokens.Typography.AllDayTime.lineLimit,
+        monospacedDigit: Tokens.Typography.AllDayTime.monospacedDigit)
+
     static let sidebarSection = TypeStyle(
         size: Tokens.Typography.SidebarSection.size,
         weight: Tokens.Typography.SidebarSection.weight,
