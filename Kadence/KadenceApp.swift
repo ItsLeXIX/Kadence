@@ -70,16 +70,19 @@ struct KadenceApp: App {
             let server = ReviewMode.server(case: ReviewMode.mockCase(), now: Date(), dataset: dataset)
             sync = SyncCoordinator.live(
                 context: container.mainContext, secrets: ReviewMode.secrets, path: PathMonitors.make(for: kind),
-                makeTransport: { MockCalDAVTransport(server: server) })
+                makeTransport: { MockCalDAVTransport(server: server) },
+                makeFeedTransport: FeedTransports.make(for: kind))
         case .testHost:
             // The unit tests' host: no Keychain, and every request refused
             // before it is sent.
             sync = SyncCoordinator.live(
                 context: container.mainContext, secrets: InMemorySecretStore(), path: PathMonitors.make(for: kind),
-                makeTransport: { RefusingTransport() })
+                makeTransport: { RefusingTransport() }, makeFeedTransport: FeedTransports.make(for: kind))
         case .normal:
-            sync = SyncCoordinator.live(context: container.mainContext,
-                                                             path: PathMonitors.make(for: kind))
+            // Slice 3 (components.md §33.4): the feed's own URLSession
+            // configuration, a fresh one per fetch — a normal launch only.
+            sync = SyncCoordinator.live(context: container.mainContext, path: PathMonitors.make(for: kind),
+                                        makeFeedTransport: FeedTransports.make(for: kind))
         }
         _sync = State(initialValue: sync)
         let travel = Self.makeTravel(kind: kind, context: container.mainContext)

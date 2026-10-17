@@ -302,8 +302,9 @@ struct SourceIdentityTests {
         let imported = try context.fetch(FetchDescriptor<Event>()).filter { $0.origin == .imported }
         #expect(imported.count == 13)
         #expect(imported.allSatisfy { $0.sourceID == timetable.id })
-        // By construction: the one place production code builds an imported
-        // `Event` passes the source's id.
+        // By construction: the places production code builds an imported
+        // `Event` pass the source's id — slice 1's `SyncApplier` and, since
+        // P3S3-T06, the feed's `FeedSyncApplier`.
         var sites = 0
         for (name, text) in try productionSources() {
             for range in text.ranges(of: "origin: .imported") {
@@ -314,6 +315,6 @@ struct SourceIdentityTests {
                 #expect(after.contains("sourceID: source.id"), "\(name) builds an imported Event without its source's id")
             }
         }
-        #expect(sites == 1)
+        #expect(sites == 2)
     }
 }

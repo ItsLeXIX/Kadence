@@ -305,29 +305,42 @@ nonisolated struct SourceStatusPresentation: Sendable, Equatable {
         let next = SourceStatusCopy.next(
             (source.lastAttemptAt ?? now).addingTimeInterval(TimeInterval(source.pollInterval)), now: now, zone: zone)
         let last = source.lastSyncedAt.map { SourceStatusCopy.when($0, now: now, zone: zone) } ?? "never"
-        title = SourceStatusCopy.title(state, host: host)
+        // components.md §34.3 (slice 3): a feed source has its own copy.
+        let feed = source.connection == .icsFeed
+        let until = source.emptySince.map {
+            FeedStatusCopy.until($0.addingTimeInterval(FeedSyncPlanner.emptyFeedProof), now: now, zone: zone)
+        } ?? ""
+        title = feed ? FeedStatusCopy.title(state, host: host) : SourceStatusCopy.title(state, host: host)
         if let stored = source.stateDetail, !isSyncing {
             body = stored.replacingOccurrences(of: "{next}", with: next).replacingOccurrences(of: "{last}", with: last)
+                .replacingOccurrences(of: "{until}", with: until)
+        } else if feed {
+            body = FeedStatusCopy.body(state, facts, next: next, last: last, until: until)
         } else {
             body = SourceStatusCopy.body(state, facts, next: next, last: last)
         }
-        statusLine = SourceStatusCopy.statusLine(state: state, lastSuccess: source.lastSyncedAt,
-                                                 count: source.lastEventCount, now: now, zone: zone)
+        statusLine = feed
+            ? FeedStatusCopy.statusLine(state: state, lastSuccess: source.lastSyncedAt, count: source.lastEventCount,
+                                        now: now, zone: zone)
+            : SourceStatusCopy.statusLine(state: state, lastSuccess: source.lastSyncedAt,
+                                          count: source.lastEventCount, now: now, zone: zone)
         let changedSinceImport = source.lastChangeAt.map { at in source.importedAt.map { at >= $0 } ?? true } ?? false
         lastChangeLine = changedSinceImport
             ? SourceStatusCopy.lastChangeLine(at: source.lastChangeAt, added: source.lastChangeAdded,
                                               updated: source.lastChangeUpdated, removed: source.lastChangeRemoved,
                                               now: now, zone: zone)
             : nil
-        primaryAction = SourceStatusCopy.primaryAction(state)
+        primaryAction = feed ? FeedStatusCopy.primaryAction(state) : SourceStatusCopy.primaryAction(state)
         kind = state.kind
         hoverHelp = SourceStatusCopy.hoverHelp(name: source.displayName, state: state, host: host,
                                                lastSuccess: source.lastSyncedAt,
                                                now: now, zone: zone)
+        if feed, ![.upToDate, .offline].contains(state) { hoverHelp = "\(source.displayName) — \(title)" }
         staleLine = SourceStatusCopy.staleLine(name: source.displayName, state: source.state,
                                                lastSuccess: source.lastSyncedAt,
                                                interval: TimeInterval(source.pollInterval), now: now, zone: zone)
-        accessibilityValue = SourceStatusCopy.accessibilityValue(name: source.displayName, state: state, host: host)
+        accessibilityValue = feed ? "\(source.displayName), \(title)"
+            : SourceStatusCopy.accessibilityValue(name: source.displayName, state: state, host: host)
     }
 
     @MainActor

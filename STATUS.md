@@ -11583,3 +11583,51 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
 - New: `MoodleFeedTransportTests` (9, two parameterised over every M3 case
   and nine `URLError` codes; the cross-host proof with its following
   control). Tests: **1159 passed / 0 failed**.
+
+### P3S3-T06 — Import and sync: windows, proof, empty feed, pause, log (components.md §34.4–§34.9, §20.9; interactions.md §16.3; moodle-mocks.md M4)
+
+- `Kadence/Services/Feed/FeedSync.swift`: `FeedSyncPlanner.plan` (pure) —
+  the Import writes every item and deletes nothing; a sync writes from
+  `startOfDay(today)` on; `observedLookahead` = `max(old, latest start −
+  fetchedAt)` after a fetch with no problems (never decreases); the proof
+  window `[startOfDay(today), fetchedAt + observedLookahead − 24 h]`;
+  deletion only of absent items inside it, never with problems or a pending
+  empty feed; `emptyFeed` (zero VEVENTs while the last full read had items)
+  sets `emptySince` and writes nothing until a later empty fetch ≥ 12 h after
+  it, which is proof (`upToDate`, deletions in the window, history kept); any
+  fetch with items clears `emptySince`; step 4 stops on an equal feed hash
+  (§34.7's item hashes, `DTSTAMP`/`LAST-MODIFIED` excluded).
+  `FeedSyncApplier` writes one transaction: creates, in-place updates (same
+  `Event.id`; **`status` and `markedDoneDueAt` never written**, so a moved
+  done deadline stays done, §38), deletes (+ legs), bookkeeping with §34.3's
+  copy as `stateDetail` (`{until}` kept as a placeholder). `Event.applyMoodle`
+  sets only the sync-owned fields. `Source.moodleFeed` (§33.6: coursework,
+  `icsFeed`, `moodle`, `https://{host}`, hourly). `FeedLog`: §34.9's
+  `connect` / `sync` / `import` lines (KB rounded; `lookahead {days}d`;
+  `paired` from §36 over the fetched items).
+- `Kadence/Views/Sources/FeedStatusCopy.swift`: §34.3's titles, bodies,
+  primary actions (`Replace URL…`), `{until}` read forward, the `items`
+  status line. `SourceStatusPresentation` uses it for an `icsFeed` source.
+- `SyncCoordinator`: a feed source syncs through `startFeed` /
+  `finishFeed` (one fetch raced against the 120 s limit — the race is now
+  generic and shared with CalDAV — the planner, one transaction, one log
+  line, `state …` on failure, the N8 transition report); 401/403 pause
+  (slice 1's trigger rules, unchanged); a successful `Sync Now` clears it;
+  `applyFeedFetched` is the sheet's Import and Replace's `Save` (as a sync,
+  clearing the pause); writes held during a conflict preview (§20.9).
+  `KadenceApp` gives each launch kind its feed transport factory.
+- Choice recorded: `observedLookahead` is updated only by a fetch with no
+  problems ("read in full", §34.5); a `partialImport` fetch keeps the old
+  value.
+- **Test changed to the spec**: `SourceIdentityTests.importedEventsAlways
+  CarryTheirSource` counts **2** production sites that build an imported
+  `Event` (slice 1's `SyncApplier` and the feed's `FeedSyncApplier`; both
+  pass `sourceID: source.id`).
+- New: `FeedSyncTests` (17, two parameterised): M4's sync table row by row
+  (incl. the proof window `[16 Oct 00:00 CEST, Sun 13 Dec 14:20Z]`, `900008`
+  moved and still done, the last-change line, a second sync writing
+  nothing), idempotency (`feedOK` twice, `feedStampOnly`, `feedLF`),
+  `feedAged`, `feedEmpty` at +11 h 59 min and +12 h, the pause and its two
+  ways out, `urlMissing`, every M3/M1 case after an Import, the held write,
+  the exact log lines, and a leak scan of the store, `UserDefaults` and the
+  captured log after every case. Tests: **1175 passed / 0 failed**.

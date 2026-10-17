@@ -394,6 +394,10 @@ nonisolated final class SourceLogger: Sendable {
 
     func feedState(display: String, state: SourceState) { emit(Self.feedStateLine(display: display, state: state)) }
 
+    /// A feed's `connect` / `sync` / `import` line (`FeedLog`), built from
+    /// the display form and counts only.
+    func feed(_ line: String) { emit(line) }
+
     @MainActor
     func sync(_ source: Source, diagnostics: SyncDiagnostics, outcome: String) {
         emit(Self.syncLine(account: source.accountDisplay ?? source.displayName, diagnostics: diagnostics,

@@ -112,6 +112,11 @@ final class SyncCoordinator {
     @ObservationIgnored let makeSource: (CalDAVAccount) -> any ScheduleSource
     /// The connect sheet's transport (a fresh one per connect, §21.4).
     @ObservationIgnored let makeTransport: @Sendable () -> any HTTPTransport
+    /// Slice 3 (components.md §34): builds a feed source's fetcher from its
+    /// id (the URL is read from the Keychain at each fetch, §33.4).
+    @ObservationIgnored let makeFeedSource: (String) -> any FeedSource
+    /// The Moodle sheet's transport (a fresh one per connect, §33.4).
+    @ObservationIgnored let makeFeedTransport: @Sendable () -> any HTTPTransport
     @ObservationIgnored weak var calendarState: CalendarState?
     @ObservationIgnored weak var undo: UndoStack?
 
@@ -142,8 +147,15 @@ final class SyncCoordinator {
          clock: @escaping () -> Date = { Date() }, zone: @escaping () -> TimeZone = { .current },
          limits: Limits = Limits(),
          makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionTransport() },
+         makeFeedTransport: @escaping @Sendable () -> any HTTPTransport = { RefusingTransport() },
+         makeFeedSource: ((String) -> any FeedSource)? = nil,
          makeSource: @escaping (CalDAVAccount) -> any ScheduleSource) {
         self.makeTransport = makeTransport
+        self.makeFeedTransport = makeFeedTransport
+        let zone = zone
+        self.makeFeedSource = makeFeedSource ?? { id in
+            MoodleFeedSource(sourceID: id, secrets: secrets, zone: zone(), makeTransport: makeFeedTransport)
+        }
         self.context = context
         self.secrets = secrets
         self.scheduling = scheduling
@@ -163,11 +175,12 @@ final class SyncCoordinator {
     /// §24.11: the `NWPathMonitor`-backed one in a normal launch only).
     static func live(context: ModelContext, secrets: any SecretStore = KeychainSecretStore(),
                      path: any PathMonitoring,
-                     makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionTransport() })
+                     makeTransport: @escaping @Sendable () -> any HTTPTransport = { URLSessionTransport() },
+                     makeFeedTransport: @escaping @Sendable () -> any HTTPTransport = { RefusingTransport() })
         -> SyncCoordinator {
         let coordinator = SyncCoordinator(
             context: context, secrets: secrets, scheduling: BackgroundActivityScheduling(),
-            path: path, makeTransport: makeTransport) { account in
+            path: path, makeTransport: makeTransport, makeFeedTransport: makeFeedTransport) { account in
                 CalDAVScheduleSource(account: account, secrets: secrets, makeTransport: makeTransport)
             }
         coordinator.observeWorkspace()
@@ -324,6 +337,7 @@ final class SyncCoordinator {
     }
 
     private func start(_ source: Source, trigger: Trigger) {
+        if source.connection == .icsFeed { return startFeed(source, trigger: trigger) }
         let id = source.id
         guard let server = ServerAddress(stored: source.serverURL), let username = source.username else {
             SyncApplier.recordFailure(.passwordMissing, to: source, context: context, now: clock())
@@ -341,39 +355,131 @@ final class SyncCoordinator {
         syncStartedAt[id] = now
         fetchCount += 1
         tasks[id] = Task { [weak self] in
-            let result = await Self.fetch(fetcher, windowStart: windowStart, limit: limit)
+            let result = await Self.race(limit: limit) { () async throws(ScheduleSourceError) in
+                try await fetcher.fetch(windowStart: windowStart)
+            }
             guard let self else { return }
             self.finish(sourceID: id, result: result, trigger: trigger, now: now, zone: zone)
         }
     }
 
-    /// The fetch, abandoned after `limit` seconds as `unreachable`.
+    /// Slice 3 (components.md §34.8): a feed source's sync — one fetch, the
+    /// planner, one transaction, one log line.
+    private func startFeed(_ source: Source, trigger: Trigger) {
+        let id = source.id
+        let fetcher = makeFeedSource(id)
+        let now = clock()
+        let zone = zone()
+        let windowStart = Windows.syncStart(now: now, zone: zone)
+        syncing.insert(id)
+        syncStartedAt[id] = now
+        fetchCount += 1
+        tasks[id] = Task { [weak self] in
+            let result = await Self.race(limit: self?.limits.sync ?? 120) { () async throws(ScheduleSourceError) in
+                try await fetcher.fetch(windowStart: windowStart)
+            }
+            guard let self else { return }
+            self.finishFeed(sourceID: id, result: result, trigger: trigger, now: now, zone: zone)
+        }
+    }
+
+    private func finishFeed(sourceID id: String, result: Result<FeedFetch, ScheduleSourceError>,
+                            trigger: Trigger, now: Date, zone: TimeZone) {
+        let cancelled = tasks[id]?.isCancelled ?? true
+        tasks.removeValue(forKey: id)
+        syncing.remove(id)
+        syncStartedAt.removeValue(forKey: id)
+        guard !cancelled, let source = connectedSources.first(where: { $0.id == id }) else { return }
+        let previous = source.state
+        let userStarted = trigger == .syncNow
+        switch result {
+        case .failure(.cancelled):
+            return
+        case .failure(let error):
+            FeedSyncApplier.recordFailure(error, to: source, context: context, now: now)
+            SourceLogger.shared.feedState(display: source.feedDisplay, state: error.state)
+            report(source, from: previous, userStarted: userStarted)
+        case .success(let fetched):
+            let write = { [weak self] in
+                guard let self else { return }
+                let plan = FeedSyncPlanner.plan(
+                    existing: FeedSyncApplier.snapshot(of: source, in: self.context, zone: zone),
+                    source: FeedSyncApplier.sourceSnapshot(source), fetch: fetched,
+                    kind: source.importedAt == nil ? .import : .sync, now: now, zone: zone)
+                guard let outcome = try? FeedSyncApplier.apply(plan, to: source, context: self.context, now: now)
+                else { return }
+                SyncApplier.finish(outcome, state: self.calendarState, undo: self.undo)
+                if trigger == .syncNow, plan.state.kind != .actionable || plan.state == .partialImport {
+                    source.isAutoSyncPaused = false
+                    try? self.context.save()
+                }
+                SourceLogger.shared.feed(FeedLog.line(
+                    "sync", display: source.feedDisplay, fetch: fetched, lookahead: plan.observedLookahead,
+                    outcome: plan.feedUnchanged ? "feed unchanged" : (plan.writesItems ? "wrote" : "nothing to write")))
+                self.report(source, from: previous, userStarted: userStarted)
+            }
+            if let state = calendarState { state.applyOrHoldSyncWrite(write) } else { write() }
+        }
+    }
+
+    /// The Moodle sheet's `Import` (layouts.md §16.2) and Replace's `Save`
+    /// (§33.5, `kind: .sync`): they write what the sheet already fetched —
+    /// no transport call. Replace also clears the pause.
+    @discardableResult
+    func applyFeedFetched(_ fetch: FeedFetch, to source: Source, kind: FeedSyncKind) throws -> FeedSyncPlan {
+        let now = clock()
+        let zone = zone()
+        let previous = source.state
+        defer { report(source, from: previous, userStarted: true) }
+        let plan = FeedSyncPlanner.plan(existing: FeedSyncApplier.snapshot(of: source, in: context, zone: zone),
+                                        source: FeedSyncApplier.sourceSnapshot(source), fetch: fetch,
+                                        kind: kind, now: now, zone: zone)
+        var thrown: Error?
+        let write = { [weak self] in
+            guard let self else { return }
+            do {
+                let outcome = try FeedSyncApplier.apply(plan, to: source, context: self.context, now: now)
+                SyncApplier.finish(outcome, state: self.calendarState, undo: self.undo)
+                if kind == .sync {
+                    source.isAutoSyncPaused = false
+                    try? self.context.save()
+                }
+            } catch { thrown = error }
+        }
+        if let state = calendarState { state.applyOrHoldSyncWrite(write) } else { write() }
+        if let thrown { throw thrown }
+        refreshSchedules()
+        return plan
+    }
+
+    /// A fetch, abandoned after `limit` seconds as `unreachable`.
     ///
     /// Swift note: not a task group — a group waits for every child before it
     /// returns, so a fetch stuck past the limit would hold it. Two
     /// unstructured tasks race instead, and the first to finish resumes the
     /// continuation (the `Mutex` makes "first" exact); the loser is cancelled.
-    nonisolated private static func fetch(_ source: any ScheduleSource, windowStart: Date,
-                                          limit: TimeInterval) async -> Result<ScheduleFetchResult, ScheduleSourceError> {
-        let slot = Mutex<CheckedContinuation<Result<ScheduleFetchResult, ScheduleSourceError>, Never>?>(nil)
-        let work = Mutex<Task<Void, Never>?>(nil)
+    nonisolated private static func race<T: Sendable>(
+        limit: TimeInterval, _ work: @escaping @Sendable () async throws(ScheduleSourceError) -> T
+    ) async -> Result<T, ScheduleSourceError> {
+        let slot = Mutex<CheckedContinuation<Result<T, ScheduleSourceError>, Never>?>(nil)
+        let worker = Mutex<Task<Void, Never>?>(nil)
         let timer = Mutex<Task<Void, Never>?>(nil)
-        @Sendable func finish(_ result: Result<ScheduleFetchResult, ScheduleSourceError>) {
-            if let continuation = slot.withLock({ c -> CheckedContinuation<Result<ScheduleFetchResult, ScheduleSourceError>, Never>? in
+        @Sendable func finish(_ result: Result<T, ScheduleSourceError>) {
+            if let continuation = slot.withLock({ c -> CheckedContinuation<Result<T, ScheduleSourceError>, Never>? in
                 defer { c = nil }
                 return c
             }) {
                 continuation.resume(returning: result)
-                work.withLock { $0?.cancel() }
+                worker.withLock { $0?.cancel() }
                 timer.withLock { $0?.cancel() }
             }
         }
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 slot.withLock { $0 = continuation }
-                work.withLock { $0 = Task {
-                    do { finish(.success(try await source.fetch(windowStart: windowStart))) }
-                    catch { finish(.failure((error as? ScheduleSourceError) ?? .unreachable)) }
+                worker.withLock { $0 = Task {
+                    do throws(ScheduleSourceError) { finish(.success(try await work())) }
+                    catch { finish(.failure(error)) }
                 } }
                 timer.withLock { $0 = Task {
                     try? await Task.sleep(for: .seconds(limit))
