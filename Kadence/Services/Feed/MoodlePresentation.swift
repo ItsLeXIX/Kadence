@@ -81,6 +81,11 @@ extension Event {
     /// Moodle item with no duration. Every consumer that would otherwise read
     /// it as a zero-length timed event tests this, never the duration.
     var isMoment: Bool { origin == .imported && importKind.isMoodle && !isAllDay && start == end }
+
+    /// §38: a done deadline whose due time moved after it was marked.
+    var dueTimeChangedAfterDone: Bool {
+        status == .done && importKind == .deadline && markedDoneDueAt != nil && markedDoneDueAt != start
+    }
 }
 
 // MARK: - §36 Pairing

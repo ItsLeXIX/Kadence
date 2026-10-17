@@ -504,14 +504,24 @@ struct EventStore {
         let id = event.id
         let old = event.status
         let new: EventStatus = old == .done ? .scheduled : .done
+        // components.md §38 (slice 3): an opening or a notice is never done
+        // (the gate refuses visibly before this; the store refuses too).
+        if event.origin == .imported, event.importKind.isMoodle, event.importKind != .deadline { return }
+        // §38: a deadline's done mark remembers the due time it was given
+        // for — set by Mark Done, cleared by Mark Not Done, in the same step.
+        let tracksDueTime = event.origin == .imported && event.importKind == .deadline
+        let oldDueAt = event.markedDoneDueAt
+        let newDueAt: Date? = new == .done ? event.start : nil
         undo.perform(old == .done ? "Mark Not Done" : "Mark Done", addressing: [id],
-                     redo: { edit(id) { $0.status = new } },
-                     undo: { edit(id) { $0.status = old } })
+                     redo: { edit(id) { $0.status = new; if tracksDueTime { $0.markedDoneDueAt = newDueAt } } },
+                     undo: { edit(id) { $0.status = old; if tracksDueTime { $0.markedDoneDueAt = oldDueAt } } })
     }
 
     /// Skipping puts the item back in the pool to be re-offered. It is never a
     /// failure state, which is why it is a sibling of done, not a worse one.
     func toggleSkipped(_ event: Event) {
+        // components.md §38: no Skip on a Moodle item.
+        if event.origin == .imported, event.importKind.isMoodle { return }
         let id = event.id
         let old = event.status
         let new: EventStatus = old == .skipped ? .scheduled : .skipped

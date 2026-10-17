@@ -26,8 +26,19 @@ nonisolated enum ReadOnlyGate {
         case refuse(sound: Bool)
     }
 
-    static func decide(_ gesture: Gesture, origin: EventOrigin, isCancelled: Bool) -> Decision {
+    /// `importKind` (slice 3, components.md §38; interactions.md §16.5): on a
+    /// Moodle item, Skip is refused always and Done everywhere but on a
+    /// deadline — §13.4's pair, as every other refusal.
+    static func decide(_ gesture: Gesture, origin: EventOrigin, isCancelled: Bool,
+                       importKind: ImportKind = .lecture) -> Decision {
         guard origin == .imported else { return .allow }
+        if importKind.isMoodle {
+            switch gesture {
+            case .skip: return .refuse(sound: true)
+            case .done: return importKind == .deadline ? .allow : .refuse(sound: true)
+            default: break
+            }
+        }
         switch gesture {
         case .done, .skip:
             // §18.1: status is local — allowed, except on a cancelled event.

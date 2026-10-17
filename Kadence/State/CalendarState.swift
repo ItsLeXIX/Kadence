@@ -187,7 +187,8 @@ final class CalendarState {
     /// Applies `ReadOnlyGate` to `gesture` on `event`: true when it may go
     /// ahead; otherwise refuses visibly and returns false.
     func permits(_ gesture: ReadOnlyGate.Gesture, on event: Event, now: Date = Date()) -> Bool {
-        switch ReadOnlyGate.decide(gesture, origin: event.origin, isCancelled: event.isCancelled) {
+        switch ReadOnlyGate.decide(gesture, origin: event.origin, isCancelled: event.isCancelled,
+                                   importKind: event.importKind) {
         case .allow: return true
         case .refuse(let sound):
             refuseReadOnlyEdit(sound: sound, now: now)

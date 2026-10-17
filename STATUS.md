@@ -11631,3 +11631,19 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   ways out, `urlMissing`, every M3/M1 case after an Import, the held write,
   the exact log lines, and a leak scan of the store, `UserDefaults` and the
   captured log after every case. Tests: **1175 passed / 0 failed**.
+
+### P3S3-T07 — Done on deadlines (components.md §38; interactions.md §16.5)
+
+- `EventStore.toggleDone` on a Moodle deadline sets `markedDoneDueAt =
+  start` with Mark Done and clears it with Mark Not Done, in the same named
+  undo step; on an opening or a notice the store writes nothing.
+  `toggleSkipped` writes nothing on any Moodle item.
+- `ReadOnlyGate.decide(…, importKind:)`: Skip refused on every Moodle item,
+  Done refused on openings and notices — §13.4's pair (sound + emphasis) via
+  `CalendarState.permits`, which passes the event's kind. CIS lectures keep
+  slice 1's rule.
+- `Event.dueTimeChangedAfterDone` (§38's moved condition: done, a deadline,
+  `markedDoneDueAt != start`). A sync never writes `status` or
+  `markedDoneDueAt` (task 6), so `feedChanged`'s E1 leaves `900008` done
+  with the condition true; Mark Not Done then Done clears it.
+- New: `DeadlineDoneTests` (4). Tests: **1179 passed / 0 failed**.
