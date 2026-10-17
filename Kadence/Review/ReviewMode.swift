@@ -33,7 +33,8 @@ import SwiftData
 
 nonisolated enum ReviewMode {
     /// Slice 2 adds `travel` (components.md §30.1).
-    enum Dataset: String, Sendable, CaseIterable { case phase2, phase3, empty, fresh, travel }
+    /// Slice 3 adds `moodle` and `moodleOnly` (components.md §43.1).
+    enum Dataset: String, Sendable, CaseIterable { case phase2, phase3, empty, fresh, travel, moodle, moodleOnly }
 
     /// The review password (components.md §22.1). In-memory only, never the
     /// Keychain; drawn only as `SecureField` bullets.
@@ -94,8 +95,9 @@ nonisolated enum ReviewMode {
             return MockCalDAVServer(case: mockCase, password: password, feed: feed, changed: feed,
                                     html: Data(signInPage.utf8), acceptsAnyPassword: true)
         }
-        if dataset == .travel {
-            // §30.1: the travel template, `M` the first Monday ≥ today + 2.
+        if dataset == .travel || dataset == .moodle {
+            // §30.1: the travel template, `M` the first Monday ≥ today + 2
+            // (`moodle` holds `travel`'s timetable, §43.1).
             let m = ReviewFeed.firstMonday(after: now, zone: zone)
             let template = ReviewTravelTemplate.text
             return MockCalDAVServer(
@@ -150,6 +152,14 @@ nonisolated enum ReviewMode {
             return MockFixtures()
         case .fresh:
             seedFresh(context: context, now: now, secrets: secrets)
+            materialize()
+            return MockFixtures()
+        case .moodle, .moodleOnly:
+            // components.md §43.1: `travel` plus the Moodle source, or the
+            // Moodle source with the built-ins and Sleep only.
+            MoodleReview.seed(context: context, now: now, m: ReviewFeed.firstMonday(after: now, zone: .current),
+                              zone: .current, secrets: secrets, withTravel: dataset == .moodle,
+                              travelVariant: ReviewTravel.variant(), liveEvent: true)
             materialize()
             return MockFixtures()
         case .phase2, .phase3:

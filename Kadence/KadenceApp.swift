@@ -71,7 +71,7 @@ struct KadenceApp: App {
             sync = SyncCoordinator.live(
                 context: container.mainContext, secrets: ReviewMode.secrets, path: PathMonitors.make(for: kind),
                 makeTransport: { MockCalDAVTransport(server: server) },
-                makeFeedTransport: FeedTransports.make(for: kind))
+                makeFeedTransport: Self.reviewFeedTransport(kind: kind))
         case .testHost:
             // The unit tests' host: no Keychain, and every request refused
             // before it is sent.
@@ -117,6 +117,17 @@ struct KadenceApp: App {
             ReviewEvidence.writeLaunchServices(ServiceLaunchLog.constructed)
             notifications.onPlan = { plan in ReviewEvidence.writePlan(plan) }
         }
+    }
+
+    /// Slice 3 (components.md §43.1): review's feed is the mock serving
+    /// `-KadenceFeed`'s case of the template rendered at this launch's `M`.
+    @MainActor
+    static func reviewFeedTransport(kind: LaunchKind) -> @Sendable () -> any HTTPTransport {
+        let now = Date()
+        let zone = TimeZone.current
+        let mock = MoodleReview.transport(case: MoodleReview.feedCase(), m: ReviewFeed.firstMonday(after: now, zone: zone),
+                                          now: now, zone: zone)
+        return FeedTransports.make(for: kind, mock: { mock })
     }
 
     /// The launch's travel coordinator (slice 2), from the per-service

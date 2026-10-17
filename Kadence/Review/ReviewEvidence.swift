@@ -44,7 +44,10 @@ nonisolated enum NotificationPlanText {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "EEE d MMM HH:mm"
         return plan.map { item in
-            let shown = names[item.subjectID].map { "\(item.kind.rawValue).{\($0)}" } ?? item.identifier
+            // The subject id replaced in place, so `leave.{EPC-ILV}` reads as
+            // before and a deadline's `due.{900005}.ahead` keeps its suffix.
+            let shown = names[item.subjectID].map { item.identifier.replacingOccurrences(of: item.subjectID, with: "{\($0)}") }
+                ?? item.identifier
             return [
                 "identifier: \(shown)",
                 "fire:       \(formatter.string(from: item.fireAt))\(item.atOnce ? " (at once, 1-second trigger)" : "")",

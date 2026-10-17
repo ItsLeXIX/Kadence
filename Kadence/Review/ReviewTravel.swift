@@ -67,7 +67,8 @@ nonisolated enum ReviewTravel {
         switch dataset {
         case .phase2, .phase3:
             return MockTravelTimeProvider(table: phaseTable())
-        case .travel, .empty, .fresh:
+        // `moodle` is `travel` plus the Moodle source (components.md §43.1).
+        case .travel, .empty, .fresh, .moodle, .moodleOnly:
             var table = MockTravelTimeProvider.reviewTable(gymID: TravelDataset.gymID)
             var everything: MockTravelTimeProvider.Answer?
             var held = false

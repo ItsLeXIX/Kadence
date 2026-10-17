@@ -11686,3 +11686,34 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   forbidden words across 70 days of plans, group shrink / grow / body
   change, removals, delivered clearing, the actions, N8 for the four feed
   states (and none from `Sync Now`). Tests: **1191 passed / 0 failed**.
+
+### P3S3-T09 — review mode: template, datasets, mock cases, the plan dump (components.md §43.1, §43.2; §22.1)
+
+- `Kadence/Review/Fixtures/moodle-review.ics.template`: the fixture byte for
+  byte with every `DTSTART`/`DTEND` as `{{M±d HH:mm}}` (local Vienna, `d`
+  days from Mon 12 Oct 2026; 58 values) and every `DTSTAMP` as `{{NOW}}`.
+  Generated once from `fixtures/` (read only); `fixtures/` untouched.
+- `Kadence/Review/MoodleReview.swift`: `MoodleReviewTemplate.render`
+  (`WallClock` on `M + d`, so items keep their local time across 25 Oct),
+  `shift` (the feed cases' inserted dates to `M`'s week), `MoodleReview.seed`
+  — `moodle` = `travel` + the Moodle source; `moodleOnly` = built-ins,
+  `Sleep` 22:00–07:00 every day, the Moodle source — the source `teal`
+  (`review-moodle`, `icsFeed`, `moodle`, hourly), the mock URL in the
+  in-memory secret store, imported from `feedOK` by the Import's own planner
+  and applier at the clock's today, `900004` done, `lastAttemptAt` cleared
+  so the launch sync reaches `-KadenceFeed`'s case; the six rules.
+  `MoodleReview.feedCase` reads `-KadenceFeed <case>` (default `feedOK`).
+- `ReviewMode.Dataset` gains `moodle`, `moodleOnly`; `moodle` serves
+  `travel`'s CIS feed; `KadenceApp.reviewFeedTransport` gives a review launch
+  `MockFeedTransport` on the template rendered at its `M`.
+- `NotificationPlanText.blocks` replaces the subject id in place, so a
+  deadline reads `due.{900005}.ahead` (slice 2's `leave.{…}` / `sync.{…}`
+  read exactly as before).
+- Item 20: `MoodleReviewTests.planDump` writes `notification-plan-moodle.txt`
+  (with `KADENCE_CAPTURE_DIR`) from the real scheduler at §43.2's three
+  clocks and the three catch-up launches, asserting the tables.
+- Found while testing: two new test helpers returned a `ModelContext` whose
+  `ModelContainer` was released, which traps SwiftData (the test host
+  crashed and took 771 tests with it in one run). The helpers now keep the
+  container; no app code was involved.
+- New: `MoodleReviewTests` (7). Tests: **1198 passed / 0 failed**.
