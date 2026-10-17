@@ -14,28 +14,29 @@ import SwiftUI
 import SwiftData
 
 struct MoodleSheet: View {
-    let request: SourcesRouter.Sheet
-    @Environment(\.modelContext) private var context
-    @Environment(SyncCoordinator.self) private var sync
     @Environment(SourcesRouter.self) private var router
     @Environment(\.dismiss) private var dismiss
-    @Query private var sources: [Source]
-    @State private var model: MoodleSheetModel?
+    // P3S3-HF01: built in `init`, never behind an optional filled in
+    // `onAppear` — a sheet whose first frame is empty is sized to nothing
+    // and stays a blank box.
+    @State private var model: MoodleSheetModel
 
-    var body: some View {
-        Group {
-            if let model { MoodleSheetContent(model: model, done: done) }
-        }
-        .frame(width: Tokens.Size.connectSheetWidth)
-        .onAppear(perform: makeModel)
-    }
-
-    private func makeModel() {
-        guard model == nil else { return }
+    /// `sources`, `context` and `sync` come from the presenter
+    /// (`SourcesSettingsView`), whose environment has them.
+    init(request: SourcesRouter.Sheet, sources: [Source], context: ModelContext, sync: SyncCoordinator) {
         var replacing: Source?
         if case .replaceMoodle(let id) = request { replacing = sources.first { $0.id == id } }
-        model = MoodleSheetModel(replacing: replacing, context: context, secrets: sync.secrets,
-                                 makeTransport: sync.makeFeedTransport, sync: sync)
+        self.init(model: MoodleSheetModel(replacing: replacing, context: context, secrets: sync.secrets,
+                                          makeTransport: sync.makeFeedTransport, sync: sync))
+    }
+
+    init(model: MoodleSheetModel) {
+        _model = State(initialValue: model)
+    }
+
+    var body: some View {
+        MoodleSheetContent(model: model, done: done)
+            .frame(width: Tokens.Size.connectSheetWidth)
     }
 
     private func done(_ source: Source?) {

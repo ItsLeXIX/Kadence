@@ -12,24 +12,18 @@ import SwiftUI
 import SwiftData
 
 struct ConnectSheet: View {
-    let request: SourcesRouter.Sheet
-    @Environment(\.modelContext) private var context
-    @Environment(SyncCoordinator.self) private var sync
     @Environment(SourcesRouter.self) private var router
     @Environment(\.dismiss) private var dismiss
-    @Query private var sources: [Source]
-    @State private var model: ConnectSheetModel?
+    // P3S3-HF01: built in `init`, never behind an optional filled in
+    // `onAppear` — a sheet whose first frame is empty is sized to nothing
+    // and stays a blank box.
+    @State private var model: ConnectSheetModel
+    private let autoConnect: Bool
+    @State private var autoConnected = false
 
-    var body: some View {
-        Group {
-            if let model { ConnectSheetContent(model: model, done: done) }
-        }
-        .frame(width: Tokens.Size.connectSheetWidth)
-        .onAppear(perform: makeModel)
-    }
-
-    private func makeModel() {
-        guard model == nil else { return }
+    /// `sources`, `context` and `sync` come from the presenter
+    /// (`SourcesSettingsView`), whose environment has them.
+    init(request: SourcesRouter.Sheet, sources: [Source], context: ModelContext, sync: SyncCoordinator) {
         var editing: Source?
         var autoConnect = false
         var focus: ConnectSheetModel.Field?
@@ -46,9 +40,23 @@ struct ConnectSheet: View {
         let m = ConnectSheetModel(editing: editing, context: context, secrets: sync.secrets,
                                   makeTransport: sync.makeTransport, sync: sync)
         if editing != nil { m.focus = focus }
-        model = m
-        // `Choose Calendar…` starts Connect at once with the saved account.
-        if autoConnect { m.connect() }
+        self.init(model: m, autoConnect: autoConnect)
+    }
+
+    init(model: ConnectSheetModel, autoConnect: Bool = false) {
+        _model = State(initialValue: model)
+        self.autoConnect = autoConnect
+    }
+
+    var body: some View {
+        ConnectSheetContent(model: model, done: done)
+            .frame(width: Tokens.Size.connectSheetWidth)
+            // `Choose Calendar…` starts Connect at once with the saved account.
+            .onAppear {
+                guard autoConnect, !autoConnected else { return }
+                autoConnected = true
+                model.connect()
+            }
     }
 
     private func done(_ source: Source?) {

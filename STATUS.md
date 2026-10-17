@@ -11888,3 +11888,46 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
 - Found and fixed in tests during the run (no app code involved): a released
   `ModelContainer` behind a live context or a rendered view traps SwiftData
   — the slice 3 helpers keep their containers.
+
+### 145.1 P3S3-HF01 — Connect Moodle sheet empty on first presentation (2026-10-17)
+
+- **Cause found:** `MoodleSheet` and `ConnectSheet` built their model in
+  `onAppear` behind an optional (`Group { if let model { … } }`), so their
+  first frame was empty. Slice 3 changed `SourcesSettingsView`'s
+  `.sheet(item:)` closure from `ConnectSheet(request:)` to
+  `if sheet.isCalDAV { ConnectSheet } else { MoodleSheet }`; with the
+  conditional, AppKit sizes the sheet window from that empty first frame and
+  never grows it — a 100×80 blank box. Measured on a real sheet in the test
+  host: old code 100×80 for Connect Moodle, Replace URL and **Connect
+  Timetable too** (ConnectSheet had the same latent bug, hidden in slice 1
+  because the closure held a single view: 440×337 then). The `+` pull-down
+  is not a factor (100×80 from a plain router set too). Offscreen renders
+  drew `MoodleSheetContent` directly, so never saw it (B58).
+- **Fix:** both sheets take `sources`, `context` and `sync` from the
+  presenter and build a non-optional `@State` model in `init`
+  (`State(initialValue:)`; the model inits only assign fields). Their first
+  frame is the sheet. `ConnectSheet`'s `autoConnect` (`Choose Calendar…`)
+  runs once from `onAppear` on content that now exists. The menu command
+  (Kadence ▸ Connect Moodle…) and Replace mode go through the same `.sheet`.
+  No layout change; no DEVIATION.
+- **Test:** `KadenceTests/Slice3/SheetFirstFrameTests.swift` — the sheet as
+  `SourcesSettingsView` presents it on a real window (red on the old code:
+  100×80 for all three; green: 440 wide, > 200 tall), the outer sheets hosted
+  in a zero-size `NSWindow` (width = `size.connectSheetWidth`, height > 200
+  at the first measurement, `NSSecureTextField` present), and Return reaching
+  the primary Connect button (connect, replace, timetable).
+- **Tests:** KadenceTests 1229 → **1235 passed / 0 failed**.
+  `generate-tokens.swift --check` clean.
+- **Live:** reproduced live (100×80) on a build of the old sheets, then the
+  five frames after the fix — `screenshots/3c/INDEX.md` "Hotfix — live".
+- **Rule broken — the real store was opened.** One full run used a plain
+  `xcodebuild … test` instead of `-only-testing:KadenceTests` (§1.4). The
+  `KadenceUITests` template's `XCUIApplication().launch()` is a normal
+  launch: it opened the real store and wrote to it. `stat` before the run
+  vs after: `default.store` unchanged (208896 B, 15:25:40, inode 144862795);
+  `-shm` mtime 15:25:41 → 18:10:39, ctime 15:30:20 → 18:10:42; `-wal`
+  148352 B / 15:25:49 → 201912 B / 18:09:57 (inodes unchanged). A normal
+  launch also runs the launch sync on the store's connected sources, so a
+  real request may have gone out; the unified log shows nothing either way.
+  Nothing else in the run touched the store (unchanged across the
+  `-only-testing:KadenceTests` run and all live launches).

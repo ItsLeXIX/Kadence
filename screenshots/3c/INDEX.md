@@ -40,3 +40,24 @@ in-memory secret store, and no frame shows more of it than
 | 19 Settings ▸ Notifications: Deadlines; rule off; early Off | `settings-notifications-deadlines-…`, `-deadlines-off-…`, `-early-off-p3ct15.png` | slice 2's rig, §42.3 defaults | — | light (offscreen switches draw inactive) |
 | 20 The plan dump | `notification-plan-moodle.txt` — §43.2's three tables and the three catch-up launches, from the real scheduler and planner | `moodleOnly` | the §43.2 clocks | — |
 | 21 §M4's sync table | no frame — `FeedSyncTests.syncTable` | `feedOK` → `feedChanged` | Fri 16 Oct 13:07 / 14:07 | — |
+
+## Hotfix — live (P3S3-HF01)
+
+Real windows, not renders: each frame is a `-KadenceReview` launch of the
+built app on its own in-memory store (mock feed, mock CalDAV server — no
+network, no Keychain), opened the way Parsa opens it, captured by
+`SUFFIX=p3chf01 Scripts/capture-p3c-hf01.sh ITEM` after
+`Scripts/preflight.sh` passed (fresh before every launch). Input went only to
+Kadence; only the launched PID was quit. Dark appearance (the Mac's). The
+only URL typed is the mock's SENTINEL URL, into the SecureField — dots only,
+and the app's accessibility tree was checked to hold none of it. Edge check
+(`Scripts/check-frame-edges.py`): **6 of 6 ok**.
+
+| Frame | What | Dataset | Sheet |
+|---|---|---|---|
+| `connect-moodle-live-before-p3chf01.png` | **The bug, before the fix** (a build of `ea3f962`'s sheets): Settings ▸ Sources ▸ `+` ▸ Connect Moodle… — the blank box | `empty` | 100×80 |
+| `connect-moodle-live-p3chf01.png` | The same path after the fix: step 1, empty (macOS shows its own Passwords AutoFill bubble under a focused SecureField) | `empty` | 440×303 |
+| `connect-moodle-live-typed-p3chf01.png` | The mock URL typed: dots, the display line, Connect enabled | `empty` | 440×303 |
+| `connect-moodle-live-preview-p3chf01.png` | Return → step 2, the import preview from the mock (`feedOK`) | `empty` | 440×303 |
+| `replace-moodle-live-p3chf01.png` | The Moodle source ▸ Replace URL… (§16.3) | `moodleOnly` | 440×255 |
+| `connect-timetable-live-p3chf01.png` | Settings ▸ Sources ▸ `+` ▸ Connect Timetable… (had the same bug) | `empty` | 440×337 |

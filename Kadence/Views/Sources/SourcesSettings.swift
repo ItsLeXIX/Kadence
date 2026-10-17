@@ -244,9 +244,9 @@ struct SourcesSettingsView: View {
         .onAppear { if router.selectedSourceID == nil { router.selectedSourceID = sources.first?.id } }
         .sheet(item: $router.sheet) { sheet in
             if sheet.isCalDAV {
-                ConnectSheet(request: sheet)
+                ConnectSheet(request: sheet, sources: allSources, context: context, sync: sync)
             } else {
-                MoodleSheet(request: sheet)
+                MoodleSheet(request: sheet, sources: allSources, context: context, sync: sync)
             }
         }
     }
