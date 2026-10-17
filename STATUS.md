@@ -11818,3 +11818,21 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   80pt; the popover at Tue 13 Oct and Tue 3 Nov 20:00 — its stale line is
   true for a store seeded on 12 Oct).
 - New: `MenuBarDueTests` (5). Tests: **1225 passed / 0 failed**.
+
+### P3S3-T14 — Settings ▸ Notifications: the Deadlines rows (layouts.md §19; components.md §40.1)
+
+- `NotificationsSettingsModel`: the deadline rule; the three pop-ups' items
+  in order (`Off` · `The day before` · `2 days before` · `3 days before`; at
+  `08:00` · `12:00` · `18:00` · `20:00`; `Off` · `30 minutes before` · `1
+  hour before` · `2 hours before` · `3 hours before` · `6 hours before`);
+  `setAhead` / `setAheadTime` / `setFinal` write `aheadDays` /
+  `aheadMinuteOfDay` / `leadMinutes` + `leadEnabled` (the final `Off` keeps
+  the minutes) and request a pass; the time pop-up disabled (value kept)
+  under `Off`; the rule's switch off disables all three; the footer's second
+  sentence; §19's VoiceOver labels and values.
+- `DeadlineRuleRows`: `Deadlines` with its second line and the switch only,
+  then `Early reminder` and `Final reminder` indented `spacing.xl`, between
+  `Routine` and `Sync problems`.
+- Renders §43 item 19 (`-p3ct14`, 3 frames; offscreen switches draw in the
+  inactive-window style, as slice 2's).
+- New: `DeadlineSettingsTests` (4). Tests: **1229 passed / 0 failed**.

@@ -125,6 +125,75 @@ final class NotificationsSettingsModel {
 
     static let footer = "Kadence stays quiet during Sleep and your other protected windows: a notification due then arrives when the window ends, unless the event itself is inside the window."
 
+    // MARK: Deadlines (layouts.md §19, components.md §40.1)
+
+    /// layouts.md §19's footer, second sentence.
+    static let deadlineFooter = "Moodle doesn't tell Kadence what you've handed in: mark a deadline done and its reminders stop."
+
+    var deadlineRule: NotificationRule? {
+        _ = revision
+        return ((try? context.fetch(FetchDescriptor<NotificationRule>())) ?? []).first { $0.kind == .deadline }
+    }
+
+    /// The early reminder: `Off` · `The day before` · `2 days before` · `3 days before`.
+    static let aheadChoices = [0, 1, 2, 3]
+    static func aheadLabel(_ days: Int) -> String {
+        switch days {
+        case 0: "Off"
+        case 1: "The day before"
+        default: "\(days) days before"
+        }
+    }
+    /// At `08:00` · `12:00` · `18:00` · `20:00`.
+    static let aheadTimeChoices = [8 * 60, 12 * 60, 18 * 60, 20 * 60]
+    static func timeLabel(_ minute: Int) -> String { String(format: "%02d:%02d", minute / 60, minute % 60) }
+    /// The final reminder: `Off` (nil) · 30 minutes · 1, 2, 3, 6 hours before.
+    static let finalChoices: [Int?] = [nil, 30, 60, 120, 180, 360]
+    static func finalLabel(_ minutes: Int?) -> String {
+        switch minutes {
+        case nil: "Off"
+        case 30?: "30 minutes before"
+        case 60?: "1 hour before"
+        case let m?: "\(m / 60) hours before"
+        }
+    }
+
+    /// The final pop-up's value: `Off` when its switch is off (the minutes kept).
+    static func finalValue(_ rule: NotificationRule) -> Int? { rule.leadEnabled ? rule.leadMinutes : nil }
+
+    func setAhead(_ days: Int, for rule: NotificationRule) {
+        guard Self.aheadChoices.contains(days), days != rule.aheadDays else { return }
+        rule.aheadDays = days
+        save()
+    }
+
+    func setAheadTime(_ minute: Int, for rule: NotificationRule) {
+        guard Self.aheadTimeChoices.contains(minute), minute != rule.aheadMinuteOfDay else { return }
+        rule.aheadMinuteOfDay = minute
+        save()
+    }
+
+    func setFinal(_ minutes: Int?, for rule: NotificationRule) {
+        guard Self.finalChoices.contains(minutes), minutes != Self.finalValue(rule) else { return }
+        if let minutes {
+            rule.leadEnabled = true
+            rule.leadMinutes = minutes
+        } else {
+            rule.leadEnabled = false
+        }
+        save()
+    }
+
+    /// With `Off` the time pop-up is disabled, not hidden, and keeps its
+    /// value; the rule's switch off disables all three.
+    static func isAheadTimeEnabled(_ rule: NotificationRule) -> Bool { rule.isEnabled && rule.aheadDays > 0 }
+
+    // §19's VoiceOver.
+    static let deadlineSwitchLabel = "Deadline notifications"
+    static let aheadAccessibilityLabel = "Early deadline reminder"
+    static let aheadTimeAccessibilityLabel = "Early deadline reminder time"
+    static let finalAccessibilityLabel = "Final deadline reminder"
+
     // §29
     static func switchLabel(_ kind: NotificationRuleKind) -> String { "\(kind.settingsLabel) notifications" }
     static func popupLabel(_ kind: NotificationRuleKind) -> String { "\(kind.settingsLabel), notify" }
@@ -172,6 +241,10 @@ struct NotificationsSettingsForm: View {
             }
             Section {
                 ForEach(model.rules, id: \.kind) { rule in
+                    // layouts.md §19: Deadlines sits after Routine, before Sync problems.
+                    if rule.kind == .syncPaused, let deadline = model.deadlineRule {
+                        DeadlineRuleRows(model: model, rule: deadline)
+                    }
                     LabeledContent {
                         HStack(spacing: Tokens.Spacing.sm) {
                             let choices = NotificationsSettingsModel.leadChoices(rule.kind)
@@ -206,10 +279,87 @@ struct NotificationsSettingsForm: View {
             } header: {
                 Text("Notify me")
             } footer: {
-                Text(NotificationsSettingsModel.footer).foregroundStyle(Tokens.Color.Text.secondary)
+                VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+                    Text(NotificationsSettingsModel.footer)
+                    Text(NotificationsSettingsModel.deadlineFooter)
+                }
+                .foregroundStyle(Tokens.Color.Text.secondary)
             }
         }
         .formStyle(.grouped)
         .id(model.revision)
+    }
+}
+
+/// layouts.md §19: the `Deadlines` row (label, second line, the rule's
+/// switch only) and its two sub-rows, indented `spacing.xl`.
+struct DeadlineRuleRows: View {
+    let model: NotificationsSettingsModel
+    let rule: NotificationRule
+
+    var body: some View {
+        LabeledContent {
+            Toggle(NotificationsSettingsModel.deadlineSwitchLabel,
+                   isOn: Binding(get: { rule.isEnabled }, set: { on in Task { await model.setEnabled(on, for: rule) } }))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .accessibilityLabel(NotificationsSettingsModel.deadlineSwitchLabel)
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(NotificationRuleKind.deadline.settingsLabel).typeStyle(.sidebarItem)
+                Text(NotificationsSettingsModel.secondLine(.deadline))
+                    .lineLimit(nil)
+                    .typeStyle(.blockMeta)
+                    .foregroundStyle(Tokens.Color.Text.secondary)
+            }
+        }
+        LabeledContent {
+            HStack(spacing: Tokens.Spacing.sm) {
+                Picker(NotificationsSettingsModel.aheadAccessibilityLabel,
+                       selection: Binding(get: { rule.aheadDays }, set: { model.setAhead($0, for: rule) })) {
+                    ForEach(NotificationsSettingsModel.aheadChoices, id: \.self) {
+                        Text(NotificationsSettingsModel.aheadLabel($0)).tag($0)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .disabled(!rule.isEnabled)
+                .accessibilityLabel(NotificationsSettingsModel.aheadAccessibilityLabel)
+                .accessibilityValue(NotificationsSettingsModel.aheadLabel(rule.aheadDays))
+                Text("at").typeStyle(.sidebarItem).foregroundStyle(Tokens.Color.Text.secondary)
+                Picker(NotificationsSettingsModel.aheadTimeAccessibilityLabel,
+                       selection: Binding(get: { rule.aheadMinuteOfDay }, set: { model.setAheadTime($0, for: rule) })) {
+                    ForEach(NotificationsSettingsModel.aheadTimeChoices, id: \.self) {
+                        Text(NotificationsSettingsModel.timeLabel($0)).tag($0)
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .disabled(!NotificationsSettingsModel.isAheadTimeEnabled(rule))
+                .accessibilityLabel(NotificationsSettingsModel.aheadTimeAccessibilityLabel)
+                .accessibilityValue(NotificationsSettingsModel.timeLabel(rule.aheadMinuteOfDay))
+            }
+            .controlSize(.small)
+        } label: {
+            Text("Early reminder").typeStyle(.sidebarItem).padding(.leading, Tokens.Spacing.xl)
+        }
+        LabeledContent {
+            Picker(NotificationsSettingsModel.finalAccessibilityLabel,
+                   selection: Binding(get: { NotificationsSettingsModel.finalValue(rule) },
+                                      set: { model.setFinal($0, for: rule) })) {
+                ForEach(NotificationsSettingsModel.finalChoices, id: \.self) {
+                    Text(NotificationsSettingsModel.finalLabel($0)).tag($0)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+            .controlSize(.small)
+            .disabled(!rule.isEnabled)
+            .accessibilityLabel(NotificationsSettingsModel.finalAccessibilityLabel)
+            .accessibilityValue(NotificationsSettingsModel.finalLabel(NotificationsSettingsModel.finalValue(rule)))
+        } label: {
+            Text("Final reminder").typeStyle(.sidebarItem).padding(.leading, Tokens.Spacing.xl)
+        }
     }
 }
