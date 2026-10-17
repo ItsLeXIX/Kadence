@@ -27,6 +27,7 @@
 		4F08464F305156FB00CEBDF4 /* Kadence.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kadence.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F084661305156FD00CEBDF4 /* KadenceTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KadenceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F08466B305156FD00CEBDF4 /* KadenceUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KadenceUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4F62A1A13083DB48007E00AC /* Kadence.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = Kadence.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +76,7 @@
 		4F084646305156FB00CEBDF4 = {
 			isa = PBXGroup;
 			children = (
+				4F62A1A13083DB48007E00AC /* Kadence.xctestplan */,
 				4F084651305156FB00CEBDF4 /* Kadence */,
 				4F084664305156FD00CEBDF4 /* KadenceTests */,
 				4F08466E305156FD00CEBDF4 /* KadenceUITests */,

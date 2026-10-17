@@ -1,0 +1,40 @@
+{
+  "configurations" : [
+    {
+      "id" : "8CDBEE33-56F6-4430-A313-AAFD86C8C9A2",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Kadence.xcodeproj",
+      "identifier" : "4F08464E305156FB00CEBDF4",
+      "name" : "Kadence"
+    },
+    "testInteropMode" : "complete"
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Kadence.xcodeproj",
+        "identifier" : "4F084660305156FD00CEBDF4",
+        "name" : "KadenceTests"
+      }
+    },
+    {
+      "enabled" : false,
+      "parallelizable" : true,
+      "target" : {
+        "containerPath" : "container:Kadence.xcodeproj",
+        "identifier" : "4F08466A305156FD00CEBDF4",
+        "name" : "KadenceUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
