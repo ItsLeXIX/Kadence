@@ -11486,3 +11486,37 @@ Plan: `design/PHASE3-SLICE3-PLAN.md` (15 tasks). One commit per green task,
   code) and the leak markers `SENTINEL`, `4711`, `authtoken`.
 - DEVIATIONS **B56** (two raw accessors, each with one user).
 - New: `MoodleFeedURLTests` (8). Tests: **1129 passed / 0 failed**.
+
+### P3S3-T03 — the `moodle` profile (components.md §35, §34.7; moodle-mocks.md M1)
+
+- `Kadence/Services/Feed/MoodleProfile.swift` (pure): `MoodleProfile.read`
+  → `MoodleFeed` (items, problems, `veventCount`, `duplicates`; deadline /
+  opening / notice counts) or `.notACalendar`. **Unfolds on bytes, then
+  decodes** (`unfold`: a break + one SP/TAB removed; the lone-TAB line
+  unfolds to nothing; BOM skipped; CRLF and LF alike). Invalid UTF-8 →
+  U+FFFD, the VEVENT kept and reported once (`{raw title} contains
+  characters Kadence couldn't read.`, `Line {l}: invalid UTF-8`). Text:
+  §35.3's unescaping (other `\x` kept as written) then the seven entity
+  forms, one left-to-right pass. `upstreamTitle`, `title`, `importKind`,
+  `momentWording` per §35.4 (prefix, then the seven suffixes in order; an
+  empty remainder is a notice). `courseCategory` as decoded; shortname,
+  `courseCode` and term per §35.5. Spans (`DTEND > DTSTART`) and all-day;
+  `DTEND` absent → a moment. Duplicate UIDs per §35.2 (a differing tie keeps
+  the lower hash, one problem; every dropped copy counts in `duplicates`).
+  Skips (no UID / no start / ends before start / never closed) use §19.3's
+  sentences with the raw title.
+- `MoodleHash`: §34.7's item hash (profile tag `moodle-1`, UID,
+  `upstreamTitle`, start, end, all-day, category, description, empty
+  location; `DTSTAMP`/`LAST-MODIFIED` not in it), the same from a stored
+  `Event`, and the feed hash over the write window.
+- `Kadence/Review/MoodleFeedCases.swift`: every M1 body built in memory from
+  a base export (`MoodleCalendarText` keeps each property's physical lines,
+  so an untouched block is byte-identical; a test proves the fixture
+  round-trips). `shift` maps the edits' dates for review (task 9). Spec
+  hole filled, not logged as a gap: M1 gives `feedBroken`'s four VEVENTs no
+  `SUMMARY`; the mock's own are `Quiz 90 closes` … `Quiz 93 closes`.
+- Found while testing: the fixture's `900005` reads `… (till Tuesday 23:59
+  in T0 + 2) ist fällig.` (German wording, folded after `2) `), so the test
+  asserts that raw title; its displayed title is §35.7's.
+- New: `MoodleProfileTests` (10), `MoodleTestSupport`. Tests: **1139 passed
+  / 0 failed**.
